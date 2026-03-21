@@ -71,6 +71,11 @@ import { InputFormat, OutputFormat } from '../output/types.js';
 import { PromptRegistry } from '../prompts/prompt-registry.js';
 import { SkillManager } from '../skills/skill-manager.js';
 import { PermissionManager } from '../permissions/permission-manager.js';
+import {
+  DEFAULT_MIN_PRUNABLE_TOKENS_THRESHOLD,
+  DEFAULT_PROTECT_LATEST_TURN,
+  DEFAULT_TOOL_PROTECTION_THRESHOLD,
+} from '../services/toolOutputMaskingService.js';
 import { SubagentManager } from '../subagents/subagent-manager.js';
 import type { SubagentConfig } from '../subagents/types.js';
 import {
@@ -83,6 +88,7 @@ import {
   StartSessionEvent,
   type TelemetryTarget,
 } from '../telemetry/index.js';
+import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 import {
   ExtensionManager,
   type Extension,
@@ -237,8 +243,8 @@ export interface ExtensionInstallMetadata {
   pluginName?: string;
 }
 
-export const DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD = 25_000;
-export const DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES = 1000;
+export const DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD = 80_000;
+export const DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES = 2000;
 
 export class MCPServerConfig {
   constructor(
@@ -270,6 +276,7 @@ export class MCPServerConfig {
     readonly targetAudience?: string,
     /* targetServiceAccount format: <service-account-name>@<project-num>.iam.gserviceaccount.com */
     readonly targetServiceAccount?: string,
+    readonly readOnlyTools?: boolean,
     // SDK MCP server type - 'sdk' indicates server runs in SDK process
     readonly type?: 'sdk',
   ) {}
@@ -291,6 +298,13 @@ export enum AuthProviderType {
 export interface SandboxConfig {
   command: 'docker' | 'podman' | 'sandbox-exec';
   image: string;
+}
+
+export interface ToolOutputMaskingConfig {
+  enabled: boolean;
+  toolProtectionThreshold: number;
+  minPrunableTokensThreshold: number;
+  protectLatestTurn: boolean;
 }
 
 /**
@@ -406,6 +420,7 @@ export interface ConfigParameters {
   skipLoopDetection?: boolean;
   truncateToolOutputThreshold?: number;
   truncateToolOutputLines?: number;
+  toolOutputMasking?: Partial<ToolOutputMaskingConfig>;
   eventEmitter?: EventEmitter;
   output?: OutputSettings;
   inputFormat?: InputFormat;
@@ -590,6 +605,7 @@ export class Config {
   private readonly fileExclusions: FileExclusions;
   private readonly truncateToolOutputThreshold: number;
   private readonly truncateToolOutputLines: number;
+  private readonly toolOutputMasking: ToolOutputMaskingConfig;
   private readonly eventEmitter?: EventEmitter;
   private readonly channel: string | undefined;
   private readonly defaultFileEncoding: FileEncodingType | undefined;
@@ -715,6 +731,18 @@ export class Config {
       DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD;
     this.truncateToolOutputLines =
       params.truncateToolOutputLines ?? DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES;
+    this.toolOutputMasking = {
+      enabled: params.toolOutputMasking?.enabled ?? true,
+      toolProtectionThreshold:
+        params.toolOutputMasking?.toolProtectionThreshold ??
+        DEFAULT_TOOL_PROTECTION_THRESHOLD,
+      minPrunableTokensThreshold:
+        params.toolOutputMasking?.minPrunableTokensThreshold ??
+        DEFAULT_MIN_PRUNABLE_TOKENS_THRESHOLD,
+      protectLatestTurn:
+        params.toolOutputMasking?.protectLatestTurn ??
+        DEFAULT_PROTECT_LATEST_TURN,
+    };
     this.channel = params.channel;
     this.defaultFileEncoding = params.defaultFileEncoding;
     this.storage = new Storage(this.targetDir);
@@ -1987,6 +2015,14 @@ export class Config {
       return Number.POSITIVE_INFINITY;
     }
 
+    const contextWindow = this.contentGeneratorConfig?.contextWindowSize;
+    const lastTokenCount = uiTelemetryService.getLastPromptTokenCount();
+    if (contextWindow && lastTokenCount > 0) {
+      const remainingTokens = contextWindow - lastTokenCount;
+      const remainingChars = Math.max(0, 4 * remainingTokens);
+      return Math.min(remainingChars, this.truncateToolOutputThreshold);
+    }
+
     return this.truncateToolOutputThreshold;
   }
 
@@ -1995,7 +2031,23 @@ export class Config {
       return Number.POSITIVE_INFINITY;
     }
 
+    const contextWindow = this.contentGeneratorConfig?.contextWindowSize;
+    const lastTokenCount = uiTelemetryService.getLastPromptTokenCount();
+    if (contextWindow && lastTokenCount > 0) {
+      const usageRatio = lastTokenCount / contextWindow;
+      const scale = Math.max(0.25, 1 - usageRatio);
+      return Math.max(500, Math.floor(this.truncateToolOutputLines * scale));
+    }
+
     return this.truncateToolOutputLines;
+  }
+
+  getToolOutputMaskingEnabled(): boolean {
+    return this.toolOutputMasking.enabled;
+  }
+
+  async getToolOutputMaskingConfig(): Promise<ToolOutputMaskingConfig> {
+    return { ...this.toolOutputMasking };
   }
 
   getOutputFormat(): OutputFormat {
