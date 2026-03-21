@@ -159,7 +159,7 @@ export class GeminiClient {
     return this.chat !== undefined;
   }
 
-  getHistory(): readonly Content[] {
+  getHistory(): Content[] {
     return this.getChat().getHistory();
   }
 
@@ -171,7 +171,7 @@ export class GeminiClient {
     this.getChat().stripOrphanedUserEntriesFromHistory();
   }
 
-  setHistory(history: readonly Content[]) {
+  setHistory(history: Content[]) {
     this.getChat().setHistory(history);
     this.forceFullIdeContext = true;
   }
