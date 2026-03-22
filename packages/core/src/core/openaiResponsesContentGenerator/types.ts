@@ -38,9 +38,10 @@ export interface ResponsesApiToolFunction {
 
 export type ResponsesApiTool = ResponsesApiToolFunction;
 
-export interface ResponsesApiTruncation {
-  type: 'auto' | 'disabled';
-}
+export type ResponsesApiTruncation =
+  | 'auto'
+  | 'disabled'
+  | { type: 'auto' | 'disabled' };
 
 export interface ResponsesApiRequest {
   model: string;

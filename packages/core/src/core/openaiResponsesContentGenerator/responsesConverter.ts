@@ -4,10 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  GenerateContentResponse,
-  FinishReason,
-} from '@google/genai';
+import { GenerateContentResponse, FinishReason } from '@google/genai';
 import type {
   GenerateContentParameters,
   Part,
@@ -35,9 +32,15 @@ import { COMPACTION_SUMMARY_PREFIX } from '../../core/prompts.js';
  */
 export class ResponsesStreamState {
   responseId: string | null = null;
-  encryptedContentItems: Array<{ type: string; id?: string; encrypted_content: string }> = [];
-  private funcCallArgs: Map<number, { id: string; name: string; args: string }> =
-    new Map();
+  encryptedContentItems: Array<{
+    type: string;
+    id?: string;
+    encrypted_content: string;
+  }> = [];
+  private funcCallArgs: Map<
+    number,
+    { id: string; name: string; args: string }
+  > = new Map();
 
   getFunctionCallBuffer(
     outputIndex: number,
@@ -232,8 +235,7 @@ function makeFinalResponse(
       candidatesTokenCount: usage.output_tokens,
       totalTokenCount: usage.total_tokens,
       thoughtsTokenCount: usage.output_tokens_details?.reasoning_tokens ?? 0,
-      cachedContentTokenCount:
-        usage.input_tokens_details?.cached_tokens ?? 0,
+      cachedContentTokenCount: usage.input_tokens_details?.cached_tokens ?? 0,
     };
   }
 
@@ -248,6 +250,12 @@ function mapFinishReason(reason: string): FinishReason {
     max_output_tokens: FinishReason.MAX_TOKENS,
   };
   return mapping[reason] ?? FinishReason.STOP;
+}
+
+function normalizeCallId(id: string): string {
+  if (id.startsWith('fc_') || id.startsWith('fc-')) return id;
+  if (id.startsWith('call_')) return 'fc_' + id.slice(5);
+  return 'fc_' + id;
 }
 
 // ── Input conversion: Gemini Content[] → Responses API input items ─────
@@ -269,7 +277,7 @@ export function convertGeminiContentsToResponsesInput(
       Array.isArray(si.parts)
     ) {
       instructions = si.parts
-        .map((p: Part) => (typeof p === 'string' ? p : p.text ?? ''))
+        .map((p: Part) => (typeof p === 'string' ? p : (p.text ?? '')))
         .join('\n');
     }
   }
@@ -288,7 +296,7 @@ export function convertGeminiContentsToResponsesInput(
       items.push({
         type: 'message',
         role: 'user',
-        content: content,
+        content,
       } as ResponsesApiMessageItem);
       continue;
     }
@@ -312,9 +320,7 @@ export function convertGeminiContentsToResponsesInput(
 
       if ('text' in part && part.text) {
         if (part.text.startsWith(COMPACTION_SUMMARY_PREFIX + '\n')) {
-          const jsonStr = part.text.slice(
-            COMPACTION_SUMMARY_PREFIX.length + 1,
-          );
+          const jsonStr = part.text.slice(COMPACTION_SUMMARY_PREFIX.length + 1);
           try {
             const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
             if (
@@ -336,8 +342,9 @@ export function convertGeminiContentsToResponsesInput(
       }
 
       if ('functionCall' in part && part.functionCall) {
-        const callId =
+        const rawId =
           part.functionCall.id ?? `call_${Date.now()}_${callIdCounter++}`;
+        const callId = normalizeCallId(rawId);
         items.push({
           type: 'function_call',
           id: callId,
@@ -357,7 +364,7 @@ export function convertGeminiContentsToResponsesInput(
         }
         items.push({
           type: 'function_call_output',
-          call_id: fr.id ?? '',
+          call_id: normalizeCallId(fr.id ?? ''),
           output,
         } as ResponsesApiFunctionCallOutputItem);
       }
