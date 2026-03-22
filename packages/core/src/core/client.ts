@@ -229,6 +229,12 @@ export class GeminiClient {
   async startChat(extraHistory?: Content[]): Promise<GeminiChat> {
     this.forceFullIdeContext = true;
     this.hasFailedCompressionAttempt = false;
+    try {
+      const { resetJitContextState } = await import('../tools/jit-context.js');
+      resetJitContextState();
+    } catch {
+      // JIT context module may not exist in all builds
+    }
 
     const history = await getInitialChatHistory(this.config, extraHistory);
 

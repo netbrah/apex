@@ -172,8 +172,10 @@ export class ResponsesCompactionClient {
       request.text = { verbosity: this.config.verbosity };
     }
 
-    const baseUrl = this.config.baseUrl ?? 'https://api.openai.com';
-    const url = `${baseUrl.replace(/\/$/, '')}/v1/responses/compact`;
+    const baseUrl = (this.config.baseUrl ?? 'https://api.openai.com')
+      .replace(/\/v1\/?$/, '')
+      .replace(/\/$/, '');
+    const url = `${baseUrl}/v1/responses/compact`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

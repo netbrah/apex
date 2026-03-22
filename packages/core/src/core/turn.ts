@@ -402,21 +402,17 @@ export class Turn {
   }
 
   getResponseText(): string {
-    if (
-      this.cachedResponseText === undefined ||
-      this.cachedResponseText === '' ||
-      this.finishReason === undefined
-    ) {
-      const text = this.debugResponses
-        .map((response) => getResponseText(response))
-        .filter((t): t is string => t !== null)
-        .join(' ');
-      if (this.finishReason !== undefined) {
-        this.cachedResponseText = text;
-      }
-      return text;
+    if (this.cachedResponseText !== undefined) {
+      return this.cachedResponseText;
     }
-    return this.cachedResponseText;
+    const text = this.debugResponses
+      .map((response) => getResponseText(response))
+      .filter((t): t is string => t !== null)
+      .join(' ');
+    if (this.finishReason !== undefined) {
+      this.cachedResponseText = text;
+    }
+    return text;
   }
 }
 

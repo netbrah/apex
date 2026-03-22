@@ -733,7 +733,7 @@ export class Config {
     this.truncateToolOutputLines =
       params.truncateToolOutputLines ?? DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES;
     this.toolOutputMasking = {
-      enabled: params.toolOutputMasking?.enabled ?? true,
+      enabled: params.toolOutputMasking?.enabled ?? false,
       toolProtectionThreshold:
         params.toolOutputMasking?.toolProtectionThreshold ??
         DEFAULT_TOOL_PROTECTION_THRESHOLD,

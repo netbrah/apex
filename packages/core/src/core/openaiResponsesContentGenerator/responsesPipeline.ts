@@ -52,13 +52,24 @@ export class ResponsesPipeline {
     userPromptId: string,
     signal?: AbortSignal,
   ): AsyncGenerator<GenerateContentResponse> {
-    const apiRequest = this.buildRequest(request, userPromptId);
+    const savedEncrypted = [...this.state.pendingEncryptedItems];
+    const fullInputLength = this.computeFullInputLength(request);
+    let activeRequest = this.buildRequest(request, userPromptId);
     const streamState = new ResponsesStreamState();
+    let yieldedAny = false;
 
     try {
-      yield* this.streamRequest(apiRequest, streamState, signal);
+      for await (const chunk of this.streamRequest(
+        activeRequest,
+        streamState,
+        signal,
+      )) {
+        yieldedAny = true;
+        yield chunk;
+      }
     } catch (error) {
       if (
+        !yieldedAny &&
         this.state.lastResponseId &&
         isResponseExpiredError(error)
       ) {
@@ -67,9 +78,10 @@ export class ResponsesPipeline {
         );
         this.state.lastResponseId = null;
         this.state.lastInputItemCount = 0;
-        const retryRequest = this.buildRequest(request, userPromptId);
+        this.state.pendingEncryptedItems = [...savedEncrypted];
+        activeRequest = this.buildRequest(request, userPromptId);
         streamState.reset();
-        yield* this.streamRequest(retryRequest, streamState, signal);
+        yield* this.streamRequest(activeRequest, streamState, signal);
       } else {
         throw error;
       }
@@ -77,14 +89,20 @@ export class ResponsesPipeline {
 
     if (streamState.responseId) {
       this.state.lastResponseId = streamState.responseId;
-      this.state.lastInputItemCount =
-        (apiRequest.input?.length ?? 0);
+      this.state.lastInputItemCount = fullInputLength;
     }
     if (streamState.encryptedContentItems.length > 0) {
       this.state.pendingEncryptedItems.push(
         ...streamState.encryptedContentItems,
       );
     }
+  }
+
+  private computeFullInputLength(
+    request: GenerateContentParameters,
+  ): number {
+    const { input } = convertGeminiContentsToResponsesInput(request);
+    return input.length + this.state.pendingEncryptedItems.length;
   }
 
   async execute(
@@ -139,7 +157,7 @@ export class ResponsesPipeline {
       parallel_tool_calls: true,
       truncation: { type: 'auto' },
       stream: true,
-      store: (this.config as unknown as Record<string, unknown>)['storeResponses'] !== false,
+      store: true,
       prompt_cache_key: userPromptId,
     };
 
@@ -211,8 +229,10 @@ export class ResponsesPipeline {
     streamState: ResponsesStreamState,
     signal?: AbortSignal,
   ): AsyncGenerator<GenerateContentResponse> {
-    const baseUrl = this.config.baseUrl ?? 'https://api.openai.com';
-    const url = `${baseUrl.replace(/\/$/, '')}/v1/responses`;
+    const baseUrl = (this.config.baseUrl ?? 'https://api.openai.com')
+      .replace(/\/v1\/?$/, '')
+      .replace(/\/$/, '');
+    const url = `${baseUrl}/v1/responses`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -367,28 +387,27 @@ export function mergeStreamResponses(
     (c) => c.candidates?.[0]?.content?.parts ?? [],
   );
 
-  const merged = new GenerateContentResponse();
-  const last = chunks[chunks.length - 1]!;
-  Object.assign(merged, last);
-
   const usageChunk = [...chunks].reverse().find((c) => c.usageMetadata);
-  if (usageChunk?.usageMetadata) {
-    merged.usageMetadata = usageChunk.usageMetadata;
-  }
-
   const finishChunk = [...chunks]
     .reverse()
     .find((c) => c.candidates?.[0]?.finishReason);
   const finishReason = finishChunk?.candidates?.[0]?.finishReason;
 
-  if (merged.candidates?.[0]) {
-    merged.candidates = [
-      {
-        ...merged.candidates[0],
-        content: { parts: allParts, role: 'model' as const },
-        ...(finishReason ? { finishReason } : {}),
-      },
-    ];
+  const merged = new GenerateContentResponse();
+  merged.responseId = chunks.find((c) => c.responseId)?.responseId;
+  merged.modelVersion = chunks[0]?.modelVersion;
+  merged.createTime = chunks[0]?.createTime;
+  if (usageChunk?.usageMetadata) {
+    merged.usageMetadata = usageChunk.usageMetadata;
   }
+
+  merged.candidates = [
+    {
+      content: { parts: allParts, role: 'model' as const },
+      index: 0,
+      safetyRatings: [],
+      ...(finishReason ? { finishReason } : {}),
+    },
+  ];
   return merged;
 }

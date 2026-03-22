@@ -56,7 +56,11 @@ function estimateFunctionResponseTokens(part: Part, depth: number): number {
   if (typeof response === 'string') {
     totalTokens += response.length / 4;
   } else if (response !== undefined && response !== null) {
-    totalTokens += JSON.stringify(response).length / 4;
+    try {
+      totalTokens += JSON.stringify(response).length / 4;
+    } catch {
+      totalTokens += String(response).length / 4;
+    }
   }
 
   const nestedParts = (fr as unknown as { parts?: Part[] }).parts;
@@ -86,7 +90,11 @@ export function estimateTokenCountSync(
       if (mediaEstimate !== undefined) {
         totalTokens += mediaEstimate;
       } else {
-        totalTokens += JSON.stringify(part).length / 4;
+        try {
+          totalTokens += JSON.stringify(part).length / 4;
+        } catch {
+          totalTokens += 100;
+        }
       }
     }
   }
