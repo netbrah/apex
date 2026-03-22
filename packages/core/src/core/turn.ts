@@ -228,6 +228,7 @@ export class Turn {
   private pendingCitations = new Set<string>();
   finishReason: FinishReason | undefined = undefined;
   private currentResponseId?: string;
+  private cachedResponseText: string | undefined = undefined;
 
   constructor(
     private readonly chat: GeminiChat,
@@ -398,6 +399,24 @@ export class Turn {
 
   getDebugResponses(): GenerateContentResponse[] {
     return this.debugResponses;
+  }
+
+  getResponseText(): string {
+    if (
+      this.cachedResponseText === undefined ||
+      this.cachedResponseText === '' ||
+      this.finishReason === undefined
+    ) {
+      const text = this.debugResponses
+        .map((response) => getResponseText(response))
+        .filter((t): t is string => t !== null)
+        .join(' ');
+      if (this.finishReason !== undefined) {
+        this.cachedResponseText = text;
+      }
+      return text;
+    }
+    return this.cachedResponseText;
   }
 }
 
