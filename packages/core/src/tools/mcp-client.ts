@@ -30,6 +30,10 @@ import { GoogleCredentialProvider } from '../mcp/google-auth-provider.js';
 import { ServiceAccountImpersonationProvider } from '../mcp/sa-impersonation-provider.js';
 import { DiscoveredMCPTool } from './mcp-tool.js';
 import type { McpToolAnnotations } from './mcp-tool.js';
+import { SdkControlClientTransport } from './sdk-control-client-transport.js';
+
+import type { FunctionDeclaration } from '@google/genai';
+import { mcpToTool } from '@google/genai';
 
 function resolvedMcpToolAnnotations(
   mcpServerConfig: MCPServerConfig,
@@ -43,10 +47,6 @@ function resolvedMcpToolAnnotations(
   }
   return { ...fromListTools, readOnlyHint: true };
 }
-import { SdkControlClientTransport } from './sdk-control-client-transport.js';
-
-import type { FunctionDeclaration } from '@google/genai';
-import { mcpToTool } from '@google/genai';
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { MCPOAuthProvider } from '../mcp/oauth-provider.js';

@@ -875,7 +875,7 @@
             "enabled": {
               "description": "Enables tool output masking to save tokens.",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "toolProtectionThreshold": {
               "description": "Token budget of the newest tool outputs to keep unmasked.",

@@ -40,14 +40,7 @@ def load_local(path: Path) -> dict[str, Any]:
         return json.load(f)
 
 
-def remote_cat_cmd(remote_path: str) -> list[str]:
-    """argv after ssh host ..."""
-    # SSH expands ~ automatically, so just quote the path
-    return [remote_path]
-
-
 def load_remote(host: str, remote_path: str) -> dict[str, Any]:
-    # Use cat directly - SSH expands ~ automatically
     r = run_ssh(host, "cat", remote_path)
     if r.returncode != 0:
         print(
@@ -167,7 +160,7 @@ chmod 600 {dest_quoted} 2>/dev/null || true
 echo "Updated {dest_abs}"
 """
         if not dest_abs:
-            print(f"ERROR: dest_abs is empty after expansion. stdout was: {repr(expand_r.stdout)}", file=sys.stderr)
+            print(f"ERROR: dest_abs is empty for remote path '{args.remote_path}'", file=sys.stderr)
             sys.exit(1)
         mv = run_ssh(args.ssh_host, "bash", "-c", remote_script)
         if mv.returncode != 0:

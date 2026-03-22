@@ -73,9 +73,13 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
 
   const version = manifest.version || '0.0.0';
   const safeVersion = getSafeName(version);
-  const userInfo = osMod.userInfo();
-  const username =
-    userInfo.username || processEnv.USER || processUid || 'unknown';
+  let username;
+  try {
+    username = osMod.userInfo().username;
+  } catch {
+    username = undefined;
+  }
+  username = username || processEnv.USER || processUid || 'unknown';
   const safeUsername = getSafeName(username);
 
   const tempBase = osMod.tmpdir();

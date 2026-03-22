@@ -1602,7 +1602,7 @@ const SETTINGS_SCHEMA = {
             label: 'Enable Tool Output Masking',
             category: 'Experimental',
             requiresRestart: true,
-            default: true,
+            default: false,
             description: 'Enables tool output masking to save tokens.',
             showInDialog: false,
           },

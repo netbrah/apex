@@ -294,7 +294,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
           if (typeof fileReadResult.llmContent === 'string') {
             const separator = DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
               '{filePath}',
-              filePath,
+              relativePathForDisplay,
             );
             let fileContentForLlm = '';
             if (fileReadResult.isTruncated) {

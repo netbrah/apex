@@ -425,5 +425,26 @@ describe('ResponsesPipeline', () => {
         text: 'lo',
       });
     });
+
+    it('should preserve usageMetadata from non-last chunk', () => {
+      const chunk1 = new GenerateContentResponse();
+      chunk1.candidates = [
+        { content: { parts: [{ text: 'hi' }], role: 'model' } },
+      ] as GenerateContentResponse['candidates'];
+      chunk1.usageMetadata = {
+        promptTokenCount: 100,
+        candidatesTokenCount: 50,
+        totalTokenCount: 150,
+      };
+
+      const chunk2 = new GenerateContentResponse();
+      chunk2.candidates = [
+        { content: { parts: [], role: 'model' } },
+      ] as GenerateContentResponse['candidates'];
+
+      const result = mergeStreamResponses([chunk1, chunk2]);
+      expect(result.usageMetadata?.promptTokenCount).toBe(100);
+      expect(result.usageMetadata?.candidatesTokenCount).toBe(50);
+    });
   });
 });

@@ -27,6 +27,7 @@ import type {
   ResponsesApiTool,
   ResponsesApiContentPart,
 } from './types.js';
+import { COMPACTION_SUMMARY_PREFIX } from '../../core/prompts.js';
 
 /**
  * Tracks accumulated state for a single streaming response from the
@@ -46,7 +47,7 @@ export class ResponsesStreamState {
 
   initFunctionCall(
     outputIndex: number,
-    id: string,
+    _id: string,
     callId: string,
     name: string,
   ): void {
@@ -256,6 +257,7 @@ export function convertGeminiContentsToResponsesInput(
 ): { instructions: string | undefined; input: ResponsesApiInputItem[] } {
   let instructions: string | undefined;
   const items: ResponsesApiInputItem[] = [];
+  let callIdCounter = 0;
 
   if (request.config?.systemInstruction) {
     const si = request.config.systemInstruction;
@@ -309,6 +311,23 @@ export function convertGeminiContentsToResponsesInput(
       }
 
       if ('text' in part && part.text) {
+        if (part.text.startsWith(COMPACTION_SUMMARY_PREFIX + '\n')) {
+          const jsonStr = part.text.slice(
+            COMPACTION_SUMMARY_PREFIX.length + 1,
+          );
+          try {
+            const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+            if (
+              parsed['type'] === 'compaction' ||
+              parsed['type'] === 'reasoning'
+            ) {
+              items.push(parsed as unknown as ResponsesApiInputItem);
+              continue;
+            }
+          } catch {
+            // Not valid JSON — fall through to normal text message
+          }
+        }
         items.push({
           type: 'message',
           role,
@@ -317,7 +336,8 @@ export function convertGeminiContentsToResponsesInput(
       }
 
       if ('functionCall' in part && part.functionCall) {
-        const callId = part.functionCall.id ?? `call_${Date.now()}`;
+        const callId =
+          part.functionCall.id ?? `call_${Date.now()}_${callIdCounter++}`;
         items.push({
           type: 'function_call',
           id: callId,

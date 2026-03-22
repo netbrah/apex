@@ -836,7 +836,7 @@ export function isQwenWorktree(
 ): boolean {
   try {
     const realDir = fsSync.realpathSync(dirPath);
-    const worktreesBase = path.join(Storage.getGlobalTempDir(), WORKTREES_DIR);
+    const worktreesBase = path.join(Storage.getGlobalQwenDir(), WORKTREES_DIR);
     const realWorktrees = fsSync.realpathSync(worktreesBase);
     const relative = path.relative(realWorktrees, realDir);
     return !relative.startsWith('..');
