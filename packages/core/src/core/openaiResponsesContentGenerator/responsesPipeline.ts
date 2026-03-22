@@ -30,7 +30,11 @@ const debugLogger = createDebugLogger('RESPONSES_PIPELINE');
 export interface ResponsesPipelineState {
   lastResponseId: string | null;
   lastInputItemCount: number;
-  pendingEncryptedItems: Array<{ type: string; id?: string; encrypted_content: string }>;
+  pendingEncryptedItems: Array<{
+    type: string;
+    id?: string;
+    encrypted_content: string;
+  }>;
 }
 
 export class ResponsesPipeline {
@@ -98,9 +102,7 @@ export class ResponsesPipeline {
     }
   }
 
-  private computeFullInputLength(
-    request: GenerateContentParameters,
-  ): number {
+  private computeFullInputLength(request: GenerateContentParameters): number {
     const { input } = convertGeminiContentsToResponsesInput(request);
     return input.length + this.state.pendingEncryptedItems.length;
   }
@@ -111,7 +113,11 @@ export class ResponsesPipeline {
     signal?: AbortSignal,
   ): Promise<GenerateContentResponse> {
     const chunks: GenerateContentResponse[] = [];
-    for await (const chunk of this.executeStream(request, userPromptId, signal)) {
+    for await (const chunk of this.executeStream(
+      request,
+      userPromptId,
+      signal,
+    )) {
       chunks.push(chunk);
     }
     return mergeStreamResponses(chunks);
@@ -155,9 +161,8 @@ export class ResponsesPipeline {
       tools,
       tool_choice: 'auto',
       parallel_tool_calls: true,
-      truncation: { type: 'auto' },
+      truncation: 'auto',
       stream: true,
-      store: true,
       prompt_cache_key: userPromptId,
     };
 
@@ -305,11 +310,54 @@ export class ResponsesPipeline {
           if (line.startsWith('event: ')) {
             currentEventType = line.slice(7).trim() as ResponsesSSEEventType;
             dataAccumulator = '';
-          } else if (line.startsWith('data: ')) {
-            dataAccumulator += (dataAccumulator ? '\n' : '') + line.slice(6);
-          } else if (line.trim() === '' && currentEventType && dataAccumulator) {
+            continue;
+          }
+
+          if (line.startsWith('data: ')) {
+            const dataContent = line.slice(6);
+            if (dataContent === '[DONE]') continue;
+
+            if (currentEventType) {
+              dataAccumulator += (dataAccumulator ? '\n' : '') + dataContent;
+            } else {
+              try {
+                const data = JSON.parse(dataContent) as Record<string, unknown>;
+                const eventType = data['type'] as
+                  | ResponsesSSEEventType
+                  | undefined;
+                if (eventType) {
+                  const sseEvent: ResponsesSSEEvent = {
+                    event: eventType,
+                    data,
+                  };
+                  const geminiResp = convertResponsesEventToGemini(
+                    sseEvent,
+                    this.config.model,
+                    streamState,
+                  );
+                  if (geminiResp) {
+                    yield geminiResp;
+                  }
+                }
+              } catch (err) {
+                if (err instanceof SyntaxError) {
+                  debugLogger.debug(
+                    `Failed to parse SSE data: ${dataContent.substring(0, 200)}`,
+                  );
+                } else {
+                  throw err;
+                }
+              }
+            }
+            continue;
+          }
+
+          if (line.trim() === '' && currentEventType && dataAccumulator) {
             try {
-              const data = JSON.parse(dataAccumulator) as Record<string, unknown>;
+              const data = JSON.parse(dataAccumulator) as Record<
+                string,
+                unknown
+              >;
               const sseEvent: ResponsesSSEEvent = {
                 event: currentEventType,
                 data,
@@ -324,7 +372,9 @@ export class ResponsesPipeline {
               }
             } catch (err) {
               if (err instanceof SyntaxError) {
-                debugLogger.debug(`Failed to parse SSE data: ${dataAccumulator.substring(0, 200)}`);
+                debugLogger.debug(
+                  `Failed to parse SSE data: ${dataAccumulator.substring(0, 200)}`,
+                );
               } else {
                 throw err;
               }
