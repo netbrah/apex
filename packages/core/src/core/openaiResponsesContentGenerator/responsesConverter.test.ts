@@ -24,14 +24,24 @@ describe('ResponsesConverter', () => {
   });
 
   describe('convertResponsesEventToGemini', () => {
-    it('should store responseId on response.created', () => {
+    it('should store responseId on response.created (nested envelope)', () => {
       const event: ResponsesSSEEvent = {
         event: 'response.created',
-        data: { id: 'resp_abc123' },
+        data: { response: { id: 'resp_abc123' } },
       };
       const result = convertResponsesEventToGemini(event, model, state);
       expect(result).toBeNull();
       expect(state.responseId).toBe('resp_abc123');
+    });
+
+    it('should store responseId on response.created (flat fallback)', () => {
+      const event: ResponsesSSEEvent = {
+        event: 'response.created',
+        data: { id: 'resp_flat' },
+      };
+      const result = convertResponsesEventToGemini(event, model, state);
+      expect(result).toBeNull();
+      expect(state.responseId).toBe('resp_flat');
     });
 
     it('should return null for response.in_progress', () => {
@@ -124,19 +134,21 @@ describe('ResponsesConverter', () => {
       expect(fc.args).toEqual({ path: 'test.ts' });
     });
 
-    it('should handle response.completed with usage', () => {
+    it('should handle response.completed with usage (nested envelope)', () => {
       state.responseId = 'resp_final';
       const event: ResponsesSSEEvent = {
         event: 'response.completed',
         data: {
-          id: 'resp_final',
-          status: 'completed',
-          usage: {
-            input_tokens: 100,
-            output_tokens: 50,
-            total_tokens: 150,
-            output_tokens_details: { reasoning_tokens: 10 },
-            input_tokens_details: { cached_tokens: 20 },
+          response: {
+            id: 'resp_final',
+            status: 'completed',
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              total_tokens: 150,
+              output_tokens_details: { reasoning_tokens: 10 },
+              input_tokens_details: { cached_tokens: 20 },
+            },
           },
         },
       };
@@ -150,14 +162,18 @@ describe('ResponsesConverter', () => {
       expect(result!.candidates?.[0]?.finishReason).toBe(FinishReason.STOP);
     });
 
-    it('should throw on response.failed', () => {
+    it('should throw on response.failed (nested envelope)', () => {
       const event: ResponsesSSEEvent = {
         event: 'response.failed',
-        data: { error: { code: 'rate_limit', message: 'Too many requests' } },
+        data: {
+          response: {
+            error: { code: 'rate_limit', message: 'Too many requests' },
+          },
+        },
       };
-      expect(() =>
-        convertResponsesEventToGemini(event, model, state),
-      ).toThrow('rate_limit');
+      expect(() => convertResponsesEventToGemini(event, model, state)).toThrow(
+        'rate_limit',
+      );
     });
 
     it('should return null for unknown events', () => {
@@ -186,9 +202,9 @@ describe('ResponsesConverter', () => {
         event: 'error',
         data: { message: 'server_error: internal failure' },
       };
-      expect(() =>
-        convertResponsesEventToGemini(event, model, state),
-      ).toThrow('server_error: internal failure');
+      expect(() => convertResponsesEventToGemini(event, model, state)).toThrow(
+        'server_error: internal failure',
+      );
     });
 
     it('should return null for output_item.done with non-function-call item', () => {
@@ -307,12 +323,24 @@ describe('ResponsesConverter', () => {
 
       expect(done0).not.toBeNull();
       expect(done1).not.toBeNull();
-      const fc0 = (done0!.candidates?.[0]?.content?.parts?.[0] as {
-        functionCall: { id: string; name: string; args: Record<string, unknown> };
-      }).functionCall;
-      const fc1 = (done1!.candidates?.[0]?.content?.parts?.[0] as {
-        functionCall: { id: string; name: string; args: Record<string, unknown> };
-      }).functionCall;
+      const fc0 = (
+        done0!.candidates?.[0]?.content?.parts?.[0] as {
+          functionCall: {
+            id: string;
+            name: string;
+            args: Record<string, unknown>;
+          };
+        }
+      ).functionCall;
+      const fc1 = (
+        done1!.candidates?.[0]?.content?.parts?.[0] as {
+          functionCall: {
+            id: string;
+            name: string;
+            args: Record<string, unknown>;
+          };
+        }
+      ).functionCall;
       expect(fc0.name).toBe('read_file');
       expect(fc0.id).toBe('call_0');
       expect(fc1.name).toBe('write_file');
@@ -326,34 +354,26 @@ describe('ResponsesConverter', () => {
         event: 'response.incomplete',
         data: {},
       };
-      const incResult = convertResponsesEventToGemini(
-        incomplete,
-        model,
-        state,
-      );
+      const incResult = convertResponsesEventToGemini(incomplete, model, state);
       expect(incResult!.candidates?.[0]?.finishReason).toBe(
         FinishReason.MAX_TOKENS,
       );
 
       const completed: ResponsesSSEEvent = {
         event: 'response.completed',
-        data: { id: 'resp_done', status: 'completed' },
+        data: { response: { id: 'resp_done', status: 'completed' } },
       };
-      const compResult = convertResponsesEventToGemini(
-        completed,
-        model,
-        state,
-      );
-      expect(compResult!.candidates?.[0]?.finishReason).toBe(
-        FinishReason.STOP,
-      );
+      const compResult = convertResponsesEventToGemini(completed, model, state);
+      expect(compResult!.candidates?.[0]?.finishReason).toBe(FinishReason.STOP);
     });
 
     it('should omit usageMetadata when response.completed has no usage', () => {
       state.responseId = 'resp_no_usage';
       const event: ResponsesSSEEvent = {
         event: 'response.completed',
-        data: { id: 'resp_no_usage', status: 'completed' },
+        data: {
+          response: { id: 'resp_no_usage', status: 'completed' },
+        },
       };
       const result = convertResponsesEventToGemini(event, model, state);
       expect(result).not.toBeNull();
@@ -364,11 +384,11 @@ describe('ResponsesConverter', () => {
     it('should throw on response.failed without error object', () => {
       const event: ResponsesSSEEvent = {
         event: 'response.failed',
-        data: {},
+        data: { response: {} },
       };
-      expect(() =>
-        convertResponsesEventToGemini(event, model, state),
-      ).toThrow('Response failed');
+      expect(() => convertResponsesEventToGemini(event, model, state)).toThrow(
+        'Response failed',
+      );
     });
 
     it('should store encrypted_content on output_item.done for reasoning type', () => {
@@ -391,6 +411,7 @@ describe('ResponsesConverter', () => {
         type: 'reasoning',
         id: 'rs_enc',
         encrypted_content: 'enc_abc123',
+        summary: [],
       });
     });
   });
@@ -492,8 +513,7 @@ describe('ResponsesConverter', () => {
           },
         },
       } as unknown as GenerateContentParameters;
-      const { instructions } =
-        convertGeminiContentsToResponsesInput(request);
+      const { instructions } = convertGeminiContentsToResponsesInput(request);
       expect(instructions).toBe('Be concise.\nBe accurate.');
     });
 
@@ -528,7 +548,11 @@ describe('ResponsesConverter', () => {
       } as unknown as GenerateContentParameters;
       const { input } = convertGeminiContentsToResponsesInput(request);
       expect(input).toHaveLength(1);
-      const msg = input[0] as { type: string; role: string; content: unknown[] };
+      const msg = input[0] as {
+        type: string;
+        role: string;
+        content: unknown[];
+      };
       expect(msg.type).toBe('message');
       expect(msg.role).toBe('user');
       expect(msg.content).toEqual([
