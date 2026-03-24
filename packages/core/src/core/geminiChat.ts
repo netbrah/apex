@@ -668,10 +668,15 @@ export class GeminiChat {
             lastPromptTokenCount,
           );
         }
+        const svc = this.telemetryService ?? uiTelemetryService;
+        if (usageMetadata.candidatesTokenCount) {
+          svc.setLastOutputTokenCount(usageMetadata.candidatesTokenCount);
+        }
+        if (usageMetadata.toolUsePromptTokenCount) {
+          svc.setLastToolTokenCount(usageMetadata.toolUsePromptTokenCount);
+        }
         if (usageMetadata.cachedContentTokenCount) {
-          (
-            this.telemetryService ?? uiTelemetryService
-          ).setLastCachedContentTokenCount(
+          svc.setLastCachedContentTokenCount(
             usageMetadata.cachedContentTokenCount,
           );
         }

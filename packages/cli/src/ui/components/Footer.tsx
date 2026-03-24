@@ -24,8 +24,17 @@ export const Footer: React.FC = () => {
   const config = useConfig();
   const { vimEnabled, vimMode } = useVimMode();
 
-  const { promptTokenCount, showAutoAcceptIndicator } = {
+  const {
+    promptTokenCount,
+    outputTokenCount,
+    toolTokenCount,
+    cachedTokenCount,
+    showAutoAcceptIndicator,
+  } = {
     promptTokenCount: uiState.sessionStats.lastPromptTokenCount,
+    outputTokenCount: uiState.sessionStats.lastOutputTokenCount,
+    toolTokenCount: uiState.sessionStats.lastToolTokenCount,
+    cachedTokenCount: uiState.sessionStats.lastCachedContentTokenCount,
     showAutoAcceptIndicator: uiState.showAutoAcceptIndicator,
   };
 
@@ -86,6 +95,9 @@ export const Footer: React.FC = () => {
         <Text color={theme.text.accent}>
           <ContextUsageDisplay
             promptTokenCount={promptTokenCount}
+            outputTokenCount={outputTokenCount}
+            toolTokenCount={toolTokenCount}
+            cachedTokenCount={cachedTokenCount}
             terminalWidth={terminalWidth}
             contextWindowSize={contextWindowSize}
           />
