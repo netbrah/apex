@@ -158,7 +158,11 @@ const distPackageJson = {
     'locales',
     'bundled',
     'apex',
+    'postinstall.js',
   ],
+  scripts: {
+    postinstall: 'node postinstall.js',
+  },
   publishConfig: {
     registry: 'https://npm.repo.eng.netapp.com/',
   },
@@ -186,6 +190,13 @@ fs.writeFileSync(
   path.join(distDir, 'package.json'),
   JSON.stringify(distPackageJson, null, 2) + '\n',
 );
+
+// Copy postinstall script (downloads MCP server binaries)
+const postinstallSrc = path.join(rootDir, 'scripts', 'postinstall-apex.js');
+if (fs.existsSync(postinstallSrc)) {
+  fs.copyFileSync(postinstallSrc, path.join(distDir, 'postinstall.js'));
+  console.log('Copied postinstall.js');
+}
 
 // Write .npmrc for NetApp internal registry
 fs.writeFileSync(
