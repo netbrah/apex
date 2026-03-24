@@ -1098,11 +1098,10 @@ export default {
   'You must select an auth method to proceed. Press Ctrl+C again to exit.':
     '您必须选择认证方法才能继续。再次按 Ctrl+C 退出',
   'Terms of Services and Privacy Notice': '服务条款和隐私声明',
-  'Qwen OAuth': 'Qwen OAuth (免费)',
+  'Qwen OAuth': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
-    '免费 \u00B7 每天最多 1,000 次请求 \u00B7 Qwen 最新模型',
-  'Login with QwenChat account to use daily free quota.':
-    '使用 QwenChat 账号登录，享受每日免费额度。',
+    '免费 \u00B7 每天最多 1,000 次请求 \u00B7 已配置模型',
+  'Login with QwenChat account to use daily free quota.': '使用 OAuth 登录',
   'Paid \u00B7 Up to 6,000 requests/5 hrs \u00B7 All Alibaba Cloud Coding Plan Models':
     '付费 \u00B7 每 5 小时最多 6,000 次请求 \u00B7 支持阿里云百炼 Coding Plan 全部模型',
   'Alibaba Cloud Coding Plan': '阿里云百炼 Coding Plan',
@@ -1114,24 +1113,24 @@ export default {
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     '认证方式被强制设置为 {{enforcedType}}，但您当前使用的是 {{currentType}}',
   'Qwen OAuth authentication timed out. Please try again.':
-    'Qwen OAuth 认证超时。请重试',
-  'Qwen OAuth authentication cancelled.': 'Qwen OAuth 认证已取消',
-  'Qwen OAuth Authentication': 'Qwen OAuth 认证',
+    'OAuth 认证超时。请重试',
+  'Qwen OAuth authentication cancelled.': 'OAuth 认证已取消',
+  'Qwen OAuth Authentication': 'OAuth 认证',
   'Please visit this URL to authorize:': '请访问此 URL 进行授权：',
   'Or scan the QR code below:': '或扫描下方的二维码：',
   'Waiting for authorization': '等待授权中',
   'Time remaining:': '剩余时间：',
   '(Press ESC or CTRL+C to cancel)': '（按 ESC 或 CTRL+C 取消）',
-  'Qwen OAuth Authentication Timeout': 'Qwen OAuth 认证超时',
+  'Qwen OAuth Authentication Timeout': 'OAuth 认证超时',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'OAuth 令牌已过期（超过 {{seconds}} 秒）。请重新选择认证方法',
   'Press any key to return to authentication type selection.':
     '按任意键返回认证类型选择',
-  'Waiting for Qwen OAuth authentication...': '正在等待 Qwen OAuth 认证...',
+  'Waiting for Qwen OAuth authentication...': '正在等待 OAuth 认证...',
   'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
-    '注意：使用 Qwen OAuth 时，settings.json 中现有的 API 密钥不会被清除。如果需要，您可以稍后切换回 OpenAI 认证。',
+    '注意：使用 OAuth 时，settings.json 中现有的 API 密钥不会被清除。如果需要，您可以稍后切换回 OpenAI 认证。',
   'Note: Your existing API key will not be cleared when using Qwen OAuth.':
-    '注意：使用 Qwen OAuth 时，现有的 API 密钥不会被清除。',
+    '注意：使用 OAuth 时，现有的 API 密钥不会被清除。',
   'Authentication timed out. Please try again.': '认证超时。请重试。',
   'Waiting for auth... (Press ESC or CTRL+C to cancel)':
     '正在等待认证...（按 ESC 或 CTRL+C 取消）',
@@ -1623,18 +1622,18 @@ export default {
   // Commands - Auth
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
-    '使用 Qwen OAuth 或阿里云百炼 Coding Plan 配置 Qwen 认证信息',
-  'Authenticate using Qwen OAuth': '使用 Qwen OAuth 进行认证',
+    '使用 OAuth 或阿里云百炼 Coding Plan 配置认证信息',
+  'Authenticate using Qwen OAuth': '使用 OAuth 进行认证',
   'Authenticate using Alibaba Cloud Coding Plan':
     '使用阿里云百炼 Coding Plan 进行认证',
   'Region for Coding Plan (china/global)': 'Coding Plan 区域 (china/global)',
   'API key for Coding Plan': 'Coding Plan 的 API 密钥',
   'Show current authentication status': '显示当前认证状态',
   'Authentication completed successfully.': '认证完成。',
-  'Starting Qwen OAuth authentication...': '正在启动 Qwen OAuth 认证...',
-  'Successfully authenticated with Qwen OAuth.': '已成功通过 Qwen OAuth 认证。',
+  'Starting Qwen OAuth authentication...': '正在启动 OAuth 认证...',
+  'Successfully authenticated with Qwen OAuth.': '已成功通过 OAuth 认证。',
   'Failed to authenticate with Qwen OAuth: {{error}}':
-    'Qwen OAuth 认证失败：{{error}}',
+    'OAuth 认证失败：{{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     '正在处理阿里云百炼 Coding Plan 认证...',
   'Successfully authenticated with Alibaba Cloud Coding Plan.':
@@ -1653,16 +1652,16 @@ export default {
   'Run one of the following commands to get started:\n':
     '运行以下命令之一开始配置：\n',
   '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  apex auth qwen-oauth     - 使用 Qwen OAuth 认证（免费）',
+    '  apex auth qwen-oauth     - 使用 OAuth 认证（免费）',
   '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
     '  apex auth coding-plan      - 使用阿里云百炼 Coding Plan 认证\n',
   'Or simply run:': '或者直接运行：',
   '  apex auth                - Interactive authentication setup\n':
     '  apex auth                - 交互式认证配置\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ 认证方式：Qwen OAuth',
+  '✓ Authentication Method: Qwen OAuth': '✓ 认证方式：OAuth',
   '  Type: Free tier': '  类型：免费版',
   '  Limit: Up to 1,000 requests/day': '  限额：每天最多 1,000 次请求',
-  '  Models: Qwen latest models\n': '  模型：Qwen 最新模型\n',
+  '  Models: Qwen latest models\n': '  模型：已配置模型\n',
   '✓ Authentication Method: Alibaba Cloud Coding Plan':
     '✓ 认证方式：阿里云百炼 Coding Plan',
   '中国 (China) - 阿里云百炼': '中国 (China) - 阿里云百炼',

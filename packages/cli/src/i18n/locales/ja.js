@@ -831,11 +831,10 @@ export default {
   'You must select an auth method to proceed. Press Ctrl+C again to exit.':
     '続行するには認証方法を選択してください。Ctrl+C をもう一度押すと終了します',
   'Terms of Services and Privacy Notice': '利用規約とプライバシー通知',
-  'Qwen OAuth': 'Qwen OAuth',
+  'Qwen OAuth': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
-    '無料 \u00B7 1日最大1,000リクエスト \u00B7 Qwen最新モデル',
-  'Login with QwenChat account to use daily free quota.':
-    'QwenChatアカウントでログインして、毎日の無料クォータをご利用ください。',
+    '無料 \u00B7 1日最大1,000リクエスト \u00B7 設定済みモデル',
+  'Login with QwenChat account to use daily free quota.': 'OAuthでログイン',
   'Paid \u00B7 Up to 6,000 requests/5 hrs \u00B7 All Alibaba Cloud Coding Plan Models':
     '有料 \u00B7 5時間最大6,000リクエスト \u00B7 すべての Alibaba Cloud Coding Plan モデル',
   'Alibaba Cloud Coding Plan': 'Alibaba Cloud Coding Plan',
@@ -849,26 +848,25 @@ export default {
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     '認証は {{enforcedType}} に強制されていますが、現在 {{currentType}} を使用しています',
   'Qwen OAuth authentication timed out. Please try again.':
-    'Qwen OAuth認証がタイムアウトしました。再度お試しください',
-  'Qwen OAuth authentication cancelled.':
-    'Qwen OAuth認証がキャンセルされました',
-  'Qwen OAuth Authentication': 'Qwen OAuth認証',
+    'OAuth認証がタイムアウトしました。再度お試しください',
+  'Qwen OAuth authentication cancelled.': 'OAuth認証がキャンセルされました',
+  'Qwen OAuth Authentication': 'OAuth認証',
   'Please visit this URL to authorize:':
     '認証するには以下のURLにアクセスしてください:',
   'Or scan the QR code below:': 'または以下のQRコードをスキャン:',
   'Waiting for authorization': '認証を待っています',
   'Time remaining:': '残り時間:',
   '(Press ESC or CTRL+C to cancel)': '(ESC または CTRL+C でキャンセル)',
-  'Qwen OAuth Authentication Timeout': 'Qwen OAuth認証タイムアウト',
+  'Qwen OAuth Authentication Timeout': 'OAuth認証タイムアウト',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'OAuthトークンが期限切れです({{seconds}}秒以上)。認証方法を再度選択してください',
   'Press any key to return to authentication type selection.':
     '認証タイプ選択に戻るには任意のキーを押してください',
-  'Waiting for Qwen OAuth authentication...': 'Qwen OAuth認証を待っています...',
+  'Waiting for Qwen OAuth authentication...': 'OAuth認証を待っています...',
   'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
-    '注: Qwen OAuthを使用しても、settings.json内の既存のAPIキーはクリアされません。必要に応じて後でOpenAI認証に切り替えることができます',
+    '注: OAuthを使用しても、settings.json内の既存のAPIキーはクリアされません。必要に応じて後でOpenAI認証に切り替えることができます',
   'Note: Your existing API key will not be cleared when using Qwen OAuth.':
-    '注: Qwen OAuthを使用しても、既存のAPIキーはクリアされません。',
+    '注: OAuthを使用しても、既存のAPIキーはクリアされません。',
   'Authentication timed out. Please try again.':
     '認証がタイムアウトしました。再度お試しください',
   'Waiting for auth... (Press ESC or CTRL+C to cancel)':
@@ -1262,8 +1260,8 @@ export default {
   // Commands - Auth
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
-    'Qwen-OAuth または Alibaba Cloud Coding Plan で Qwen 認証情報を設定する',
-  'Authenticate using Qwen OAuth': 'Qwen OAuth で認証する',
+    'OAuth または Alibaba Cloud Coding Plan で認証情報を設定する',
+  'Authenticate using Qwen OAuth': 'OAuth で認証する',
   'Authenticate using Alibaba Cloud Coding Plan':
     'Alibaba Cloud Coding Plan で認証する',
   'Region for Coding Plan (china/global)':
@@ -1271,11 +1269,11 @@ export default {
   'API key for Coding Plan': 'Coding Plan の API キー',
   'Show current authentication status': '現在の認証ステータスを表示',
   'Authentication completed successfully.': '認証が正常に完了しました。',
-  'Starting Qwen OAuth authentication...': 'Qwen OAuth 認証を開始しています...',
+  'Starting Qwen OAuth authentication...': 'OAuth 認証を開始しています...',
   'Successfully authenticated with Qwen OAuth.':
-    'Qwen OAuth での認証に成功しました。',
+    'OAuth での認証に成功しました。',
   'Failed to authenticate with Qwen OAuth: {{error}}':
-    'Qwen OAuth での認証に失敗しました: {{error}}',
+    'OAuth での認証に失敗しました: {{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     'Alibaba Cloud Coding Plan 認証を処理しています...',
   'Successfully authenticated with Alibaba Cloud Coding Plan.':
@@ -1296,16 +1294,16 @@ export default {
   'Run one of the following commands to get started:\n':
     '以下のコマンドのいずれかを実行して開始してください:\n',
   '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  apex auth qwen-oauth     - Qwen OAuth で認証（無料）',
+    '  apex auth qwen-oauth     - OAuth で認証（無料）',
   '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
     '  apex auth coding-plan      - Alibaba Cloud Coding Plan で認証\n',
   'Or simply run:': 'または以下を実行:',
   '  apex auth                - Interactive authentication setup\n':
     '  apex auth                - インタラクティブ認証セットアップ\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ 認証方法: Qwen OAuth',
+  '✓ Authentication Method: Qwen OAuth': '✓ 認証方法: OAuth',
   '  Type: Free tier': '  タイプ: 無料プラン',
   '  Limit: Up to 1,000 requests/day': '  制限: 1日最大1,000リクエスト',
-  '  Models: Qwen latest models\n': '  モデル: Qwen 最新モデル\n',
+  '  Models: Qwen latest models\n': '  モデル: 設定済みモデル\n',
   '✓ Authentication Method: Alibaba Cloud Coding Plan':
     '✓ 認証方法: Alibaba Cloud Coding Plan',
   '中国 (China) - 阿里云百炼': '中国 (China) - 阿里云百炼',

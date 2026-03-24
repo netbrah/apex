@@ -1112,11 +1112,10 @@ export default {
     'Você deve selecionar um método de autenticação para prosseguir. Pressione Ctrl+C novamente para sair.',
   'Terms of Services and Privacy Notice':
     'Termos de Serviço e Aviso de Privacidade',
-  'Qwen OAuth': 'Qwen OAuth',
+  'Qwen OAuth': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
-    'Gratuito \u00B7 Até 1.000 solicitações/dia \u00B7 Modelos Qwen mais recentes',
-  'Login with QwenChat account to use daily free quota.':
-    'Faça login com sua conta QwenChat para usar a cota gratuita diária.',
+    'Gratuito \u00B7 Até 1.000 solicitações/dia \u00B7 Modelos configurados',
+  'Login with QwenChat account to use daily free quota.': 'Login com OAuth',
   'Paid \u00B7 Up to 6,000 requests/5 hrs \u00B7 All Alibaba Cloud Coding Plan Models':
     'Pago \u00B7 Até 6.000 solicitações/5 hrs \u00B7 Todos os modelos Alibaba Cloud Coding Plan',
   'Alibaba Cloud Coding Plan': 'Alibaba Cloud Coding Plan',
@@ -1130,26 +1129,25 @@ export default {
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     'A autenticação é forçada para {{enforcedType}}, mas você está usando {{currentType}} no momento.',
   'Qwen OAuth authentication timed out. Please try again.':
-    'A autenticação Qwen OAuth expirou. Tente novamente.',
-  'Qwen OAuth authentication cancelled.': 'Autenticação Qwen OAuth cancelada.',
-  'Qwen OAuth Authentication': 'Autenticação Qwen OAuth',
+    'A autenticação OAuth expirou. Tente novamente.',
+  'Qwen OAuth authentication cancelled.': 'Autenticação OAuth cancelada.',
+  'Qwen OAuth Authentication': 'Autenticação OAuth',
   'Please visit this URL to authorize:': 'Visite esta URL para autorizar:',
   'Or scan the QR code below:': 'Ou escaneie o código QR abaixo:',
   'Waiting for authorization': 'Aguardando autorização',
   'Time remaining:': 'Tempo restante:',
   '(Press ESC or CTRL+C to cancel)': '(Pressione ESC ou CTRL+C para cancelar)',
-  'Qwen OAuth Authentication Timeout':
-    'Tempo Limite de Autenticação Qwen OAuth',
+  'Qwen OAuth Authentication Timeout': 'Tempo Limite de Autenticação OAuth',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'Token OAuth expirado (mais de {{seconds}} segundos). Selecione o método de autenticação novamente.',
   'Press any key to return to authentication type selection.':
     'Pressione qualquer tecla para retornar à seleção do tipo de autenticação.',
   'Waiting for Qwen OAuth authentication...':
-    'Aguardando autenticação Qwen OAuth...',
+    'Aguardando autenticação OAuth...',
   'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
-    'Nota: Sua chave de API existente no settings.json não será limpa ao usar o Qwen OAuth. Você pode voltar para a autenticação do OpenAI mais tarde, se necessário.',
+    'Nota: Sua chave de API existente no settings.json não será limpa ao usar OAuth. Você pode voltar para a autenticação do OpenAI mais tarde, se necessário.',
   'Note: Your existing API key will not be cleared when using Qwen OAuth.':
-    'Nota: Sua chave de API existente não será limpa ao usar o Qwen OAuth.',
+    'Nota: Sua chave de API existente não será limpa ao usar OAuth.',
   'Authentication timed out. Please try again.':
     'A autenticação expirou. Tente novamente.',
   'Waiting for auth... (Press ESC or CTRL+C to cancel)':
@@ -1754,8 +1752,8 @@ export default {
   // Commands - Auth
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
-    'Configurar autenticação Qwen com Qwen-OAuth ou Alibaba Cloud Coding Plan',
-  'Authenticate using Qwen OAuth': 'Autenticar usando Qwen OAuth',
+    'Configurar autenticação com OAuth ou Alibaba Cloud Coding Plan',
+  'Authenticate using Qwen OAuth': 'Autenticar usando OAuth',
   'Authenticate using Alibaba Cloud Coding Plan':
     'Autenticar usando Alibaba Cloud Coding Plan',
   'Region for Coding Plan (china/global)':
@@ -1764,12 +1762,11 @@ export default {
   'Show current authentication status': 'Mostrar status atual de autenticação',
   'Authentication completed successfully.':
     'Autenticação concluída com sucesso.',
-  'Starting Qwen OAuth authentication...':
-    'Iniciando autenticação Qwen OAuth...',
+  'Starting Qwen OAuth authentication...': 'Iniciando autenticação OAuth...',
   'Successfully authenticated with Qwen OAuth.':
-    'Autenticado com sucesso via Qwen OAuth.',
+    'Autenticado com sucesso via OAuth.',
   'Failed to authenticate with Qwen OAuth: {{error}}':
-    'Falha ao autenticar com Qwen OAuth: {{error}}',
+    'Falha ao autenticar com OAuth: {{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     'Processando autenticação Alibaba Cloud Coding Plan...',
   'Successfully authenticated with Alibaba Cloud Coding Plan.':
@@ -1790,16 +1787,16 @@ export default {
   'Run one of the following commands to get started:\n':
     'Execute um dos seguintes comandos para começar:\n',
   '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  apex auth qwen-oauth     - Autenticar com Qwen OAuth (gratuito)',
+    '  apex auth qwen-oauth     - Autenticar com OAuth (gratuito)',
   '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
     '  apex auth coding-plan      - Autenticar com Alibaba Cloud Coding Plan\n',
   'Or simply run:': 'Ou simplesmente execute:',
   '  apex auth                - Interactive authentication setup\n':
     '  apex auth                - Configuração interativa de autenticação\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ Método de autenticação: Qwen OAuth',
+  '✓ Authentication Method: Qwen OAuth': '✓ Método de autenticação: OAuth',
   '  Type: Free tier': '  Tipo: Gratuito',
   '  Limit: Up to 1,000 requests/day': '  Limite: Até 1.000 solicitações/dia',
-  '  Models: Qwen latest models\n': '  Modelos: Modelos Qwen mais recentes\n',
+  '  Models: Qwen latest models\n': '  Modelos: Modelos configurados\n',
   '✓ Authentication Method: Alibaba Cloud Coding Plan':
     '✓ Método de autenticação: Alibaba Cloud Coding Plan',
   '中国 (China) - 阿里云百炼': '中国 (China) - 阿里云百炼',
