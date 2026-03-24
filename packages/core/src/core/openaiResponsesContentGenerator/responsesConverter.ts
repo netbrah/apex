@@ -36,6 +36,7 @@ export class ResponsesStreamState {
     type: string;
     id?: string;
     encrypted_content: string;
+    summary?: Array<{ type: string; text: string }>;
   }> = [];
   private funcCallArgs: Map<
     number,
@@ -147,13 +148,14 @@ export function convertResponsesEventToGemini(
         }
       }
       if (data.item.type === 'reasoning') {
-        const ec = (data.item as ResponsesApiOutputReasoningSummary)
-          .encrypted_content;
+        const reasoningItem = data.item as ResponsesApiOutputReasoningSummary;
+        const ec = reasoningItem.encrypted_content;
         if (ec) {
           state.encryptedContentItems.push({
             type: 'reasoning',
             id: data.item.id,
             encrypted_content: ec,
+            summary: reasoningItem.summary ?? [],
           });
         }
       }
@@ -252,12 +254,6 @@ function mapFinishReason(reason: string): FinishReason {
   return mapping[reason] ?? FinishReason.STOP;
 }
 
-function normalizeCallId(id: string): string {
-  if (id.startsWith('fc_') || id.startsWith('fc-')) return id;
-  if (id.startsWith('call_')) return 'fc_' + id.slice(5);
-  return 'fc_' + id;
-}
-
 // ── Input conversion: Gemini Content[] → Responses API input items ─────
 
 export function convertGeminiContentsToResponsesInput(
@@ -342,12 +338,10 @@ export function convertGeminiContentsToResponsesInput(
       }
 
       if ('functionCall' in part && part.functionCall) {
-        const rawId =
+        const callId =
           part.functionCall.id ?? `call_${Date.now()}_${callIdCounter++}`;
-        const callId = normalizeCallId(rawId);
         items.push({
           type: 'function_call',
-          id: callId,
           call_id: callId,
           name: part.functionCall.name ?? '',
           arguments: JSON.stringify(part.functionCall.args ?? {}),
@@ -364,7 +358,7 @@ export function convertGeminiContentsToResponsesInput(
         }
         items.push({
           type: 'function_call_output',
-          call_id: normalizeCallId(fr.id ?? ''),
+          call_id: fr.id ?? '',
           output,
         } as ResponsesApiFunctionCallOutputItem);
       }
