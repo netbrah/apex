@@ -79,6 +79,7 @@ export interface ResponsesApiReasoningItem {
   type: 'reasoning';
   id: string;
   encrypted_content: string;
+  summary: Array<{ type: string; text: string }>;
 }
 
 export interface ResponsesApiCompactionItem {
@@ -109,7 +110,6 @@ export interface ResponsesApiImagePart {
 
 export interface ResponsesApiFunctionCallItem {
   type: 'function_call';
-  id: string;
   call_id: string;
   name: string;
   arguments: string;

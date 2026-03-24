@@ -96,3 +96,6 @@ CONTAP-*.md
 RCAs/
 AGENT-PROMPTS.md
 CONTRIBUTION-ROADMAP.md
+
+# ONTAP work directories
+bsd_net/

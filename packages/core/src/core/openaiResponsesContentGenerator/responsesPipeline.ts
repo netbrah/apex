@@ -24,6 +24,10 @@ import {
 } from './responsesConverter.js';
 import { buildRuntimeFetchOptions } from '../../utils/runtimeFetchOptions.js';
 import { createDebugLogger } from '../../utils/debugLogger.js';
+// TODO(phase3-websocket): Uncomment when proxy WS PR #1530 lands
+// import type { ResponsesWebSocketManager } from './responsesWebSocketManager.js';
+// import type { ResponsesWsEvent } from './wsTypes.js';
+// import { isUpgradeRequiredError, isRetryableWsError } from './wsTypes.js';
 
 const debugLogger = createDebugLogger('RESPONSES_PIPELINE');
 
@@ -34,6 +38,7 @@ export interface ResponsesPipelineState {
     type: string;
     id?: string;
     encrypted_content: string;
+    summary?: Array<{ type: string; text: string }>;
   }>;
 }
 
@@ -45,10 +50,15 @@ export class ResponsesPipeline {
     lastInputItemCount: 0,
     pendingEncryptedItems: [],
   };
+  // TODO(phase3-websocket): Uncomment when proxy WS PR #1530 lands
+  // private readonly wsManager: ResponsesWebSocketManager | null;
+  // private httpFallback: boolean = false;
 
   constructor(config: ContentGeneratorConfig, cliConfig: Config) {
     this.config = config;
     this.cliConfig = cliConfig;
+    // TODO(phase3-websocket): Init WS manager when responsesTransport !== 'http'
+    // this.wsManager = wsManager ?? null;
   }
 
   async *executeStream(
@@ -61,6 +71,29 @@ export class ResponsesPipeline {
     let activeRequest = this.buildRequest(request, userPromptId);
     const streamState = new ResponsesStreamState();
     let yieldedAny = false;
+
+    // TODO(phase3-websocket): Uncomment to enable WS transport with HTTP fallback.
+    // When proxy WS PR #1530 lands, this tries WebSocket first. If upgrade fails
+    // (426) or retries exhaust, permanently falls back to HTTP SSE for the session.
+    // The wsManager is built in responsesWebSocketManager.ts (already tested, dormant).
+    //
+    // if (this.wsManager?.isWebSocketEnabled() && !this.httpFallback) {
+    //   try {
+    //     yield* this.streamViaWebSocket(activeRequest, streamState, signal);
+    //     this.postStreamUpdate(streamState, fullInputLength);
+    //     return;
+    //   } catch (e) {
+    //     if (isUpgradeRequiredError(e)) {
+    //       this.httpFallback = true;
+    //       // Fall through to HTTP SSE below
+    //     } else if (isRetryableWsError(e)) {
+    //       this.httpFallback = true;
+    //       // Fall through to HTTP SSE below
+    //     } else {
+    //       throw e;
+    //     }
+    //   }
+    // }
 
     try {
       for await (const chunk of this.streamRequest(
@@ -131,25 +164,14 @@ export class ResponsesPipeline {
       convertGeminiContentsToResponsesInput(request);
     const tools = convertGeminiToolsToResponsesTools(request);
 
-    if (this.state.pendingEncryptedItems.length > 0) {
-      for (const item of this.state.pendingEncryptedItems) {
-        input.push(item as ResponsesApiInputItem);
-      }
-      this.state.pendingEncryptedItems = [];
-    }
+    // NOTE: encrypted_content replay and previous_response_id are disabled
+    // because the LLM proxy load-balances across Azure deployments with
+    // different API keys. Encrypted content from deployment A can't be
+    // decrypted by deployment B. These features require sticky routing
+    // (store: true + single deployment) or WebSocket transport.
+    this.state.pendingEncryptedItems = [];
 
-    let effectiveInput: ResponsesApiInputItem[];
-    let previousResponseId: string | undefined;
-
-    if (
-      this.state.lastResponseId &&
-      input.length > this.state.lastInputItemCount
-    ) {
-      previousResponseId = this.state.lastResponseId;
-      effectiveInput = input.slice(this.state.lastInputItemCount);
-    } else {
-      effectiveInput = input;
-    }
+    const effectiveInput: ResponsesApiInputItem[] = input;
 
     const reasoning = this.buildReasoning();
     const text = this.buildTextControls();
@@ -166,13 +188,8 @@ export class ResponsesPipeline {
       prompt_cache_key: userPromptId,
     };
 
-    if (previousResponseId) {
-      apiRequest.previous_response_id = previousResponseId;
-    }
-
     if (reasoning) {
       apiRequest.reasoning = reasoning;
-      apiRequest.include = ['reasoning.encrypted_content'];
     }
 
     if (text) {
@@ -401,7 +418,46 @@ export class ResponsesPipeline {
     this.state.lastResponseId = null;
     this.state.lastInputItemCount = 0;
     this.state.pendingEncryptedItems = [];
+    // TODO(phase3-websocket): Reset WS prefix chain after compaction
+    // this.wsManager?.resetAfterCompaction();
   }
+
+  // TODO(phase3-websocket): Uncomment — streams via WebSocket, converts WS JSON
+  // frames through the same convertResponsesEventToGemini() converter as HTTP SSE.
+  // The WS events use identical types, just different framing (raw JSON vs data: lines).
+  //
+  // private async *streamViaWebSocket(
+  //   apiRequest: ResponsesApiRequest,
+  //   streamState: ResponsesStreamState,
+  //   signal?: AbortSignal,
+  // ): AsyncGenerator<GenerateContentResponse> {
+  //   const model = this.config.model;
+  //   for await (const wsEvent of this.wsManager!.streamViaWebSocket(
+  //     apiRequest,
+  //     this.state.lastResponseId,
+  //     signal,
+  //   )) {
+  //     const sseEvent: ResponsesSSEEvent = {
+  //       event: wsEvent.type as ResponsesSSEEventType,
+  //       data: wsEvent as Record<string, unknown>,
+  //     };
+  //     const converted = convertResponsesEventToGemini(sseEvent, model, streamState);
+  //     if (converted) yield converted;
+  //   }
+  // }
+  //
+  // private postStreamUpdate(
+  //   streamState: ResponsesStreamState,
+  //   fullInputLength: number,
+  // ): void {
+  //   if (streamState.responseId) {
+  //     this.state.lastResponseId = streamState.responseId;
+  //     this.state.lastInputItemCount = fullInputLength;
+  //   }
+  //   if (streamState.encryptedContentItems.length > 0) {
+  //     this.state.pendingEncryptedItems.push(...streamState.encryptedContentItems);
+  //   }
+  // }
 }
 
 interface ResponsesApiError extends Error {
