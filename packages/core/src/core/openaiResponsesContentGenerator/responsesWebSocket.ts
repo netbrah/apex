@@ -74,12 +74,16 @@ export class ResponsesWebSocket {
       });
 
       ws.on('upgrade', (response) => {
+        const h = response.headers;
+        const str = (v: string | string[] | undefined): string | null => {
+          if (Array.isArray(v)) return v[0] ?? null;
+          return v ?? null;
+        };
         this.upgradeHeaders = {
-          serverReasoningIncluded:
-            response.headers['x-reasoning-included'] === 'true',
-          serverModel: response.headers['openai-model'] ?? null,
-          modelsEtag: response.headers['x-models-etag'] ?? null,
-          turnState: response.headers['x-codex-turn-state'] ?? null,
+          serverReasoningIncluded: str(h['x-reasoning-included']) === 'true',
+          serverModel: str(h['openai-model']),
+          modelsEtag: str(h['x-models-etag']),
+          turnState: str(h['x-codex-turn-state']),
         };
       });
 
@@ -152,7 +156,7 @@ export class ResponsesWebSocket {
           }
 
           const event: ResponsesWsEvent = {
-            type: parsed.type as ResponsesWsEvent['type'],
+            type: parsed['type'] as ResponsesWsEvent['type'],
             ...parsed,
           };
           yield event;
