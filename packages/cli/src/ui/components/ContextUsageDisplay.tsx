@@ -9,10 +9,16 @@ import { theme } from '../semantic-colors.js';
 
 export const ContextUsageDisplay = ({
   promptTokenCount,
+  outputTokenCount = 0,
+  toolTokenCount = 0,
+  cachedTokenCount = 0,
   terminalWidth,
   contextWindowSize,
 }: {
   promptTokenCount: number;
+  outputTokenCount?: number;
+  toolTokenCount?: number;
+  cachedTokenCount?: number;
   terminalWidth: number;
   contextWindowSize: number;
 }) => {
@@ -38,6 +44,26 @@ export const ContextUsageDisplay = ({
 
   const used = formatTokens(promptTokenCount);
   const total = formatTokens(contextWindowSize);
+
+  const hasBreakdown = outputTokenCount > 0 || toolTokenCount > 0;
+
+  if (terminalWidth >= 100 && hasBreakdown) {
+    const parts: string[] = [];
+    const inputTokens = promptTokenCount - outputTokenCount - toolTokenCount;
+    if (inputTokens > 0) parts.push(`in:${formatTokens(inputTokens)}`);
+    if (outputTokenCount > 0)
+      parts.push(`out:${formatTokens(outputTokenCount)}`);
+    if (toolTokenCount > 0) parts.push(`tool:${formatTokens(toolTokenCount)}`);
+    if (cachedTokenCount > 0)
+      parts.push(`cache:${formatTokens(cachedTokenCount)}`);
+    const breakdown = parts.join(' ');
+
+    return (
+      <Text color={color}>
+        {used}/{total} tokens ({percentageUsed}% used) | {breakdown}
+      </Text>
+    );
+  }
 
   if (terminalWidth < 80) {
     return (
