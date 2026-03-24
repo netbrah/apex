@@ -16,8 +16,11 @@ import { isNarrowWidth } from '../utils/isNarrowWidth.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useVimMode } from '../contexts/VimModeContext.js';
-import { ApprovalMode } from '@qwen-code/qwen-code-core';
+import { ApprovalMode, AuthType } from '@qwen-code/qwen-code-core';
 import { t } from '../../i18n/index.js';
+
+const DEFAULT_COMPRESSION_THRESHOLD = 0.7;
+const RESPONSES_COMPRESSION_THRESHOLD = 0.9;
 
 export const Footer: React.FC = () => {
   const uiState = useUIState();
@@ -54,8 +57,18 @@ export const Footer: React.FC = () => {
   // Check if debug mode is enabled
   const debugMode = config.getDebugMode();
 
-  const contextWindowSize =
-    config.getContentGeneratorConfig()?.contextWindowSize;
+  const generatorConfig = config.getContentGeneratorConfig();
+  const contextWindowSize = generatorConfig?.contextWindowSize;
+
+  const compactionThreshold = (() => {
+    if (!contextWindowSize) return undefined;
+    const userThreshold =
+      config.getChatCompression()?.contextPercentageThreshold;
+    if (userThreshold != null) return userThreshold;
+    return generatorConfig?.authType === AuthType.USE_OPENAI_RESPONSES
+      ? RESPONSES_COMPRESSION_THRESHOLD
+      : DEFAULT_COMPRESSION_THRESHOLD;
+  })();
 
   // Left section should show exactly ONE thing at any time, in priority order.
   const leftContent = uiState.ctrlCPressedOnce ? (
@@ -100,6 +113,7 @@ export const Footer: React.FC = () => {
             cachedTokenCount={cachedTokenCount}
             terminalWidth={terminalWidth}
             contextWindowSize={contextWindowSize}
+            compactionThreshold={compactionThreshold}
           />
         </Text>
       ),

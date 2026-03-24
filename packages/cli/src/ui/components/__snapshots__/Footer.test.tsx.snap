@@ -2,4 +2,4 @@
 
 exports[`<Footer /> > footer rendering (golden snapshots) > renders complete footer on narrow terminal > complete-footer-narrow 1`] = `"  ? for shortcuts                                                                100/131.1K (0.1%)"`;
 
-exports[`<Footer /> > footer rendering (golden snapshots) > renders complete footer on wide terminal > complete-footer-wide 1`] = `"  ? for shortcuts                                            100/131.1K tokens (0.1% context used)"`;
+exports[`<Footer /> > footer rendering (golden snapshots) > renders complete footer on wide terminal > complete-footer-wide 1`] = `"  ? for shortcuts              100/131.1K tokens (0.1% used) | in:100 | compact@91.8K (91.7K left)"`;
