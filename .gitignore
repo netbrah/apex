@@ -87,7 +87,11 @@ storybook-static
 # SEA binary build artifacts
 .bin/*
 !.bin/.gitkeep
+!.bin/ontap-apex
 sea-config.json
+
+# APEX overlay assets (baked into SEA binary at build time)
+apex-assets/
 
 # Local scratch files
 *.md.bak

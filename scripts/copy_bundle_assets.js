@@ -72,6 +72,27 @@ if (existsSync(bundledSkillsDir)) {
   );
 }
 
+// Copy APEX overlay assets (skills, persona, settings) if present.
+// These get baked into the SEA binary so they're not exposed as plaintext.
+const apexAssetsDir = join(root, 'apex-assets');
+if (existsSync(apexAssetsDir)) {
+  const apexSkillsDir = join(apexAssetsDir, 'skills');
+  if (existsSync(apexSkillsDir)) {
+    const destBundled = join(distDir, 'bundled');
+    copyRecursiveSync(apexSkillsDir, destBundled);
+    console.log('Copied APEX skills to dist/bundled/');
+  }
+  const apexDestDir = join(distDir, 'apex');
+  mkdirSync(apexDestDir, { recursive: true });
+  for (const file of ['APEX.md', 'settings.json']) {
+    const src = join(apexAssetsDir, file);
+    if (existsSync(src)) {
+      copyFileSync(src, join(apexDestDir, file));
+      console.log(`Copied ${file} to dist/apex/`);
+    }
+  }
+}
+
 console.log('\n✅ All bundle assets copied to dist/');
 
 /**

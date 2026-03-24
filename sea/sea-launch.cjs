@@ -185,6 +185,44 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   return runtimeDir;
 }
 
+function resolveEnvVars(obj) {
+  if (typeof obj === 'string' && obj.startsWith('$')) {
+    return process.env[obj.slice(1)] || '';
+  }
+  if (Array.isArray(obj)) return obj.map(resolveEnvVars);
+  if (obj !== null && typeof obj === 'object') {
+    for (const k of Object.keys(obj)) {
+      obj[k] = resolveEnvVars(obj[k]);
+    }
+  }
+  return obj;
+}
+
+function deployApexAssets(runtimeDir) {
+  const configHome = process.env.QWEN_CODE_HOME;
+  if (!configHome) return;
+
+  const apexDir = path.join(runtimeDir, 'apex');
+  if (!fs.existsSync(apexDir)) return;
+
+  fs.mkdirSync(configHome, { recursive: true });
+
+  const apexMd = path.join(apexDir, 'APEX.md');
+  if (fs.existsSync(apexMd)) {
+    fs.copyFileSync(apexMd, path.join(configHome, 'APEX.md'));
+  }
+
+  const settingsSrc = path.join(apexDir, 'settings.json');
+  if (fs.existsSync(settingsSrc)) {
+    const settings = JSON.parse(fs.readFileSync(settingsSrc, 'utf8'));
+    resolveEnvVars(settings.mcpServers || {});
+    fs.writeFileSync(
+      path.join(configHome, 'settings.json'),
+      JSON.stringify(settings, null, 2),
+    );
+  }
+}
+
 async function main(getAssetFn = getAsset) {
   process.env.IS_BINARY = 'true';
 
@@ -212,6 +250,9 @@ async function main(getAssetFn = getAsset) {
     crypto,
   });
 
+  // Deploy embedded APEX assets to QWEN_CODE_HOME if present
+  deployApexAssets(runtimeDir);
+
   const mainPath = path.join(runtimeDir, 'cli.mjs');
 
   await import(pathToFileURL(mainPath).href).catch((err) => {
@@ -233,5 +274,7 @@ module.exports = {
   getSafeName,
   verifyIntegrity,
   prepareRuntime,
+  resolveEnvVars,
+  deployApexAssets,
   main,
 };

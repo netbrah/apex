@@ -127,6 +127,25 @@ if (existsSync(bundledDir)) {
   console.log(`Embedded ${bundledFiles.length} bundled skill files.`);
 }
 
+// Embed APEX persona assets (agent instructions, settings) if present
+const apexDir = join(distDir, 'apex');
+if (existsSync(apexDir)) {
+  const apexFiles = globSync('**/*', { cwd: apexDir, nodir: true });
+  for (const af of apexFiles) {
+    const fsPath = join(apexDir, af);
+    const relPath = join('apex', af);
+    const assetKey = `files:${relPath}`;
+    const content = readFileSync(fsPath);
+    assets[assetKey] = fsPath;
+    manifest.files.push({
+      key: assetKey,
+      path: relPath,
+      hash: sha256(content),
+    });
+  }
+  console.log(`Embedded ${apexFiles.length} APEX asset files.`);
+}
+
 // Write manifest
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`Configured ${Object.keys(assets).length} embedded assets.`);
