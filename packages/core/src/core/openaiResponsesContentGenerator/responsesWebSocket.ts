@@ -234,11 +234,18 @@ export class ResponsesWebSocket {
       const ws = this.ws;
       this.ws = null;
       return new Promise<void>((resolve) => {
-        ws.on('close', () => resolve());
+        let resolved = false;
+        const done = () => {
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        };
+        ws.on('close', done);
         ws.close(1000, 'Client closing');
         setTimeout(() => {
           ws.terminate();
-          resolve();
+          done();
         }, 3000);
       });
     }
