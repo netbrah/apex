@@ -23,12 +23,26 @@ export const ContextUsageDisplay = ({
   const percentage = promptTokenCount / contextWindowSize;
   const percentageUsed = (percentage * 100).toFixed(1);
 
-  const label = terminalWidth < 100 ? '% used' : '% context used';
+  const formatTokens = (n: number): string => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return `${n}`;
+  };
+
+  const used = formatTokens(promptTokenCount);
+  const total = formatTokens(contextWindowSize);
+
+  if (terminalWidth < 80) {
+    return (
+      <Text color={theme.text.secondary}>
+        {used}/{total} ({percentageUsed}%)
+      </Text>
+    );
+  }
 
   return (
     <Text color={theme.text.secondary}>
-      {percentageUsed}
-      {label}
+      {used}/{total} tokens ({percentageUsed}% context used)
     </Text>
   );
 };
