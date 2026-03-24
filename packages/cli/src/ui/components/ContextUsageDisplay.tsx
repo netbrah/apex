@@ -14,6 +14,7 @@ export const ContextUsageDisplay = ({
   cachedTokenCount = 0,
   terminalWidth,
   contextWindowSize,
+  compactionThreshold,
 }: {
   promptTokenCount: number;
   outputTokenCount?: number;
@@ -21,6 +22,7 @@ export const ContextUsageDisplay = ({
   cachedTokenCount?: number;
   terminalWidth: number;
   contextWindowSize: number;
+  compactionThreshold?: number;
 }) => {
   if (promptTokenCount === 0) {
     return null;
@@ -47,7 +49,19 @@ export const ContextUsageDisplay = ({
 
   const hasBreakdown = outputTokenCount > 0 || toolTokenCount > 0;
 
-  if (terminalWidth >= 100 && hasBreakdown) {
+  let compactIndicator = '';
+  if (compactionThreshold && compactionThreshold > 0) {
+    const thresholdTokens = Math.floor(compactionThreshold * contextWindowSize);
+    const tokensLeft = thresholdTokens - promptTokenCount;
+    const compactLabel = `compact@${formatTokens(thresholdTokens)}`;
+    if (tokensLeft <= 0) {
+      compactIndicator = compactLabel;
+    } else {
+      compactIndicator = `${compactLabel} (${formatTokens(tokensLeft)} left)`;
+    }
+  }
+
+  if (terminalWidth >= 100 && (hasBreakdown || compactIndicator)) {
     const parts: string[] = [];
     const inputTokens = promptTokenCount - outputTokenCount - toolTokenCount;
     if (inputTokens > 0) parts.push(`in:${formatTokens(inputTokens)}`);
@@ -56,11 +70,14 @@ export const ContextUsageDisplay = ({
     if (toolTokenCount > 0) parts.push(`tool:${formatTokens(toolTokenCount)}`);
     if (cachedTokenCount > 0)
       parts.push(`cache:${formatTokens(cachedTokenCount)}`);
-    const breakdown = parts.join(' ');
+    const breakdown = parts.length > 0 ? ` | ${parts.join(' ')}` : '';
+    const compact = compactIndicator ? ` | ${compactIndicator}` : '';
 
     return (
       <Text color={color}>
-        {used}/{total} tokens ({percentageUsed}% used) | {breakdown}
+        {used}/{total} tokens ({percentageUsed}% used)
+        {breakdown}
+        {compact}
       </Text>
     );
   }
@@ -73,9 +90,12 @@ export const ContextUsageDisplay = ({
     );
   }
 
+  const compactSuffix = compactIndicator ? ` | ${compactIndicator}` : '';
+
   return (
     <Text color={color}>
       {used}/{total} tokens ({percentageUsed}% context used)
+      {compactSuffix}
     </Text>
   );
 };
