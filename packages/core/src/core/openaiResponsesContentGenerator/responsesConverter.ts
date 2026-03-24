@@ -82,9 +82,10 @@ export function convertResponsesEventToGemini(
 ): GenerateContentResponse | null {
   switch (event.event) {
     case 'response.created': {
-      const data = event.data as { id?: string };
-      if (data.id) {
-        state.responseId = data.id;
+      const raw = event.data as Record<string, unknown>;
+      const envelope = (raw['response'] ?? raw) as { id?: string };
+      if (envelope.id) {
+        state.responseId = envelope.id;
       }
       return null;
     }
@@ -163,21 +164,23 @@ export function convertResponsesEventToGemini(
     }
 
     case 'response.completed': {
-      const data = event.data as {
+      const raw = event.data as Record<string, unknown>;
+      const envelope = (raw['response'] ?? raw) as {
         id?: string;
         usage?: ResponsesApiUsage;
         status?: string;
       };
-      if (data.id) state.responseId = data.id;
-      return makeFinalResponse(model, state, data.usage, data.status);
+      if (envelope.id) state.responseId = envelope.id;
+      return makeFinalResponse(model, state, envelope.usage, envelope.status);
     }
 
     case 'response.failed': {
-      const data = event.data as {
+      const raw = event.data as Record<string, unknown>;
+      const envelope = (raw['response'] ?? raw) as {
         error?: { code: string; message: string };
       };
-      const errMsg = data.error
-        ? `${data.error.code}: ${data.error.message}`
+      const errMsg = envelope.error
+        ? `${envelope.error.code}: ${envelope.error.message}`
         : 'Response failed';
       throw new Error(`Responses API failed: ${errMsg}`);
     }
