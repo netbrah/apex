@@ -669,17 +669,11 @@ export class GeminiChat {
           );
         }
         const svc = this.telemetryService ?? uiTelemetryService;
-        if (usageMetadata.candidatesTokenCount) {
-          svc.setLastOutputTokenCount(usageMetadata.candidatesTokenCount);
-        }
-        if (usageMetadata.toolUsePromptTokenCount) {
-          svc.setLastToolTokenCount(usageMetadata.toolUsePromptTokenCount);
-        }
-        if (usageMetadata.cachedContentTokenCount) {
-          svc.setLastCachedContentTokenCount(
-            usageMetadata.cachedContentTokenCount,
-          );
-        }
+        svc.setLastOutputTokenCount(usageMetadata.candidatesTokenCount ?? 0);
+        svc.setLastToolTokenCount(usageMetadata.toolUsePromptTokenCount ?? 0);
+        svc.setLastCachedContentTokenCount(
+          usageMetadata.cachedContentTokenCount ?? 0,
+        );
       }
 
       yield chunk; // Yield every chunk to the UI immediately.

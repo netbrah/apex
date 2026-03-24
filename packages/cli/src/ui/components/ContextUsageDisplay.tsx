@@ -63,13 +63,19 @@ export const ContextUsageDisplay = ({
 
   if (terminalWidth >= 100 && (hasBreakdown || compactIndicator)) {
     const parts: string[] = [];
-    const inputTokens = promptTokenCount - outputTokenCount - toolTokenCount;
-    if (inputTokens > 0) parts.push(`in:${formatTokens(inputTokens)}`);
+    // cachedTokenCount is a subset of promptTokenCount (cached input tokens),
+    // not an additional bucket. Subtract it from input to avoid double-counting.
+    const pureInput = promptTokenCount - outputTokenCount - toolTokenCount;
+    if (pureInput > 0) {
+      const label =
+        cachedTokenCount > 0
+          ? `in:${formatTokens(pureInput)}(${formatTokens(cachedTokenCount)}⚡)`
+          : `in:${formatTokens(pureInput)}`;
+      parts.push(label);
+    }
     if (outputTokenCount > 0)
       parts.push(`out:${formatTokens(outputTokenCount)}`);
     if (toolTokenCount > 0) parts.push(`tool:${formatTokens(toolTokenCount)}`);
-    if (cachedTokenCount > 0)
-      parts.push(`cache:${formatTokens(cachedTokenCount)}`);
     const breakdown = parts.length > 0 ? ` | ${parts.join(' ')}` : '';
     const compact = compactIndicator ? ` | ${compactIndicator}` : '';
 
