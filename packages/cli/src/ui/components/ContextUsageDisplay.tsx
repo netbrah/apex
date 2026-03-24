@@ -29,19 +29,26 @@ export const ContextUsageDisplay = ({
     return `${n}`;
   };
 
+  const color =
+    percentage >= 0.8
+      ? theme.status.error
+      : percentage >= 0.6
+        ? theme.status.warning
+        : theme.text.secondary;
+
   const used = formatTokens(promptTokenCount);
   const total = formatTokens(contextWindowSize);
 
   if (terminalWidth < 80) {
     return (
-      <Text color={theme.text.secondary}>
+      <Text color={color}>
         {used}/{total} ({percentageUsed}%)
       </Text>
     );
   }
 
   return (
-    <Text color={theme.text.secondary}>
+    <Text color={color}>
       {used}/{total} tokens ({percentageUsed}% context used)
     </Text>
   );

@@ -54,7 +54,8 @@ export function normalize(model: string): string {
   // - Kimi models: kimi-k2-0905, kimi-k2-0711, etc. (keep date for version distinction)
   if (
     !s.match(/^qwen-(?:plus|flash|vl-max)-latest$/) &&
-    !s.match(/^kimi-k2-\d{4}$/)
+    !s.match(/^kimi-k2-\d{4}$/) &&
+    !s.match(/^claude-(?:opus|sonnet|haiku)-\d+\.\d+$/)
   ) {
     // Regex breakdown:
     // -(?:...)$ - Non-capturing group for suffixes at the end of the string
@@ -96,8 +97,8 @@ const PATTERNS: Array<[RegExp, TokenCount]> = [
   // -------------------
   // Anthropic Claude
   // -------------------
-  [/^claude-opus-4-6/, LIMITS['1m']], // Opus 4.6: 1M context (Vertex AI confirmed)
-  [/^claude-opus-4-5/, LIMITS['200k']], // Opus 4.5: 200K
+  [/^claude-opus-4[.-]?6/, LIMITS['1m']], // Opus 4.6: 1M context (Vertex AI confirmed)
+  [/^claude-opus-4[.-]?5/, LIMITS['200k']], // Opus 4.5: 200K
   [/^claude-/, LIMITS['200k']], // Claude fallback (Sonnet, Haiku, etc.): 200K
 
   // -------------------
@@ -161,8 +162,8 @@ const OUTPUT_PATTERNS: Array<[RegExp, TokenCount]> = [
   [/^o\d/, LIMITS['128k']], // o-series: 128K
 
   // Anthropic Claude
-  [/^claude-opus-4-6/, LIMITS['128k']], // Opus 4.6: 128K
-  [/^claude-sonnet-4-6/, LIMITS['64k']], // Sonnet 4.6: 64K
+  [/^claude-opus-4[.-]?6/, LIMITS['128k']], // Opus 4.6: 128K
+  [/^claude-sonnet-4[.-]?6/, LIMITS['64k']], // Sonnet 4.6: 64K
   [/^claude-/, LIMITS['64k']], // Claude fallback: 64K
 
   // Alibaba / Qwen

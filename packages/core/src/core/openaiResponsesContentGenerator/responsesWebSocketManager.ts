@@ -33,9 +33,7 @@ export class ResponsesWebSocketManager {
   private readonly responsesTransport: 'auto' | 'http' | 'websocket';
   private readonly streamMaxRetries: number;
   private readonly customHeaders: Record<string, string>;
-  private readonly wsOptions: ResponsesWebSocket extends never
-    ? never
-    : ConstructorParameters<typeof ResponsesWebSocket>[0];
+  private readonly wsOptions: WebSocketManagerConfig['wsOptions'];
 
   constructor(config: WebSocketManagerConfig) {
     this.baseUrl = config.baseUrl;
