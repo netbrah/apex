@@ -140,15 +140,14 @@ const rootPackageJson = JSON.parse(
 
 // Create a clean package.json for the published package
 const distPackageJson = {
-  name: rootPackageJson.name,
+  name: '@netapp/seclab-apex',
   version: rootPackageJson.version,
-  description:
-    rootPackageJson.description || 'Qwen Code - AI-powered coding assistant',
+  description: 'APEX - Autonomous code analysis and engineering agent',
   repository: rootPackageJson.repository,
   type: 'module',
   main: 'cli.js',
   bin: {
-    qwen: 'cli.js',
+    apex: 'cli.js',
   },
   files: [
     'cli.js',
@@ -158,7 +157,11 @@ const distPackageJson = {
     'LICENSE',
     'locales',
     'bundled',
+    'apex',
   ],
+  publishConfig: {
+    registry: 'https://npm.repo.eng.netapp.com/',
+  },
   config: rootPackageJson.config,
   dependencies: {},
   optionalDependencies: {
@@ -183,6 +186,13 @@ fs.writeFileSync(
   path.join(distDir, 'package.json'),
   JSON.stringify(distPackageJson, null, 2) + '\n',
 );
+
+// Write .npmrc for NetApp internal registry
+fs.writeFileSync(
+  path.join(distDir, '.npmrc'),
+  'registry=https://npm.repo.eng.netapp.com/\n',
+);
+console.log('Created .npmrc');
 
 console.log('\n✅ Package prepared for publishing at dist/');
 console.log('\nPackage structure:');
