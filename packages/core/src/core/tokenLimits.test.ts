@@ -132,7 +132,9 @@ describe('tokenLimit', () => {
   describe('Anthropic Claude', () => {
     it('should return correct input limits for Claude models', () => {
       expect(tokenLimit('claude-opus-4-6')).toBe(1000000);
+      expect(tokenLimit('claude-opus-4.6')).toBe(1000000);
       expect(tokenLimit('claude-opus-4-5')).toBe(200000);
+      expect(tokenLimit('claude-opus-4.5')).toBe(200000);
       expect(tokenLimit('claude-sonnet-4-6')).toBe(200000);
       expect(tokenLimit('claude-sonnet-4')).toBe(200000);
       expect(tokenLimit('claude-opus-4')).toBe(200000);
