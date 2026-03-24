@@ -9,12 +9,20 @@ import { theme } from '../semantic-colors.js';
 
 export const ContextUsageDisplay = ({
   promptTokenCount,
+  outputTokenCount = 0,
+  toolTokenCount = 0,
+  cachedTokenCount = 0,
   terminalWidth,
   contextWindowSize,
+  compactionThreshold,
 }: {
   promptTokenCount: number;
+  outputTokenCount?: number;
+  toolTokenCount?: number;
+  cachedTokenCount?: number;
   terminalWidth: number;
   contextWindowSize: number;
+  compactionThreshold?: number;
 }) => {
   if (promptTokenCount === 0) {
     return null;
@@ -39,6 +47,47 @@ export const ContextUsageDisplay = ({
   const used = formatTokens(promptTokenCount);
   const total = formatTokens(contextWindowSize);
 
+  const hasBreakdown = outputTokenCount > 0 || toolTokenCount > 0;
+
+  let compactIndicator = '';
+  if (compactionThreshold && compactionThreshold > 0) {
+    const thresholdTokens = Math.floor(compactionThreshold * contextWindowSize);
+    const tokensLeft = thresholdTokens - promptTokenCount;
+    const compactLabel = `compact@${formatTokens(thresholdTokens)}`;
+    if (tokensLeft <= 0) {
+      compactIndicator = compactLabel;
+    } else {
+      compactIndicator = `${compactLabel} (${formatTokens(tokensLeft)} left)`;
+    }
+  }
+
+  if (terminalWidth >= 100 && (hasBreakdown || compactIndicator)) {
+    const parts: string[] = [];
+    // cachedTokenCount is a subset of promptTokenCount (cached input tokens),
+    // not an additional bucket. Subtract it from input to avoid double-counting.
+    const pureInput = promptTokenCount - outputTokenCount - toolTokenCount;
+    if (pureInput > 0) {
+      const label =
+        cachedTokenCount > 0
+          ? `in:${formatTokens(pureInput)}(${formatTokens(cachedTokenCount)}⚡)`
+          : `in:${formatTokens(pureInput)}`;
+      parts.push(label);
+    }
+    if (outputTokenCount > 0)
+      parts.push(`out:${formatTokens(outputTokenCount)}`);
+    if (toolTokenCount > 0) parts.push(`tool:${formatTokens(toolTokenCount)}`);
+    const breakdown = parts.length > 0 ? ` | ${parts.join(' ')}` : '';
+    const compact = compactIndicator ? ` | ${compactIndicator}` : '';
+
+    return (
+      <Text color={color}>
+        {used}/{total} tokens ({percentageUsed}% used)
+        {breakdown}
+        {compact}
+      </Text>
+    );
+  }
+
   if (terminalWidth < 80) {
     return (
       <Text color={color}>
@@ -47,9 +96,12 @@ export const ContextUsageDisplay = ({
     );
   }
 
+  const compactSuffix = compactIndicator ? ` | ${compactIndicator}` : '';
+
   return (
     <Text color={color}>
       {used}/{total} tokens ({percentageUsed}% context used)
+      {compactSuffix}
     </Text>
   );
 };

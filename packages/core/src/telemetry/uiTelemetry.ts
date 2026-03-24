@@ -119,6 +119,8 @@ const createInitialMetrics = (): SessionMetrics => ({
 export class UiTelemetryService extends EventEmitter {
   #metrics: SessionMetrics = createInitialMetrics();
   #lastPromptTokenCount = 0;
+  #lastOutputTokenCount = 0;
+  #lastToolTokenCount = 0;
   #lastCachedContentTokenCount = 0;
 
   addEvent(event: UiEvent) {
@@ -140,6 +142,9 @@ export class UiTelemetryService extends EventEmitter {
     this.emit('update', {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
+      lastOutputTokenCount: this.#lastOutputTokenCount,
+      lastToolTokenCount: this.#lastToolTokenCount,
+      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
     });
   }
 
@@ -156,6 +161,39 @@ export class UiTelemetryService extends EventEmitter {
     this.emit('update', {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
+      lastOutputTokenCount: this.#lastOutputTokenCount,
+      lastToolTokenCount: this.#lastToolTokenCount,
+      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
+    });
+  }
+
+  getLastOutputTokenCount(): number {
+    return this.#lastOutputTokenCount;
+  }
+
+  setLastOutputTokenCount(count: number): void {
+    this.#lastOutputTokenCount = count;
+    this.emit('update', {
+      metrics: this.#metrics,
+      lastPromptTokenCount: this.#lastPromptTokenCount,
+      lastOutputTokenCount: this.#lastOutputTokenCount,
+      lastToolTokenCount: this.#lastToolTokenCount,
+      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
+    });
+  }
+
+  getLastToolTokenCount(): number {
+    return this.#lastToolTokenCount;
+  }
+
+  setLastToolTokenCount(count: number): void {
+    this.#lastToolTokenCount = count;
+    this.emit('update', {
+      metrics: this.#metrics,
+      lastPromptTokenCount: this.#lastPromptTokenCount,
+      lastOutputTokenCount: this.#lastOutputTokenCount,
+      lastToolTokenCount: this.#lastToolTokenCount,
+      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
     });
   }
 
@@ -165,6 +203,13 @@ export class UiTelemetryService extends EventEmitter {
 
   setLastCachedContentTokenCount(count: number): void {
     this.#lastCachedContentTokenCount = count;
+    this.emit('update', {
+      metrics: this.#metrics,
+      lastPromptTokenCount: this.#lastPromptTokenCount,
+      lastOutputTokenCount: this.#lastOutputTokenCount,
+      lastToolTokenCount: this.#lastToolTokenCount,
+      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
+    });
   }
 
   /**
@@ -173,10 +218,15 @@ export class UiTelemetryService extends EventEmitter {
   reset(): void {
     this.#metrics = createInitialMetrics();
     this.#lastPromptTokenCount = 0;
+    this.#lastOutputTokenCount = 0;
+    this.#lastToolTokenCount = 0;
     this.#lastCachedContentTokenCount = 0;
     this.emit('update', {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
+      lastOutputTokenCount: this.#lastOutputTokenCount,
+      lastToolTokenCount: this.#lastToolTokenCount,
+      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
     });
   }
 

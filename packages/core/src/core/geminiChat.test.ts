@@ -76,6 +76,10 @@ vi.mock('../telemetry/loggers.js', () => ({
 vi.mock('../telemetry/uiTelemetry.js', () => ({
   uiTelemetryService: {
     setLastPromptTokenCount: vi.fn(),
+    setLastOutputTokenCount: vi.fn(),
+    setLastToolTokenCount: vi.fn(),
+    setLastCachedContentTokenCount: vi.fn(),
+    getLastPromptTokenCount: vi.fn(() => 0),
   },
 }));
 

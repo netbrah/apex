@@ -36,6 +36,7 @@ import {
 } from '../telemetry/types.js';
 import type { UiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
+import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
 
@@ -634,6 +635,7 @@ export class GeminiChat {
 
     let hasToolCall = false;
     let hasFinishReason = false;
+    let apiReportedTokens = false;
 
     for await (const chunk of streamResponse) {
       // Use ||= to avoid later usage-only chunks (no candidates) overwriting
@@ -661,20 +663,37 @@ export class GeminiChat {
         const lastPromptTokenCount =
           usageMetadata.totalTokenCount || usageMetadata.promptTokenCount;
         if (lastPromptTokenCount) {
+          apiReportedTokens = true;
           (this.telemetryService ?? uiTelemetryService).setLastPromptTokenCount(
             lastPromptTokenCount,
           );
         }
-        if (usageMetadata.cachedContentTokenCount) {
-          (
-            this.telemetryService ?? uiTelemetryService
-          ).setLastCachedContentTokenCount(
-            usageMetadata.cachedContentTokenCount,
-          );
-        }
+        const svc = this.telemetryService ?? uiTelemetryService;
+        svc.setLastOutputTokenCount(usageMetadata.candidatesTokenCount ?? 0);
+        svc.setLastToolTokenCount(usageMetadata.toolUsePromptTokenCount ?? 0);
+        svc.setLastCachedContentTokenCount(
+          usageMetadata.cachedContentTokenCount ?? 0,
+        );
       }
 
       yield chunk; // Yield every chunk to the UI immediately.
+    }
+
+    // Fallback: when API reports 0 usage (e.g. Responses API via proxy),
+    // estimate token count from conversation history so the footer renders.
+    // Only trigger when usageMetadata was present but all counts were zero.
+    if (usageMetadata && !apiReportedTokens && this.history.length > 0) {
+      let estimated = 0;
+      for (const entry of this.history) {
+        if (entry.parts) {
+          estimated += estimateTokenCountSync(entry.parts);
+        }
+      }
+      if (estimated > 0) {
+        (this.telemetryService ?? uiTelemetryService).setLastPromptTokenCount(
+          estimated,
+        );
+      }
     }
 
     let thoughtContentPart: Part | undefined;

@@ -23,7 +23,11 @@ const defaultProps = {
 const createMockConfig = (overrides = {}) => ({
   getModel: vi.fn(() => defaultProps.model),
   getDebugMode: vi.fn(() => false),
-  getContentGeneratorConfig: vi.fn(() => ({ contextWindowSize: 131072 })),
+  getContentGeneratorConfig: vi.fn(() => ({
+    contextWindowSize: 131072,
+    authType: 'gemini',
+  })),
+  getChatCompression: vi.fn(() => undefined),
   getMcpServers: vi.fn(() => ({})),
   getBlockedMcpServers: vi.fn(() => []),
   ...overrides,
@@ -33,6 +37,9 @@ const createMockUIState = (overrides: Partial<UIState> = {}): UIState =>
   ({
     sessionStats: {
       lastPromptTokenCount: 100,
+      lastOutputTokenCount: 0,
+      lastToolTokenCount: 0,
+      lastCachedContentTokenCount: 0,
     },
     geminiMdFileCount: 0,
     contextFileNames: [],
@@ -76,7 +83,7 @@ describe('<Footer />', () => {
 
   it('displays the context percentage', () => {
     const { lastFrame } = renderWithWidth(120, createMockUIState());
-    expect(lastFrame()).toMatch(/\d+(\.\d+)?% context used/);
+    expect(lastFrame()).toMatch(/\d+(\.\d+)?% used/);
   });
 
   it('displays the abbreviated context percentage on narrow terminal', () => {

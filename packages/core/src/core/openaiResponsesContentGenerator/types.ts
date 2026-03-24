@@ -223,7 +223,7 @@ export interface ResponsesSSEEvent {
 
 export interface ResponseCreatedEvent {
   event: 'response.created';
-  data: ResponsesApiResponse;
+  data: { response: ResponsesApiResponse } | ResponsesApiResponse;
 }
 
 export interface OutputItemAddedEvent {
@@ -270,12 +270,12 @@ export interface OutputItemDoneEvent {
 
 export interface ResponseCompletedEvent {
   event: 'response.completed';
-  data: ResponsesApiResponse;
+  data: { response: ResponsesApiResponse } | ResponsesApiResponse;
 }
 
 export interface ResponseFailedEvent {
   event: 'response.failed';
-  data: ResponsesApiResponse;
+  data: { response: ResponsesApiResponse } | ResponsesApiResponse;
 }
 
 export interface SSEErrorEvent {

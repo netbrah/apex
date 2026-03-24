@@ -145,6 +145,9 @@ export interface SessionStatsState {
   sessionStartTime: Date;
   metrics: SessionMetrics;
   lastPromptTokenCount: number;
+  lastOutputTokenCount: number;
+  lastToolTokenCount: number;
+  lastCachedContentTokenCount: number;
   promptCount: number;
 }
 
@@ -184,6 +187,9 @@ const createDefaultStats = (sessionId: string = ''): SessionStatsState => ({
   sessionStartTime: new Date(),
   metrics: uiTelemetryService.getMetrics(),
   lastPromptTokenCount: 0,
+  lastOutputTokenCount: 0,
+  lastToolTokenCount: 0,
+  lastCachedContentTokenCount: 0,
   promptCount: 0,
 });
 
@@ -201,13 +207,23 @@ export const SessionStatsProvider: React.FC<{
     const handleUpdate = ({
       metrics,
       lastPromptTokenCount,
+      lastOutputTokenCount = 0,
+      lastToolTokenCount = 0,
+      lastCachedContentTokenCount = 0,
     }: {
       metrics: SessionMetrics;
       lastPromptTokenCount: number;
+      lastOutputTokenCount?: number;
+      lastToolTokenCount?: number;
+      lastCachedContentTokenCount?: number;
     }) => {
       setStats((prevState) => {
         if (
           prevState.lastPromptTokenCount === lastPromptTokenCount &&
+          prevState.lastOutputTokenCount === lastOutputTokenCount &&
+          prevState.lastToolTokenCount === lastToolTokenCount &&
+          prevState.lastCachedContentTokenCount ===
+            lastCachedContentTokenCount &&
           areMetricsEqual(prevState.metrics, metrics)
         ) {
           return prevState;
@@ -216,15 +232,21 @@ export const SessionStatsProvider: React.FC<{
           ...prevState,
           metrics,
           lastPromptTokenCount,
+          lastOutputTokenCount,
+          lastToolTokenCount,
+          lastCachedContentTokenCount,
         };
       });
     };
 
     uiTelemetryService.on('update', handleUpdate);
-    // Set initial state
     handleUpdate({
       metrics: uiTelemetryService.getMetrics(),
       lastPromptTokenCount: uiTelemetryService.getLastPromptTokenCount(),
+      lastOutputTokenCount: uiTelemetryService.getLastOutputTokenCount(),
+      lastToolTokenCount: uiTelemetryService.getLastToolTokenCount(),
+      lastCachedContentTokenCount:
+        uiTelemetryService.getLastCachedContentTokenCount(),
     });
 
     return () => {
