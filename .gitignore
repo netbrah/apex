@@ -53,13 +53,13 @@ packages/web-templates/src/generated/
 .integration-tests/
 packages/vscode-ide-companion/*.vsix
 
-# Qwen Code Configs
+# APEX Configs
 
-.qwen/*
-!.qwen/commands/
-!.qwen/commands/**
-!.qwen/skills/
-!.qwen/skills/**
+.apex/*
+!.apex/commands/
+!.apex/commands/**
+!.apex/skills/
+!.apex/skills/**
 logs/
 # GHA credentials
 gha-creds-*.json

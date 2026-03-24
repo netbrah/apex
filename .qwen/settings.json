@@ -1,0 +1,57 @@
+{
+  "security": {
+    "auth": {
+      "selectedType": "anthropic"
+    }
+  },
+  "model": {
+    "name": "claude-opus-4.6"
+  },
+  "context": {
+    "fileName": ["APEX.md", "QWEN.md", "AGENTS.md"]
+  },
+  "ide": {
+    "hasSeenNudge": true
+  },
+  "advanced": {
+    "autoConfigureMemory": true
+  },
+  "tools": {
+    "truncateToolOutputThreshold": 200000,
+    "truncateToolOutputLines": 5000
+  },
+  "mcpServers": {
+    "mastra-search": {
+      "command": "$HOME/.mcp/bin/mastra-search-mcp",
+      "args": [],
+      "cwd": "$HOME/Projects/agent_tasks/opengrokmcp",
+      "timeout": 300000,
+      "trust": true,
+      "readOnlyTools": true,
+      "env": {
+        "OPENAI_API_KEY": "$OPENAI_API_KEY",
+        "OPENAI_BASE_URL": "$OPENAI_BASE_URL",
+        "NODE_EXTRA_CA_CERTS": "$NODE_EXTRA_CA_CERTS",
+        "JIRA_TOKEN": "$JIRA_TOKEN",
+        "CONFLUENCE_TOKEN": "$CONFLUENCE_TOKEN",
+        "REVIEWBOARD_API_TOKEN": "$REVIEWBOARD_API_TOKEN",
+        "CONFLUENCE_USERNAME": "dinesh.palanisamy@netapp.com"
+      }
+    },
+    "reviewboard": {
+      "command": "node",
+      "args": ["/Users/palanisd/Projects/reviewboard_mcp/build/index.js"],
+      "timeout": 300000,
+      "trust": true,
+      "readOnlyTools": true,
+      "env": {
+        "REVIEWBOARD_BASE_URL": "$REVIEWBOARD_BASE_URL",
+        "REVIEWBOARD_API_TOKEN": "$REVIEWBOARD_API_TOKEN"
+      }
+    }
+  },
+  "$version": 3,
+  "permissions": {
+    "allow": ["Bash(mkdir *)"]
+  }
+}

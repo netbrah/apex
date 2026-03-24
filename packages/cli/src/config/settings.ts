@@ -412,7 +412,7 @@ function findEnvFile(settings: Settings, startDir: string): string | null {
   const homeDir = homedir();
   const isTrusted = isWorkspaceTrusted(settings).isTrusted;
 
-  const globalQwenDir = Storage.getGlobalQwenDir();
+  const globalQwenDir = Storage.getGlobalApexDir();
   const userLevelPaths = new Set([
     path.normalize(path.join(homeDir, '.env')),
     path.normalize(path.join(globalQwenDir, '.env')),

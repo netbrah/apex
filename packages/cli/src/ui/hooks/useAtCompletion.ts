@@ -161,7 +161,7 @@ export function useAtCompletion(props: UseAtCompletionProps): void {
           useGitignore:
             config?.getFileFilteringOptions()?.respectGitIgnore ?? true,
           useQwenignore:
-            config?.getFileFilteringOptions()?.respectQwenIgnore ?? true,
+            config?.getFileFilteringOptions()?.respectApexIgnore ?? true,
           cache: true,
           cacheTtl: 30, // 30 seconds
           enableRecursiveFileSearch:

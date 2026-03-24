@@ -4,15 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const qwenAsciiLogo = `
- ▄▄▄▄▄▄  ▄▄     ▄▄ ▄▄▄▄▄▄▄ ▄▄▄    ▄▄
-██╔═══██╗██║    ██║██╔════╝████╗  ██║
-██║   ██║██║ █╗ ██║█████╗  ██╔██╗ ██║
-██║▄▄ ██║██║███╗██║██╔══╝  ██║╚██╗██║
-╚██████╔╝╚███╔███╔╝███████╗██║ ╚████║
- ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝
-`;
-
 const apexAsciiLogo = `
  █████╗ ██████╗ ███████╗██╗  ██╗
 ██╔══██╗██╔══██╗██╔════╝╚██╗██╔╝
@@ -22,9 +13,4 @@ const apexAsciiLogo = `
 ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝
 `;
 
-const brandLogos: Record<string, string> = {
-  APEX: apexAsciiLogo,
-};
-
-export const shortAsciiLogo =
-  brandLogos[process.env['QWEN_CODE_BRAND'] ?? ''] ?? qwenAsciiLogo;
+export const shortAsciiLogo = apexAsciiLogo;

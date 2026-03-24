@@ -1,9 +1,9 @@
 /**
- * SEA (Single Executable Application) launcher for qwen-code.
+ * SEA (Single Executable Application) launcher for APEX.
  *
  * Extracts the embedded ESM bundle to a versioned temp directory and
  * dynamically imports it.  Based on the gemini-cli launcher but
- * simplified for qwen-code's single-file bundle (no code-splitting).
+ * simplified for APEX single-file bundle (no code-splitting).
  */
 const { getAsset } = require('node:sea');
 const process = require('node:process');
@@ -85,7 +85,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   const tempBase = osMod.tmpdir();
   const finalRuntimeDir = pathMod.join(
     tempBase,
-    `qwen-runtime-${safeVersion}-${safeUsername}`,
+    `apex-runtime-${safeVersion}-${safeUsername}`,
   );
 
   let runtimeDir;
@@ -126,7 +126,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   if (!useExisting) {
     const setupDir = pathMod.join(
       tempBase,
-      `qwen-setup-${processPid}-${Date.now()}`,
+      `apex-setup-${processPid}-${Date.now()}`,
     );
 
     try {

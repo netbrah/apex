@@ -38,7 +38,7 @@ import type { UiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 
-const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
+const debugLogger = createDebugLogger('APEX_CHAT');
 
 export enum StreamEventType {
   /** A regular content chunk from the API. */

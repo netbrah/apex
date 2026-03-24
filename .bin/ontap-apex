@@ -2,8 +2,8 @@
 # ontap-apex — APEX launcher (hermetic distribution)
 #
 # Everything lives in BIN_DIR: binary (apex), settings.json, skills/, this script.
-# At launch: deploys config → ~/.apex/.qwen/, sets env, execs binary.
-# Uses QWEN_CODE_HOME to isolate from personal ~/.qwen/ config.
+# At launch: deploys config → ~/.apex/, sets env, execs binary.
+# Uses QWEN_CODE_HOME to isolate from personal ~/.apex/ config.
 #
 # USAGE:
 #   ontap-apex                  # interactive
@@ -29,8 +29,8 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APEX_HOME="${APEX_HOME:-$HOME/.apex}"
 APEX_MODEL="${APEX_MODEL:-claude-opus-4.6}"
 
-# Config dir — isolated from personal ~/.qwen/ via QWEN_CODE_HOME
-APEX_CONFIG_DIR="$APEX_HOME/.qwen"
+# Config dir — isolated via QWEN_CODE_HOME
+APEX_CONFIG_DIR="$APEX_HOME/.apex"
 
 # ---------------------------------------------------------------------------
 # Create config directory FIRST (before any file copies)
@@ -203,7 +203,7 @@ export OPENAI_COMPATIBLE_ENDPOINT="${OPENAI_COMPATIBLE_ENDPOINT:-https://llm-pro
 export OPENAI_COMPATIBLE_API_KEY="${LLM_PROXY_KEY}"
 export OPENAI_COMPATIBLE_MODEL="${APEX_MODEL}"
 export QWEN_CODE_HOME="$APEX_CONFIG_DIR"
-export QWEN_CODE_BRAND="APEX"
+
 
 # CA certs
 if [[ -z "${NODE_EXTRA_CA_CERTS:-}" ]]; then
