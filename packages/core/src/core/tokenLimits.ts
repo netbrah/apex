@@ -96,7 +96,9 @@ const PATTERNS: Array<[RegExp, TokenCount]> = [
   // -------------------
   // Anthropic Claude
   // -------------------
-  [/^claude-/, LIMITS['200k']], // All Claude models: 200K
+  [/^claude-opus-4-6/, LIMITS['1m']], // Opus 4.6: 1M context (Vertex AI confirmed)
+  [/^claude-opus-4-5/, LIMITS['200k']], // Opus 4.5: 200K
+  [/^claude-/, LIMITS['200k']], // Claude fallback (Sonnet, Haiku, etc.): 200K
 
   // -------------------
   // Alibaba / Qwen
