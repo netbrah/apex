@@ -62,24 +62,6 @@ export function AuthDialog(): React.JSX.Element {
   // Main authentication entries (flat three-option layout)
   const mainItems = [
     {
-      key: AuthType.QWEN_OAUTH,
-      title: t('Qwen OAuth'),
-      label: t('Qwen OAuth'),
-      description: t(
-        'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models',
-      ),
-      value: AuthType.QWEN_OAUTH as MainOption,
-    },
-    {
-      key: 'CODING_PLAN',
-      title: t('Alibaba Cloud Coding Plan'),
-      label: t('Alibaba Cloud Coding Plan'),
-      description: t(
-        'Paid \u00B7 Up to 6,000 requests/5 hrs \u00B7 All Alibaba Cloud Coding Plan Models',
-      ),
-      value: 'CODING_PLAN' as MainOption,
-    },
-    {
       key: 'API_KEY',
       title: t('API Key'),
       label: t('API Key'),
@@ -164,8 +146,8 @@ export function AuthDialog(): React.JSX.Element {
         return item.value === authTypeToMainOption(defaultAuthType);
       }
 
-      // Priority 4: default to QWEN_OAUTH
-      return item.value === AuthType.QWEN_OAUTH;
+      // Priority 4: default to API_KEY
+      return item.value === 'API_KEY';
     }),
   );
 

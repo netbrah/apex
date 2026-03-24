@@ -29,8 +29,8 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APEX_HOME="${APEX_HOME:-$HOME/.apex}"
 APEX_MODEL="${APEX_MODEL:-claude-opus-4.6}"
 
-# Config dir — isolated via QWEN_CODE_HOME
-APEX_CONFIG_DIR="$APEX_HOME/.apex"
+# Config dir — QWEN_CODE_HOME points the binary here
+APEX_CONFIG_DIR="$APEX_HOME"
 
 # ---------------------------------------------------------------------------
 # Create config directory FIRST (before any file copies)
