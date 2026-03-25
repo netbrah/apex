@@ -119,6 +119,9 @@ export type ContentGeneratorConfig = {
   // Supported input modalities. Unsupported media types are replaced with text
   // placeholders. Leave undefined to use automatic detection from model name.
   modalities?: InputModalities;
+  // When true, replay encrypted reasoning content from prior turns. Requires
+  // sticky routing (single deployment) or WebSocket transport. Default false.
+  enableEncryptedContentReplay?: boolean;
 };
 
 // Keep the public ContentGeneratorConfigSources API, but reuse the generic

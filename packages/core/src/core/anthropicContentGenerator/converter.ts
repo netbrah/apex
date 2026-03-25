@@ -179,7 +179,15 @@ export class AnthropicContentConverter {
           parts.push(thoughtPart);
         }
       } else if (blockType === 'redacted_thinking') {
-        parts.push({ text: '', thought: true });
+        const data =
+          typeof (block as { data?: string }).data === 'string'
+            ? (block as { data?: string }).data
+            : '';
+        parts.push({
+          text: '',
+          thought: true,
+          _redactedThinkingData: data,
+        } as Part & { _redactedThinkingData: string });
       }
     }
 
@@ -257,18 +265,26 @@ export class AnthropicContentConverter {
 
       if ('text' in part && 'thought' in part && part.thought) {
         if (role === 'assistant') {
-          const thinkingBlock: unknown = {
-            type: 'thinking',
-            thinking: part.text || '',
-          };
-          if (
-            'thoughtSignature' in part &&
-            typeof part.thoughtSignature === 'string'
-          ) {
-            (thinkingBlock as { signature?: string }).signature =
-              part.thoughtSignature;
+          const extPart = part as Part & { _redactedThinkingData?: string };
+          if (extPart._redactedThinkingData !== undefined) {
+            contentBlocks.push({
+              type: 'redacted_thinking',
+              data: extPart._redactedThinkingData,
+            } as unknown as AnthropicContentBlockParam);
+          } else {
+            const thinkingBlock: unknown = {
+              type: 'thinking',
+              thinking: part.text || '',
+            };
+            if (
+              'thoughtSignature' in part &&
+              typeof part.thoughtSignature === 'string'
+            ) {
+              (thinkingBlock as { signature?: string }).signature =
+                part.thoughtSignature;
+            }
+            contentBlocks.push(thinkingBlock as AnthropicContentBlockParam);
           }
-          contentBlocks.push(thinkingBlock as AnthropicContentBlockParam);
         }
       }
 
@@ -335,10 +351,16 @@ export class AnthropicContentConverter {
       content = textContent;
     }
 
+    const isError =
+      response.response != null &&
+      typeof response.response === 'object' &&
+      'error' in (response.response as Record<string, unknown>);
+
     return {
       type: 'tool_result',
       tool_use_id: response.id || '',
       content,
+      ...(isError ? { is_error: true as const } : {}),
     };
   }
 

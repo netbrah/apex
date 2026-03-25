@@ -21,6 +21,7 @@ import type {
   ResponsesApiMessageItem,
   ResponsesApiFunctionCallItem,
   ResponsesApiFunctionCallOutputItem,
+  ResponsesApiReasoningItem,
   ResponsesApiTool,
   ResponsesApiContentPart,
 } from './types.js';
@@ -314,6 +315,14 @@ export function convertGeminiContentsToResponsesInput(
       }
 
       if ('thought' in part && part.thought) {
+        if (role === 'assistant' && part.text) {
+          items.push({
+            type: 'reasoning',
+            id: '',
+            encrypted_content: '',
+            summary: [{ type: 'summary_text', text: part.text }],
+          } as ResponsesApiReasoningItem);
+        }
         continue;
       }
 

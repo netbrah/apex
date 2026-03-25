@@ -483,7 +483,7 @@ describe('ResponsesConverter', () => {
       expect(input[1]!.type).toBe('function_call_output');
     });
 
-    it('should skip thought parts', () => {
+    it('should convert thought parts to reasoning items', () => {
       const request = {
         contents: [
           {
@@ -496,8 +496,14 @@ describe('ResponsesConverter', () => {
         ],
       } as unknown as GenerateContentParameters;
       const { input } = convertGeminiContentsToResponsesInput(request);
-      expect(input).toHaveLength(1);
+      expect(input).toHaveLength(2);
       expect(input[0]).toEqual({
+        type: 'reasoning',
+        id: '',
+        encrypted_content: '',
+        summary: [{ type: 'summary_text', text: 'thinking...' }],
+      });
+      expect(input[1]).toEqual({
         type: 'message',
         role: 'assistant',
         content: 'actual response',
@@ -605,6 +611,59 @@ describe('ResponsesConverter', () => {
         contents: [],
       } as unknown as GenerateContentParameters;
       expect(convertGeminiToolsToResponsesTools(request)).toBeUndefined();
+    });
+  });
+
+  describe('reasoning round-trip', () => {
+    it('should emit reasoning items from thought parts on reverse conversion', () => {
+      const request = {
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { text: 'Let me think about this...', thought: true },
+              { text: 'The answer is 42.' },
+            ],
+          },
+        ],
+      } as unknown as GenerateContentParameters;
+      const { input } = convertGeminiContentsToResponsesInput(request);
+      const reasoning = input.find(
+        (item) =>
+          (item as unknown as Record<string, unknown>)['type'] === 'reasoning',
+      );
+      expect(reasoning).toBeDefined();
+      expect(
+        (reasoning as unknown as Record<string, unknown>)['encrypted_content'],
+      ).toBe('');
+      expect(
+        (reasoning as unknown as { summary: Array<{ text: string }> })
+          .summary[0].text,
+      ).toBe('Let me think about this...');
+      const textMsg = input.find(
+        (item) =>
+          (item as unknown as Record<string, unknown>)['type'] === 'message' &&
+          (item as unknown as Record<string, unknown>)['content'] ===
+            'The answer is 42.',
+      );
+      expect(textMsg).toBeDefined();
+    });
+
+    it('should skip empty thought parts', () => {
+      const request = {
+        contents: [
+          {
+            role: 'model',
+            parts: [{ text: '', thought: true }, { text: 'Hello.' }],
+          },
+        ],
+      } as unknown as GenerateContentParameters;
+      const { input } = convertGeminiContentsToResponsesInput(request);
+      const reasoning = input.find(
+        (item) =>
+          (item as unknown as Record<string, unknown>)['type'] === 'reasoning',
+      );
+      expect(reasoning).toBeUndefined();
     });
   });
 });
