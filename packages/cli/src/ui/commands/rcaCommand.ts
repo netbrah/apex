@@ -7,7 +7,6 @@
 import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 
- 
 const RCA_INSTRUCTIONS = `# ONTAP Root Cause Analysis
 
 Investigate CIT failures by tracing actual runtime evidence (logs) back to source code. Every hypothesis must be grounded in BOTH a log line AND a code reference.
@@ -358,8 +357,104 @@ Returns: author, date, description, and list of affected files with action (add/
 
 **When to use:** Only when the ticket explicitly references a P4 changelist number. Do not speculatively search P4 history.
 
-**Limitations:** P4 client must be configured. If \`p4 describe\` fails, note the CL number in the RCA report as "P4 context unavailable" and proceed with available evidence.`;
- 
+**Limitations:** P4 client must be configured. If \`p4 describe\` fails, note the CL number in the RCA report as "P4 context unavailable" and proceed with available evidence.
+
+## CIT Log Navigation Reference
+
+### URL to Filesystem Path Conversion
+
+CONTAP tickets include CIT log URLs in two formats:
+
+**Format 1: natejobs.cgi (older)**
+\`http://web.<cluster>.gdl.englab.netapp.com/natejobs.cgi?testbed=/u/<user>/presub;logdir=<cit-run-name>\`
+Note: semicolon separator (not &).
+
+**Format 2: natejobs_gx.cgi (newer)**
+\`http://web.<cluster>.gdl.englab.netapp.com/natejobs_gx.cgi?testbed=/u/<user>/presub&logdir=<cit-run-name>\`
+
+**Conversion Steps:**
+1. Extract cluster from hostname: \`web.rtpsmoke.gdl...\` -> \`rtpsmoke\`
+2. Extract user from testbed param: \`/u/smoke/presub\` -> \`smoke\`
+3. Extract cit-run-name from logdir param
+4. Build path: \`/u/<user>,<cluster>/presub/logs/<cit-run-name>/\`
+
+**Key gotcha**: The comma in \`/u/smoke,rtpsmoke/\` is a literal comma — it is NOT \`/u/smoke/rtpsmoke/\`.
+
+### Log Path Variants
+
+CIT logs may live under different logs* directories:
+- \`/u/<user>,<cluster>/presub/logs/<cit-run-name>/\` (standard)
+- \`/u/<user>,<cluster>/presub/logs_26_06a/<run-id>/<cit-run-name>/\` (archive variant)
+
+If the standard path doesn't exist, try:
+\`find /u/<user>,<cluster>/presub/ -maxdepth 3 -name "<cit-run-name>" -type d 2>/dev/null\`
+
+### Inside the CIT Directory
+
+\`\`\`
+<cit-path>/
+  010_test/                           # test execution logs
+    001_<test-name>/                  # test case directory
+  <timestamp>.testInfo/               # per-node system logs (THE GOLD)
+    <node-1>/
+      mroot/etc/log/mlog/            # management root logs
+      droot/etc/log/mlog/            # data root logs
+    <node-2>/
+      mroot/etc/log/mlog/
+      droot/etc/log/mlog/
+\`\`\`
+
+### Log File Inventory
+
+| File | Content | When to Read |
+|------|---------|-------------|
+| \`mgwd.log\` | Management daemon — SMF operations, iterator calls, keymanager, CLI processing | Always — primary investigation target |
+| \`mgwd.log.0000000001\` | Rotated mgwd log (older entries) | When failure happened early or after restart |
+| \`kmip2_client.log\` | KMIP client — GET, Register, Create operations, server responses | Key retrieval failures, CRYPTOGRAPHIC_FAILURE, timeout |
+| \`netapp_ekmip.log\` | Embedded KMIP server — partition ops, key storage, encryption | Partition locking, PDEK issues, server-side errors |
+| \`notifyd.log\` | Notification daemon — EMS events | EMS-level alerts |
+| \`sktrace.log\` | Security key trace — key lifecycle events | Key creation, deletion, rotation tracing |
+
+### Grep Recipes
+
+**Keymanager / eKMIP Investigation:**
+\`\`\`bash
+grep -n 'SvmMigrate\\|postCutover\\|preCutover\\|applySvmKek\\|applyPdek\\|pushKey' <mgwd.log>
+grep -n 'restore\\|Restore\\|epk_read_local\\|rebaseline' <mgwd.log>
+grep -n 'partition\\|updateVserver\\|CryptsoftServerConfig' <mgwd.log>
+grep -n 'CRYPTOGRAPHIC_FAILURE\\|ITEM_NOT_FOUND\\|PERMISSION_DENIED\\|ResultStatus' <kmip2_client.log>
+grep -n 'kmipGet\\|kmipRegister\\|kmip_keytable_v2' <mgwd.log>
+grep -n 'PDEK\\|SVM-KEK\\|svm_kek\\|wrapped_pdek\\|pdek_id' <mgwd.log>
+\`\`\`
+
+**Panic / Restart Investigation:**
+\`\`\`bash
+grep -n 'panic\\|coredump\\|ASSERT\\|abort\\|giveback\\|takeover' <mgwd.log>
+grep -n 'seq 0x0001 ' <mgwd.log>
+grep -n 'starting\\|stopping\\|initialized\\|shutdown' <mgwd.log>
+\`\`\`
+
+**General Error Hunting:**
+\`\`\`bash
+grep -n 'traceError\\|Error\\|FAILED\\|failed\\|error' <mgwd.log> | head -50
+grep -n 'DuplicateKey\\|KeyNotFound\\|InvalidField\\|InvalidOperation\\|AppError' <mgwd.log>
+grep -n 'rdb_callback\\|rdb.*failed\\|rdb.*error' <mgwd.log>
+\`\`\`
+
+**Context Around a Line:**
+\`\`\`bash
+sed -n '<start>,<end>p' <mgwd.log>
+awk 'NR>=49990 && NR<=50010' <mgwd.log>
+\`\`\`
+
+### NATE Test Step Logs
+
+The 010_test/ subtree contains NATE test execution logs that show:
+- Which CLI commands the test ran and in what order
+- The test's assertion results (PASS/FAIL)
+- The test's own timeline (useful for correlating with mgwd.log timestamps)
+
+\`find <cit-path>/010_test/ -name "*.log" | grep -i '<test_keyword>'\``;
 
 export const rcaCommand: SlashCommand = {
   name: 'rca',

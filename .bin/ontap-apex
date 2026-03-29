@@ -90,7 +90,7 @@ _apex_download() {
 # ---------------------------------------------------------------------------
 # Binary — auto-download from Artifactory if not cached
 # ---------------------------------------------------------------------------
-APEX_VERSION="${APEX_VERSION:-1.0.0}"
+APEX_VERSION="${APEX_VERSION:-1.1.0}"
 APEX_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/apex/${APEX_VERSION}/apex-linux-amd64"
 APEX_BIN="$APEX_HOME/bin/apex-${APEX_VERSION}"
 
