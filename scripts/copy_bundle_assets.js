@@ -81,6 +81,9 @@ if (existsSync(apexAssetsDir)) {
     const destBundled = join(distDir, 'bundled');
     copyRecursiveSync(apexSkillsDir, destBundled);
     console.log('Copied APEX skills to dist/bundled/');
+
+    // Skills are only copied to dist/bundled/ (loaded by SkillManager at runtime).
+    // NOT staged to dist/apex/skills/ — avoids exposing SKILL.md files on disk.
   }
   const apexDestDir = join(distDir, 'apex');
   mkdirSync(apexDestDir, { recursive: true });

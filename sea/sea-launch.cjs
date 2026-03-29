@@ -199,7 +199,8 @@ function resolveEnvVars(obj) {
 }
 
 function deployApexAssets(runtimeDir) {
-  const configHome = process.env.QWEN_CODE_HOME;
+  const configHome =
+    process.env.QWEN_CODE_HOME || path.join(os.homedir(), '.apex');
   if (!configHome) return;
 
   const apexDir = path.join(runtimeDir, 'apex');
@@ -221,6 +222,9 @@ function deployApexAssets(runtimeDir) {
       JSON.stringify(settings, null, 2),
     );
   }
+
+  // Skills are loaded from dist/bundled/ by SkillManager at runtime.
+  // No need to deploy them to ~/.apex/skills/ (avoids exposing SKILL.md files).
 }
 
 async function main(getAssetFn = getAsset) {
