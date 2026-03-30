@@ -199,6 +199,27 @@ if (fs.existsSync(postinstallSrc)) {
   console.log('Copied postinstall.js');
 }
 
+// Copy LSP bridge scripts to dist/bin/
+const bridgeSrc = path.join(
+  rootDir,
+  'packages',
+  'core',
+  'src',
+  'lsp',
+  'ontap-bridge',
+);
+const bridgeDest = path.join(distDir, 'bin');
+if (fs.existsSync(bridgeSrc)) {
+  fs.mkdirSync(bridgeDest, { recursive: true });
+  for (const fname of ['ontap_lsp_bridge.py', 'smoke_airlock.py']) {
+    const src = path.join(bridgeSrc, fname);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, path.join(bridgeDest, fname));
+      console.log(`Copied bin/${fname}`);
+    }
+  }
+}
+
 // Write .npmrc for NetApp internal registry
 fs.writeFileSync(
   path.join(distDir, '.npmrc'),
