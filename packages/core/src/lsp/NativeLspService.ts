@@ -131,11 +131,7 @@ export class NativeLspService {
     // Detect languages in workspace
     // Global settings.json lspServers — loaded first, overridden by .lsp.json
     // See RB-10 in docs/05-RUNBOOK.md for the full activation chain.
-    const settingsLspServers = (
-      this.config.getSettings?.() as
-        | { lsp?: { lspServers?: Record<string, unknown> } }
-        | undefined
-    )?.lsp?.lspServers;
+    const settingsLspServers = this.config.getLspServers?.();
     const settingsConfigs =
       this.configLoader.loadSettingsConfigs(settingsLspServers);
 

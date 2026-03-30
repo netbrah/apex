@@ -354,6 +354,7 @@ export interface ConfigParameters {
   mcpServers?: Record<string, MCPServerConfig>;
   lsp?: {
     enabled?: boolean;
+    lspServers?: Record<string, unknown>;
   };
   lspClient?: LspClient;
   userMemory?: string;
@@ -527,6 +528,7 @@ export class Config {
   private readonly mcpServerCommand: string | undefined;
   private mcpServers: Record<string, MCPServerConfig> | undefined;
   private readonly lspEnabled: boolean;
+  private readonly lspServers?: Record<string, unknown>;
   private lspClient?: LspClient;
   private readonly allowedMcpServers?: string[];
   private excludedMcpServers?: string[];
@@ -650,6 +652,7 @@ export class Config {
     this.mcpServerCommand = params.mcpServerCommand;
     this.mcpServers = params.mcpServers;
     this.lspEnabled = params.lsp?.enabled ?? false;
+    this.lspServers = params.lsp?.lspServers;
     this.lspClient = params.lspClient;
     this.allowedMcpServers = params.allowedMcpServers;
     this.excludedMcpServers = params.excludedMcpServers;
@@ -1523,6 +1526,10 @@ export class Config {
 
   isLspEnabled(): boolean {
     return this.lspEnabled;
+  }
+
+  getLspServers(): Record<string, unknown> | undefined {
+    return this.lspServers;
   }
 
   getLspClient(): LspClient | undefined {
