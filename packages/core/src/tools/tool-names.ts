@@ -10,6 +10,9 @@
  * with the actual tool class names.
  */
 export const ToolNames = {
+  SEARCH: 'search',
+  GET_FILE: 'get_file',
+  ANALYZE_SYMBOL_AST: 'analyze_symbol_ast',
   EDIT: 'edit',
   WRITE_FILE: 'write_file',
   READ_FILE: 'read_file',
@@ -35,6 +38,9 @@ export const ToolNames = {
  * with the actual tool display names.
  */
 export const ToolDisplayNames = {
+  SEARCH: 'OpenGrokSearch',
+  GET_FILE: 'OpenGrokGetFile',
+  ANALYZE_SYMBOL_AST: 'AnalyzeSymbolAst',
   EDIT: 'Edit',
   WRITE_FILE: 'WriteFile',
   READ_FILE: 'ReadFile',

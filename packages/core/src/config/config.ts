@@ -64,6 +64,11 @@ import { WebFetchTool } from '../tools/web-fetch.js';
 import { WebSearchTool } from '../tools/web-search/index.js';
 import { WriteFileTool } from '../tools/write-file.js';
 import { LspTool } from '../tools/lsp.js';
+import {
+  OpenGrokAnalyzeSymbolAstTool,
+  OpenGrokGetFileTool,
+  OpenGrokSearchTool,
+} from '../tools/opengrok-tools.js';
 import type { LspClient } from '../lsp/types.js';
 
 // Other modules
@@ -2185,6 +2190,9 @@ export class Config {
     registerCoreTool(AgentTool, this);
     registerCoreTool(SkillTool, this);
     registerCoreTool(LSTool, this);
+    registerCoreTool(OpenGrokSearchTool);
+    registerCoreTool(OpenGrokGetFileTool);
+    registerCoreTool(OpenGrokAnalyzeSymbolAstTool);
     registerCoreTool(ReadFileTool, this);
     registerCoreTool(ReadManyFilesTool, this);
 
