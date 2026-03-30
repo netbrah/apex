@@ -79,9 +79,13 @@ export class LspServerManager {
   }
 
   async startAll(): Promise<void> {
-    for (const [name, handle] of Array.from(this.serverHandles)) {
-      await this.startServer(name, handle);
-    }
+    // Start all servers in parallel — sequential await caused multi-second
+    // launch hangs when multiple servers have startup timeouts.
+    await Promise.all(
+      Array.from(this.serverHandles).map(([name, handle]) =>
+        this.startServer(name, handle),
+      ),
+    );
   }
 
   async stopAll(): Promise<void> {
