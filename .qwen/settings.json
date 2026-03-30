@@ -53,5 +53,8 @@
   "$version": 3,
   "permissions": {
     "allow": ["Bash(mkdir *)"]
+  },
+  "lsp": {
+    "enabled": true
   }
 }
