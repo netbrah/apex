@@ -754,8 +754,8 @@ export async function loadCliConfig(
     .map(resolvePath)
     .concat((argv.includeDirectories || []).map(resolvePath));
 
-  // LSP configuration: enabled only via --experimental-lsp flag
-  const lspEnabled = argv.experimentalLsp === true;
+  // LSP configuration: settings.lsp.enabled (preferred) or --experimental-lsp flag (fallback)
+  const lspEnabled = settings.lsp?.enabled ?? argv.experimentalLsp === true;
   let lspClient: LspClient | undefined;
   const question = argv.promptInteractive || argv.prompt || '';
   const inputFormat: InputFormat =
