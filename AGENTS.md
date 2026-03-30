@@ -1,4 +1,126 @@
-# AGENTS.md - Qwen Code Project Context
+# AGENTS.md — Qwen-Code (Apex TS Harness)
+
+## Mission
+
+This is the **TypeScript universal CLI agent harness** — codename **Apex**. Fork of QwenLM/qwen-code (itself a fork of Google Gemini CLI) with multi-provider cross-wire support: native /responses, /messages, and generateContent wire protocols.
+
+## Why It Exists
+
+Traditional CLI agents are monolithic: one harness, one wire, one model. Apex breaks that by implementing a pluggable ContentGenerator architecture where each provider (Gemini, OpenAI, Anthropic, Qwen) is a separate implementation behind a shared interface. The same TS codebase can drive Claude, GPT, Gemini, Qwen, DeepSeek — through whichever wire protocol each requires.
+
+Google's `@google/genai` Content[] types are the **lingua franca**: every provider converts to and from Gemini format. This keeps the harness core (tools, skills, subagents, hooks, IDE integration) wire-agnostic.
+
+**Two tiers**:
+
+- `dev` branch = PUBLIC tier (netbrah GitHub). All cross-wire implementations, converters, and unique features. Open-source and upstreamable.
+- `feat/apex-embed-assets` = PROPRIETARY tier (NetApp APEX). A thin veneer on top of dev: ~11 commits for branding, ONTAP skills, MCP configs, proxy integration. Maximize dev, minimize this layer.
+
+### Cross-Wire Context
+
+- **Internal format**: Google `@google/genai` Content[] types (lingua franca)
+- **ContentGenerator pattern**: 4 pluggable implementations (Gemini, OpenAI, Anthropic, Qwen)
+- **Upstreams**: QwenLM/qwen-code (`upstream`), google-gemini/gemini-cli (`gemini`)
+- **Proprietary layer**: `feat/apex-embed-assets` branch (dev + ~11 NetApp commits)
+
+### Wire Protocol Status
+
+| Wire              | Status                      | Implementation                                 |
+| ----------------- | --------------------------- | ---------------------------------------------- |
+| generateContent   | Native (from gemini-cli)    | GeminiContentGenerator                         |
+| /responses        | Shipped                     | OpenAIContentGenerator (1363-line converter)   |
+| /messages         | Shipped                     | AnthropicContentGenerator (581-line converter) |
+| /chat/completions | Shipped (via OpenAI compat) | OpenAIContentGenerator                         |
+
+### Unique Features (not in any upstream)
+
+- Multi-provider ContentGenerator architecture
+- StreamingToolCallParser truncation detection (prevents silent data loss)
+- Orphaned tool call cleanup (cleanOrphanedToolCalls)
+- Schema compliance modes (auto/strict/relaxed)
+- Modality gating with text placeholders
+- Arena mode (multi-model comparison)
+- Claude plugin/extension converter (823 lines)
+
+### Sortie Agent Instructions
+
+If you are on a `feat/` or `fix/` branch, you may be a sortie agent:
+
+- Work ONLY on your assigned branch
+- Commit with conventional commit messages
+- Do NOT merge into `dev` or `feat/apex-embed-assets` — that is C2's job
+- Do NOT switch branches
+- Do NOT revert commits from other agents
+
+### Sortie Completion Gate
+
+Your FINAL COMMIT message or a `SORTIE-NOTES.md` in the repo root must include:
+
+```
+## Sortie Completion Notes
+- Unit tests: [PASS/FAIL — npm run test]
+- Proxy e2e: [PASS/FAIL/SKIPPED — see below]
+- Wire behavior changed: [yes/no — if yes, what field/event]
+- New feature: [yes/no — if yes, suggest registry ID: FQ-{N}, tier: public/proprietary]
+- Null-space gap closed: [yes/no — if yes, which gap, new remaining count]
+- Cross-pollination: [yes/no — does the Rust harness (XLI) need this?]
+```
+
+### Proxy E2E Testing (required for wire-layer sorties)
+
+If your sortie changes wire behavior (converters, content generators, streaming parsers), you MUST run the proxy e2e tests before marking complete:
+
+```bash
+# Build first
+npm run build
+
+# Run proxy e2e suite — tests GPT + Claude models through NetApp proxy
+# Requires OPENAI_API_KEY env var set
+npx vitest run --root ./integration-tests proxy-e2e
+
+# What it tests:
+#   smoke.test.ts — basic GPT + Claude connectivity, structured JSON output
+#   tools.test.ts — file read/write/grep via tool calls through both models
+```
+
+Test harness: `integration-tests/proxy-e2e/helpers/proxy-rig.ts`
+Proxy URL: `https://llm-proxy-api.ai.eng.netapp.com` (or `OPENAI_BASE_URL` override)
+Models: `gpt-4.1-mini` (GPT), `claude-sonnet-4.6` (Claude via Vertex)
+
+C2 reads these notes at merge time and executes the doc updates (evidence ledger, feature registry, wire audit, KPIs). You focus on code; C2 handles the docs.
+
+### Convergence (idempotent re-dispatch)
+
+If you are re-dispatched on a branch that already has commits (e.g., previous agent crashed):
+
+1. Read existing commits: `git log --oneline`
+2. Check if `SORTIE-NOTES.md` exists and is partially filled → complete the missing fields
+3. Check if tests were already run → verify results rather than re-running
+4. Continue from where the previous agent left off — don't redo completed work
+
+### Hub Reference
+
+Coordination hub: `~/Projects/cli-ops/` — read `AGENTS.md` there for the full big picture, feature registry (public vs proprietary tracking), and four-dimension overview.
+
+| What you need                        | Where to find it                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------- |
+| Apex null-space gaps                 | `~/Projects/cli-ops/docs/null-space/01-gemini-to-messages.md`                   |
+| What we added vs upstream Gemini CLI | `~/Projects/cli-ops/docs/feature-delta/01-gemini-vs-qwen.md`                    |
+| Features to port from XLI            | `~/Projects/cli-ops/docs/feature-delta/03-cross-implementation.md`              |
+| How ops work (sortie lifecycle)      | `~/Projects/cli-ops/docs/03-OPERATIONAL-MODEL.md`                               |
+| KPIs and objectives                  | `~/Projects/cli-ops/docs/04-OBJECTIVES-AND-KPIs.md`                             |
+| Build/deploy/merge procedures        | `~/Projects/cli-ops/docs/05-RUNBOOK.md` (RB-4: APEX build, RB-6: delta reports) |
+
+### Features to Port from XLI (Rust)
+
+| Feature                         | Source                  | Priority |
+| ------------------------------- | ----------------------- | -------- |
+| Sandboxing (seatbelt/landlock)  | codex-rs security crate | P0       |
+| Guardian approval flow          | codex-rs core           | P1       |
+| Rollout recording + truncation  | codex-rs core           | P1       |
+| Commit attribution              | codex-rs git module     | P2       |
+| 70/30 compaction split strategy | codex-rs compact.rs     | P2       |
+
+---
 
 ## Project Overview
 
