@@ -1578,6 +1578,30 @@ const SETTINGS_SCHEMA = {
     },
   },
 
+  lsp: {
+    type: 'object',
+    label: 'LSP',
+    category: 'LSP',
+    requiresRestart: true,
+    default: {},
+    description:
+      'Language Server Protocol (LSP) settings for code intelligence.',
+    showInDialog: false,
+    properties: {
+      enabled: {
+        type: 'boolean',
+        label: 'Enable LSP',
+        category: 'LSP',
+        requiresRestart: true,
+        default: false,
+        description:
+          'Enable the LSP server for code intelligence (definitions, references, hover, diagnostics). ' +
+          'Requires a configured LSP server (e.g. .lsp.json in workspace root or lspServers in extension config).',
+        showInDialog: false,
+      },
+    },
+  },
+
   experimental: {
     type: 'object',
     label: 'Experimental',
