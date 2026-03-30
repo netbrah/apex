@@ -1,6 +1,6 @@
 {
   "name": "@qwen-code/qwen-code",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -29,7 +29,7 @@
     "relink": "npm run build && npm run bundle && npm link",
     "deploy": "npm run build && npm run build:sea && npm run deploy:remote",
     "deploy:remote": "scp .bin/qwen-code-linux-amd64 ${QWEN_DEPLOY_HOST:-curosr}:~/bin/qwen",
-    "publish:turnkey": "cp .bin/qwen-code-linux-amd64 /tmp/apex-linux-amd64 && curl -u palanisd -T /tmp/apex-linux-amd64 https://generic.repo.eng.netapp.com/user/palanisd/apex/1.1.0/apex-linux-amd64",
+    "publish:turnkey": "node scripts/publish-artifacts.js",
     "publish:npm": "node scripts/prepare-package.js && cd dist && npm login --registry=https://npm.repo.eng.netapp.com/ --auth-type=legacy && npm publish",
     "publish:all": "npm run publish:turnkey && npm run publish:npm",
     "build:packages": "npm run build --workspaces",

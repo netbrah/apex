@@ -147,9 +147,11 @@ const distPackageJson = {
   type: 'module',
   main: 'cli.js',
   bin: {
-    apex: 'cli.js',
+    apex: 'apex-launcher.js',
   },
   files: [
+    'apex-launcher.js',
+    'apex-launcher-env.js',
     'cli.js',
     'vendor',
     '*.sb',
@@ -197,6 +199,20 @@ const postinstallSrc = path.join(rootDir, 'scripts', 'postinstall-apex.js');
 if (fs.existsSync(postinstallSrc)) {
   fs.copyFileSync(postinstallSrc, path.join(distDir, 'postinstall.js'));
   console.log('Copied postinstall.js');
+}
+
+// Copy npm launcher scripts (runtime bootstrap for `apex`)
+const launcherSrc = path.join(rootDir, 'scripts', 'apex-launcher.js');
+if (fs.existsSync(launcherSrc)) {
+  const launcherDest = path.join(distDir, 'apex-launcher.js');
+  fs.copyFileSync(launcherSrc, launcherDest);
+  fs.chmodSync(launcherDest, 0o755);
+  console.log('Copied apex-launcher.js');
+}
+const launcherEnvSrc = path.join(rootDir, 'scripts', 'apex-launcher-env.js');
+if (fs.existsSync(launcherEnvSrc)) {
+  fs.copyFileSync(launcherEnvSrc, path.join(distDir, 'apex-launcher-env.js'));
+  console.log('Copied apex-launcher-env.js');
 }
 
 // Copy LSP bridge scripts to dist/bin/
