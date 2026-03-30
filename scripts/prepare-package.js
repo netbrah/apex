@@ -159,6 +159,7 @@ const distPackageJson = {
     'bundled',
     'apex',
     'postinstall.js',
+    'bin',
   ],
   scripts: {
     postinstall: 'node postinstall.js',

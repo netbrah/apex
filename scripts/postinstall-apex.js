@@ -105,6 +105,21 @@ const apexAssetsDir = join(pkgDir, 'apex');
   }
 }
 
+// Deploy LSP bridge scripts to ~/.apex/bin/
+{
+  const bridgeFiles = ['ontap_lsp_bridge.py', 'smoke_airlock.py'];
+  const bridgeSrc = join(pkgDir, 'bin');
+  for (const fname of bridgeFiles) {
+    const src = join(bridgeSrc, fname);
+    const dest = join(BIN_DIR, fname);
+    if (existsSync(src)) {
+      mkdirSync(BIN_DIR, { recursive: true });
+      copyFileSync(src, dest);
+      console.log(`  ✓ Deployed ${fname}`);
+    }
+  }
+}
+
 // Deploy settings.json with MCP binary paths resolved to absolute paths.
 // The template uses $RB_INDEX, $MASTRA_BIN, $CIT_BIN, $MASTRA_NODE_PATH which
 // the turnkey launcher script exports as env vars before exec. npm installs

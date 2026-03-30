@@ -75,7 +75,7 @@ Add to the APEX default `settings.json`:
   },
   "lspServers": {
     "c": {
-      "command": "python3.11",
+      "command": "python3.12",
       "args": [
         "${HOME}/.apex/bin/ontap_lsp_bridge.py",
         "--compile-commands",
@@ -106,7 +106,7 @@ priority over the bundled settings:
 ```json
 {
   "c": {
-    "command": "python3.11",
+    "command": "python3.12",
     "args": [
       "~/.apex/bin/ontap_lsp_bridge.py",
       "--compile-commands",

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.11
+#!/usr/bin/env python3.12
 """
 ONTAP LSP Bridge — JSON-RPC stdio server wrapping libclang.
 
@@ -36,7 +36,7 @@ ONTAP-specific:
   - SMF iterator method detection (_imp suffix)
 
 Usage (from .lsp.json or settings.json):
-  command: python3.11
+  command: python3.12
   args: ["/path/to/ontap_lsp_bridge.py",
          "--compile-commands", "/x/path/to/compile_commands.json",
          "--libclang", "/x/eng/.../libclang.so"]
