@@ -65,26 +65,22 @@ Your FINAL COMMIT message or a `SORTIE-NOTES.md` in the repo root must include:
 - Cross-pollination: [yes/no — does the Rust harness (XLI) need this?]
 ```
 
-### Proxy E2E Testing (required for wire-layer sorties)
+### E2E Testing (required for wire-layer sorties)
 
-If your sortie changes wire behavior (converters, content generators, streaming parsers), you MUST run the proxy e2e tests before marking complete:
+If your sortie changes wire behavior (converters, content generators, streaming parsers), you MUST run the proxy e2e tests before marking complete. See "Build & Test" section below for full reference.
 
 ```bash
-# Build first
+# 1. Build first (required — e2e tests spawn the built binary)
 npm run build
 
-# Run proxy e2e suite — tests GPT + Claude models through NetApp proxy
-# Requires OPENAI_API_KEY env var set
+# 2. Run proxy e2e (tests GPT + Claude through live proxy)
 npx vitest run --root ./integration-tests proxy-e2e
 
-# What it tests:
-#   smoke.test.ts — basic GPT + Claude connectivity, structured JSON output
-#   tools.test.ts — file read/write/grep via tool calls through both models
+# 3. Quick smoke only (skip tool tests):
+npx vitest run --root ./integration-tests proxy-e2e/smoke
 ```
 
-Test harness: `integration-tests/proxy-e2e/helpers/proxy-rig.ts`
-Proxy URL: `https://llm-proxy-api.ai.eng.netapp.com` (or `OPENAI_BASE_URL` override)
-Models: `gpt-4.1-mini` (GPT), `claude-sonnet-4.6` (Claude via Vertex)
+Tests cover: GPT basic prompt, Claude via Vertex AI, invalid key rejection, structured JSON output, file read/write via tool calls, shell commands, grep search.
 
 C2 reads these notes at merge time and executes the doc updates (evidence ledger, feature registry, wire audit, KPIs). You focus on code; C2 handles the docs.
 
@@ -119,6 +115,57 @@ Coordination hub: `~/Projects/cli-ops/` — read `AGENTS.md` there for the full 
 | Rollout recording + truncation  | codex-rs core           | P1       |
 | Commit attribution              | codex-rs git module     | P2       |
 | 70/30 compaction split strategy | codex-rs compact.rs     | P2       |
+
+---
+
+## Dev Workflow — Build & Test
+
+### Required Env Vars
+
+```bash
+# For proxy e2e tests (set in your shell profile):
+export OPENAI_API_KEY="your-proxy-api-key"
+export OPENAI_BASE_URL="https://llm-proxy-api.ai.eng.netapp.com"
+
+# Optional overrides:
+export PROXY_GPT_MODEL="gpt-4.1-mini"           # default
+export PROXY_CLAUDE_MODEL="claude-sonnet-4.6"    # default
+```
+
+### Commands (what to run and when)
+
+```bash
+# 1. BUILD (after code changes)
+npm run build
+
+# 2. UNIT TESTS (after every change — fast, no network)
+npm run test
+
+# 3. PROXY E2E (after wire-layer changes — ~30s, needs proxy)
+npx vitest run --root ./integration-tests proxy-e2e
+
+# 4. QUICK SMOKE (proxy e2e — smoke only, skip tool tests)
+npx vitest run --root ./integration-tests proxy-e2e/smoke
+
+# 5. FULL INTEGRATION (all integration tests — slower)
+npm run test:e2e
+
+# 6. PREFLIGHT (full CI check — lint, format, build, test)
+npm run preflight
+
+# 7. BUNDLE (for distribution)
+npm run bundle
+```
+
+### Quick Reference
+
+| What                   | Command                                                     | When          | Needs Network |
+| ---------------------- | ----------------------------------------------------------- | ------------- | ------------- |
+| Unit tests             | `npm run test`                                              | Every change  | No            |
+| Proxy e2e (GPT+Claude) | `npx vitest run --root ./integration-tests proxy-e2e`       | Wire changes  | Yes (proxy)   |
+| Smoke only             | `npx vitest run --root ./integration-tests proxy-e2e/smoke` | Quick check   | Yes           |
+| Full preflight         | `npm run preflight`                                         | Before merge  | No            |
+| Bundle                 | `npm run bundle`                                            | Before deploy | No            |
 
 ---
 
