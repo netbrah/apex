@@ -25,6 +25,15 @@ export interface ProxyEvent {
 const PROXY_URL = process.env['OPENAI_BASE_URL'] ?? '';
 const PROXY_KEY = process.env['OPENAI_API_KEY'] ?? '';
 
+/**
+ * Returns true when both OPENAI_BASE_URL and OPENAI_API_KEY are set.
+ * Tests use this to skip cleanly when the proxy is not configured.
+ * Set these env vars to run e2e tests against any OpenAI-compatible endpoint.
+ */
+export function isProxyConfigured(): boolean {
+  return PROXY_URL.length > 0 && PROXY_KEY.length > 0;
+}
+
 export const DEFAULT_GPT_MODEL =
   process.env['PROXY_GPT_MODEL'] ?? 'gpt-4.1-mini';
 export const DEFAULT_CLAUDE_MODEL =
