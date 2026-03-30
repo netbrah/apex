@@ -99,3 +99,21 @@ CONTRIBUTION-ROADMAP.md
 
 # ONTAP work directories
 bsd_net/
+
+# Analysis/strategy docs written by agents at repo root (not source)
+00-*.md
+01-*.md
+02-*.md
+token-banner-*.md
+
+# Apex assets staging dir (bundled into binary; not committed here)
+apex-assets/
+
+# Symlink to external api-reference (local only)
+api-reference
+
+# Integration test runtime output dirs (debug logs, runtime state)
+packages/cli/custom/
+packages/cli/first/
+packages/cli/from-env/
+packages/cli/workspace/
