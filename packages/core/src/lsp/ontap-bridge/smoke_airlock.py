@@ -241,7 +241,13 @@ def run_checks(m, cc: str, db: str, verbose: bool) -> tuple[int, int]:
         call_line = None
         call_col  = None
         for i, l in enumerate(lines):
-            if "validateKeyBlob" in l and not l.strip().startswith("int validateKeyBlob"):
+            stripped = l.strip()
+            # Skip definition line and any comments (docstrings, // comments)
+            if ("validateKeyBlob" in l
+                    and not stripped.startswith("int validateKeyBlob")
+                    and not stripped.startswith("*")
+                    and not stripped.startswith("//")
+                    and not stripped.startswith("/*")):
                 call_line = i + 1
                 # Column of the first char of "validateKeyBlob" on this line (1-based)
                 call_col  = l.index("validateKeyBlob") + 1
