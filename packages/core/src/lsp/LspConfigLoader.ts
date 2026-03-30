@@ -136,8 +136,13 @@ export class LspConfigLoader {
     extensionConfigs: LspServerConfig[],
     userConfigs: LspServerConfig[],
   ): LspServerConfig[] {
-    // Built-in preset configurations
-    const presets = this.getBuiltInPresets(detectedLanguages);
+    // Skip built-in presets (pylsp, tsserver, gopls) when the user has
+    // explicitly configured lspServers — the preset commands usually don't
+    // exist on the target machine and each takes 2s to time out.
+    const presets =
+      extensionConfigs.length > 0
+        ? []
+        : this.getBuiltInPresets(detectedLanguages);
 
     // Merge configs, user configs take priority
     const mergedConfigs = [...presets];

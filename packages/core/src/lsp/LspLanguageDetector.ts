@@ -89,6 +89,12 @@ const DEFAULT_EXCLUDE_PATTERNS = [
 ];
 
 /**
+ * Maximum files to scan during language detection.
+ * Prevents hanging on large codebases (50K+ files over NFS).
+ */
+const MAX_DETECT_FILES = 5000;
+
+/**
  * Detects programming languages in a workspace.
  */
 export class LspLanguageDetector {
@@ -107,6 +113,14 @@ export class LspLanguageDetector {
   async detectLanguages(
     extensionOverrides: Record<string, string> = {},
   ): Promise<string[]> {
+    // Fast path: when lspServers declares extensionToLanguage overrides,
+    // return those languages immediately.  Skip the globSync scan — it
+    // hangs on large codebases (50K+ files over NFS like ONTAP).
+    const overrideLanguages = new Set(Object.values(extensionOverrides));
+    if (overrideLanguages.size > 0) {
+      return Array.from(overrideLanguages);
+    }
+
     const extensionMap = this.getExtensionToLanguageMap(extensionOverrides);
     const extensions = Object.keys(extensionMap);
     const patterns =
@@ -118,6 +132,7 @@ export class LspLanguageDetector {
     for (const root of searchRoots) {
       for (const pattern of patterns) {
         try {
+          let fileCount = 0;
           const matches = globSync(pattern, {
             cwd: root,
             ignore: DEFAULT_EXCLUDE_PATTERNS,
@@ -130,6 +145,14 @@ export class LspLanguageDetector {
               continue;
             }
             files.add(match);
+            fileCount++;
+            // Cap at MAX_DETECT_FILES to prevent hanging on large codebases
+            if (fileCount >= MAX_DETECT_FILES) {
+              break;
+            }
+          }
+          if (fileCount >= MAX_DETECT_FILES) {
+            break;
           }
         } catch {
           // Ignore glob errors for missing/invalid directories

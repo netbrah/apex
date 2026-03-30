@@ -795,12 +795,21 @@ class OntapLspServer:
                      "error": {"code": code, "message": msg}})
 
     def _read_message(self) -> Optional[dict]:
-        """Block until a complete JSON-RPC message arrives on stdin."""
-        inp = sys.stdin.buffer
+        """Block until a complete JSON-RPC message arrives on stdin.
+
+        Uses os.read() instead of sys.stdin.buffer.read(n) because the
+        latter blocks until EXACTLY n bytes arrive.  JSON-RPC messages
+        are typically <4 KB, so a 4096-byte read() never returns for the
+        first message — deadlocking the bridge before it can respond to
+        ``initialize``.  os.read() returns as soon as ANY data is
+        available on the pipe, which is the correct behaviour for a
+        streaming protocol reader.
+        """
+        fd = sys.stdin.buffer.fileno()
         while self._running:
             # accumulate until we have headers
             while b"\r\n\r\n" not in self._buf:
-                chunk = inp.read(4096)
+                chunk = os.read(fd, 65536)
                 if not chunk:
                     return None
                 self._buf += chunk
@@ -814,7 +823,7 @@ class OntapLspServer:
             length = int(m.group(1))
             body_start = header_end + 4
             while len(self._buf) < body_start + length:
-                chunk = inp.read(4096)
+                chunk = os.read(fd, 65536)
                 if not chunk:
                     return None
                 self._buf += chunk
