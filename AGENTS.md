@@ -1,5 +1,82 @@
 # AGENTS.md - Qwen Code Project Context
 
+## Dev Workflow — Build, Test & Live E2E
+
+### Build & Unit Tests
+
+```bash
+npm run build          # compile TypeScript (required before e2e)
+npm run test           # all unit tests — no network, fast
+npm run preflight      # lint + format + build + typecheck + test (before merge)
+
+# Single package
+npx vitest run packages/core
+npx vitest run packages/cli
+
+# Single file (fastest iteration)
+npx vitest run packages/core/src/core/anthropicContentGenerator/anthropicContentGenerator.test.ts
+
+# Watch mode
+npx vitest packages/core --watch
+```
+
+### Live Proxy E2E Tests
+
+All proxy e2e tests are **env-var gated** — they skip cleanly when the required
+vars are not set. No corp URLs are hardcoded on this branch.
+
+#### Set these in your shell profile to enable live e2e:
+
+```bash
+export OPENAI_API_KEY="<your-key>"
+export OPENAI_BASE_URL="<your-openai-compatible-endpoint>"
+
+# Optional overrides (defaults shown):
+export PROXY_GPT_MODEL="gpt-4.1-mini"
+export PROXY_CLAUDE_MODEL="claude-sonnet-4.6"
+export QWEN_BINARY="qwen"   # or absolute path to built binary
+```
+
+For the NetApp proxy URL specifically: it lives in `feat/apex-embed-assets` AGENTS.md.
+Not here — this branch is public. Your shell profile should already have it set.
+
+#### Run e2e tests
+
+```bash
+npm run build   # required — tests spawn the built binary
+
+# Full suite (smoke + tools, ~2 min)
+npx vitest run --root ./integration-tests proxy-e2e
+
+# Smoke only (~30s — basic connectivity check)
+npx vitest run --root ./integration-tests proxy-e2e/smoke
+
+# Tools only (~60s — file read/write/shell/grep via live tool calls)
+npx vitest run --root ./integration-tests proxy-e2e/tools
+```
+
+**Auto-skip**: when `OPENAI_BASE_URL` or `OPENAI_API_KEY` is empty, all proxy-e2e
+tests skip automatically. `npm run test` and `npm run preflight` are always safe.
+
+#### What e2e covers
+
+| Suite | File                      | Tests                                                          |
+| ----- | ------------------------- | -------------------------------------------------------------- |
+| Smoke | `proxy-e2e/smoke.test.ts` | GPT prompt, Claude prompt, key rejection, JSON event structure |
+| Tools | `proxy-e2e/tools.test.ts` | File read, file write, shell command, grep search              |
+
+#### When to run e2e
+
+| Change area                        | Run e2e?                   |
+| ---------------------------------- | -------------------------- |
+| `anthropicContentGenerator/`       | Yes — smoke (Claude)       |
+| `openaiResponsesContentGenerator/` | Yes — smoke (GPT)          |
+| `contentGenerator.ts` dispatch     | Yes — smoke (both)         |
+| `packages/core/src/tools/`         | Yes — tools suite          |
+| Config, storage, UI                | No — unit tests sufficient |
+
+---
+
 ## Project Overview
 
 **Qwen Code** is an open-source AI agent for the terminal, optimized for [Qwen3-Coder](https://github.com/QwenLM/Qwen3-Coder). It helps developers understand large codebases, automate tedious work, and ship faster.
