@@ -154,6 +154,7 @@ const distPackageJson = {
     'apex-launcher-env.js',
     'cli.js',
     'vendor',
+    'bindings',
     '*.sb',
     'README.md',
     'LICENSE',

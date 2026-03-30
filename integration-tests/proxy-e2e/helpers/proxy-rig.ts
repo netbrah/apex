@@ -31,9 +31,42 @@ export const DEFAULT_GPT_MODEL =
 export const DEFAULT_CLAUDE_MODEL =
   process.env['PROXY_CLAUDE_MODEL'] ?? 'claude-sonnet-4.6';
 
-function getQwenBinary(): string {
-  const which = process.env['QWEN_BINARY'] ?? 'qwen';
-  return which;
+interface CliInvocation {
+  command: string;
+  argsPrefix: string[];
+}
+
+function resolveCaBundlePath(): string | undefined {
+  const envPath = process.env['NODE_EXTRA_CA_CERTS'];
+  if (envPath && fs.existsSync(envPath)) {
+    return envPath;
+  }
+
+  const candidates = [
+    path.join(os.homedir(), '.apex', 'ca-bundle.pem'),
+    '/etc/pki/tls/certs/ca-bundle.crt',
+    '/etc/ssl/certs/ca-certificates.crt',
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+function getCliInvocation(): CliInvocation {
+  const explicitBinary = process.env['QWEN_BINARY'];
+  if (explicitBinary && explicitBinary.trim().length > 0) {
+    return { command: explicitBinary, argsPrefix: [] };
+  }
+
+  // Integration test global setup provides this path to the locally built CLI.
+  const testCliPath = process.env['TEST_CLI_PATH'];
+  if (testCliPath && fs.existsSync(testCliPath)) {
+    return {
+      command: process.execPath,
+      argsPrefix: [testCliPath],
+    };
+  }
+
+  // Fallback for environments running the globally installed binary.
+  return { command: 'qwen', argsPrefix: [] };
 }
 
 export async function runProxy(
@@ -43,9 +76,12 @@ export async function runProxy(
   timeoutMs: number = 120_000,
 ): Promise<ProxyRunResult> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'proxy-e2e-'));
+  const caBundlePath = resolveCaBundlePath();
+  const { command, argsPrefix } = getCliInvocation();
 
   return new Promise<ProxyRunResult>((resolve) => {
     const args = [
+      ...argsPrefix,
       '--auth-type',
       'openai-responses',
       '--model',
@@ -60,7 +96,7 @@ export async function runProxy(
     ];
 
     const _child = execFile(
-      getQwenBinary(),
+      command,
       args,
       {
         cwd: tmpDir,
@@ -71,7 +107,7 @@ export async function runProxy(
           OPENAI_BASE_URL: PROXY_URL,
           HOME: os.homedir(),
           PATH: process.env['PATH'],
-          NODE_EXTRA_CA_CERTS: process.env['NODE_EXTRA_CA_CERTS'] ?? '',
+          ...(caBundlePath ? { NODE_EXTRA_CA_CERTS: caBundlePath } : {}),
         },
         maxBuffer: 10 * 1024 * 1024,
       },

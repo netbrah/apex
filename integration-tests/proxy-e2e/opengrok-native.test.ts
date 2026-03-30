@@ -14,11 +14,29 @@ const describeProxy = RUN_PROXY_OPENGROK ? describe : describe.skip;
 describeProxy('Proxy Native OpenGrok Tools', () => {
   it('GPT uses native search tool for symbol definition lookup', async () => {
     const result = await runProxy(
-      'Use the search tool with definition "deleteKeyFromLocalCryptomod" and return only the first matching file path.',
+      [
+        'Call the tool named "search" with:',
+        '{"definition":"deleteKeyFromLocalCryptomod","maxResults":1}.',
+        'Do not call any other tools.',
+        'Return only the first matching file path.',
+      ].join(' '),
       DEFAULT_GPT_MODEL,
+      [
+        '--core-tools',
+        'search,get_file,analyze_symbol_ast',
+        '--allowed-mcp-server-names',
+        '',
+      ],
     );
 
     expect(result.isError).toBe(false);
+    expect(
+      result.events.some(
+        (evt) =>
+          evt.type === 'assistant' &&
+          JSON.stringify(evt).includes('"name":"search"'),
+      ),
+    ).toBe(true);
     expect(result.response).toContain('/');
     expect(result.response.toLowerCase()).toContain('keymanager');
   }, 120_000);

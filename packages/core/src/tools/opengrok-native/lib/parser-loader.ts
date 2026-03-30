@@ -13,6 +13,7 @@
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 
 // ============================================================================
 // Bun Binary Support
@@ -64,6 +65,174 @@ function getBinaryRequire(): NodeRequire {
     return bunRequire;
   }
   return createRequire(import.meta.url);
+}
+
+// ============================================================================
+// Native Binding Sidecar Support
+// ============================================================================
+
+const PLATFORM_KEY = `${process.platform}-${process.arch}`;
+
+function uniquePaths(paths: Array<string | undefined>): string[] {
+  return Array.from(
+    new Set(
+      paths.filter((p): p is string => Boolean(p && p.trim().length > 0)),
+    ),
+  );
+}
+
+function getBindingSearchDirs(): string[] {
+  const sourceDir = dirname(fileURLToPath(import.meta.url));
+  const home = process.env.HOME;
+  const entryDir = process.argv[1] ? dirname(process.argv[1]) : undefined;
+  const execDir = dirname(process.execPath);
+
+  const candidates = uniquePaths([
+    process.env.TREE_SITTER_BINDING_PATH,
+    entryDir ? join(entryDir, 'bindings', PLATFORM_KEY) : undefined,
+    join(execDir, 'bindings', PLATFORM_KEY),
+    join(sourceDir, '..', 'bindings', PLATFORM_KEY),
+    home
+      ? join(
+          home,
+          'Projects',
+          'agent_tasks',
+          'opengrokmcp',
+          'vscode-mastra',
+          'bindings',
+          PLATFORM_KEY,
+        )
+      : undefined,
+    home
+      ? join(
+          home,
+          'Projects',
+          'opengrokmcp',
+          'vscode-mastra',
+          'bindings',
+          PLATFORM_KEY,
+        )
+      : undefined,
+  ]);
+
+  return candidates.filter((candidate) => existsSync(candidate));
+}
+
+function getNodeModulesSearchDirs(): string[] {
+  const sourceDir = dirname(fileURLToPath(import.meta.url));
+  const home = process.env.HOME;
+  const entryDir = process.argv[1] ? dirname(process.argv[1]) : undefined;
+  const execDir = dirname(process.execPath);
+
+  const derivedFromBindings = getBindingSearchDirs().map((bindingDir) =>
+    join(bindingDir, '..', '..', 'node_modules'),
+  );
+
+  const candidates = uniquePaths([
+    process.env.TREE_SITTER_NODE_MODULES_PATH,
+    entryDir ? join(entryDir, 'node_modules') : undefined,
+    join(execDir, 'node_modules'),
+    join(sourceDir, '..', 'node_modules'),
+    ...derivedFromBindings,
+    home
+      ? join(home, 'Projects', 'agent_tasks', 'opengrokmcp', 'node_modules')
+      : undefined,
+    home
+      ? join(
+          home,
+          'Projects',
+          'agent_tasks',
+          'opengrokmcp',
+          'vscode-mastra',
+          'node_modules',
+        )
+      : undefined,
+    home ? join(home, 'Projects', 'opengrokmcp', 'node_modules') : undefined,
+    home
+      ? join(home, 'Projects', 'opengrokmcp', 'vscode-mastra', 'node_modules')
+      : undefined,
+  ]);
+
+  return candidates.filter((candidate) => existsSync(candidate));
+}
+
+function tryLoadFromSidecarNodeModules(moduleName: string): any | null {
+  const require = getBinaryRequire();
+  const searchDirs = getNodeModulesSearchDirs();
+
+  for (const nodeModulesDir of searchDirs) {
+    const candidate = join(nodeModulesDir, ...moduleName.split('/'));
+    if (!existsSync(candidate)) {
+      continue;
+    }
+
+    try {
+      const loaded = require(candidate);
+      console.log(`[parser-loader] Loaded ${moduleName} from ${candidate}`);
+      return loaded;
+    } catch (error) {
+      console.warn(
+        `[parser-loader] Failed loading ${moduleName} from ${candidate}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  return null;
+}
+
+function getBindingFileForModule(moduleName: string): string | null {
+  switch (moduleName) {
+    case 'tree-sitter':
+      return 'tree-sitter.node';
+    case 'tree-sitter-cpp':
+      return 'tree-sitter-cpp.node';
+    case 'tree-sitter-c':
+      return 'tree-sitter-c.node';
+    case 'tree-sitter-python':
+      return 'tree-sitter-python.node';
+    case '@ganezdragon/tree-sitter-perl':
+      return 'tree-sitter-perl.node';
+    default:
+      return null;
+  }
+}
+
+function tryLoadFromBundledBindings(moduleName: string): any | null {
+  const bindingFile = getBindingFileForModule(moduleName);
+  if (!bindingFile) {
+    return null;
+  }
+
+  const require = getBinaryRequire();
+  const bindingDirs = getBindingSearchDirs();
+  for (const dir of bindingDirs) {
+    const candidate = join(dir, bindingFile);
+    if (!existsSync(candidate)) {
+      continue;
+    }
+
+    try {
+      const loaded = require(candidate);
+      // tree-sitter.node exports an object containing Parser class.
+      if (moduleName === 'tree-sitter') {
+        const parserCtor = loaded?.Parser;
+        if (parserCtor) {
+          console.log(`[parser-loader] Loaded ${moduleName} from ${candidate}`);
+          return parserCtor;
+        }
+        continue;
+      }
+
+      console.log(`[parser-loader] Loaded ${moduleName} from ${candidate}`);
+      return loaded;
+    } catch (error) {
+      console.warn(
+        `[parser-loader] Failed loading binding ${candidate}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  return null;
 }
 
 // ============================================================================
@@ -119,15 +288,22 @@ export function loadTreeSitterParser(language: string): {
     try {
       Parser = require('tree-sitter');
     } catch (e) {
-      const error = `tree-sitter not available: ${(e as Error).message}`;
-      console.error(`[parser-loader] ${error}`);
-      parserCache.set(lang, {
-        parser: null,
-        language: null,
-        available: false,
-        error,
-      });
-      return null;
+      const fallbackParser =
+        tryLoadFromSidecarNodeModules('tree-sitter') ??
+        tryLoadFromBundledBindings('tree-sitter');
+      if (fallbackParser) {
+        Parser = fallbackParser;
+      } else {
+        const error = `tree-sitter not available: ${(e as Error).message}`;
+        console.error(`[parser-loader] ${error}`);
+        parserCache.set(lang, {
+          parser: null,
+          language: null,
+          available: false,
+          error,
+        });
+        return null;
+      }
     }
 
     // Load language-specific grammar
@@ -149,24 +325,31 @@ export function loadTreeSitterParser(language: string): {
     try {
       languageGrammar = require(grammarModule);
     } catch (e) {
-      const error = `${grammarModule} not available: ${(e as Error).message}`;
-
-      // For optional parsers (like Perl), this is expected - don't spam logs
-      if (lang === 'perl') {
-        console.warn(
-          `[parser-loader] Optional parser ${grammarModule} not installed (this is OK)`,
-        );
+      const fallbackGrammar =
+        tryLoadFromSidecarNodeModules(grammarModule) ??
+        tryLoadFromBundledBindings(grammarModule);
+      if (fallbackGrammar) {
+        languageGrammar = fallbackGrammar;
       } else {
-        console.error(`[parser-loader] ${error}`);
-      }
+        const error = `${grammarModule} not available: ${(e as Error).message}`;
 
-      parserCache.set(lang, {
-        parser: null,
-        language: null,
-        available: false,
-        error,
-      });
-      return null;
+        // For optional parsers (like Perl), this is expected - don't spam logs
+        if (lang === 'perl') {
+          console.warn(
+            `[parser-loader] Optional parser ${grammarModule} not installed (this is OK)`,
+          );
+        } else {
+          console.error(`[parser-loader] ${error}`);
+        }
+
+        parserCache.set(lang, {
+          parser: null,
+          language: null,
+          available: false,
+          error,
+        });
+        return null;
+      }
     }
 
     // Create parser instance

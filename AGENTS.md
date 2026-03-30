@@ -87,8 +87,9 @@ npx vitest packages/core --watch
 ### 2. Proxy E2E Tests (required for wire-layer changes — needs corp proxy)
 
 ```bash
-# Build first (e2e tests spawn the actual binary)
+# Build + bundle first (proxy e2e spawns dist/cli.js)
 npm run build
+npm run bundle
 
 # Full proxy e2e (GPT + Claude via Vertex AI)
 npx vitest run --root ./integration-tests proxy-e2e
