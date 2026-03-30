@@ -864,6 +864,22 @@
         }
       }
     },
+    "lsp": {
+      "description": "Language Server Protocol (LSP) settings for code intelligence.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable the LSP server for code intelligence (definitions, references, hover, diagnostics). Requires a configured LSP server (e.g. .lsp.json in workspace root, lspServers here, or lspServers in extension config).",
+          "type": "boolean",
+          "default": false
+        },
+        "lspServers": {
+          "description": "Global LSP server config — same format as .lsp.json but applies to ALL workspaces. Per-workspace .lsp.json overrides this. ONTAP: { \"c\": { \"command\": \"python3.11\", \"args\": [\"~/.apex/bin/ontap_lsp_bridge.py\", \"--compile-commands\", \"./compile_commands.json\"], \"transport\": \"stdio\", \"extensionToLanguage\": { \".c\": \"c\", \".cc\": \"c\", \".h\": \"c\", \".ut\": \"c\" } } }",
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
     "experimental": {
       "description": "Setting to enable experimental features",
       "type": "object",
