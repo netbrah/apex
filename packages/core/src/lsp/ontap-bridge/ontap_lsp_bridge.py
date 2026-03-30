@@ -70,6 +70,7 @@ CLANG_AVAILABLE = False
 _clang_mod = None
 
 DEFAULT_LIBCLANG_PATHS = [
+    "/x/eng/btools/arch/x86_64-redhat-rhel7/compilers_n_tools/pkgs/llvm-21.1.8-n27e887c/lib/libclang.so",
     "/x/eng/btools/arch/x86_64-redhat-rhel7/compilers_n_tools/pkgs/llvm-19.1.7-n7478241/lib/libclang.so",
     "/usr/lib64/libclang.so",
     "/Library/Developer/CommandLineTools/usr/lib/libclang.dylib",
