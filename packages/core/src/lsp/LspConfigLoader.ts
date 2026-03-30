@@ -45,6 +45,29 @@ export class LspConfigLoader {
   }
 
   /**
+   * Load LSP server config from ~/.apex/settings.json lspServers key.
+   *
+   * This is the GLOBAL config path — no per-workspace .lsp.json needed.
+   * Format is identical to .lsp.json: { "c": { "command": "...", "args": [...] } }
+   *
+   * Every ONTAP workspace has compile_commands.json at root, so a single
+   * global entry with "./compile_commands.json" works for all checkouts.
+   *
+   * Runs BEFORE loadUserConfigs so per-workspace .lsp.json can override.
+   */
+  loadSettingsConfigs(
+    lspServers: Record<string, unknown> | undefined,
+  ): LspServerConfig[] {
+    if (!lspServers || !this.isRecord(lspServers)) return [];
+    try {
+      return this.parseConfigSource(lspServers, 'settings.json lspServers');
+    } catch (error) {
+      debugLogger.warn('Failed to parse settings.json lspServers:', error);
+      return [];
+    }
+  }
+
+  /**
    * Load LSP configurations declared by extensions (Claude plugins).
    */
   async loadExtensionConfigs(

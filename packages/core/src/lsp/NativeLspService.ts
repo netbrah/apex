@@ -90,6 +90,32 @@ export class NativeLspService {
   /**
    * Discover and prepare LSP servers
    */
+  /**
+   * LSP ACTIVATION CHAIN — read this before touching LSP.
+   *
+   * For the agent to receive LSP tools (hover/definition/references):
+   *
+   *   1. settings.json must have "lsp": {"enabled": true}
+   *      Source: apex-assets/settings.json → dist/apex/ → ~/.apex/settings.json
+   *      On existing installs postinstall does NOT overwrite — delete and reinstall
+   *      or patch manually. See RB-10 in docs/05-RUNBOOK.md.
+   *
+   *   2. .lsp.json must exist in the workspaceRoot (cwd where apex is launched).
+   *      Template at ~/.apex/ontap.lsp.json — copy to workspace root.
+   *      Every ONTAP workspace has compile_commands.json at root (default path).
+   *
+   *   3. This method (discoverAndPrepare) finds .lsp.json and starts the server.
+   *      Failure here is silent (caught, logged to debug only).
+   *
+   *   4. config.ts: if isLspEnabled() && getLspClient() → registerCoreTool(LspTool)
+   *      ONLY THEN does the agent get hover/definition/references tools.
+   *
+   * TODO (S-next): add loadSettingsConfigs() reading lspServers from settings.json
+   * so users don't need a per-workspace .lsp.json. Every ONTAP workspace has
+   * compile_commands.json at root, so ./compile_commands.json works globally.
+   * Files to change: LspConfigLoader.ts, NativeLspService.ts (here),
+   * settingsSchema.ts, apex-assets/settings.json.
+   */
   async discoverAndPrepare(): Promise<void> {
     const workspaceTrusted = this.config.isTrustedFolder();
     this.serverManager.clearServerHandles();
@@ -103,6 +129,16 @@ export class NativeLspService {
     }
 
     // Detect languages in workspace
+    // Global settings.json lspServers — loaded first, overridden by .lsp.json
+    // See RB-10 in docs/05-RUNBOOK.md for the full activation chain.
+    const settingsLspServers = (
+      this.config.getSettings?.() as
+        | { lsp?: { lspServers?: Record<string, unknown> } }
+        | undefined
+    )?.lsp?.lspServers;
+    const settingsConfigs =
+      this.configLoader.loadSettingsConfigs(settingsLspServers);
+
     const userConfigs = await this.configLoader.loadUserConfigs();
     const extensionConfigs = await this.configLoader.loadExtensionConfigs(
       this.getActiveExtensions(),
@@ -110,15 +146,17 @@ export class NativeLspService {
     const extensionOverrides =
       this.configLoader.collectExtensionToLanguageOverrides([
         ...extensionConfigs,
+        ...settingsConfigs,
         ...userConfigs,
       ]);
     const detectedLanguages =
       await this.languageDetector.detectLanguages(extensionOverrides);
 
-    // Merge configs: built-in presets + extension LSP configs + user .lsp.json
+    // Merge configs: built-in presets + extension + global settings + workspace .lsp.json
+    // Priority (highest last = wins): presets < extensions < settingsConfigs < userConfigs
     const serverConfigs = this.configLoader.mergeConfigs(
       detectedLanguages,
-      extensionConfigs,
+      [...extensionConfigs, ...settingsConfigs],
       userConfigs,
     );
     this.serverManager.setServerConfigs(serverConfigs);

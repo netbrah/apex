@@ -175,15 +175,65 @@ const apexAssetsDir = join(pkgDir, 'apex');
   } else {
     // Existing install — fix unresolved $RB_INDEX / $MASTRA_BIN if present
     const existing = readFileSync(settingsDest, 'utf8');
+    let patched = existing;
     if (
       existing.includes('"$RB_INDEX"') ||
       existing.includes('"$MASTRA_BIN"') ||
       existing.includes('"$CIT_BIN"')
     ) {
-      writeFile(settingsDest, resolveMcpPaths(existing));
+      patched = resolveMcpPaths(patched);
       console.log('  ✓ Fixed settings.json (resolved MCP binary paths)');
     }
+    // Patch lsp.lspServers into existing settings.json if missing.
+    // This runs on every install so users upgrading from pre-LSP builds get it.
+    try {
+      const settingsObj = JSON.parse(patched);
+      const wantedLsp = {
+        enabled: true,
+        lspServers: {
+          c: {
+            command: 'python3.11',
+            args: [
+              '/u/palanisd/.apex/bin/ontap_lsp_bridge.py',
+              '--compile-commands',
+              './compile_commands.json',
+            ],
+            transport: 'stdio',
+            extensionToLanguage: {
+              '.c': 'c',
+              '.cc': 'c',
+              '.h': 'c',
+              '.ut': 'c',
+            },
+          },
+        },
+      };
+      if (!settingsObj.lsp || !settingsObj.lsp.lspServers) {
+        settingsObj.lsp = { ...settingsObj.lsp, ...wantedLsp };
+        patched = JSON.stringify(settingsObj, null, 2) + '\n';
+        console.log(
+          '  ✓ Patched settings.json (added lsp.enabled + lsp.lspServers)',
+        );
+      }
+    } catch (_e) {
+      /* ignore parse errors */
+    }
+    if (patched !== existing) writeFile(settingsDest, patched);
   }
+}
+
+// Deploy ONTAP .lsp.json template to ~/.apex/ for easy workspace setup
+// User copies: cp ~/.apex/ontap.lsp.json <workspace>/.lsp.json
+// Then edits the compile_commands path if needed.
+{
+  const lspTemplate = Buffer.from(
+    'ewogICJjIjogewogICAgImNvbW1hbmQiOiAicHl0aG9uMy4xMSIsCiAgICAiYXJncyI6IFsKICAgICAgIi91L3BhbGFuaXNkLy5hcGV4L2Jpbi9vbnRhcF9sc3BfYnJpZGdlLnB5IiwKICAgICAgIi0tY29tcGlsZS1jb21tYW5kcyIsCiAgICAgICIuL2NvbXBpbGVfY29tbWFuZHMuanNvbiIKICAgIF0sCiAgICAidHJhbnNwb3J0IjogInN0ZGlvIiwKICAgICJleHRlbnNpb25Ub0xhbmd1YWdlIjogewogICAgICAiLmMiOiAiYyIsCiAgICAgICIuY2MiOiAiYyIsCiAgICAgICIuaCI6ICJjIiwKICAgICAgIi51dCI6ICJjIgogICAgfQogIH0KfQo=',
+    'base64',
+  );
+  const lspDest = join(APEX_HOME, 'ontap.lsp.json');
+  mkdirSync(APEX_HOME, { recursive: true });
+  writeFile(lspDest, lspTemplate);
+  console.log('  ✓ Deployed ontap.lsp.json template to ~/.apex/');
 }
 
 // Skills are loaded from dist/bundled/ by SkillManager at runtime.

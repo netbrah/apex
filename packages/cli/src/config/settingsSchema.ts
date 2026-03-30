@@ -1596,7 +1596,21 @@ const SETTINGS_SCHEMA = {
         default: false,
         description:
           'Enable the LSP server for code intelligence (definitions, references, hover, diagnostics). ' +
-          'Requires a configured LSP server (e.g. .lsp.json in workspace root or lspServers in extension config).',
+          'Requires a configured LSP server (e.g. .lsp.json in workspace root, lspServers here, or lspServers in extension config).',
+        showInDialog: false,
+      },
+      lspServers: {
+        type: 'object',
+        label: 'LSP Servers (global)',
+        category: 'LSP',
+        requiresRestart: true,
+        default: {},
+        description:
+          'Global LSP server config — same format as .lsp.json but applies to ALL workspaces. ' +
+          'Per-workspace .lsp.json overrides this. ' +
+          'ONTAP: { "c": { "command": "python3.11", "args": ["~/.apex/bin/ontap_lsp_bridge.py", ' +
+          '"--compile-commands", "./compile_commands.json"], "transport": "stdio", ' +
+          '"extensionToLanguage": { ".c": "c", ".cc": "c", ".h": "c", ".ut": "c" } } }',
         showInDialog: false,
       },
     },
