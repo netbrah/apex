@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.11
 """
 smoke_airlock.py — single-file smoke test for the ONTAP LSP bridge on Linux/airlock.
 

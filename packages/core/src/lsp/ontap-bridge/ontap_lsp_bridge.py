@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.12
+#!/usr/bin/env python3.11
 """
 ONTAP LSP Bridge — JSON-RPC stdio server wrapping libclang.
 
