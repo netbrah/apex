@@ -121,3 +121,5 @@ packages/cli/custom/
 packages/cli/first/
 packages/cli/from-env/
 packages/cli/workspace/
+tests/*.jsonl
+netapp-seclab-apex-*.tgz
