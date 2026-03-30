@@ -125,7 +125,16 @@ class CompileDB:
         self._db: Dict[str, dict] = {}     # abs_file_path → entry
         self._mtime: float = 0.0
         self._lock = threading.Lock()
+        self._loading = threading.Event()  # set when first load completes
+        # Load asynchronously — 102MB over NFS blocks for seconds; we must
+        # not block __init__ or the bridge can't answer initialize in time.
+        t = threading.Thread(target=self._reload_and_signal, daemon=True)
+        t.start()
+
+    def _reload_and_signal(self) -> None:
+        """Initial load: calls _reload() then signals _loading so waiters unblock."""
         self._reload()
+        self._loading.set()
 
     def _reload(self) -> None:
         try:
@@ -154,6 +163,11 @@ class CompileDB:
         source_file_to_parse may differ from file_path for .ut files
         (points to the generated .cc in bedrock/).
         """
+        # Wait for the initial background load to finish (up to 120s for NFS).
+        # After that, _reload() is a cheap mtime check.
+        if not self._loading.is_set():
+            log.warning("Waiting for compile_commands.json to finish loading...")
+            self._loading.wait(timeout=120)
         self._reload()
         with self._lock:
             db = self._db
