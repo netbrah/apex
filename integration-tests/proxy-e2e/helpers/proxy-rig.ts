@@ -22,8 +22,7 @@ export interface ProxyEvent {
   [key: string]: unknown;
 }
 
-const PROXY_URL =
-  process.env['OPENAI_BASE_URL'] ?? 'https://llm-proxy-api.ai.eng.netapp.com';
+const PROXY_URL = process.env['OPENAI_BASE_URL'] ?? '';
 const PROXY_KEY = process.env['OPENAI_API_KEY'] ?? '';
 
 export const DEFAULT_GPT_MODEL =
