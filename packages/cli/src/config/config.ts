@@ -1137,6 +1137,7 @@ export async function loadCliConfig(
     defaultFileEncoding: settings.general?.defaultFileEncoding,
     lsp: {
       enabled: lspEnabled,
+      lspServers: settings.lsp?.lspServers,
     },
     agents: settings.agents
       ? {
