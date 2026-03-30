@@ -194,8 +194,22 @@ def _get_actual_source(entry: dict) -> str:
 
 
 def _extract_minimal_args(args: List[str], directory: str) -> List[str]:
-    """Strip compile_commands args down to -I/-D/-std/-isystem flags only."""
+    """Strip compile_commands args to flags libclang needs for accurate parsing.
+
+    Keeps: -I, -isystem, -D, -include, -std=, -nostdinc, -xc, -xc++,
+           --target=, -march=, -mno-*, -mcmodel=
+    Drops: -o, -c, -emit-llvm, -W*, -f*, -g, -O*, -pipe, source/output files.
+
+    CRITICAL for ONTAP kernel files: -nostdinc must be preserved or clang will
+    search for stddef.h/etc that don't exist in the freestanding kernel env.
+    """
     minimal: List[str] = []
+    # Flags that consume the next token as their value
+    WITH_VALUE = {"-I", "-isystem", "-D", "-include", "-isysroot",
+                  "-target", "--target"}
+    # Standalone flags to preserve verbatim
+    PASSTHROUGH = {"-nostdinc", "-nostdinc++", "-nostdlib", "-ffreestanding"}
+
     start = 1 if args and any(
         c in os.path.basename(args[0])
         for c in ("clang", "gcc", "g++", "cc", "c++")
@@ -203,7 +217,8 @@ def _extract_minimal_args(args: List[str], directory: str) -> List[str]:
     i = start
     while i < len(args):
         arg = args[i]
-        if arg in ("-I", "-isystem", "-D", "-include", "-isysroot"):
+        # Flags that consume the next token
+        if arg in WITH_VALUE:
             if i + 1 < len(args):
                 nxt = args[i + 1]
                 if arg in ("-I", "-isystem", "-isysroot") and not os.path.isabs(nxt):
@@ -211,15 +226,33 @@ def _extract_minimal_args(args: List[str], directory: str) -> List[str]:
                 minimal.extend([arg, nxt])
                 i += 2
                 continue
+        # Standalone pass-through flags (no value)
+        elif arg in PASSTHROUGH:
+            minimal.append(arg)
+        # -xc / -xc++ (language mode — required for C files in ONTAP)
+        elif arg in ("-xc", "-xc++", "-xc-header", "-xc++-header"):
+            minimal.append(arg)
+        # --target=... or -target=...
+        elif arg.startswith("--target=") or arg.startswith("-target="):
+            minimal.append(arg)
+        # Combined -Ipath
         elif arg.startswith("-I"):
             p = arg[2:]
             if not os.path.isabs(p):
                 p = os.path.join(directory, p)
             minimal.append(f"-I{p}")
-        elif arg.startswith(("-D", "-isystem")):
+        # Combined -Dfoo or -isystempath
+        elif arg.startswith("-D"):
             minimal.append(arg)
+        elif arg.startswith("-isystem"):
+            # -isystem/path (combined form)
+            p = arg[len("-isystem"):]
+            if p and not os.path.isabs(p):
+                p = os.path.join(directory, p)
+            minimal.append(f"-isystem{p}")
         elif arg.startswith("-std="):
             minimal.append(arg)
+        # Skip everything else: -o, -c, -emit-llvm, -W*, -f*, -g, -O*, source
         i += 1
     return minimal
 
