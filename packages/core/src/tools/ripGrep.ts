@@ -13,6 +13,7 @@ import { resolveAndValidatePath } from '../utils/paths.js';
 import { getErrorMessage } from '../utils/errors.js';
 import type { Config } from '../config/config.js';
 import { runRipgrep } from '../utils/ripgrepUtils.js';
+import { getUserRgIgnorePath } from '../utils/rgIgnoreUtils.js';
 import { SchemaValidator } from '../utils/schemaValidator.js';
 import type { FileFilteringOptions } from '../config/constants.js';
 import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
@@ -200,6 +201,12 @@ class GrepToolInvocation extends BaseToolInvocation<
       if (fs.existsSync(qwenIgnorePath)) {
         rgArgs.push('--ignore-file', qwenIgnorePath);
       }
+    }
+
+    // Always honor user-level ripgrep ignore rules when present.
+    const userRgIgnorePath = getUserRgIgnorePath();
+    if (userRgIgnorePath) {
+      rgArgs.push('--ignore-file', userRgIgnorePath);
     }
 
     // Add glob pattern if provided
