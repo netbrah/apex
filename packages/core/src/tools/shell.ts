@@ -252,14 +252,20 @@ export class ShellToolInvocation extends BaseToolInvocation<
 
       // On non-Windows background commands, wrap with pgrep to capture
       // subprocess PIDs so we can report them to the user.
-      const commandToExecute =
-        !isWindows && shouldRunInBackground
-          ? (() => {
-              let command = finalCommand.trim();
-              if (!command.endsWith('&')) command += ';';
-              return `{ ${command} }; __code=$?; pgrep -g 0 >${tempFilePath} 2>&1; exit $__code;`;
-            })()
-          : finalCommand;
+      let commandToExecute: string;
+      if (!isWindows && shouldRunInBackground) {
+        // Background: wrap with pgrep to capture subprocess PIDs
+        let command = finalCommand.trim();
+        if (!command.endsWith('&')) command += ';';
+        commandToExecute = `{ ${command} }; __code=$?; pgrep -g 0 >${tempFilePath} 2>&1; exit $__code;`;
+      } else if (!isWindows) {
+        // Foreground on Unix: wrap in a subshell for heredoc safety.
+        // This ensures complex shell syntax like << EOF doesn't break
+        // when the command is passed via bash -c.
+        commandToExecute = `(${finalCommand})`;
+      } else {
+        commandToExecute = finalCommand;
+      }
 
       const cwd = this.params.directory || this.config.getTargetDir();
 
