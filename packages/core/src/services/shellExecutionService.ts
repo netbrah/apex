@@ -14,6 +14,7 @@ import type { IPty } from '@lydell/node-pty';
 import { getCachedEncodingForBuffer } from '../utils/systemEncoding.js';
 import { isBinary } from '../utils/textUtils.js';
 import { getShellConfiguration } from '../utils/shell-utils.js';
+import { sanitizeEnvironment } from './environmentSanitization.js';
 import pkg from '@xterm/headless';
 import {
   serializeTerminalToObject,
@@ -359,7 +360,7 @@ export class ShellExecutionService {
         detached: !isWindows,
         windowsHide: isWindows,
         env: {
-          ...normalizePathEnvForWindows(process.env),
+          ...normalizePathEnvForWindows(sanitizeEnvironment(process.env)),
           QWEN_CODE: '1',
           TERM: 'xterm-256color',
           PAGER: 'cat',
@@ -502,6 +503,9 @@ export class ShellExecutionService {
           }
 
           const finalBuffer = Buffer.concat(outputChunks);
+          // Clear the buffer array to release individual chunk references
+          // and prevent unbounded memory growth during long sessions.
+          outputChunks.length = 0;
 
           return { stdout, stderr, finalBuffer };
         }
@@ -565,7 +569,7 @@ export class ShellExecutionService {
         cols,
         rows,
         env: {
-          ...normalizePathEnvForWindows(process.env),
+          ...normalizePathEnvForWindows(sanitizeEnvironment(process.env)),
           QWEN_CODE: '1',
           TERM: 'xterm-256color',
           PAGER: shellExecutionConfig.pager ?? 'cat',
@@ -777,6 +781,9 @@ export class ShellExecutionService {
             const finalize = async () => {
               render(true);
               const finalBuffer = Buffer.concat(outputChunks);
+              // Clear the buffer array to release individual chunk references
+              // and prevent unbounded memory growth during long sessions.
+              outputChunks.length = 0;
               let fullOutput = '';
 
               try {

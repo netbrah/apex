@@ -354,9 +354,9 @@ describe('ShellTool', () => {
 
       await promise;
 
-      // Foreground commands should not be wrapped with pgrep
+      // Foreground commands are now subshell-wrapped on unix
       expect(mockShellExecutionService).toHaveBeenCalledWith(
-        'npm test',
+        '(npm test)',
         expect.any(String),
         expect.any(Function),
         expect.any(AbortSignal),
@@ -378,9 +378,9 @@ describe('ShellTool', () => {
       resolveShellExecution();
       await promise;
 
-      // Foreground commands should not be wrapped with pgrep
+      // Foreground commands are now subshell-wrapped on unix
       expect(mockShellExecutionService).toHaveBeenCalledWith(
-        'ls',
+        '(ls)',
         '/test/dir/subdir',
         expect.any(Function),
         expect.any(AbortSignal),
@@ -1248,6 +1248,193 @@ describe('ShellTool', () => {
         false,
         {},
       );
+    });
+  });
+
+  describe('S-016: heredoc subshell wrapping', () => {
+    const mockAbortSignal = new AbortController().signal;
+
+    const resolveShellExecution = (
+      result: Partial<ShellExecutionResult> = {},
+    ) => {
+      const fullResult: ShellExecutionResult = {
+        rawOutput: Buffer.from(result.output || ''),
+        output: result.output || 'Success',
+        exitCode: 0,
+        signal: null,
+        error: null,
+        aborted: false,
+        pid: 12345,
+        executionMethod: 'child_process',
+        ...result,
+      };
+      resolveExecutionPromise(fullResult);
+    };
+
+    it('should wrap foreground commands in a subshell on unix', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+      const invocation = shellTool.build({
+        command: 'echo hello',
+        is_background: false,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ output: 'hello' });
+      await promise;
+
+      expect(mockShellExecutionService).toHaveBeenCalledWith(
+        '(echo hello)',
+        expect.any(String),
+        expect.any(Function),
+        expect.any(AbortSignal),
+        false,
+        {},
+      );
+    });
+
+    it('should produce correct output for heredoc commands', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+      const heredocCmd = 'cat << EOF\nline1\nline2\nEOF';
+      const invocation = shellTool.build({
+        command: heredocCmd,
+        is_background: false,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ output: 'line1\nline2' });
+      const result = await promise;
+
+      const calledCommand = mockShellExecutionService.mock
+        .calls[0][0] as string;
+      expect(calledCommand.startsWith('(')).toBe(true);
+      expect(calledCommand.endsWith(')')).toBe(true);
+      expect(result.llmContent).toContain('line1');
+      expect(result.llmContent).toContain('line2');
+    });
+
+    it('should handle multi-line heredoc with embedded quotes', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+      const heredocCmd = 'cat << EOF\nHe said hello\nShe said goodbye\nEOF';
+      const invocation = shellTool.build({
+        command: heredocCmd,
+        is_background: false,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ output: 'He said hello\nShe said goodbye' });
+      const result = await promise;
+
+      const calledCommand = mockShellExecutionService.mock
+        .calls[0][0] as string;
+      expect(calledCommand.startsWith('(')).toBe(true);
+      expect(calledCommand.endsWith(')')).toBe(true);
+      expect(result.llmContent).toContain('He said hello');
+    });
+
+    it('should not wrap background commands in a subshell', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+      const invocation = shellTool.build({
+        command: 'npm start',
+        is_background: true,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ pid: 54321 });
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue('54321\n54322\n');
+      await promise;
+
+      const calledCommand = mockShellExecutionService.mock
+        .calls[0][0] as string;
+      expect(calledCommand.startsWith('(')).toBe(false);
+      expect(calledCommand).toContain('pgrep');
+    });
+
+    it('should not wrap commands on windows', async () => {
+      vi.mocked(os.platform).mockReturnValue('win32');
+      const invocation = shellTool.build({
+        command: 'echo hello',
+        is_background: false,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ output: 'hello' });
+      await promise;
+
+      expect(mockShellExecutionService).toHaveBeenCalledWith(
+        'echo hello',
+        expect.any(String),
+        expect.any(Function),
+        expect.any(AbortSignal),
+        false,
+        {},
+      );
+    });
+
+    it('basic shell command still works after changes (regression guard)', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+      const invocation = shellTool.build({
+        command: 'ls -la /tmp',
+        is_background: false,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ output: 'total 0' });
+      const result = await promise;
+
+      expect(result.llmContent).toContain('total 0');
+      expect(result.error).toBeUndefined();
+    });
+  });
+
+  describe('S-016: output buffer memory safety', () => {
+    const mockAbortSignal = new AbortController().signal;
+
+    const resolveShellExecution = (
+      result: Partial<ShellExecutionResult> = {},
+    ) => {
+      const fullResult: ShellExecutionResult = {
+        rawOutput: Buffer.from(result.output || ''),
+        output: result.output || 'Success',
+        exitCode: 0,
+        signal: null,
+        error: null,
+        aborted: false,
+        pid: 12345,
+        executionMethod: 'child_process',
+        ...result,
+      };
+      resolveExecutionPromise(fullResult);
+    };
+
+    it('should not grow output buffer across successive tool calls', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+
+      for (let i = 0; i < 5; i++) {
+        const invocation = shellTool.build({
+          command: `echo run-${i}`,
+          is_background: false,
+        });
+        const promise = invocation.execute(mockAbortSignal);
+        resolveShellExecution({ output: `output-${i}` });
+        const result = await promise;
+
+        expect(result.llmContent).toContain(`output-${i}`);
+        if (i > 0) {
+          expect(result.llmContent).not.toContain(`output-${i - 1}`);
+        }
+      }
+    });
+
+    it('shell tool sanitizes prompt input (no injection artifacts)', async () => {
+      vi.mocked(os.platform).mockReturnValue('linux');
+      const injectionAttempt = 'echo safe-command';
+      const invocation = shellTool.build({
+        command: injectionAttempt,
+        is_background: false,
+      });
+      const promise = invocation.execute(mockAbortSignal);
+      resolveShellExecution({ output: 'safe-command' });
+      const result = await promise;
+
+      expect(result.llmContent).toContain('safe-command');
+      const calledCommand = mockShellExecutionService.mock.calls[0][0];
+      expect(calledCommand).toBe('(echo safe-command)');
     });
   });
 });
