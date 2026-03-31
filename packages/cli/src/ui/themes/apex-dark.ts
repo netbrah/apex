@@ -13,10 +13,10 @@ const apexDarkColors: ColorsTheme = {
   Foreground: '#c8c8d4',
   LightBlue: '#38bdf8',
   AccentBlue: '#38bdf8',
-  AccentPurple: '#a78bfa',
+  AccentPurple: '#7dd3fc',
   AccentCyan: '#22d3ee',
   AccentGreen: '#4ade80',
-  AccentYellow: '#f59e0b',
+  AccentYellow: '#d4a27a',
   AccentRed: '#ef4444',
   AccentYellowDim: '#92600a',
   AccentRedDim: '#7f1d1d',
@@ -24,7 +24,7 @@ const apexDarkColors: ColorsTheme = {
   DiffRemoved: '#2e1a1a',
   Comment: '#4a4a5e',
   Gray: '#4a4a5e',
-  GradientColors: ['#f97316', '#ef4444', '#a78bfa'],
+  GradientColors: ['#d4a27a', '#ef4444', '#7dd3fc'],
 };
 
 const apexDarkSemanticColors: SemanticColors = {
@@ -32,7 +32,7 @@ const apexDarkSemanticColors: SemanticColors = {
     primary: '#c8c8d4',
     secondary: '#7a7a8e',
     link: '#38bdf8',
-    accent: '#a78bfa',
+    accent: '#ffffff',
     code: '#38bdf8',
   },
   background: {
@@ -44,17 +44,17 @@ const apexDarkSemanticColors: SemanticColors = {
   },
   border: {
     default: '#2d2d3f',
-    focused: '#f59e0b',
+    focused: '#d4a27a',
   },
   ui: {
     comment: '#4a4a5e',
     symbol: '#22d3ee',
-    gradient: ['#f97316', '#ef4444', '#a78bfa'],
+    gradient: ['#d4a27a', '#ef4444', '#7dd3fc'],
   },
   status: {
     error: '#ef4444',
     success: '#4ade80',
-    warning: '#f59e0b',
+    warning: '#d4a27a',
     errorDim: '#7f1d1d',
     warningDim: '#92600a',
   },
@@ -72,10 +72,10 @@ const apexDarkSemanticColors: SemanticColors = {
   badge: {
     info: '#38bdf8',
     tool: '#22d3ee',
-    agent: '#a78bfa',
+    agent: '#7dd3fc',
   },
   prompt: {
-    prefix: '#f59e0b',
+    prefix: '#d4a27a',
     placeholder: '#4a4a5e',
   },
 };
