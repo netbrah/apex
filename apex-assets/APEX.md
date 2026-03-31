@@ -20,10 +20,13 @@ These tools run in-process and call OpenGrok, Jira, and Confluence APIs directly
 
 ### Tier 2 — End-to-End Analysis
 
-| Tool               | Use When                                                 |
-| ------------------ | -------------------------------------------------------- |
-| `trace_call_chain` | Full trace: function → tables → CLI commands             |
-| `analyze_iterator` | Comprehensive iterator analysis (SMF + callers + fields) |
+| Tool               | Use When                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `trace_call_chain` | Full trace: function → tables → CLI commands                                         |
+| `analyze_iterator` | Comprehensive iterator analysis (SMF + callers + fields)                             |
+| `ontap_discover`   | API discovery — search ~1,253 REST endpoints, ~10,946 SMF tables, 7,541 CLI commands |
+
+Use `ontap_discover` when you need to find the right CLI command, REST endpoint, or SMF table for a feature area. No LLM involved — structured lookup, instant results.
 
 ### Tier 3 — Jira & Confluence
 
@@ -187,6 +190,8 @@ Never ask for input. Make the best decision and proceed. If a tool fails, try al
 | "What CLI triggers X?"                | `call_graph_fast` → check for `*_iterator` results             |
 | "What tables does X touch?"           | `trace_call_chain`                                             |
 | "Trace X end-to-end"                  | `trace_call_chain`                                             |
+| "What REST endpoint for feature X?"   | `ontap_discover` (search by keyword)                           |
+| "What CLI commands for keymanager?"   | `ontap_discover` (search by keyword)                           |
 | "What tests cover CLI Y?"             | `find_cits` (mastra-search)                                    |
 | "Help write unit test for X"          | `generate_test_plan` → `generate_unit_test`                    |
 | "Generate functional test plan"       | **Use skill:** `$ontap-functional-test-plan`                   |

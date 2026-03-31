@@ -458,6 +458,7 @@ export function findFirst(
         result = n;
         return false; // Stop traversal
       }
+      return undefined;
     },
   });
 

@@ -49,7 +49,8 @@ function copyFilesRecursive(source, target, rootSourceDir) {
       const normalizedPath = relativePath.replace(/\\/g, '/');
       const isLocaleJs =
         ext === '.js' && normalizedPath.startsWith('i18n/locales/');
-      if (extensionsToCopy.includes(ext) || isLocaleJs) {
+      const isGeneratedJs = ext === '.js' && item.name.includes('.generated.');
+      if (extensionsToCopy.includes(ext) || isLocaleJs || isGeneratedJs) {
         fs.copyFileSync(sourcePath, targetPath);
       }
     }

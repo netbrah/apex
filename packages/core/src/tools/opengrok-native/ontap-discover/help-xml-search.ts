@@ -19,7 +19,11 @@
  *   Topic mode: Full text search in path:help_xml, scored by match context
  */
 
-import { searchOpenGrok, getFileContent, DEFAULT_PROJECT } from './opengrok.js';
+import {
+  searchOpenGrok,
+  getFileContent,
+  DEFAULT_PROJECT,
+} from '../lib/opengrok.js';
 import {
   parseHelpXml,
   extractTableName,

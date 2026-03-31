@@ -162,7 +162,7 @@ export interface SmfParseResult {
 // ============================================================================
 
 /** Safely extract the name string from an Identifier or raw string */
- 
+
 function getName(val: any): string {
   if (typeof val === 'string') return val;
   if (val && typeof val.name === 'string') return val.name;
@@ -170,7 +170,7 @@ function getName(val: any): string {
 }
 
 /** Safely extract the value string from a StringLiteral or raw string */
- 
+
 function getStr(val: any): string {
   if (typeof val === 'string') return val;
   if (val && typeof val.value === 'string') return val.value;
@@ -215,7 +215,7 @@ function convertField(field: FieldDeclaration): SmfField {
 /**
  * Convert AST table attributes to legacy format
  */
- 
+
 function convertAttributes(attrs: any): SmfTableAttributes {
   return {
     create: attrs.create,
@@ -333,7 +333,7 @@ function convertToLegacy(
       result.sqlView = {
         attachDatabase: getStr(body.attach?.database),
         viewQuery: getStr(body.viewQuery?.query),
-         
+
         sqlFields: body.sqlFields?.fields?.map(
           (f: any) => `${getName(f.tableName)}.${getName(f.fieldName)}`,
         ),
@@ -342,7 +342,6 @@ function convertToLegacy(
 
     // Try to extract base table from values block
     if (body.values?.references) {
-       
       const allRef = body.values.references.find(
         (r: any) => r.fieldSpec === 'ALL',
       );
@@ -445,7 +444,7 @@ export function matchCalleeToSmfField(
 // Additional exports for full compatibility
 // ============================================================================
 
-export {
+export type {
   SmfFieldRole as FieldRole,
   SmfField as Field,
   SmfMethod as Method,
