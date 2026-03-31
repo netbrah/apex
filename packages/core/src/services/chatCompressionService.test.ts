@@ -934,4 +934,158 @@ describe('ChatCompressionService', () => {
       expect(mockFirePreCompactEvent).not.toHaveBeenCalled();
     });
   });
+
+  describe('AbortSignal threading', () => {
+    const history: Content[] = [
+      { role: 'user', parts: [{ text: 'msg1' }] },
+      { role: 'model', parts: [{ text: 'msg2' }] },
+      { role: 'user', parts: [{ text: 'msg3' }] },
+      { role: 'model', parts: [{ text: 'msg4' }] },
+    ];
+
+    function setupOverThreshold() {
+      vi.mocked(mockChat.getHistory).mockReturnValue(history);
+      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
+        950,
+      );
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        model: 'gemini-pro',
+        contextWindowSize: 1000,
+      } as unknown as ReturnType<typeof mockConfig.getContentGeneratorConfig>);
+    }
+
+    it('should pass abortSignal to generateContent config', async () => {
+      setupOverThreshold();
+      const controller = new AbortController();
+
+      const mockGenerateContent = vi.fn().mockResolvedValue({
+        candidates: [{ content: { parts: [{ text: 'Summary' }] } }],
+        usageMetadata: {
+          promptTokenCount: 1600,
+          candidatesTokenCount: 50,
+          totalTokenCount: 1650,
+        },
+      } as unknown as GenerateContentResponse);
+      vi.mocked(mockConfig.getContentGenerator).mockReturnValue({
+        generateContent: mockGenerateContent,
+      } as unknown as ContentGenerator);
+
+      await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+        controller.signal,
+      );
+
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.config.abortSignal).toBe(controller.signal);
+    });
+
+    it('should abort compression when signal fires during generateContent', async () => {
+      setupOverThreshold();
+      const controller = new AbortController();
+
+      const mockGenerateContent = vi.fn().mockImplementation(async () => {
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      });
+      vi.mocked(mockConfig.getContentGenerator).mockReturnValue({
+        generateContent: mockGenerateContent,
+      } as unknown as ContentGenerator);
+
+      controller.abort();
+
+      await expect(
+        service.compress(
+          mockChat,
+          mockPromptId,
+          false,
+          mockModel,
+          mockConfig,
+          false,
+          controller.signal,
+        ),
+      ).rejects.toThrow('The operation was aborted.');
+    });
+
+    it('should work normally when abortSignal is not provided (regression)', async () => {
+      setupOverThreshold();
+
+      const mockGenerateContent = vi.fn().mockResolvedValue({
+        candidates: [{ content: { parts: [{ text: 'Summary' }] } }],
+        usageMetadata: {
+          promptTokenCount: 1600,
+          candidatesTokenCount: 50,
+          totalTokenCount: 1650,
+        },
+      } as unknown as GenerateContentResponse);
+      vi.mocked(mockConfig.getContentGenerator).mockReturnValue({
+        generateContent: mockGenerateContent,
+      } as unknown as ContentGenerator);
+
+      const result = await service.compress(
+        mockChat,
+        mockPromptId,
+        false,
+        mockModel,
+        mockConfig,
+        false,
+      );
+
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.config.abortSignal).toBeUndefined();
+    });
+
+    it('should propagate already-aborted signal to generateContent', async () => {
+      setupOverThreshold();
+      const controller = new AbortController();
+      controller.abort();
+
+      const mockGenerateContent = vi
+        .fn()
+        .mockImplementation(
+          async (req: { config?: { abortSignal?: AbortSignal } }) => {
+            if (req.config?.abortSignal?.aborted) {
+              throw new DOMException(
+                'The operation was aborted.',
+                'AbortError',
+              );
+            }
+            return {
+              candidates: [{ content: { parts: [{ text: 'Summary' }] } }],
+              usageMetadata: {
+                promptTokenCount: 1600,
+                candidatesTokenCount: 50,
+                totalTokenCount: 1650,
+              },
+            };
+          },
+        );
+      vi.mocked(mockConfig.getContentGenerator).mockReturnValue({
+        generateContent: mockGenerateContent,
+      } as unknown as ContentGenerator);
+
+      await expect(
+        service.compress(
+          mockChat,
+          mockPromptId,
+          false,
+          mockModel,
+          mockConfig,
+          false,
+          controller.signal,
+        ),
+      ).rejects.toThrow('The operation was aborted.');
+
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(
+        mockGenerateContent.mock.calls[0][0].config.abortSignal.aborted,
+      ).toBe(true);
+    });
+  });
 });

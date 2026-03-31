@@ -91,6 +91,7 @@ export class ChatCompressionService {
     model: string,
     config: Config,
     hasFailedCompressionAttempt: boolean,
+    abortSignal?: AbortSignal,
   ): Promise<{ newHistory: Content[] | null; info: ChatCompressionInfo }> {
     const curatedHistory = chat.getHistory(true);
     const authType = config.getContentGeneratorConfig()?.authType;
@@ -194,6 +195,7 @@ export class ChatCompressionService {
         ],
         config: {
           systemInstruction: getCompressionPrompt(),
+          abortSignal,
         },
       },
       promptId,
