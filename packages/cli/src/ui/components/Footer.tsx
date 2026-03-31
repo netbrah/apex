@@ -70,13 +70,13 @@ export const Footer: React.FC = () => {
   if (sandboxInfo) {
     rightItems.push({
       key: 'sandbox',
-      node: <Text color={theme.status.success}>🔒 {sandboxInfo}</Text>,
+      node: <Text color={theme.badge?.info ?? theme.status.success}>🔒 {sandboxInfo}</Text>,
     });
   }
   if (debugMode) {
     rightItems.push({
       key: 'debug',
-      node: <Text color={theme.status.warning}>Debug Mode</Text>,
+      node: <Text color={theme.badge?.tool ?? theme.status.warning}>Debug Mode</Text>,
     });
   }
   if (promptTokenCount > 0 && contextWindowSize) {

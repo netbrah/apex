@@ -1072,7 +1072,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   const prefixNode = (
     <Text
-      color={statusColor ?? theme.text.accent}
+      color={statusColor ?? theme.prompt?.prefix ?? theme.text.accent}
       aria-label={statusText || undefined}
     >
       {shellModeActive ? (
