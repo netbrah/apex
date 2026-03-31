@@ -6,7 +6,7 @@
 
 import type { CSSProperties } from 'react';
 import type { SemanticColors } from './semantic-tokens.js';
-import { resolveColor } from './color-utils.js';
+import { resolveColor, lightenOrDarken } from './color-utils.js';
 
 export type ThemeType = 'light' | 'dark' | 'ansi' | 'custom';
 
@@ -169,7 +169,7 @@ export class Theme {
     readonly colors: ColorsTheme,
     semanticColors?: SemanticColors,
   ) {
-    this.semanticColors = semanticColors ?? {
+    const baseSemanticColors: SemanticColors = semanticColors ?? {
       text: {
         primary: this.colors.Foreground,
         secondary: this.colors.Gray,
@@ -200,6 +200,38 @@ export class Theme {
         errorDim: this.colors.AccentRedDim,
         warningDim: this.colors.AccentYellowDim,
       },
+    };
+
+    // Auto-derive V2 token groups when not explicitly provided (FQ-26)
+    const bg = this.colors.Background;
+    const isLight = this.type === 'light';
+    const deriveSurface = (): SemanticColors['surface'] => ({
+      canvas: bg,
+      panel: lightenOrDarken(bg, isLight ? -0.04 : 0.06),
+      panelMuted: lightenOrDarken(bg, isLight ? -0.02 : 0.03),
+      overlay: lightenOrDarken(bg, isLight ? -0.07 : 0.1),
+    });
+    const deriveInteractive = (): SemanticColors['interactive'] => ({
+      hover: lightenOrDarken(bg, isLight ? -0.06 : 0.08),
+      active: lightenOrDarken(bg, isLight ? -0.1 : 0.14),
+      selected: this.colors.AccentBlue,
+    });
+    const deriveBadge = (): SemanticColors['badge'] => ({
+      info: this.colors.AccentBlue,
+      tool: this.colors.AccentCyan,
+      agent: this.colors.AccentPurple,
+    });
+    const derivePrompt = (): SemanticColors['prompt'] => ({
+      prefix: this.colors.AccentPurple,
+      placeholder: this.colors.Gray,
+    });
+
+    this.semanticColors = {
+      ...baseSemanticColors,
+      surface: baseSemanticColors.surface ?? deriveSurface(),
+      interactive: baseSemanticColors.interactive ?? deriveInteractive(),
+      badge: baseSemanticColors.badge ?? deriveBadge(),
+      prompt: baseSemanticColors.prompt ?? derivePrompt(),
     };
     this._colorMap = Object.freeze(this._buildColorMap(rawMappings)); // Build and freeze the map
 

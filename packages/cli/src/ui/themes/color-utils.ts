@@ -233,3 +233,83 @@ export function resolveColor(colorValue: string): string | undefined {
   );
   return undefined;
 }
+
+// --- V2 color utilities (FQ-26) ---
+
+/**
+ * Parse a 6-digit hex color string into [r, g, b].
+ * Returns [0,0,0] for invalid/empty input.
+ */
+function hexToRgb(hex: string): [number, number, number] {
+  if (!hex || !hex.startsWith('#') || hex.length < 7) return [0, 0, 0];
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return [
+    Number.isNaN(r) ? 0 : r,
+    Number.isNaN(g) ? 0 : g,
+    Number.isNaN(b) ? 0 : b,
+  ];
+}
+
+/**
+ * Convert [r, g, b] back to a 6-digit lowercase hex string.
+ */
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return (
+    '#' +
+    clamp(r).toString(16).padStart(2, '0') +
+    clamp(g).toString(16).padStart(2, '0') +
+    clamp(b).toString(16).padStart(2, '0')
+  );
+}
+
+/**
+ * Lighten or darken a hex color by the given amount (0\u20131).
+ * Positive `amount` lightens, negative darkens.
+ * Returns empty string for empty input.
+ *
+ * @param hex A 6-digit hex color string (e.g. '#1e1e2e').
+ * @param amount A value between -1 and 1. Positive = lighten, negative = darken.
+ */
+export function lightenOrDarken(hex: string, amount: number): string {
+  if (!hex) return '';
+  const [r, g, b] = hexToRgb(hex);
+  if (amount >= 0) {
+    // Lighten: blend towards white
+    return rgbToHex(
+      r + (255 - r) * amount,
+      g + (255 - g) * amount,
+      b + (255 - b) * amount,
+    );
+  } else {
+    // Darken: blend towards black
+    const factor = 1 + amount; // amount is negative, so factor < 1
+    return rgbToHex(r * factor, g * factor, b * factor);
+  }
+}
+
+/**
+ * Blend a hex color with the background at the given alpha (0\u20131).
+ * alpha=0 \u2192 fully transparent (returns background), alpha=1 \u2192 fully opaque (returns hex).
+ * Uses black (#000000) as the default background.
+ *
+ * @param hex The foreground hex color.
+ * @param alpha Opacity 0\u20131.
+ * @param background The background hex color to blend against (default: '#000000').
+ */
+export function blendWithAlpha(
+  hex: string,
+  alpha: number,
+  background = '#000000',
+): string {
+  if (!hex) return background;
+  const [fr, fg, fb] = hexToRgb(hex);
+  const [br, bg_, bb] = hexToRgb(background);
+  return rgbToHex(
+    fr * alpha + br * (1 - alpha),
+    fg * alpha + bg_ * (1 - alpha),
+    fb * alpha + bb * (1 - alpha),
+  );
+}
