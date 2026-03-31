@@ -111,6 +111,25 @@ When analyzing an iterator (e.g., `keymanager_external_enable_iterator`):
 
 ## Hard Rules
 
+### Parallel-first investigation
+
+**NEVER investigate serially when you can parallelize.** Launch multiple subagents simultaneously for the initial ISR pass. Each subagent has full access to native tools (search, analyze_symbol_ast, call_graph_fast, etc.).
+
+**Phase 1 pattern — parallel fan-out, then deep dive:**
+
+1. **Fan out**: Launch 3-5 parallel subagents, each targeting a different axis:
+   - Agent A: `analyze_symbol_ast` on the entry point function
+   - Agent B: `search_jira` for related defects/history
+   - Agent C: `analyze_iterator` on the affected iterator (if applicable)
+   - Agent D: `search` for the SMF schema and related test files
+   - Agent E: `get_jira_issue` on the ticket being investigated
+
+2. **Gather**: Collect all results. You now have definition, callers, Jira context, iterator schema, and test coverage — in the time one serial lookup would have taken.
+
+3. **Deep dive**: Use the saved context budget for `trace_call_chain` and `call_graph_fast` on the specific symbols that matter — informed by what the parallel pass found.
+
+**Do not be reluctant to spawn subagents.** The cost of a subagent is milliseconds of overhead. The cost of serial investigation is minutes of wall-clock time and wasted context window. Subagents run concurrently, return focused results, and protect the main context from tool output bloat.
+
 ### Investigate before implementing
 
 Every code change must be preceded by `analyze_symbol_ast` or `call_graph_fast` on the affected function. No exceptions. Understand the blast radius before modifying anything.

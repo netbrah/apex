@@ -1,13 +1,28 @@
 ---
 name: ontap-mastra-search
-description: Analyze ONTAP source code and related engineering artifacts with the mastra-search tools. Use when Codex needs grounded symbol definition/callers/callees, upstream call graphs, iterator/SMF table analysis, function→table/CLI trigger tracing, panic/defect root-cause analysis, CIT discovery for a CLI command, or unit-test context/scaffolding generation; optionally search Confluence/Jira/ReviewBoard when debugging ONTAP issues.
+description: Analyze ONTAP source code and related engineering artifacts with native OpenGrok tools and mastra-search MCP. Use when investigating symbols, call graphs, iterators, defects, CLI commands, or unit tests in the ONTAP codebase.
 ---
 
-# ONTAP Mastra Search
+# ONTAP Code Search & Analysis
 
 ## Overview
 
-Use the `mastra-search` tools to query ONTAP source efficiently (symbols, callers/callees, iterators/SMF mappings, defects, and tests) without manual OpenGrok spelunking.
+Native tools (search, analyze_symbol_ast, call_graph_fast, trace_call_chain, analyze_iterator, search_jira, get_jira_issue, get_confluence_page) run in-process against OpenGrok and service APIs. Specialized tools (find_cits, prepare_unit_test_context, verify_generated_code) run via the mastra-search MCP server.
+
+## Investigation Doctrine: Parallel Fan-Out → Deep Dive
+
+**ALWAYS launch parallel subagents for initial investigation.** Do not investigate serially.
+
+**Fan out first:**
+
+- Spawn 3-5 subagents simultaneously, each hitting a different axis (symbol definition, Jira history, iterator analysis, test coverage, SMF schema)
+- Subagents have full access to all native tools
+- Cost of spawning is negligible; serial investigation wastes minutes and context
+
+**Then deep dive:**
+
+- Use the gathered context to run targeted `trace_call_chain` and `call_graph_fast`
+- You now have the full picture with context budget to spare
 
 ## Default Workflow (Pick the Smallest Hammer)
 
@@ -15,7 +30,7 @@ Use the `mastra-search` tools to query ONTAP source efficiently (symbols, caller
 2. Keep scope small (limit callers/callees, shallow depth) until you find the hotspot.
 3. Only request source snippets (`includeSource` / `include_code`) when needed.
 4. Prefer "unified" tools that already stitch context together (for iterators: `analyze_iterator`; for function→tables/CLI triggers: `trace_call_chain`).
-5. Use deterministic tools (`analyze_symbol_ast`, `call_graph_fast`, `trace_call_chain`, `analyze_iterator`) before narrative ones (`ask_codeAnalyst`).
+5. Use deterministic tools (`analyze_symbol_ast`, `call_graph_fast`, `trace_call_chain`, `analyze_iterator`) before narrative ones.
 
 ## Task Recipes
 

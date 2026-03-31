@@ -1,12 +1,32 @@
 ---
 name: ontap-code-analysis
-description: Guidance for using Mastra Search MCP tools to analyze ONTAP C/C++ source code. Use when the user asks about ONTAP code, functions, iterators, CLI commands, call graphs, defects, or unit tests — and mastra-search tools are available.
+description: Guidance for using native and MCP tools to analyze ONTAP C/C++ source code. Use when the user asks about ONTAP code, functions, iterators, CLI commands, call graphs, defects, or unit tests.
 ---
 
-# ONTAP Code Analysis with Mastra Search Tools
+# ONTAP Code Analysis
 
-> This skill provides tool call guidance for the `mastra-search` MCP tools.
-> It is the **single source of truth** for tool selection, parameter limits, and workflows.
+> Tool selection guidance, parameter limits, and investigation workflows.
+> Native tools (search, analyze_symbol_ast, call_graph_fast, etc.) run in-process.
+> Specialized tools (find_cits, prepare_unit_test_context, verify_generated_code) are via mastra-search MCP.
+
+## Investigation Doctrine: Parallel Fan-Out → Deep Dive
+
+**NEVER investigate serially.** Always launch parallel subagents for the initial pass.
+
+**Pattern:**
+
+1. **Fan out** — Launch 3-5 parallel subagents simultaneously:
+   - `analyze_symbol_ast` on the target function
+   - `search_jira` for related defects
+   - `analyze_iterator` on the affected iterator
+   - `search` for SMF schema + test files
+   - `get_jira_issue` on the ticket (if investigating a defect)
+
+2. **Gather** — Collect results. You now have definition, callers, Jira context, iterator schema, and test coverage in parallel time.
+
+3. **Deep dive** — Use saved context budget for `trace_call_chain` and `call_graph_fast` on the symbols that matter, informed by what the fan-out found.
+
+Subagents have full access to all native tools. The cost of spawning is negligible. The cost of serial investigation is minutes of wasted time and context window. **Parallelize aggressively.**
 
 ---
 
