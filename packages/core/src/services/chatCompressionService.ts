@@ -12,10 +12,14 @@ import { type ChatCompressionInfo, CompressionStatus } from '../core/turn.js';
 import { ResponsesCompactionClient } from './responsesCompactionClient.js';
 import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { DEFAULT_TOKEN_LIMIT } from '../core/tokenLimits.js';
-import { getCompressionPrompt, COMPACTION_SUMMARY_PREFIX } from '../core/prompts.js';
+import {
+  getCompressionPrompt,
+  COMPACTION_SUMMARY_PREFIX,
+} from '../core/prompts.js';
 import { getResponseText } from '../utils/partUtils.js';
 import { logChatCompression } from '../telemetry/loggers.js';
 import { makeChatCompressionEvent } from '../telemetry/types.js';
+import type { PermissionMode } from '../hooks/types.js';
 import { SessionStartSource, PreCompactTrigger } from '../hooks/types.js';
 
 /**
@@ -91,6 +95,7 @@ export class ChatCompressionService {
     model: string,
     config: Config,
     hasFailedCompressionAttempt: boolean,
+    signal?: AbortSignal,
   ): Promise<{ newHistory: Content[] | null; info: ChatCompressionInfo }> {
     const curatedHistory = chat.getHistory(true);
     const authType = config.getContentGeneratorConfig()?.authType;
@@ -144,7 +149,7 @@ export class ChatCompressionService {
     if (hookSystem) {
       const trigger = force ? PreCompactTrigger.Manual : PreCompactTrigger.Auto;
       try {
-        await hookSystem.firePreCompactEvent(trigger, '');
+        await hookSystem.firePreCompactEvent(trigger, '', signal);
       } catch (err) {
         config.getDebugLogger().warn(`PreCompact hook failed: ${err}`);
       }
@@ -299,9 +304,18 @@ export class ChatCompressionService {
 
       // Fire SessionStart event after successful compression
       try {
+        const permissionMode = String(
+          config.getApprovalMode(),
+        ) as PermissionMode;
         await config
           .getHookSystem()
-          ?.fireSessionStartEvent(SessionStartSource.Compact, model ?? '');
+          ?.fireSessionStartEvent(
+            SessionStartSource.Compact,
+            model ?? '',
+            permissionMode,
+            undefined,
+            signal,
+          );
       } catch (err) {
         config.getDebugLogger().warn(`SessionStart hook failed: ${err}`);
       }
@@ -330,7 +344,8 @@ export class ChatCompressionService {
         info: {
           originalTokenCount,
           newTokenCount: originalTokenCount,
-          compressionStatus: CompressionStatus.COMPRESSION_FAILED_TOKEN_COUNT_ERROR,
+          compressionStatus:
+            CompressionStatus.COMPRESSION_FAILED_TOKEN_COUNT_ERROR,
         },
       };
     }
@@ -346,7 +361,8 @@ export class ChatCompressionService {
           info: {
             originalTokenCount,
             newTokenCount: originalTokenCount,
-            compressionStatus: CompressionStatus.COMPRESSION_FAILED_EMPTY_SUMMARY,
+            compressionStatus:
+              CompressionStatus.COMPRESSION_FAILED_EMPTY_SUMMARY,
           },
         };
       }
@@ -399,13 +415,16 @@ export class ChatCompressionService {
     } catch (error) {
       config
         .getDebugLogger()
-        .error(`Remote compaction failed: ${error instanceof Error ? error.message : String(error)}`);
+        .error(
+          `Remote compaction failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       return {
         newHistory: null,
         info: {
           originalTokenCount,
           newTokenCount: originalTokenCount,
-          compressionStatus: CompressionStatus.COMPRESSION_FAILED_TOKEN_COUNT_ERROR,
+          compressionStatus:
+            CompressionStatus.COMPRESSION_FAILED_TOKEN_COUNT_ERROR,
         },
       };
     }

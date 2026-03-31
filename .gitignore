@@ -117,3 +117,6 @@ packages/cli/custom/
 packages/cli/first/
 packages/cli/from-env/
 packages/cli/workspace/
+
+# Dev symlink: qc-helper bundled skill docs (created by scripts/dev.js)
+packages/core/src/skills/bundled/qc-helper/docs

@@ -69,6 +69,7 @@ import { reportError } from '../utils/errorReporting.js';
 import { getErrorMessage, isAbortError } from '../utils/errors.js';
 import { checkNextSpeaker } from '../utils/nextSpeakerChecker.js';
 import { flatMapTextParts } from '../utils/partUtils.js';
+import { promptIdContext } from '../utils/promptIdContext.js';
 import { retryWithBackoff } from '../utils/retry.js';
 
 // Hook types and utilities
@@ -473,7 +474,12 @@ export class GeminiClient {
     // Fire UserPromptSubmit hook through MessageBus (only if hooks are enabled)
     const hooksEnabled = this.config.getEnableHooks();
     const messageBus = this.config.getMessageBus();
-    if (messageType !== SendMessageType.Retry && hooksEnabled && messageBus) {
+    if (
+      messageType !== SendMessageType.Retry &&
+      hooksEnabled &&
+      messageBus &&
+      this.config.hasHooksForEvent('UserPromptSubmit')
+    ) {
       const promptText = partToString(request);
       const response = await messageBus.request<
         HookExecutionRequest,
@@ -543,7 +549,7 @@ export class GeminiClient {
       return new Turn(this.getChat(), prompt_id);
     }
 
-    const compressed = await this.tryCompressChat(prompt_id, false);
+    const compressed = await this.tryCompressChat(prompt_id, false, signal);
 
     if (compressed.compressionStatus === CompressionStatus.COMPRESSED) {
       yield { type: GeminiEventType.ChatCompressed, value: compressed };
@@ -693,9 +699,16 @@ export class GeminiClient {
       }
       throw error;
     }
-    // Fire Stop hook through MessageBus (only if hooks are enabled)
+    // Fire Stop hook through MessageBus (only if hooks are enabled and registered)
     // This must be done before any early returns to ensure hooks are always triggered
-    if (hooksEnabled && messageBus && !turn.pendingToolCalls.length) {
+    if (
+      hooksEnabled &&
+      messageBus &&
+      !turn.pendingToolCalls.length &&
+      signal &&
+      !signal.aborted &&
+      this.config.hasHooksForEvent('Stop')
+    ) {
       // Get response text from the chat history
       const history = this.getHistory();
       const lastModelMessage = history
@@ -718,26 +731,38 @@ export class GeminiClient {
             stop_hook_active: true,
             last_assistant_message: responseText,
           },
+          signal,
         },
         MessageBusType.HOOK_EXECUTION_RESPONSE,
       );
+
+      // Check if aborted after hook execution
+      if (signal.aborted) {
+        return turn;
+      }
+
       const hookOutput = response.output
         ? createHookOutput('Stop', response.output)
         : undefined;
 
       const stopOutput = hookOutput as StopHookOutput | undefined;
 
+      // This should happen regardless of the hook's decision
+      if (stopOutput?.systemMessage) {
+        yield {
+          type: GeminiEventType.HookSystemMessage,
+          value: stopOutput.systemMessage,
+        };
+      }
+
       // For Stop hooks, blocking/stop execution should force continuation
       if (
         stopOutput?.isBlockingDecision() ||
         stopOutput?.shouldStopExecution()
       ) {
-        // Emit system message if provided (e.g., "🔄 Ralph iteration 5")
-        if (stopOutput.systemMessage) {
-          yield {
-            type: GeminiEventType.HookSystemMessage,
-            value: stopOutput.systemMessage,
-          };
+        // Check if aborted before continuing
+        if (signal.aborted) {
+          return turn;
         }
 
         const continueReason = stopOutput.getEffectiveReason();
@@ -805,8 +830,11 @@ export class GeminiClient {
     generationConfig: GenerateContentConfig,
     abortSignal: AbortSignal,
     model: string,
+    promptIdOverride?: string,
   ): Promise<GenerateContentResponse> {
     let currentAttemptModel: string = model;
+    const promptId =
+      promptIdOverride ?? promptIdContext.getStore() ?? this.lastPromptId!;
 
     try {
       const userMemory = this.config.getUserMemory();
@@ -829,7 +857,7 @@ export class GeminiClient {
             config: requestConfig,
             contents,
           },
-          this.lastPromptId!,
+          promptId,
         );
       };
       const result = await retryWithBackoff(apiCall, {
@@ -859,6 +887,7 @@ export class GeminiClient {
   async tryCompressChat(
     prompt_id: string,
     force: boolean = false,
+    signal?: AbortSignal,
   ): Promise<ChatCompressionInfo> {
     const compressionService = new ChatCompressionService();
 
@@ -869,6 +898,7 @@ export class GeminiClient {
       this.config.getModel(),
       this.config,
       this.hasFailedCompressionAttempt,
+      signal,
     );
 
     // Handle compression result

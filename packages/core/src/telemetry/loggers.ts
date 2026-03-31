@@ -104,6 +104,7 @@ import type {
   ArenaAgentCompletedEvent,
   ArenaSessionEndedEvent,
 } from './types.js';
+import type { HookCallEvent } from './types.js';
 import type { UiEvent } from './uiTelemetry.js';
 import { uiTelemetryService } from './uiTelemetry.js';
 
@@ -115,6 +116,8 @@ function getCommonAttributes(config: Config): LogAttributes {
     'session.id': config.getSessionId(),
   };
 }
+
+export { getCommonAttributes };
 
 export function logStartSession(
   config: Config,
@@ -811,6 +814,11 @@ export function logModelSlashCommand(
   };
   logger.emit(logRecord);
   recordModelSlashCommand(config, event);
+}
+
+export function logHookCall(config: Config, event: HookCallEvent): void {
+  // Log to QwenLogger for RUM telemetry only
+  QwenLogger.getInstance(config)?.logHookCallEvent(event);
 }
 
 export function logExtensionInstallEvent(
