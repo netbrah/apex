@@ -10,6 +10,7 @@
 
 export interface ZodLikeSchema<T = unknown> {
   optional(): ZodLikeSchema<T | undefined>;
+  nullable(): ZodLikeSchema<T | null>;
   nullish(): ZodLikeSchema<T | null | undefined>;
   default(_value: unknown): ZodLikeSchema<T>;
   describe(_text: string): ZodLikeSchema<T>;
@@ -18,6 +19,10 @@ export interface ZodLikeSchema<T = unknown> {
 class Schema<T = unknown> implements ZodLikeSchema<T> {
   optional(): ZodLikeSchema<T | undefined> {
     return new Schema<T | undefined>();
+  }
+
+  nullable(): ZodLikeSchema<T | null> {
+    return new Schema<T | null>();
   }
 
   nullish(): ZodLikeSchema<T | null | undefined> {
@@ -62,6 +67,18 @@ export const z = {
     _schemas: T,
   ): ZodLikeSchema {
     return schema();
+  },
+  unknown(): ZodLikeSchema<unknown> {
+    return schema<unknown>();
+  },
+  record<K extends ZodLikeSchema<string>, V extends ZodLikeSchema<unknown>>(
+    _key: K,
+    _value: V,
+  ): ZodLikeSchema<Record<string, unknown>> {
+    return schema<Record<string, unknown>>();
+  },
+  literal<T extends string | number | boolean>(_value: T): ZodLikeSchema<T> {
+    return schema<T>();
   },
 };
 

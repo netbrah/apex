@@ -8,6 +8,31 @@
  */
 
 export const TOOL_DESCRIPTIONS = {
+  ontap_discover: `Deterministic ONTAP API discovery — structured lookup across ~1,253 REST endpoints, ~10,946 SMF tables, and 7,541 CLI commands.
+
+NO LLM involved — pass structured params, get instant results.
+
+Actions:
+- search: keyword search across all indexed items. Requires "query".
+- get_endpoint: get REST endpoint details by path. Requires "path".
+- get_smf_table: get internal table schema, fields, storage type, access patterns. Requires "tableName".
+- get_command: unified lookup — pass a CLI command, table name, or path to get full details with CLI examples.
+- browse_cli: deterministic CLI command tree navigator — pass a CLI path to browse subcommands, or a full command to get detailed parameter info with type resolution.
+- list_debug_smdb_tables: list tables queryable via debug smdb (the "dark" internal API).
+- cli_to_rest: convert an ONTAP CLI command to its REST equivalent. Requires "cliCommand".
+- list_tags/list_domains: enumerate categories.
+- options: discover allowed HTTP methods for a path. Requires "path".
+- stats: index statistics.
+
+Examples:
+- { "action": "search", "query": "enable encryption" }
+- { "action": "get_endpoint", "path": "/security/key-managers", "method": "POST" }
+- { "action": "get_smf_table", "tableName": "cluster_kdb_rdb" }
+- { "action": "get_command", "cliCommand": "security key-manager onboard enable" }
+- { "action": "browse_cli", "cliPath": "security key-manager" }
+- { "action": "cli_to_rest", "cliCommand": "volume snapshot create" }
+- { "action": "list_debug_smdb_tables", "domain": "security" }`,
+
   analyze_symbol_ast: `HYBRID symbol analysis: OpenGrok references + AST callees + SMF enrichment.
 
 Combines the BEST of both approaches:
@@ -483,6 +508,25 @@ Parameters:
 - page_id: Confluence page ID
 
 Returns: { id, title, url, space, content }`,
+
+  search_confluence: `Search Confluence pages using CQL (Confluence Query Language).
+
+No LLM involved — direct REST search against Atlassian Cloud Confluence.
+
+Parameters:
+- cql: CQL query string (e.g., 'text ~ "keymanager" AND type = "page"')
+- limit: Max results (default 10)
+
+Returns array of:
+{
+  id, title, url, spaceKey, bodyHtml (optional), lastModified
+}
+
+Examples:
+- Search by text: { "cql": "text ~ \\"keymanager veto\\"" }
+- Search in space: { "cql": "space = \\"ONTAPDEV\\" AND text ~ \\"encryption\\"" }
+- Search by label: { "cql": "label = \\"security\\" AND type = \\"page\\"" }
+- Recent pages: { "cql": "type = \\"page\\" AND lastModified >= \\"2024-01-01\\"", "limit": 5 }`,
 
   search_jira: `Search Jira issues using structured filters or raw JQL.
 

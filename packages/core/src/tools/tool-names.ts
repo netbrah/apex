@@ -13,6 +13,7 @@ export const ToolNames = {
   SEARCH: 'search',
   GET_FILE: 'get_file',
   ANALYZE_SYMBOL_AST: 'analyze_symbol_ast',
+  ONTAP_DISCOVER: 'ontap_discover',
   EDIT: 'edit',
   WRITE_FILE: 'write_file',
   READ_FILE: 'read_file',
@@ -30,6 +31,13 @@ export const ToolNames = {
   LSP: 'lsp',
   ASK_USER_QUESTION: 'ask_user_question',
   READ_MANY_FILES: 'read_many_files',
+  SEARCH_JIRA: 'search_jira',
+  GET_JIRA_ISSUE: 'get_jira_issue',
+  GET_CONFLUENCE_PAGE: 'get_confluence_page',
+  CALL_GRAPH_FAST: 'call_graph_fast',
+  TRACE_CALL_CHAIN: 'trace_call_chain',
+  ANALYZE_ITERATOR: 'analyze_iterator',
+  SEARCH_CONFLUENCE: 'search_confluence',
 } as const;
 
 /**
@@ -41,6 +49,7 @@ export const ToolDisplayNames = {
   SEARCH: 'OpenGrokSearch',
   GET_FILE: 'OpenGrokGetFile',
   ANALYZE_SYMBOL_AST: 'AnalyzeSymbolAst',
+  ONTAP_DISCOVER: 'OntapDiscover',
   EDIT: 'Edit',
   WRITE_FILE: 'WriteFile',
   READ_FILE: 'ReadFile',
@@ -58,6 +67,13 @@ export const ToolDisplayNames = {
   LSP: 'Lsp',
   ASK_USER_QUESTION: 'AskUserQuestion',
   READ_MANY_FILES: 'ReadManyFiles',
+  SEARCH_JIRA: 'SearchJira',
+  GET_JIRA_ISSUE: 'GetJiraIssue',
+  GET_CONFLUENCE_PAGE: 'GetConfluencePage',
+  CALL_GRAPH_FAST: 'CallGraphFast',
+  TRACE_CALL_CHAIN: 'TraceCallChain',
+  ANALYZE_ITERATOR: 'AnalyzeIterator',
+  SEARCH_CONFLUENCE: 'SearchConfluence',
 } as const;
 
 // Migration from old tool names to new tool names

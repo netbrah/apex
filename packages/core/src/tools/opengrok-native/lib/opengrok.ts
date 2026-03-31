@@ -10,6 +10,7 @@
 
 import { readFile as fsReadFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Agent, fetch as undiciFetch } from 'undici';
 import {
   AGENT_CONFIG,
   CALL_SKIP_LIST,
@@ -19,6 +20,38 @@ import {
 } from '../prompts/index.js';
 import { logOpenGrok } from './logger.js';
 import { OpenGrokError } from './errors.js';
+
+/**
+ * Direct (non-proxy) undici Agent for OpenGrok requests.
+ *
+ * When config.ts calls setGlobalDispatcher(new ProxyAgent(...)) the built-in
+ * global fetch() routes every request through the corp HTTP proxy.  OpenGrok
+ * is an internal server reachable without proxy (listed in NO_PROXY) but
+ * undici's ProxyAgent ignores that env var.  Using undici.fetch with an
+ * explicit Agent dispatcher bypasses the global dispatcher, connects directly,
+ * and enables connection pooling (keep-alive) for repeated OpenGrok calls.
+ */
+const directAgent = new Agent({
+  keepAliveTimeout: 30_000,
+  keepAliveMaxTimeout: 60_000,
+  connections: 10,
+  pipelining: 1,
+  connect: {
+    timeout: 10_000,
+  },
+  headersTimeout: 30_000,
+  bodyTimeout: 30_000,
+});
+
+function directFetch(
+  url: string | URL,
+  init?: { headers?: Record<string, string>; signal?: AbortSignal },
+): Promise<Response> {
+  return undiciFetch(url, {
+    ...init,
+    dispatcher: directAgent,
+  }) as unknown as Promise<Response>;
+}
 
 export function getOpenGrokBaseUrl(): string {
   return (
@@ -158,7 +191,7 @@ export async function makeOpenGrokRequest(
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await directFetch(url, {
       headers: { Accept: 'application/json' },
       signal,
     });
@@ -308,7 +341,7 @@ export async function getFileContent(
   const rawUrl = `${getOpenGrokRawUrl()}/${project}/${cleanPath}`;
 
   try {
-    const response = await fetch(rawUrl, {
+    const response = await directFetch(rawUrl, {
       headers: { Accept: 'text/plain' },
       signal,
     });
