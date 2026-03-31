@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any */
 // @ts-nocheck
 /**
- * Analyze Iterator Tool — proxy wrapper.
+ * Analyze Iterator Tool — native implementation.
  *
- * Unified analysis of ONTAP SMF iterators combining SMF schema, call graph,
- * REST mapping, and field usage analysis. Proxies to the mastra-search server.
+ * Unified analysis of ONTAP SMF iterators: schema, callers, field usage,
+ * and _imp methods. Composes OpenGrok search API calls.
  */
 
 import { createTool } from '../lib/mastra-tool-shim.js';
@@ -12,83 +12,129 @@ import { z } from '../lib/zod-shim.js';
 import { TOOL_DESCRIPTIONS } from '../prompts/index.js';
 import { logTool } from '../lib/logger.js';
 import { classifyError } from '../lib/errors.js';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { makeOpenGrokRequest, getFileContent } from '../lib/opengrok.js';
 
-// ============================================================================
-// HTTP Client — direct (no proxy) undici agent for mastra-search requests
-// ============================================================================
-
-const directAgent = new Agent({
-  keepAliveTimeout: 30_000,
-  keepAliveMaxTimeout: 60_000,
-  connections: 10,
-  pipelining: 1,
-  connect: { timeout: 15_000 },
-  headersTimeout: 120_000,
-  bodyTimeout: 120_000,
-});
-
-function getProxyBaseUrl(): string {
-  return (
-    process.env.MASTRA_SEARCH_URL ||
-    process.env.OPENGROK_PROXY_URL ||
-    'http://localhost:4111'
-  );
-}
-
-async function callProxyTool(
-  toolName: string,
-  params: Record<string, unknown>,
-): Promise<unknown> {
-  const baseUrl = getProxyBaseUrl();
-  const url = `${baseUrl}/api/tools/${toolName}`;
-
-  const response = await undiciFetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(params),
-    dispatcher: directAgent,
-  });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    const trimmed = text.trim();
-    const detail =
-      trimmed.length > 500 ? `${trimmed.slice(0, 500)}...` : trimmed;
-    throw new Error(
-      `Proxy API returned HTTP ${response.status}: ${detail || response.statusText || 'No details'}`,
-    );
-  }
+/**
+ * Find the SMF schema file for an iterator.
+ */
+async function findSmfSchema(iteratorName: string): Promise<any> {
+  // Strip _iterator suffix to get table name
+  const tableName = iteratorName.replace(/_iterator$/, '');
 
   try {
-    return JSON.parse(text);
+    const result = await makeOpenGrokRequest('search', {
+      path: `${tableName}.smf`,
+      maxresults: 3,
+    });
+
+    if (result?.results?.[0]?.path) {
+      const content = await getFileContent(result.results[0].path);
+      return {
+        path: result.results[0].path,
+        content: content?.content || null,
+        tableName,
+      };
+    }
   } catch {
-    throw new Error(
-      'Proxy returned invalid JSON. Response may be an error page.',
-    );
+    // Fall through
+  }
+
+  return { path: null, content: null, tableName };
+}
+
+/**
+ * Find callers of the iterator.
+ */
+async function findIteratorCallers(
+  iteratorName: string,
+  maxCallers: number,
+): Promise<any[]> {
+  try {
+    const result = await makeOpenGrokRequest('search', {
+      symbol: iteratorName,
+      maxresults: maxCallers,
+    });
+
+    return (result?.results || [])
+      .filter((r: any) => r.path && !r.path.endsWith('.smf'))
+      .map((r: any) => ({
+        file: r.path,
+        matches: (r.matches || []).slice(0, 3).map((m: any) => ({
+          line: m.lineNumber,
+          text: (m.line || '').trim(),
+        })),
+      }));
+  } catch {
+    return [];
   }
 }
 
-// ============================================================================
-// Tool Definition
-// ============================================================================
+/**
+ * Find _imp method implementations.
+ */
+async function findImpMethods(iteratorName: string): Promise<any[]> {
+  const impMethods = [
+    'create_imp',
+    'modify_imp',
+    'remove_imp',
+    'get_imp',
+    'next_imp',
+  ];
+  const found: any[] = [];
+
+  for (const method of impMethods) {
+    const qualifiedName = `${iteratorName}::${method}`;
+    try {
+      const result = await makeOpenGrokRequest('search', {
+        definition: qualifiedName,
+        maxresults: 2,
+      });
+
+      if (result?.results?.length > 0) {
+        found.push({
+          method,
+          qualifiedName,
+          file: result.results[0].path,
+          line: result.results[0].matches?.[0]?.lineNumber,
+        });
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  return found;
+}
+
+/**
+ * Extract field usage patterns from caller code.
+ */
+function analyzeFieldUsage(callers: any[]): Record<string, string[]> {
+  const fieldUsage: Record<string, Set<string>> = {};
+
+  for (const caller of callers) {
+    for (const match of caller.matches || []) {
+      const text = match.text || '';
+      const methods = text.match(/(set_|get_|query_|want_)(\w+)/g);
+      if (methods) {
+        for (const m of methods) {
+          if (!fieldUsage[m]) fieldUsage[m] = new Set();
+          fieldUsage[m].add(caller.file);
+        }
+      }
+    }
+  }
+
+  const result: Record<string, string[]> = {};
+  for (const [method, files] of Object.entries(fieldUsage)) {
+    result[method] = [...files];
+  }
+  return result;
+}
 
 export const analyzeIteratorTool = createTool({
   id: 'analyze_iterator',
   description: TOOL_DESCRIPTIONS.analyze_iterator,
-  mcp: {
-    annotations: {
-      title: 'Analyze Iterator',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
 
   inputSchema: z.object({
     iterator: z
@@ -98,63 +144,75 @@ export const analyzeIteratorTool = createTool({
       ),
     maxCallers: z
       .number()
+      .optional()
       .default(10)
-      .describe(
-        'Maximum number of direct callers to analyze for field usage (default: 10)',
-      ),
+      .describe('Maximum number of direct callers to analyze (default: 10)'),
     maxDepth: z
       .number()
+      .optional()
       .default(2)
       .describe(
-        'Call graph depth: 1=direct callers only, 2=include transitive (default: 2)',
+        'Call graph depth: 1=direct callers only, 2=include transitive',
       ),
     includeImpMethods: z
       .boolean()
+      .optional()
       .default(true)
-      .describe('Analyze *_imp methods for action iterators (default: true)'),
+      .describe('Analyze *_imp methods (default: true)'),
     verbose: z
       .boolean()
+      .optional()
       .default(false)
-      .describe('Include source snippets and timing (default: false)'),
+      .describe('Include source snippets and timing'),
     suggestOnEmpty: z
       .boolean()
       .optional()
-      .describe(
-        'When true and iterator not found, use semantic search to suggest similar iterators.',
-      ),
+      .describe('Suggest similar iterators when not found'),
   }),
 
   execute: async (input) => {
     const invocationId = logTool.start('analyze_iterator', input);
+    const startTime = Date.now();
 
     try {
-      logTool.step('analyze_iterator', 'calling proxy', {
-        iterator: input.iterator,
-        maxDepth: input.maxDepth,
-      });
+      // Parallel: schema + callers + imp methods
+      const [schema, callers, impMethods] = await Promise.all([
+        findSmfSchema(input.iterator),
+        findIteratorCallers(input.iterator, input.maxCallers ?? 10),
+        input.includeImpMethods !== false
+          ? findImpMethods(input.iterator)
+          : Promise.resolve([]),
+      ]);
 
-      const result = await callProxyTool('analyze_iterator', {
-        iterator: input.iterator,
-        maxCallers: input.maxCallers ?? 10,
-        maxDepth: input.maxDepth ?? 2,
-        includeImpMethods: input.includeImpMethods ?? true,
-        verbose: input.verbose ?? false,
-        suggestOnEmpty: input.suggestOnEmpty,
-      });
+      const fieldUsage = analyzeFieldUsage(callers);
+      const elapsed = Date.now() - startTime;
 
-      logTool.end(invocationId, { success: true });
+      const result = {
+        success: true,
+        iterator: input.iterator,
+        tableName: schema.tableName,
+        smfFile: schema.path,
+        callers: callers.slice(0, input.maxCallers ?? 10),
+        totalCallers: callers.length,
+        impMethods,
+        fieldUsage,
+        ...(input.verbose
+          ? {
+              smfContent: schema.content?.substring(0, 2000),
+              elapsedMs: elapsed,
+            }
+          : {}),
+      };
+
+      logTool.complete(invocationId, result);
       return result;
     } catch (error) {
       const classified = classifyError(error);
-      logTool.end(invocationId, {
-        success: false,
-        error: classified.message,
-        errorType: classified.errorType,
-      });
+      logTool.error(invocationId, classified);
       return {
         success: false,
         error: classified.message,
-        errorType: classified.errorType,
+        errorType: classified.type,
         retryable: classified.retryable,
       };
     }

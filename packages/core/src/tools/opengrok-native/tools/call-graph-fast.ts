@@ -1,10 +1,11 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any */
 // @ts-nocheck
 /**
- * Call Graph Fast Tool — proxy wrapper.
+ * Call Graph Fast Tool — native implementation.
  *
- * Builds upstream-only call graphs by proxying to the mastra-search server.
- * Receives params, calls the remote API, returns results.
+ * Builds upstream call graphs by composing OpenGrok search API calls.
+ * Uses makeOpenGrokRequest to find callers via symbol search, then
+ * recursively traces upstream.
  */
 
 import { createTool } from '../lib/mastra-tool-shim.js';
@@ -12,178 +13,200 @@ import { z } from '../lib/zod-shim.js';
 import { TOOL_DESCRIPTIONS } from '../prompts/index.js';
 import { logTool } from '../lib/logger.js';
 import { classifyError } from '../lib/errors.js';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { makeOpenGrokRequest } from '../lib/opengrok.js';
 
-// ============================================================================
-// HTTP Client — direct (no proxy) undici agent for mastra-search requests
-// ============================================================================
-
-const directAgent = new Agent({
-  keepAliveTimeout: 30_000,
-  keepAliveMaxTimeout: 60_000,
-  connections: 10,
-  pipelining: 1,
-  connect: { timeout: 15_000 },
-  headersTimeout: 120_000,
-  bodyTimeout: 120_000,
-});
-
-function getProxyBaseUrl(): string {
-  return (
-    process.env.MASTRA_SEARCH_URL ||
-    process.env.OPENGROK_PROXY_URL ||
-    'http://localhost:4111'
-  );
-}
-
-async function callProxyTool(
-  toolName: string,
-  params: Record<string, unknown>,
-): Promise<unknown> {
-  const baseUrl = getProxyBaseUrl();
-  const url = `${baseUrl}/api/tools/${toolName}`;
-
-  const response = await undiciFetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(params),
-    dispatcher: directAgent,
-  });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    const trimmed = text.trim();
-    const detail =
-      trimmed.length > 500 ? `${trimmed.slice(0, 500)}...` : trimmed;
-    throw new Error(
-      `Proxy API returned HTTP ${response.status}: ${detail || response.statusText || 'No details'}`,
-    );
+/**
+ * Find callers of a symbol using OpenGrok symbol search.
+ */
+async function findCallers(
+  symbol: string,
+  pathFilter?: string,
+  maxCallers: number = 10,
+): Promise<any[]> {
+  const params: Record<string, unknown> = {
+    symbol,
+    maxresults: maxCallers,
+  };
+  if (pathFilter) {
+    params.path = pathFilter;
   }
 
   try {
-    return JSON.parse(text);
+    const result = await makeOpenGrokRequest('search', params);
+    if (!result?.results) return [];
+
+    return result.results
+      .filter((r: any) => r.path !== undefined)
+      .slice(0, maxCallers)
+      .map((r: any) => ({
+        file: r.path,
+        matches: (r.matches || []).map((m: any) => ({
+          line: m.lineNumber,
+          text: (m.line || '').trim(),
+        })),
+      }));
   } catch {
-    throw new Error(
-      'Proxy returned invalid JSON. Response may be an error page.',
-    );
+    return [];
   }
 }
 
-// ============================================================================
-// Tool Definition
-// ============================================================================
+/**
+ * Build a call graph by BFS traversal of callers.
+ */
+async function buildCallGraph(
+  symbol: string,
+  maxDepth: number,
+  maxCallers: number,
+  pathFilter?: string,
+  filterNoise: boolean = true,
+): Promise<any> {
+  const noisePatterns = [
+    /^std::/,
+    /^trace/i,
+    /^log/i,
+    /^debug/i,
+    /^assert/i,
+    /^ON_SCOPE_EXIT/,
+  ];
+
+  const visited = new Set<string>();
+  const graph: any = {
+    root: symbol,
+    depth: maxDepth,
+    callers: [],
+  };
+
+  let currentLevel = [symbol];
+
+  for (let depth = 0; depth < maxDepth && currentLevel.length > 0; depth++) {
+    const nextLevel: string[] = [];
+
+    for (const sym of currentLevel) {
+      if (visited.has(sym)) continue;
+      visited.add(sym);
+
+      const callers = await findCallers(sym, pathFilter, maxCallers);
+
+      for (const caller of callers) {
+        const callerInfo = {
+          symbol: sym,
+          file: caller.file,
+          depth: depth + 1,
+          callSites: caller.matches,
+        };
+
+        if (filterNoise) {
+          const isNoise = caller.matches.every((m: any) =>
+            noisePatterns.some((p) => p.test(m.text)),
+          );
+          if (isNoise) continue;
+        }
+
+        graph.callers.push(callerInfo);
+
+        // Extract function names from call sites for next level
+        for (const m of caller.matches) {
+          const funcMatch = m.text.match(/(\w+(?:::\w+)*)\s*\(/);
+          if (funcMatch && !visited.has(funcMatch[1])) {
+            nextLevel.push(funcMatch[1]);
+          }
+        }
+      }
+    }
+
+    currentLevel = [...new Set(nextLevel)].slice(0, maxCallers);
+  }
+
+  return graph;
+}
 
 export const callGraphFastTool = createTool({
   id: 'call_graph_fast',
   description: TOOL_DESCRIPTIONS.call_graph_fast,
-  mcp: {
-    annotations: {
-      title: 'Call Graph Fast',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
 
   inputSchema: z.object({
     symbol: z.string().describe('Entry point function to find callers for'),
     max_depth: z
       .number()
+      .optional()
       .default(1)
-      .describe(
-        'Maximum depth to traverse upstream (default: 1, max: 3). Use 1 for fast iterator tracing, 2 only if needed.',
-      ),
+      .describe('Maximum depth to traverse upstream (default: 1, max: 3)'),
     max_callers: z
       .number()
+      .optional()
       .default(10)
       .describe('Maximum callers to find per level (default: 10)'),
     format: z
-      .enum(['mermaid', 'structured', 'all'] as const)
+      .enum(['mermaid', 'structured', 'all'])
+      .optional()
       .default('structured')
-      .describe(
-        'Output format: structured (default, machine-parseable JSON), mermaid for visual diagram, all for structured+mermaid',
-      ),
+      .describe('Output format'),
     filter_noise: z
       .boolean()
+      .optional()
       .default(true)
-      .describe(
-        'Filter out noise functions like traceError, std::*, ON_SCOPE_EXIT (default: true)',
-      ),
+      .describe('Filter out noise functions like traceError, std::*'),
     path_filter: z
       .string()
       .optional()
-      .describe(
-        "Only include callers from files matching this path (e.g., 'keymanager', 'security')",
-      ),
-    track_instantiations: z
-      .boolean()
-      .default(false)
-      .describe(
-        'For leaf nodes that are iterator _imp methods, search for instantiation patterns to discover deeper callers.',
-      ),
+      .describe('Only include callers from files matching this path'),
     include_code: z
       .boolean()
+      .optional()
       .default(true)
-      .describe('Include code snippets in output for in-depth understanding.'),
+      .describe('Include code snippets in output'),
+    track_instantiations: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Search for iterator instantiation patterns'),
     verbose: z
       .boolean()
+      .optional()
       .default(false)
-      .describe(
-        'Include timing stats, noise entries, and debug info in output.',
-      ),
+      .describe('Include timing stats and debug info'),
     references: z
       .boolean()
+      .optional()
       .default(false)
-      .describe('Return only flat references array with file:line links.'),
+      .describe('Return flat file:line references array'),
     suggestOnEmpty: z
       .boolean()
       .optional()
-      .describe(
-        'When true and no callers found, use semantic search to suggest similar symbols.',
-      ),
+      .describe('Suggest similar symbols when no results found'),
   }),
 
   execute: async (input) => {
     const invocationId = logTool.start('call_graph_fast', input);
+    const startTime = Date.now();
 
     try {
-      logTool.step('call_graph_fast', 'calling proxy', {
-        symbol: input.symbol,
-        max_depth: input.max_depth,
-      });
+      const graph = await buildCallGraph(
+        input.symbol,
+        Math.min(input.max_depth ?? 1, 3),
+        input.max_callers ?? 10,
+        input.path_filter,
+        input.filter_noise ?? true,
+      );
 
-      const result = await callProxyTool('call_graph_fast', {
+      const elapsed = Date.now() - startTime;
+      const result = {
+        success: true,
         symbol: input.symbol,
-        max_depth: input.max_depth ?? 1,
-        max_callers: input.max_callers ?? 10,
-        format: input.format ?? 'structured',
-        filter_noise: input.filter_noise ?? true,
-        path_filter: input.path_filter,
-        track_instantiations: input.track_instantiations ?? false,
-        include_code: input.include_code ?? true,
-        verbose: input.verbose ?? false,
-        references: input.references ?? false,
-        suggestOnEmpty: input.suggestOnEmpty,
-      });
+        totalCallers: graph.callers.length,
+        graph,
+        ...(input.verbose ? { elapsedMs: elapsed } : {}),
+      };
 
-      logTool.end(invocationId, { success: true });
+      logTool.complete(invocationId, result);
       return result;
     } catch (error) {
       const classified = classifyError(error);
-      logTool.end(invocationId, {
-        success: false,
-        error: classified.message,
-        errorType: classified.errorType,
-      });
+      logTool.error(invocationId, classified);
       return {
         success: false,
         error: classified.message,
-        errorType: classified.errorType,
+        errorType: classified.type,
         retryable: classified.retryable,
       };
     }

@@ -1,10 +1,11 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any */
 // @ts-nocheck
 /**
- * Trace Call Chain Tool — proxy wrapper.
+ * Trace Call Chain Tool — native implementation.
  *
- * Bidirectional tracing: function/iterator -> tables -> CLI commands.
- * Proxies to the mastra-search server for orchestration.
+ * Bidirectional trace: function → tables → CLI commands.
+ * Composes OpenGrok search API calls to find downstream tables
+ * and upstream CLI entry points.
  */
 
 import { createTool } from '../lib/mastra-tool-shim.js';
@@ -12,139 +13,175 @@ import { z } from '../lib/zod-shim.js';
 import { TOOL_DESCRIPTIONS } from '../prompts/index.js';
 import { logTool } from '../lib/logger.js';
 import { classifyError } from '../lib/errors.js';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { makeOpenGrokRequest } from '../lib/opengrok.js';
 
-// ============================================================================
-// HTTP Client — direct (no proxy) undici agent for mastra-search requests
-// ============================================================================
-
-const directAgent = new Agent({
-  keepAliveTimeout: 30_000,
-  keepAliveMaxTimeout: 60_000,
-  connections: 10,
-  pipelining: 1,
-  connect: { timeout: 15_000 },
-  headersTimeout: 120_000,
-  bodyTimeout: 120_000,
-});
-
-function getProxyBaseUrl(): string {
-  return (
-    process.env.MASTRA_SEARCH_URL ||
-    process.env.OPENGROK_PROXY_URL ||
-    'http://localhost:4111'
-  );
-}
-
-async function callProxyTool(
-  toolName: string,
-  params: Record<string, unknown>,
-): Promise<unknown> {
-  const baseUrl = getProxyBaseUrl();
-  const url = `${baseUrl}/api/tools/${toolName}`;
-
-  const response = await undiciFetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(params),
-    dispatcher: directAgent,
-  });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    const trimmed = text.trim();
-    const detail =
-      trimmed.length > 500 ? `${trimmed.slice(0, 500)}...` : trimmed;
-    throw new Error(
-      `Proxy API returned HTTP ${response.status}: ${detail || response.statusText || 'No details'}`,
-    );
-  }
-
+/**
+ * Search for a symbol's definition and callees.
+ */
+async function findSymbolInfo(symbol: string): Promise<any> {
   try {
-    return JSON.parse(text);
+    const defResult = await makeOpenGrokRequest('search', {
+      definition: symbol,
+      maxresults: 3,
+    });
+
+    const refResult = await makeOpenGrokRequest('search', {
+      symbol,
+      maxresults: 15,
+    });
+
+    return {
+      definition: defResult?.results?.[0] || null,
+      references: refResult?.results || [],
+    };
   } catch {
-    throw new Error(
-      'Proxy returned invalid JSON. Response may be an error page.',
-    );
+    return { definition: null, references: [] };
   }
 }
 
-// ============================================================================
-// Tool Definition
-// ============================================================================
+/**
+ * Find iterator tables by looking for _iterator suffix patterns.
+ */
+function extractIteratorNames(references: any[]): string[] {
+  const iterators = new Set<string>();
+  for (const ref of references) {
+    for (const match of ref.matches || []) {
+      const text = match.line || '';
+      const iterMatch = text.match(/(\w+_iterator)\b/g);
+      if (iterMatch) {
+        iterMatch.forEach((i: string) => iterators.add(i));
+      }
+    }
+  }
+  return [...iterators];
+}
+
+/**
+ * Find CLI commands by searching for command strings near iterator usage.
+ */
+async function findCliTriggers(
+  symbol: string,
+  maxDepth: number,
+): Promise<any[]> {
+  const cliTriggers: any[] = [];
+  const visited = new Set<string>();
+  let currentSymbols = [symbol];
+
+  for (let depth = 0; depth < maxDepth && currentSymbols.length > 0; depth++) {
+    const nextSymbols: string[] = [];
+
+    for (const sym of currentSymbols) {
+      if (visited.has(sym)) continue;
+      visited.add(sym);
+
+      try {
+        const result = await makeOpenGrokRequest('search', {
+          symbol: sym,
+          maxresults: 10,
+        });
+
+        for (const ref of result?.results || []) {
+          // Check if this is a CLI/iterator entry point
+          if (ref.path?.includes('.smf') || ref.path?.includes('_iterator')) {
+            cliTriggers.push({
+              symbol: sym,
+              file: ref.path,
+              depth: depth + 1,
+              matches: (ref.matches || []).map((m: any) => ({
+                line: m.lineNumber,
+                text: (m.line || '').trim(),
+              })),
+            });
+          }
+
+          // Extract function names for next depth
+          for (const m of ref.matches || []) {
+            const funcMatch = (m.line || '').match(/(\w+(?:::\w+)*)\s*\(/);
+            if (funcMatch && !visited.has(funcMatch[1])) {
+              nextSymbols.push(funcMatch[1]);
+            }
+          }
+        }
+      } catch {
+        // Continue on search failures
+      }
+    }
+
+    currentSymbols = [...new Set(nextSymbols)].slice(0, 10);
+  }
+
+  return cliTriggers;
+}
 
 export const traceCallChainTool = createTool({
   id: 'trace_call_chain',
   description: TOOL_DESCRIPTIONS.trace_call_chain,
-  mcp: {
-    annotations: {
-      title: 'Trace Call Chain',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
 
   inputSchema: z.object({
     symbol: z
       .string()
       .describe(
-        "Function or iterator method to trace (e.g., 'pushKeyToKmipServerForced', 'keymanager_vdek_table_iterator::create_imp'). Works for ANY function - finds tables touched and CLI entry points.",
+        'Function or iterator method to trace (e.g., "pushKeyToKmipServerForced")',
       ),
     maxDepth: z
       .number()
+      .optional()
       .default(2)
-      .describe(
-        'Maximum depth to trace upstream (default: 2, for finding CLI entry points)',
-      ),
+      .describe('Maximum depth to trace upstream (default: 2)'),
     verbose: z
       .boolean()
+      .optional()
       .default(true)
-      .describe(
-        'Full output with all callers/callees arrays (default: true = full ~25KB, false = condensed ~6KB)',
-      ),
+      .describe('Full output with callers/callees arrays'),
     suggestOnEmpty: z
       .boolean()
       .optional()
-      .describe(
-        'When true and no results found, use semantic search to suggest similar symbols.',
-      ),
+      .describe('Suggest similar symbols when no results found'),
   }),
 
   execute: async (input) => {
     const invocationId = logTool.start('trace_call_chain', input);
+    const startTime = Date.now();
 
     try {
-      logTool.step('trace_call_chain', 'calling proxy', {
-        symbol: input.symbol,
-        maxDepth: input.maxDepth,
-      });
+      const symbolInfo = await findSymbolInfo(input.symbol);
+      const iterators = extractIteratorNames(symbolInfo.references);
+      const cliTriggers = await findCliTriggers(
+        input.symbol,
+        input.maxDepth ?? 2,
+      );
 
-      const result = await callProxyTool('trace_call_chain', {
-        symbol: input.symbol,
-        maxDepth: input.maxDepth ?? 2,
-        verbose: input.verbose ?? true,
-        suggestOnEmpty: input.suggestOnEmpty,
-      });
+      const elapsed = Date.now() - startTime;
+      const result = {
+        success: true,
+        function: {
+          name: input.symbol,
+          file: symbolInfo.definition?.path || null,
+          line: symbolInfo.definition?.matches?.[0]?.lineNumber || null,
+        },
+        iteratorsDiscovered: iterators,
+        cliTriggers,
+        upstreamCallers: symbolInfo.references
+          .filter((r: any) => r.path)
+          .map((r: any) => ({
+            file: r.path,
+            matches: (r.matches || []).slice(0, 3).map((m: any) => ({
+              line: m.lineNumber,
+              text: (m.line || '').trim(),
+            })),
+          })),
+        ...(input.verbose ? { elapsedMs: elapsed } : {}),
+      };
 
-      logTool.end(invocationId, { success: true });
+      logTool.complete(invocationId, result);
       return result;
     } catch (error) {
       const classified = classifyError(error);
-      logTool.end(invocationId, {
-        success: false,
-        error: classified.message,
-        errorType: classified.errorType,
-      });
+      logTool.error(invocationId, classified);
       return {
         success: false,
         error: classified.message,
-        errorType: classified.errorType,
+        errorType: classified.type,
         retryable: classified.retryable,
       };
     }
