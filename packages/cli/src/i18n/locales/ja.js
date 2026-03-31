@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Japanese translations for Qwen Code CLI
+// Japanese translations for APEX CLI
 
 export default {
   // ============================================================================
@@ -55,10 +55,10 @@ export default {
   'For a full list of shortcuts, see {{docPath}}':
     'ショートカットの完全なリストは {{docPath}} を参照',
   'docs/keyboard-shortcuts.md': 'docs/keyboard-shortcuts.md',
-  'for help on Qwen Code': 'Qwen Code のヘルプ',
+  'for help on APEX': 'APEX のヘルプ',
   'show version info': 'バージョン情報を表示',
   'submit a bug report': 'バグレポートを送信',
-  'About Qwen Code': 'Qwen Code について',
+  'About APEX': 'APEX について',
 
   // ============================================================================
   // System Information Fields
@@ -81,12 +81,12 @@ export default {
   // ============================================================================
   // Commands - General
   // ============================================================================
-  'Analyzes the project and creates a tailored QWEN.md file.':
-    'プロジェクトを分析し、カスタマイズされた QWEN.md ファイルを作成',
-  'List available Qwen Code tools. Usage: /tools [desc]':
-    '利用可能な Qwen Code ツールを一覧表示。使い方: /tools [desc]',
+  'Analyzes the project and creates a tailored APEX.md file.':
+    'プロジェクトを分析し、カスタマイズされた APEX.md ファイルを作成',
+  'List available APEX tools. Usage: /tools [desc]':
+    '利用可能な APEX ツールを一覧表示。使い方: /tools [desc]',
   'List available skills.': '利用可能なスキルを一覧表示する。',
-  'Available Qwen Code CLI tools:': '利用可能な Qwen Code CLI ツール:',
+  'Available APEX CLI tools:': '利用可能な APEX CLI ツール:',
   'No tools available': '利用可能なツールはありません',
   'View or change the approval mode for tool usage':
     'ツール使用の承認モードを表示または変更',
@@ -107,8 +107,8 @@ export default {
     '会話履歴をクリアしてコンテキストを解放',
   'Compresses the context by replacing it with a summary.':
     'コンテキストを要約に置き換えて圧縮',
-  'open full Qwen Code documentation in your browser':
-    'ブラウザで Qwen Code のドキュメントを開く',
+  'open full APEX documentation in your browser':
+    'ブラウザで APEX のドキュメントを開く',
   'Configuration not available.': '設定が利用できません',
   'change the auth method': '認証方式を変更',
   'Configure authentication information for login':
@@ -171,8 +171,8 @@ export default {
   '❌ Error:': '❌ エラー:',
   'Are you sure you want to delete agent "{{name}}"?':
     'エージェント "{{name}}" を削除してもよろしいですか?',
-  'Project Level (.qwen/agents/)': 'プロジェクトレベル (.qwen/agents/)',
-  'User Level (~/.qwen/agents/)': 'ユーザーレベル (~/.qwen/agents/)',
+  'Project Level (.apex/agents/)': 'プロジェクトレベル (.apex/agents/)',
+  'User Level (~/.apex/agents/)': 'ユーザーレベル (~/.apex/agents/)',
   '✅ Subagent Created Successfully!':
     '✅ サブエージェントの作成に成功しました!',
   'Subagent "{{name}}" has been saved to {{level}} level.':
@@ -183,7 +183,7 @@ export default {
   'Warnings:': '警告:',
   'Step {{n}}: Choose Location': 'ステップ {{n}}: 場所を選択',
   'Step {{n}}: Choose Generation Method': 'ステップ {{n}}: 作成方法を選択',
-  'Generate with Qwen Code (Recommended)': 'Qwen Code で生成(推奨)',
+  'Generate with APEX (Recommended)': 'APEX で生成(推奨)',
   'Manual Creation': '手動作成',
   'Generating subagent configuration...': 'サブエージェント設定を生成中...',
   'Failed to generate subagent: {{error}}':
@@ -249,11 +249,11 @@ export default {
   // Commands - General (continued)
   '(Use Enter to select{{tabText}})': '(Enter で選択{{tabText}})',
   ', Tab to change focus': '、Tab でフォーカス変更',
-  'To see changes, Qwen Code must be restarted. Press r to exit and apply changes now.':
-    '変更を確認するには Qwen Code を再起動する必要があります。 r を押して終了し、変更を適用してください',
+  'To see changes, APEX must be restarted. Press r to exit and apply changes now.':
+    '変更を確認するには APEX を再起動する必要があります。 r を押して終了し、変更を適用してください',
   'The command "/{{command}}" is not supported in non-interactive mode.':
     'コマンド "/{{command}}" は非対話モードではサポートされていません',
-  'View and edit Qwen Code settings': 'Qwen Code の設定を表示・編集',
+  'View and edit APEX settings': 'APEX の設定を表示・編集',
   Settings: '設定',
   'Vim Mode': 'Vim モード',
   'Disable Auto Update': '自動更新を無効化',
@@ -301,7 +301,7 @@ export default {
   'Load Memory From Include Directories':
     'インクルードディレクトリからメモリを読み込み',
   'Respect .gitignore': '.gitignore を優先',
-  'Respect .qwenignore': '.qwenignore を優先',
+  'Respect .apexignore': '.apexignore を優先',
   'Enable Recursive File Search': '再帰的ファイル検索を有効化',
   'Disable Fuzzy Search': 'ファジー検索を無効化',
   'Enable Interactive Shell': '対話型シェルを有効化',
@@ -333,16 +333,16 @@ export default {
   'List active extensions': '有効な拡張機能を一覧表示',
   'Update extensions. Usage: update <extension-names>|--all':
     '拡張機能を更新。使い方: update <拡張機能名>|--all',
-  'You are installing an extension from {{originSource}}. Some features may not work perfectly with Qwen Code.':
-    '{{originSource}} から拡張機能をインストールしています。一部の機能は Qwen Code で完全に動作しない可能性があります。',
+  'You are installing an extension from {{originSource}}. Some features may not work perfectly with APEX.':
+    '{{originSource}} から拡張機能をインストールしています。一部の機能は APEX で完全に動作しない可能性があります。',
   'manage IDE integration': 'IDE連携を管理',
   'check status of IDE integration': 'IDE連携の状態を確認',
   'install required IDE companion for {{ideName}}':
     '{{ideName}} 用の必要なIDEコンパニオンをインストール',
   'enable IDE integration': 'IDE連携を有効化',
   'disable IDE integration': 'IDE連携を無効化',
-  'IDE integration is not supported in your current environment. To use this feature, run Qwen Code in one of these supported IDEs: VS Code or VS Code forks.':
-    '現在の環境ではIDE連携はサポートされていません。この機能を使用するには、VS Code または VS Code 派生エディタで Qwen Code を実行してください',
+  'IDE integration is not supported in your current environment. To use this feature, run APEX in one of these supported IDEs: VS Code or VS Code forks.':
+    '現在の環境ではIDE連携はサポートされていません。この機能を使用するには、VS Code または VS Code 派生エディタで APEX を実行してください',
   'Set up GitHub Actions': 'GitHub Actions を設定',
   'Configure terminal keybindings for multiline input (VS Code, Cursor, Windsurf, Trae)':
     '複数行入力用のターミナルキーバインドを設定(VS Code、Cursor、Windsurf、Trae)',
@@ -376,7 +376,7 @@ export default {
   // ============================================================================
   // Commands - Hooks
   // ============================================================================
-  'Manage Qwen Code hooks': 'Qwen Code のフックを管理する',
+  'Manage APEX hooks': 'APEX のフックを管理する',
   'List all configured hooks': '設定済みのフックをすべて表示する',
   'Enable a disabled hook': '無効なフックを有効にする',
   'Disable an active hook': '有効なフックを無効にする',
@@ -710,8 +710,8 @@ export default {
   'Share the current conversation to a markdown or json file. Usage: /chat share <file>':
     '現在の会話をmarkdownまたはjsonファイルに共有。使い方: /chat share <ファイル>',
   // Summary
-  'Generate a project summary and save it to .qwen/PROJECT_SUMMARY.md':
-    'プロジェクトサマリーを生成し、.qwen/PROJECT_SUMMARY.md に保存',
+  'Generate a project summary and save it to .apex/PROJECT_SUMMARY.md':
+    'プロジェクトサマリーを生成し、.apex/PROJECT_SUMMARY.md に保存',
   'No chat client available to generate summary.':
     'サマリーを生成するためのチャットクライアントがありません',
   'Already generating summary, wait for previous request to complete':
@@ -761,8 +761,8 @@ export default {
     '制限的なサンドボックスプロファイルでは /directory add コマンドはサポートされていません。代わりにセッション開始時に --include-directories を使用してください',
   "Error adding '{{path}}': {{error}}":
     "'{{path}}' の追加中にエラー: {{error}}",
-  'Successfully added QWEN.md files from the following directories if there are:\n- {{directories}}':
-    '以下のディレクトリから QWEN.md ファイルを追加しました(存在する場合):\n- {{directories}}',
+  'Successfully added APEX.md files from the following directories if there are:\n- {{directories}}':
+    '以下のディレクトリから APEX.md ファイルを追加しました(存在する場合):\n- {{directories}}',
   'Error refreshing memory: {{error}}': 'メモリの更新中にエラー: {{error}}',
   'Successfully added directories:\n- {{directories}}':
     'ディレクトリを正常に追加しました:\n- {{directories}}',
@@ -837,8 +837,8 @@ export default {
   servers: 'サーバー',
   'Add MCP servers to your settings to get started.':
     '設定にMCPサーバーを追加して開始してください。',
-  'Run qwen --debug to see error logs':
-    'qwen --debug を実行してエラーログを確認してください',
+  'Run apex --debug to see error logs':
+    'apex --debug を実行してエラーログを確認してください',
 
   // MCP OAuth Authentication
   'OAuth Authentication': 'OAuth 認証',
@@ -943,11 +943,10 @@ export default {
   'You must select an auth method to proceed. Press Ctrl+C again to exit.':
     '続行するには認証方法を選択してください。Ctrl+C をもう一度押すと終了します',
   'Terms of Services and Privacy Notice': '利用規約とプライバシー通知',
-  'Qwen OAuth': 'Qwen OAuth',
+  'Qwen OAuth': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
-    '無料 \u00B7 1日最大1,000リクエスト \u00B7 Qwen最新モデル',
-  'Login with QwenChat account to use daily free quota.':
-    'QwenChatアカウントでログインして、毎日の無料クォータをご利用ください。',
+    '無料 \u00B7 1日最大1,000リクエスト \u00B7 設定済みモデル',
+  'Login with QwenChat account to use daily free quota.': 'OAuthでログイン',
   'Paid \u00B7 Up to 6,000 requests/5 hrs \u00B7 All Alibaba Cloud Coding Plan Models':
     '有料 \u00B7 5時間最大6,000リクエスト \u00B7 すべての Alibaba Cloud Coding Plan モデル',
   'Alibaba Cloud Coding Plan': 'Alibaba Cloud Coding Plan',
@@ -961,26 +960,25 @@ export default {
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     '認証は {{enforcedType}} に強制されていますが、現在 {{currentType}} を使用しています',
   'Qwen OAuth authentication timed out. Please try again.':
-    'Qwen OAuth認証がタイムアウトしました。再度お試しください',
-  'Qwen OAuth authentication cancelled.':
-    'Qwen OAuth認証がキャンセルされました',
-  'Qwen OAuth Authentication': 'Qwen OAuth認証',
+    'OAuth認証がタイムアウトしました。再度お試しください',
+  'Qwen OAuth authentication cancelled.': 'OAuth認証がキャンセルされました',
+  'Qwen OAuth Authentication': 'OAuth認証',
   'Please visit this URL to authorize:':
     '認証するには以下のURLにアクセスしてください:',
   'Or scan the QR code below:': 'または以下のQRコードをスキャン:',
   'Waiting for authorization': '認証を待っています',
   'Time remaining:': '残り時間:',
   '(Press ESC or CTRL+C to cancel)': '(ESC または CTRL+C でキャンセル)',
-  'Qwen OAuth Authentication Timeout': 'Qwen OAuth認証タイムアウト',
+  'Qwen OAuth Authentication Timeout': 'OAuth認証タイムアウト',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'OAuthトークンが期限切れです({{seconds}}秒以上)。認証方法を再度選択してください',
   'Press any key to return to authentication type selection.':
     '認証タイプ選択に戻るには任意のキーを押してください',
-  'Waiting for Qwen OAuth authentication...': 'Qwen OAuth認証を待っています...',
+  'Waiting for Qwen OAuth authentication...': 'OAuth認証を待っています...',
   'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
-    '注: Qwen OAuthを使用しても、settings.json内の既存のAPIキーはクリアされません。必要に応じて後でOpenAI認証に切り替えることができます',
+    '注: OAuthを使用しても、settings.json内の既存のAPIキーはクリアされません。必要に応じて後でOpenAI認証に切り替えることができます',
   'Note: Your existing API key will not be cleared when using Qwen OAuth.':
-    '注: Qwen OAuthを使用しても、既存のAPIキーはクリアされません。',
+    '注: OAuthを使用しても、既存のAPIキーはクリアされません。',
   'Authentication timed out. Please try again.':
     '認証がタイムアウトしました。再度お試しください',
   'Waiting for auth... (Press ESC or CTRL+C to cancel)':
@@ -1024,12 +1022,12 @@ export default {
   Ask: '確認',
   Deny: '拒否',
   Workspace: 'ワークスペース',
-  "Qwen Code won't ask before using allowed tools.":
-    'Qwen Code は許可されたツールを使用する前に確認しません。',
-  'Qwen Code will ask before using these tools.':
-    'Qwen Code はこれらのツールを使用する前に確認します。',
-  'Qwen Code is not allowed to use denied tools.':
-    'Qwen Code は拒否されたツールを使用できません。',
+  "APEX won't ask before using allowed tools.":
+    'APEX は許可されたツールを使用する前に確認しません。',
+  'APEX will ask before using these tools.':
+    'APEX はこれらのツールを使用する前に確認します。',
+  'APEX is not allowed to use denied tools.':
+    'APEX は拒否されたツールを使用できません。',
   'Manage trusted directories for this workspace.':
     'このワークスペースの信頼済みディレクトリを管理します。',
   'Any use of the {{tool}} tool': '{{tool}} ツールのすべての使用',
@@ -1039,11 +1037,11 @@ export default {
   'From project settings': 'プロジェクト設定から',
   'From session': 'セッションから',
   'Project settings (local)': 'プロジェクト設定（ローカル）',
-  'Saved in .qwen/settings.local.json': '.qwen/settings.local.json に保存',
+  'Saved in .apex/settings.local.json': '.apex/settings.local.json に保存',
   'Project settings': 'プロジェクト設定',
-  'Checked in at .qwen/settings.json': '.qwen/settings.json にチェックイン',
+  'Checked in at .apex/settings.json': '.apex/settings.json にチェックイン',
   'User settings': 'ユーザー設定',
-  'Saved in at ~/.qwen/settings.json': '~/.qwen/settings.json に保存',
+  'Saved in at ~/.apex/settings.json': '~/.apex/settings.json に保存',
   'Add a new rule…': '新しいルールを追加…',
   'Add {{type}} permission rule': '{{type}}権限ルールを追加',
   'Permission rules are a tool name, optionally followed by a specifier in parentheses.':
@@ -1067,10 +1065,10 @@ export default {
   // Workspace directory management
   'Add directory…': 'ディレクトリを追加…',
   'Add directory to workspace': 'ワークスペースにディレクトリを追加',
-  'Qwen Code can read files in the workspace, and make edits when auto-accept edits is on.':
-    'Qwen Code はワークスペース内のファイルを読み取り、自動編集承認が有効な場合は編集を行えます。',
-  'Qwen Code will be able to read files in this directory and make edits when auto-accept edits is on.':
-    'Qwen Code はこのディレクトリ内のファイルを読み取り、自動編集承認が有効な場合は編集を行えます。',
+  'APEX can read files in the workspace, and make edits when auto-accept edits is on.':
+    'APEX はワークスペース内のファイルを読み取り、自動編集承認が有効な場合は編集を行えます。',
+  'APEX will be able to read files in this directory and make edits when auto-accept edits is on.':
+    'APEX はこのディレクトリ内のファイルを読み取り、自動編集承認が有効な場合は編集を行えます。',
   'Enter the path to the directory:': 'ディレクトリのパスを入力してください:',
   'Enter directory path…': 'ディレクトリパスを入力…',
   'Tab to complete · Enter to add · Esc to cancel':
@@ -1141,12 +1139,12 @@ export default {
     '問題が発生したら /bug でメンテナーに報告できます。',
   'Switch auth type quickly with /auth.':
     '/auth で認証タイプをすばやく切り替えられます。',
-  'You can run any shell commands from Qwen Code using ! (e.g. !ls).':
-    'Qwen Code から ! を使って任意のシェルコマンドを実行できます（例: !ls）。',
+  'You can run any shell commands from APEX using ! (e.g. !ls).':
+    'APEX から ! を使って任意のシェルコマンドを実行できます（例: !ls）。',
   'Type / to open the command popup; Tab autocompletes slash commands and saved prompts.':
     '/ を入力してコマンドポップアップを開きます。Tab でスラッシュコマンドと保存済みプロンプトを補完できます。',
-  'You can resume a previous conversation by running qwen --continue or qwen --resume.':
-    'qwen --continue または qwen --resume で前の会話を再開できます。',
+  'You can resume a previous conversation by running qwen --continue or apex --resume.':
+    'qwen --continue または apex --resume で前の会話を再開できます。',
   'You can switch permission mode quickly with Shift+Tab or /approval-mode.':
     'Shift+Tab または /approval-mode で権限モードをすばやく切り替えられます。',
   'You can switch permission mode quickly with Tab or /approval-mode.':
@@ -1158,8 +1156,8 @@ export default {
     '1. 質問したり、ファイルを編集したり、コマンドを実行したりできます',
   '2. Be specific for the best results.':
     '2. 具体的に指示すると最良の結果が得られます',
-  'files to customize your interactions with Qwen Code.':
-    'Qwen Code との対話をカスタマイズするためのファイル',
+  'files to customize your interactions with APEX.':
+    'APEX との対話をカスタマイズするためのファイル',
   'for more information.': '詳細情報を確認できます',
   // Exit Screen / Stats
   'Agent powering down. Goodbye!': 'エージェントを終了します。さようなら!',
@@ -1374,8 +1372,8 @@ export default {
   // Commands - Auth
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
-    'Qwen-OAuth または Alibaba Cloud Coding Plan で Qwen 認証情報を設定する',
-  'Authenticate using Qwen OAuth': 'Qwen OAuth で認証する',
+    'OAuth または Alibaba Cloud Coding Plan で認証情報を設定する',
+  'Authenticate using Qwen OAuth': 'OAuth で認証する',
   'Authenticate using Alibaba Cloud Coding Plan':
     'Alibaba Cloud Coding Plan で認証する',
   'Region for Coding Plan (china/global)':
@@ -1383,11 +1381,11 @@ export default {
   'API key for Coding Plan': 'Coding Plan の API キー',
   'Show current authentication status': '現在の認証ステータスを表示',
   'Authentication completed successfully.': '認証が正常に完了しました。',
-  'Starting Qwen OAuth authentication...': 'Qwen OAuth 認証を開始しています...',
+  'Starting Qwen OAuth authentication...': 'OAuth 認証を開始しています...',
   'Successfully authenticated with Qwen OAuth.':
-    'Qwen OAuth での認証に成功しました。',
+    'OAuth での認証に成功しました。',
   'Failed to authenticate with Qwen OAuth: {{error}}':
-    'Qwen OAuth での認証に失敗しました: {{error}}',
+    'OAuth での認証に失敗しました: {{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     'Alibaba Cloud Coding Plan 認証を処理しています...',
   'Successfully authenticated with Alibaba Cloud Coding Plan.':
@@ -1407,17 +1405,17 @@ export default {
     '⚠️  認証方法が設定されていません。\n',
   'Run one of the following commands to get started:\n':
     '以下のコマンドのいずれかを実行して開始してください:\n',
-  '  qwen auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  qwen auth qwen-oauth     - Qwen OAuth で認証（無料）',
-  '  qwen auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
-    '  qwen auth coding-plan      - Alibaba Cloud Coding Plan で認証\n',
+  '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
+    '  apex auth qwen-oauth     - OAuth で認証（無料）',
+  '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
+    '  apex auth coding-plan      - Alibaba Cloud Coding Plan で認証\n',
   'Or simply run:': 'または以下を実行:',
-  '  qwen auth                - Interactive authentication setup\n':
-    '  qwen auth                - インタラクティブ認証セットアップ\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ 認証方法: Qwen OAuth',
+  '  apex auth                - Interactive authentication setup\n':
+    '  apex auth                - インタラクティブ認証セットアップ\n',
+  '✓ Authentication Method: Qwen OAuth': '✓ 認証方法: OAuth',
   '  Type: Free tier': '  タイプ: 無料プラン',
   '  Limit: Up to 1,000 requests/day': '  制限: 1日最大1,000リクエスト',
-  '  Models: Qwen latest models\n': '  モデル: Qwen 最新モデル\n',
+  '  Models: Qwen latest models\n': '  モデル: 設定済みモデル\n',
   '✓ Authentication Method: Alibaba Cloud Coding Plan':
     '✓ 認証方法: Alibaba Cloud Coding Plan',
   '中国 (China) - 阿里云百炼': '中国 (China) - 阿里云百炼',
@@ -1430,8 +1428,8 @@ export default {
     '⚠️  認証方法: Alibaba Cloud Coding Plan（不完全）',
   '  Issue: API key not found in environment or settings\n':
     '  問題: 環境変数または設定にAPIキーが見つかりません\n',
-  '  Run `qwen auth coding-plan` to re-configure.\n':
-    '  `qwen auth coding-plan` を実行して再設定してください。\n',
+  '  Run `apex auth coding-plan` to re-configure.\n':
+    '  `apex auth coding-plan` を実行して再設定してください。\n',
   '✓ Authentication Method: {{type}}': '✓ 認証方法: {{type}}',
   '  Status: Configured\n': '  ステータス: 設定済み\n',
   'Failed to check authentication status: {{error}}':

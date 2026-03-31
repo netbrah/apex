@@ -38,6 +38,36 @@ export interface SemanticColors {
     errorDim: string;
     warningDim: string;
   };
+
+  // --- V2 optional token groups (FQ-26) ---
+
+  /** Surface elevation tokens for layered backgrounds */
+  surface?: {
+    canvas: string;
+    panel: string;
+    panelMuted: string;
+    overlay: string;
+  };
+
+  /** Interactive state tokens */
+  interactive?: {
+    hover: string;
+    active: string;
+    selected: string;
+  };
+
+  /** Badge / pill tokens */
+  badge?: {
+    info: string;
+    tool: string;
+    agent: string;
+  };
+
+  /** Prompt prefix / placeholder tokens */
+  prompt?: {
+    prefix: string;
+    placeholder: string;
+  };
 }
 
 export const lightSemanticColors: SemanticColors = {
@@ -70,6 +100,27 @@ export const lightSemanticColors: SemanticColors = {
     warning: lightTheme.AccentYellow,
     errorDim: lightTheme.AccentRedDim,
     warningDim: lightTheme.AccentYellowDim,
+  },
+  // V2 tokens — reasonable light-theme defaults
+  surface: {
+    canvas: lightTheme.Background,
+    panel: '#f0f1f3',
+    panelMuted: '#f5f5f7',
+    overlay: '#e8e9ec',
+  },
+  interactive: {
+    hover: '#e8e9ec',
+    active: '#dcdde0',
+    selected: lightTheme.AccentBlue,
+  },
+  badge: {
+    info: lightTheme.AccentBlue,
+    tool: lightTheme.AccentCyan,
+    agent: lightTheme.AccentPurple,
+  },
+  prompt: {
+    prefix: lightTheme.AccentPurple,
+    placeholder: lightTheme.Gray,
   },
 };
 
@@ -104,6 +155,27 @@ export const darkSemanticColors: SemanticColors = {
     errorDim: darkTheme.AccentRedDim,
     warningDim: darkTheme.AccentYellowDim,
   },
+  // V2 tokens — reasonable dark-theme defaults
+  surface: {
+    canvas: darkTheme.Background,
+    panel: '#252535',
+    panelMuted: '#1f1f2e',
+    overlay: '#2a2a3c',
+  },
+  interactive: {
+    hover: '#2a2a3c',
+    active: '#333348',
+    selected: darkTheme.AccentBlue,
+  },
+  badge: {
+    info: darkTheme.AccentBlue,
+    tool: darkTheme.AccentCyan,
+    agent: darkTheme.AccentPurple,
+  },
+  prompt: {
+    prefix: darkTheme.AccentPurple,
+    placeholder: darkTheme.Gray,
+  },
 };
 
 export const ansiSemanticColors: SemanticColors = {
@@ -136,5 +208,26 @@ export const ansiSemanticColors: SemanticColors = {
     warning: ansiTheme.AccentYellow,
     errorDim: ansiTheme.AccentRedDim,
     warningDim: ansiTheme.AccentYellowDim,
+  },
+  // V2 tokens — ANSI-compatible defaults
+  surface: {
+    canvas: ansiTheme.Background,
+    panel: ansiTheme.Background,
+    panelMuted: ansiTheme.Background,
+    overlay: ansiTheme.Background,
+  },
+  interactive: {
+    hover: 'gray',
+    active: 'white',
+    selected: ansiTheme.AccentBlue,
+  },
+  badge: {
+    info: ansiTheme.AccentBlue,
+    tool: ansiTheme.AccentCyan,
+    agent: ansiTheme.AccentPurple,
+  },
+  prompt: {
+    prefix: ansiTheme.AccentPurple,
+    placeholder: ansiTheme.Gray,
   },
 };

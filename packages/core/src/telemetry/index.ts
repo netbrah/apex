@@ -125,5 +125,4 @@ export {
   ApiRequestPhase,
   FileOperation,
 } from './metrics.js';
-export { QwenLogger } from './qwen-logger/qwen-logger.js';
-export { sanitizeHookName } from './sanitize.js';
+export { ApexLogger } from './qwen-logger/qwen-logger.js';

@@ -27,12 +27,8 @@ import type {
   LspWorkspaceEdit,
 } from './types.js';
 import type { EventEmitter } from 'events';
-import {
-  DEFAULT_LSP_DOCUMENT_OPEN_DELAY_MS,
-  DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS,
-  DEFAULT_LSP_WORKSPACE_SYMBOL_WARMUP_DELAY_MS,
-} from './constants.js';
 import { LspConfigLoader } from './LspConfigLoader.js';
+import { LspLanguageDetector } from './LspLanguageDetector.js';
 import { LspResponseNormalizer } from './LspResponseNormalizer.js';
 import { LspServerManager } from './LspServerManager.js';
 import type {
@@ -42,35 +38,11 @@ import type {
   NativeLspServiceOptions,
 } from './types.js';
 import * as path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import * as fs from 'node:fs';
 import { createDebugLogger } from '../utils/debugLogger.js';
-import { globSync } from 'glob';
 
 const debugLogger = createDebugLogger('LSP');
-
-/**
- * Mapping from LSP language identifiers to file extensions, only for cases
- * where the language ID does NOT match the file extension directly.
- * Languages whose ID is already a valid extension (e.g. "cpp", "java", "go")
- * are handled by the fallback in getWorkspaceSymbolExtensions().
- */
-const LANGUAGE_ID_TO_EXTENSIONS: Record<string, string[]> = {
-  typescript: ['ts', 'tsx'],
-  typescriptreact: ['tsx'],
-  javascript: ['js', 'jsx'],
-  javascriptreact: ['jsx'],
-  python: ['py'],
-  csharp: ['cs'],
-  ruby: ['rb'],
-};
-
-const DEFAULT_EXCLUDE_PATTERNS = [
-  '**/node_modules/**',
-  '**/.git/**',
-  '**/dist/**',
-  '**/build/**',
-];
 
 export class NativeLspService {
   private config: CoreConfig;
@@ -80,9 +52,8 @@ export class NativeLspService {
   private workspaceRoot: string;
   private configLoader: LspConfigLoader;
   private serverManager: LspServerManager;
+  private languageDetector: LspLanguageDetector;
   private normalizer: LspResponseNormalizer;
-  private openedDocuments = new Map<string, Set<string>>();
-  private lastConnections = new Map<string, LspConnectionInterface>();
 
   constructor(
     config: CoreConfig,
@@ -100,6 +71,10 @@ export class NativeLspService {
       options.workspaceRoot ??
       (config as { getProjectRoot: () => string }).getProjectRoot();
     this.configLoader = new LspConfigLoader(this.workspaceRoot);
+    this.languageDetector = new LspLanguageDetector(
+      this.workspaceContext,
+      this.fileDiscoveryService,
+    );
     this.normalizer = new LspResponseNormalizer();
     this.serverManager = new LspServerManager(
       this.config,
@@ -115,6 +90,32 @@ export class NativeLspService {
   /**
    * Discover and prepare LSP servers
    */
+  /**
+   * LSP ACTIVATION CHAIN — read this before touching LSP.
+   *
+   * For the agent to receive LSP tools (hover/definition/references):
+   *
+   *   1. settings.json must have "lsp": {"enabled": true}
+   *      Source: apex-assets/settings.json → dist/apex/ → ~/.apex/settings.json
+   *      On existing installs postinstall does NOT overwrite — delete and reinstall
+   *      or patch manually. See RB-10 in docs/05-RUNBOOK.md.
+   *
+   *   2. .lsp.json must exist in the workspaceRoot (cwd where apex is launched).
+   *      Template at ~/.apex/ontap.lsp.json — copy to workspace root.
+   *      Every ONTAP workspace has compile_commands.json at root (default path).
+   *
+   *   3. This method (discoverAndPrepare) finds .lsp.json and starts the server.
+   *      Failure here is silent (caught, logged to debug only).
+   *
+   *   4. config.ts: if isLspEnabled() && getLspClient() → registerCoreTool(LspTool)
+   *      ONLY THEN does the agent get hover/definition/references tools.
+   *
+   * TODO (S-next): add loadSettingsConfigs() reading lspServers from settings.json
+   * so users don't need a per-workspace .lsp.json. Every ONTAP workspace has
+   * compile_commands.json at root, so ./compile_commands.json works globally.
+   * Files to change: LspConfigLoader.ts, NativeLspService.ts (here),
+   * settingsSchema.ts, apex-assets/settings.json.
+   */
   async discoverAndPrepare(): Promise<void> {
     const workspaceTrusted = this.config.isTrustedFolder();
     this.serverManager.clearServerHandles();
@@ -127,15 +128,31 @@ export class NativeLspService {
       return;
     }
 
-    // Load LSP configs
+    // Detect languages in workspace
+    // Global settings.json lspServers — loaded first, overridden by .lsp.json
+    // See RB-10 in docs/05-RUNBOOK.md for the full activation chain.
+    const settingsLspServers = this.config.getLspServers?.();
+    const settingsConfigs =
+      this.configLoader.loadSettingsConfigs(settingsLspServers);
+
     const userConfigs = await this.configLoader.loadUserConfigs();
     const extensionConfigs = await this.configLoader.loadExtensionConfigs(
       this.getActiveExtensions(),
     );
-    // Merge configs: extension LSP configs + user .lsp.json
+    const extensionOverrides =
+      this.configLoader.collectExtensionToLanguageOverrides([
+        ...extensionConfigs,
+        ...settingsConfigs,
+        ...userConfigs,
+      ]);
+    const detectedLanguages =
+      await this.languageDetector.detectLanguages(extensionOverrides);
+
+    // Merge configs: built-in presets + extension + global settings + workspace .lsp.json
+    // Priority (highest last = wins): presets < extensions < settingsConfigs < userConfigs
     const serverConfigs = this.configLoader.mergeConfigs(
-      [],
-      extensionConfigs,
+      detectedLanguages,
+      [...extensionConfigs, ...settingsConfigs],
       userConfigs,
     );
     this.serverManager.setServerConfigs(serverConfigs);
@@ -195,264 +212,6 @@ export class NativeLspService {
   }
 
   /**
-   * Ensure a document is open on the given LSP server. Sends textDocument/didOpen
-   * if not already tracked, then waits for the server to process the file before
-   * returning. This delay prevents empty results when the server hasn't analyzed
-   * the file yet.
-   *
-   * @param serverName - The name of the LSP server
-   * @param handle - The server handle with an active connection
-   * @param uri - The document URI to open
-   * @returns true if a new didOpen was sent; false if already open or failed
-   */
-  private async ensureDocumentOpen(
-    serverName: string,
-    handle: LspServerHandle & { connection: LspConnectionInterface },
-    uri: string,
-  ): Promise<boolean> {
-    const lastConnection = this.lastConnections.get(serverName);
-    if (lastConnection && lastConnection !== handle.connection) {
-      this.openedDocuments.delete(serverName);
-    }
-    this.lastConnections.set(serverName, handle.connection);
-
-    if (!uri.startsWith('file://')) {
-      return false;
-    }
-    const openedForServer = this.openedDocuments.get(serverName);
-    if (openedForServer?.has(uri)) {
-      return false;
-    }
-
-    let filePath: string;
-    try {
-      filePath = fileURLToPath(uri);
-    } catch (error) {
-      debugLogger.warn(`Failed to resolve file path for ${uri}:`, error);
-      return false;
-    }
-
-    let text: string;
-    try {
-      text = fs.readFileSync(filePath, 'utf-8');
-    } catch (error) {
-      debugLogger.warn(
-        `Failed to read file for LSP didOpen: ${filePath}`,
-        error,
-      );
-      return false;
-    }
-
-    const languageId = this.resolveLanguageId(filePath, handle) ?? 'plaintext';
-
-    handle.connection.send({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri,
-          languageId,
-          version: 1,
-          text,
-        },
-      },
-    });
-
-    const nextOpened = openedForServer ?? new Set<string>();
-    nextOpened.add(uri);
-    this.openedDocuments.set(serverName, nextOpened);
-
-    // Wait for the LSP server to process the newly opened document.
-    // Without this delay, requests sent immediately after didOpen may return
-    // empty results because the server hasn't finished analyzing the file.
-    await this.delay(DEFAULT_LSP_DOCUMENT_OPEN_DELAY_MS);
-
-    return true;
-  }
-
-  /**
-   * Register a URI that was opened externally (e.g. by warmupTypescriptServer)
-   * so that ensureDocumentOpen does not send a duplicate textDocument/didOpen.
-   *
-   * @param serverName - The name of the LSP server
-   * @param uri - The document URI to track as already opened
-   */
-  private trackExternallyOpenedDocument(serverName: string, uri: string): void {
-    const openedForServer =
-      this.openedDocuments.get(serverName) ?? new Set<string>();
-    openedForServer.add(uri);
-    this.openedDocuments.set(serverName, openedForServer);
-  }
-
-  private resolveLanguageId(
-    filePath: string,
-    handle: LspServerHandle,
-  ): string | undefined {
-    const ext = path.extname(filePath).slice(1).toLowerCase();
-    if (ext && handle.config.extensionToLanguage) {
-      const mapping = handle.config.extensionToLanguage;
-      return mapping[ext] ?? mapping['.' + ext];
-    }
-    if (handle.config.languages && handle.config.languages.length > 0) {
-      return handle.config.languages[0];
-    }
-    return ext || undefined;
-  }
-
-  private async warmupWorkspaceSymbols(
-    serverName: string,
-    handle: LspServerHandle,
-  ): Promise<boolean> {
-    if (!handle.connection) {
-      return false;
-    }
-    const openedForServer = this.openedDocuments.get(serverName);
-    if (openedForServer && openedForServer.size > 0) {
-      return true;
-    }
-
-    const filePath = this.findWorkspaceFileForServer(handle);
-    if (!filePath) {
-      return false;
-    }
-
-    const uri = pathToFileURL(filePath).toString();
-    const didOpen = await this.ensureDocumentOpen(
-      serverName,
-      handle as LspServerHandle & { connection: LspConnectionInterface },
-      uri,
-    );
-    if (!didOpen) {
-      return false;
-    }
-    await this.delay(DEFAULT_LSP_WORKSPACE_SYMBOL_WARMUP_DELAY_MS);
-    return true;
-  }
-
-  /**
-   * Find the first source file in the workspace that matches the server's
-   * language extensions. Used to open a file for workspace symbol warmup.
-   *
-   * @param handle - The LSP server handle to determine target extensions
-   * @returns Absolute path of the first matching file, or undefined
-   */
-  private findWorkspaceFileForServer(
-    handle: LspServerHandle,
-  ): string | undefined {
-    const extensions = this.getWorkspaceSymbolExtensions(handle);
-    if (extensions.length === 0) {
-      return undefined;
-    }
-    // Brace expansion requires at least 2 items; use plain glob for a single ext
-    const extGlob =
-      extensions.length === 1 ? extensions[0]! : `{${extensions.join(',')}}`;
-    const pattern = `**/*.${extGlob}`;
-    const roots = this.workspaceContext.getDirectories();
-
-    for (const root of roots) {
-      try {
-        // Use maxDepth to avoid scanning deeply nested directories;
-        // we only need one file to trigger server indexing.
-        const matches = globSync(pattern, {
-          cwd: root,
-          ignore: DEFAULT_EXCLUDE_PATTERNS,
-          absolute: true,
-          nodir: true,
-          maxDepth: 5,
-        });
-        for (const match of matches) {
-          if (this.fileDiscoveryService.shouldIgnoreFile(match)) {
-            continue;
-          }
-          return match;
-        }
-      } catch (_error) {
-        // ignore glob errors
-      }
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Determine file extensions this server can handle, used to find a workspace
-   * file to open for warmup. Resolution order:
-   *   1. Keys from config.extensionToLanguage (explicit user/extension mapping)
-   *   2. Derived from config.languages via LANGUAGE_ID_TO_EXTENSIONS, falling
-   *      back to treating the language ID itself as a file extension
-   */
-  private getWorkspaceSymbolExtensions(handle: LspServerHandle): string[] {
-    const extensions = new Set<string>();
-
-    // Prefer explicit extension-to-language mapping from server config
-    const extMapping = handle.config.extensionToLanguage;
-    if (extMapping) {
-      for (const key of Object.keys(extMapping)) {
-        const normalized = key.startsWith('.') ? key.slice(1) : key;
-        if (normalized) {
-          extensions.add(normalized.toLowerCase());
-        }
-      }
-    }
-
-    // Fall back to deriving extensions from language identifiers
-    if (extensions.size === 0) {
-      for (const language of handle.config.languages) {
-        const mapped = LANGUAGE_ID_TO_EXTENSIONS[language];
-        if (mapped) {
-          for (const ext of mapped) {
-            extensions.add(ext);
-          }
-        } else {
-          // For languages like "cpp", "java", "go", "rust" etc.,
-          // the language ID itself is a valid file extension
-          extensions.add(language.toLowerCase());
-        }
-      }
-    }
-
-    return Array.from(extensions);
-  }
-
-  /**
-   * Run TypeScript server warmup and track the opened URI to prevent
-   * duplicate didOpen notifications.
-   *
-   * @param serverName - The name of the LSP server
-   * @param handle - The server handle
-   * @param force - Force re-warmup even if already warmed up
-   */
-  private async warmupAndTrack(
-    serverName: string,
-    handle: LspServerHandle,
-    force = false,
-  ): Promise<void> {
-    const warmupUri = await this.serverManager.warmupTypescriptServer(
-      handle,
-      force,
-    );
-    if (warmupUri) {
-      this.trackExternallyOpenedDocument(serverName, warmupUri);
-    }
-  }
-
-  /**
-   * Whether we should retry a document-level operation that returned empty
-   * results. We retry when a textDocument/didOpen was just sent (the server
-   * may still be indexing) AND the server is not a fast TypeScript server.
-   */
-  private shouldRetryAfterOpen(
-    justOpened: boolean,
-    handle: LspServerHandle,
-  ): boolean {
-    return justOpened && !this.serverManager.isTypescriptServer(handle);
-  }
-
-  private async delay(ms: number): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
    * Workspace symbol search across all ready LSP servers.
    */
   async workspaceSymbols(
@@ -468,29 +227,15 @@ export class NativeLspService {
         continue;
       }
       try {
-        await this.warmupAndTrack(serverName, handle);
-        const warmedUp = this.serverManager.isTypescriptServer(handle)
-          ? false
-          : await this.warmupWorkspaceSymbols(serverName, handle);
+        await this.serverManager.warmupTypescriptServer(handle);
         let response = await handle.connection.request('workspace/symbol', {
           query,
         });
         if (
-          !this.serverManager.isTypescriptServer(handle) &&
-          Array.isArray(response) &&
-          response.length === 0 &&
-          warmedUp
-        ) {
-          await this.delay(DEFAULT_LSP_WORKSPACE_SYMBOL_WARMUP_DELAY_MS);
-          response = await handle.connection.request('workspace/symbol', {
-            query,
-          });
-        }
-        if (
           this.serverManager.isTypescriptServer(handle) &&
           this.isNoProjectErrorResponse(response)
         ) {
-          await this.warmupAndTrack(serverName, handle, true);
+          await this.serverManager.warmupTypescriptServer(handle, true);
           response = await handle.connection.request('workspace/symbol', {
             query,
           });
@@ -530,36 +275,17 @@ export class NativeLspService {
     limit = 50,
   ): Promise<LspDefinition[]> {
     const handles = this.getReadyHandles(serverName);
-    const requestParams = {
-      textDocument: { uri: location.uri },
-      position: location.range.start,
-    };
 
     for (const [name, handle] of handles) {
       try {
-        const justOpened = await this.ensureDocumentOpen(
-          name,
-          handle,
-          location.uri,
-        );
-        await this.warmupAndTrack(name, handle);
-
-        let response = await handle.connection.request(
+        await this.serverManager.warmupTypescriptServer(handle);
+        const response = await handle.connection.request(
           'textDocument/definition',
-          requestParams,
+          {
+            textDocument: { uri: location.uri },
+            position: location.range.start,
+          },
         );
-
-        if (
-          this.isEmptyResponse(response) &&
-          this.shouldRetryAfterOpen(justOpened, handle)
-        ) {
-          await this.delay(DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS);
-          response = await handle.connection.request(
-            'textDocument/definition',
-            requestParams,
-          );
-        }
-
         const candidates = Array.isArray(response)
           ? response
           : response
@@ -599,37 +325,18 @@ export class NativeLspService {
     limit = 200,
   ): Promise<LspReference[]> {
     const handles = this.getReadyHandles(serverName);
-    const requestParams = {
-      textDocument: { uri: location.uri },
-      position: location.range.start,
-      context: { includeDeclaration },
-    };
 
     for (const [name, handle] of handles) {
       try {
-        const justOpened = await this.ensureDocumentOpen(
-          name,
-          handle,
-          location.uri,
-        );
-        await this.warmupAndTrack(name, handle);
-
-        let response = await handle.connection.request(
+        await this.serverManager.warmupTypescriptServer(handle);
+        const response = await handle.connection.request(
           'textDocument/references',
-          requestParams,
+          {
+            textDocument: { uri: location.uri },
+            position: location.range.start,
+            context: { includeDeclaration },
+          },
         );
-
-        if (
-          this.isEmptyResponse(response) &&
-          this.shouldRetryAfterOpen(justOpened, handle)
-        ) {
-          await this.delay(DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS);
-          response = await handle.connection.request(
-            'textDocument/references',
-            requestParams,
-          );
-        }
-
         if (!Array.isArray(response)) {
           continue;
         }
@@ -665,36 +372,14 @@ export class NativeLspService {
     serverName?: string,
   ): Promise<LspHoverResult | null> {
     const handles = this.getReadyHandles(serverName);
-    const requestParams = {
-      textDocument: { uri: location.uri },
-      position: location.range.start,
-    };
 
     for (const [name, handle] of handles) {
       try {
-        const justOpened = await this.ensureDocumentOpen(
-          name,
-          handle,
-          location.uri,
-        );
-        await this.warmupAndTrack(name, handle);
-
-        let response = await handle.connection.request(
-          'textDocument/hover',
-          requestParams,
-        );
-
-        if (
-          this.isEmptyResponse(response) &&
-          this.shouldRetryAfterOpen(justOpened, handle)
-        ) {
-          await this.delay(DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS);
-          response = await handle.connection.request(
-            'textDocument/hover',
-            requestParams,
-          );
-        }
-
+        await this.serverManager.warmupTypescriptServer(handle);
+        const response = await handle.connection.request('textDocument/hover', {
+          textDocument: { uri: location.uri },
+          position: location.range.start,
+        });
         const normalized = this.normalizer.normalizeHoverResult(response, name);
         if (normalized) {
           return normalized;
@@ -716,29 +401,16 @@ export class NativeLspService {
     limit = 200,
   ): Promise<LspSymbolInformation[]> {
     const handles = this.getReadyHandles(serverName);
-    const requestParams = { textDocument: { uri } };
 
     for (const [name, handle] of handles) {
       try {
-        const justOpened = await this.ensureDocumentOpen(name, handle, uri);
-        await this.warmupAndTrack(name, handle);
-
-        let response = await handle.connection.request(
+        await this.serverManager.warmupTypescriptServer(handle);
+        const response = await handle.connection.request(
           'textDocument/documentSymbol',
-          requestParams,
+          {
+            textDocument: { uri },
+          },
         );
-
-        if (
-          this.isEmptyResponse(response) &&
-          this.shouldRetryAfterOpen(justOpened, handle)
-        ) {
-          await this.delay(DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS);
-          response = await handle.connection.request(
-            'textDocument/documentSymbol',
-            requestParams,
-          );
-        }
-
         if (!Array.isArray(response)) {
           continue;
         }
@@ -792,36 +464,17 @@ export class NativeLspService {
     limit = 50,
   ): Promise<LspDefinition[]> {
     const handles = this.getReadyHandles(serverName);
-    const requestParams = {
-      textDocument: { uri: location.uri },
-      position: location.range.start,
-    };
 
     for (const [name, handle] of handles) {
       try {
-        const justOpened = await this.ensureDocumentOpen(
-          name,
-          handle,
-          location.uri,
-        );
-        await this.warmupAndTrack(name, handle);
-
-        let response = await handle.connection.request(
+        await this.serverManager.warmupTypescriptServer(handle);
+        const response = await handle.connection.request(
           'textDocument/implementation',
-          requestParams,
+          {
+            textDocument: { uri: location.uri },
+            position: location.range.start,
+          },
         );
-
-        if (
-          this.isEmptyResponse(response) &&
-          this.shouldRetryAfterOpen(justOpened, handle)
-        ) {
-          await this.delay(DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS);
-          response = await handle.connection.request(
-            'textDocument/implementation',
-            requestParams,
-          );
-        }
-
         const candidates = Array.isArray(response)
           ? response
           : response
@@ -863,36 +516,17 @@ export class NativeLspService {
     limit = 50,
   ): Promise<LspCallHierarchyItem[]> {
     const handles = this.getReadyHandles(serverName);
-    const requestParams = {
-      textDocument: { uri: location.uri },
-      position: location.range.start,
-    };
 
     for (const [name, handle] of handles) {
       try {
-        const justOpened = await this.ensureDocumentOpen(
-          name,
-          handle,
-          location.uri,
-        );
-        await this.warmupAndTrack(name, handle);
-
-        let response = await handle.connection.request(
+        await this.serverManager.warmupTypescriptServer(handle);
+        const response = await handle.connection.request(
           'textDocument/prepareCallHierarchy',
-          requestParams,
+          {
+            textDocument: { uri: location.uri },
+            position: location.range.start,
+          },
         );
-
-        if (
-          this.isEmptyResponse(response) &&
-          this.shouldRetryAfterOpen(justOpened, handle)
-        ) {
-          await this.delay(DEFAULT_LSP_DOCUMENT_RETRY_DELAY_MS);
-          response = await handle.connection.request(
-            'textDocument/prepareCallHierarchy',
-            requestParams,
-          );
-        }
-
         const candidates = Array.isArray(response)
           ? response
           : response
@@ -938,7 +572,7 @@ export class NativeLspService {
 
     for (const [name, handle] of handles) {
       try {
-        await this.warmupAndTrack(name, handle);
+        await this.serverManager.warmupTypescriptServer(handle);
         const response = await handle.connection.request(
           'callHierarchy/incomingCalls',
           {
@@ -985,7 +619,7 @@ export class NativeLspService {
 
     for (const [name, handle] of handles) {
       try {
-        await this.warmupAndTrack(name, handle);
+        await this.serverManager.warmupTypescriptServer(handle);
         const response = await handle.connection.request(
           'callHierarchy/outgoingCalls',
           {
@@ -1031,8 +665,7 @@ export class NativeLspService {
 
     for (const [name, handle] of handles) {
       try {
-        await this.ensureDocumentOpen(name, handle, uri);
-        await this.warmupAndTrack(name, handle);
+        await this.serverManager.warmupTypescriptServer(handle);
 
         // Request pull diagnostics if the server supports it
         const response = await handle.connection.request(
@@ -1082,7 +715,7 @@ export class NativeLspService {
 
     for (const [name, handle] of handles) {
       try {
-        await this.warmupAndTrack(name, handle);
+        await this.serverManager.warmupTypescriptServer(handle);
 
         // Request workspace diagnostics if supported
         const response = await handle.connection.request(
@@ -1136,8 +769,7 @@ export class NativeLspService {
 
     for (const [name, handle] of handles) {
       try {
-        await this.ensureDocumentOpen(name, handle, uri);
-        await this.warmupAndTrack(name, handle);
+        await this.serverManager.warmupTypescriptServer(handle);
 
         // Convert context diagnostics to LSP format
         const lspDiagnostics = context.diagnostics.map((d: LspDiagnostic) =>
@@ -1279,20 +911,6 @@ export class NativeLspService {
 
     // Write back to file
     fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
-  }
-
-  /**
-   * Check if an LSP response represents an empty/null result, used to decide
-   * whether a retry is worthwhile after a freshly opened document.
-   */
-  private isEmptyResponse(response: unknown): boolean {
-    if (response === null || response === undefined) {
-      return true;
-    }
-    if (Array.isArray(response) && response.length === 0) {
-      return true;
-    }
-    return false;
   }
 
   private isNoProjectErrorResponse(response: unknown): boolean {

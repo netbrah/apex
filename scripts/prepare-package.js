@@ -147,25 +147,36 @@ const rootPackageJson = JSON.parse(
 
 // Create a clean package.json for the published package
 const distPackageJson = {
-  name: rootPackageJson.name,
+  name: '@netapp/seclab-apex',
   version: rootPackageJson.version,
-  description:
-    rootPackageJson.description || 'Qwen Code - AI-powered coding assistant',
+  description: 'APEX - Autonomous code analysis and engineering agent',
   repository: rootPackageJson.repository,
   type: 'module',
   main: 'cli.js',
   bin: {
-    qwen: 'cli.js',
+    apex: 'apex-launcher.js',
   },
   files: [
+    'apex-launcher.js',
+    'apex-launcher-env.js',
     'cli.js',
     'vendor',
+    'bindings',
     '*.sb',
     'README.md',
     'LICENSE',
     'locales',
     'bundled',
+    'apex',
+    'postinstall.js',
+    'bin',
   ],
+  scripts: {
+    postinstall: 'node postinstall.js',
+  },
+  publishConfig: {
+    registry: 'https://npm.repo.eng.netapp.com/',
+  },
   config: rootPackageJson.config,
   dependencies: {},
   optionalDependencies: {
@@ -190,6 +201,55 @@ fs.writeFileSync(
   path.join(distDir, 'package.json'),
   JSON.stringify(distPackageJson, null, 2) + '\n',
 );
+
+// Copy postinstall script (downloads MCP server binaries)
+const postinstallSrc = path.join(rootDir, 'scripts', 'postinstall-apex.js');
+if (fs.existsSync(postinstallSrc)) {
+  fs.copyFileSync(postinstallSrc, path.join(distDir, 'postinstall.js'));
+  console.log('Copied postinstall.js');
+}
+
+// Copy npm launcher scripts (runtime bootstrap for `apex`)
+const launcherSrc = path.join(rootDir, 'scripts', 'apex-launcher.js');
+if (fs.existsSync(launcherSrc)) {
+  const launcherDest = path.join(distDir, 'apex-launcher.js');
+  fs.copyFileSync(launcherSrc, launcherDest);
+  fs.chmodSync(launcherDest, 0o755);
+  console.log('Copied apex-launcher.js');
+}
+const launcherEnvSrc = path.join(rootDir, 'scripts', 'apex-launcher-env.js');
+if (fs.existsSync(launcherEnvSrc)) {
+  fs.copyFileSync(launcherEnvSrc, path.join(distDir, 'apex-launcher-env.js'));
+  console.log('Copied apex-launcher-env.js');
+}
+
+// Copy LSP bridge scripts to dist/bin/
+const bridgeSrc = path.join(
+  rootDir,
+  'packages',
+  'core',
+  'src',
+  'lsp',
+  'ontap-bridge',
+);
+const bridgeDest = path.join(distDir, 'bin');
+if (fs.existsSync(bridgeSrc)) {
+  fs.mkdirSync(bridgeDest, { recursive: true });
+  for (const fname of ['ontap_lsp_bridge.py', 'smoke_airlock.py']) {
+    const src = path.join(bridgeSrc, fname);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, path.join(bridgeDest, fname));
+      console.log(`Copied bin/${fname}`);
+    }
+  }
+}
+
+// Write .npmrc for NetApp internal registry
+fs.writeFileSync(
+  path.join(distDir, '.npmrc'),
+  'registry=https://npm.repo.eng.netapp.com/\n',
+);
+console.log('Created .npmrc');
 
 console.log('\n✅ Package prepared for publishing at dist/');
 console.log('\nPackage structure:');

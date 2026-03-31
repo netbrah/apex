@@ -248,9 +248,9 @@ describe('RipGrepTool', () => {
       expect(result.returnDisplay).toBe('Found 1 match');
     });
 
-    it('should pass .qwenignore to ripgrep when respected', async () => {
+    it('should pass .apexignore to ripgrep when respected', async () => {
       await fs.writeFile(
-        path.join(tempRootDir, '.qwenignore'),
+        path.join(tempRootDir, '.apexignore'),
         'ignored.txt\n',
       );
       (runRipgrep as Mock).mockResolvedValue({
@@ -268,13 +268,42 @@ describe('RipGrepTool', () => {
       expect(result.returnDisplay).toBe('No matches found');
     });
 
-    it('should include .qwenignore matches when disabled in config', async () => {
-      await fs.writeFile(path.join(tempRootDir, '.qwenignore'), 'kept.txt\n');
+    it('should always pass ~/.rgignore to ripgrep when present', async () => {
+      const tempHomeDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'ripgrep-home-'),
+      );
+      const userRgIgnorePath = path.join(tempHomeDir, '.rgignore');
+      await fs.writeFile(userRgIgnorePath, 'ignored.txt\n');
+      const homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHomeDir);
+
+      try {
+        (runRipgrep as Mock).mockResolvedValue({
+          stdout: '',
+          truncated: false,
+          error: undefined,
+        });
+
+        const params: RipGrepToolParams = { pattern: 'secret' };
+        const invocation = grepTool.build(params);
+        await invocation.execute(abortSignal);
+
+        expect(runRipgrep).toHaveBeenCalledTimes(1);
+        const [args] = (runRipgrep as Mock).mock.calls[0] as [string[]];
+        expect(args).toContain('--ignore-file');
+        expect(args).toContain(userRgIgnorePath);
+      } finally {
+        homedirSpy.mockRestore();
+        await fs.rm(tempHomeDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should include .apexignore matches when disabled in config', async () => {
+      await fs.writeFile(path.join(tempRootDir, '.apexignore'), 'kept.txt\n');
       await fs.writeFile(path.join(tempRootDir, 'kept.txt'), 'keep me');
       Object.assign(mockConfig, {
         getFileFilteringOptions: () => ({
           respectGitIgnore: true,
-          respectQwenIgnore: false,
+          respectApexIgnore: false,
         }),
       });
 
@@ -298,7 +327,7 @@ describe('RipGrepTool', () => {
       Object.assign(mockConfig, {
         getFileFilteringOptions: () => ({
           respectGitIgnore: false,
-          respectQwenIgnore: true,
+          respectApexIgnore: true,
         }),
       });
 

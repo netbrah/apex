@@ -1,9 +1,9 @@
 /**
- * SEA (Single Executable Application) launcher for qwen-code.
+ * SEA (Single Executable Application) launcher for APEX.
  *
  * Extracts the embedded ESM bundle to a versioned temp directory and
  * dynamically imports it.  Based on the gemini-cli launcher but
- * simplified for qwen-code's single-file bundle (no code-splitting).
+ * simplified for APEX single-file bundle (no code-splitting).
  */
 const { getAsset } = require('node:sea');
 const process = require('node:process');
@@ -85,7 +85,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   const tempBase = osMod.tmpdir();
   const finalRuntimeDir = pathMod.join(
     tempBase,
-    `qwen-runtime-${safeVersion}-${safeUsername}`,
+    `apex-runtime-${safeVersion}-${safeUsername}`,
   );
 
   let runtimeDir;
@@ -126,7 +126,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   if (!useExisting) {
     const setupDir = pathMod.join(
       tempBase,
-      `qwen-setup-${processPid}-${Date.now()}`,
+      `apex-setup-${processPid}-${Date.now()}`,
     );
 
     try {
@@ -185,8 +185,51 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   return runtimeDir;
 }
 
+function resolveEnvVars(obj) {
+  if (typeof obj === 'string' && obj.startsWith('$')) {
+    return process.env[obj.slice(1)] || '';
+  }
+  if (Array.isArray(obj)) return obj.map(resolveEnvVars);
+  if (obj !== null && typeof obj === 'object') {
+    for (const k of Object.keys(obj)) {
+      obj[k] = resolveEnvVars(obj[k]);
+    }
+  }
+  return obj;
+}
+
+function deployApexAssets(runtimeDir) {
+  const configHome =
+    process.env.QWEN_CODE_HOME || path.join(os.homedir(), '.apex');
+  if (!configHome) return;
+
+  const apexDir = path.join(runtimeDir, 'apex');
+  if (!fs.existsSync(apexDir)) return;
+
+  fs.mkdirSync(configHome, { recursive: true });
+
+  const apexMd = path.join(apexDir, 'APEX.md');
+  if (fs.existsSync(apexMd)) {
+    fs.copyFileSync(apexMd, path.join(configHome, 'APEX.md'));
+  }
+
+  const settingsSrc = path.join(apexDir, 'settings.json');
+  if (fs.existsSync(settingsSrc)) {
+    const settings = JSON.parse(fs.readFileSync(settingsSrc, 'utf8'));
+    resolveEnvVars(settings.mcpServers || {});
+    fs.writeFileSync(
+      path.join(configHome, 'settings.json'),
+      JSON.stringify(settings, null, 2),
+    );
+  }
+
+  // Skills are loaded from dist/bundled/ by SkillManager at runtime.
+  // No need to deploy them to ~/.apex/skills/ (avoids exposing SKILL.md files).
+}
+
 async function main(getAssetFn = getAsset) {
   process.env.IS_BINARY = 'true';
+  process.env.QWEN_CODE_BRAND = process.env.QWEN_CODE_BRAND || 'APEX';
 
   if (nodeModule.enableCompileCache) {
     nodeModule.enableCompileCache();
@@ -212,6 +255,9 @@ async function main(getAssetFn = getAsset) {
     crypto,
   });
 
+  // Deploy embedded APEX assets to QWEN_CODE_HOME if present
+  deployApexAssets(runtimeDir);
+
   const mainPath = path.join(runtimeDir, 'cli.mjs');
 
   await import(pathToFileURL(mainPath).href).catch((err) => {
@@ -233,5 +279,7 @@ module.exports = {
   getSafeName,
   verifyIntegrity,
   prepareRuntime,
+  resolveEnvVars,
+  deployApexAssets,
   main,
 };

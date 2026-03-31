@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Русский перевод для Qwen Code CLI
+// Русский перевод для APEX CLI
 // Ключ служит одновременно ключом перевода и текстом по умолчанию
 
 export default {
@@ -70,10 +70,10 @@ export default {
   'For a full list of shortcuts, see {{docPath}}':
     'Полный список горячих клавиш см. в {{docPath}}',
   'docs/keyboard-shortcuts.md': 'docs/keyboard-shortcuts.md',
-  'for help on Qwen Code': 'Справка по Qwen Code',
+  'for help on APEX': 'Справка по APEX',
   'show version info': 'Просмотр информации о версии',
   'submit a bug report': 'Отправка отчёта об ошибке',
-  'About Qwen Code': 'Об Qwen Code',
+  'About APEX': 'Об APEX',
   Status: 'Статус',
 
   // Keyboard shortcuts panel descriptions
@@ -92,7 +92,7 @@ export default {
   // ============================================================================
   // Поля системной информации
   // ============================================================================
-  'Qwen Code': 'Qwen Code',
+  APEX: 'APEX',
   Runtime: 'Среда выполнения',
   OS: 'ОС',
   Auth: 'Аутентификация',
@@ -115,12 +115,12 @@ export default {
   // ============================================================================
   // Команды - Общие
   // ============================================================================
-  'Analyzes the project and creates a tailored QWEN.md file.':
-    'Анализ проекта и создание адаптированного файла QWEN.md',
-  'List available Qwen Code tools. Usage: /tools [desc]':
-    'Просмотр доступных инструментов Qwen Code. Использование: /tools [desc]',
+  'Analyzes the project and creates a tailored APEX.md file.':
+    'Анализ проекта и создание адаптированного файла APEX.md',
+  'List available APEX tools. Usage: /tools [desc]':
+    'Просмотр доступных инструментов APEX. Использование: /tools [desc]',
   'List available skills.': 'Показать доступные навыки.',
-  'Available Qwen Code CLI tools:': 'Доступные инструменты Qwen Code CLI:',
+  'Available APEX CLI tools:': 'Доступные инструменты APEX CLI:',
   'No tools available': 'Нет доступных инструментов',
   'View or change the approval mode for tool usage':
     'Просмотр или изменение режима подтверждения для использования инструментов',
@@ -146,8 +146,8 @@ export default {
     'Очистить историю диалога и освободить контекст',
   'Compresses the context by replacing it with a summary.':
     'Сжатие контекста заменой на краткую сводку',
-  'open full Qwen Code documentation in your browser':
-    'Открытие полной документации Qwen Code в браузере',
+  'open full APEX documentation in your browser':
+    'Открытие полной документации APEX в браузере',
   'Configuration not available.': 'Конфигурация недоступна.',
   'change the auth method': 'Изменение метода авторизации',
   'Configure authentication information for login':
@@ -214,8 +214,8 @@ export default {
   // ============================================================================
   // Агенты - Мастер создания
   // ============================================================================
-  'Project Level (.qwen/agents/)': 'Уровень проекта (.qwen/agents/)',
-  'User Level (~/.qwen/agents/)': 'Уровень пользователя (~/.qwen/agents/)',
+  'Project Level (.apex/agents/)': 'Уровень проекта (.apex/agents/)',
+  'User Level (~/.apex/agents/)': 'Уровень пользователя (~/.apex/agents/)',
   '✅ Subagent Created Successfully!': '✅ Подагент успешно создан!',
   'Subagent "{{name}}" has been saved to {{level}} level.':
     'Подагент "{{name}}" сохранен на уровне {{level}}.',
@@ -236,8 +236,8 @@ export default {
   // Агенты - Шаги мастера создания
   'Step {{n}}: Choose Location': 'Шаг {{n}}: Выберите расположение',
   'Step {{n}}: Choose Generation Method': 'Шаг {{n}}: Выберите метод генерации',
-  'Generate with Qwen Code (Recommended)':
-    'Сгенерировать с помощью Qwen Code (Рекомендуется)',
+  'Generate with APEX (Recommended)':
+    'Сгенерировать с помощью APEX (Рекомендуется)',
   'Manual Creation': 'Ручное создание',
   'Describe what this subagent should do and when it should be used. (Be comprehensive for best results)':
     'Опишите, что должен делать этот подагент и когда его следует использовать. (Будьте подробны для лучших результатов)',
@@ -297,10 +297,10 @@ export default {
   // ============================================================================
   // Команды - Общие (продолжение)
   // ============================================================================
-  'View and edit Qwen Code settings': 'Просмотр и изменение настроек Qwen Code',
+  'View and edit APEX settings': 'Просмотр и изменение настроек APEX',
   Settings: 'Настройки',
-  'To see changes, Qwen Code must be restarted. Press r to exit and apply changes now.':
-    'Для применения изменений необходимо перезапустить Qwen Code. Нажмите r для выхода и применения изменений.',
+  'To see changes, APEX must be restarted. Press r to exit and apply changes now.':
+    'Для применения изменений необходимо перезапустить APEX. Нажмите r для выхода и применения изменений.',
   'The command "/{{command}}" is not supported in non-interactive mode.':
     'Команда "/{{command}}" не поддерживается в неинтерактивном режиме.',
   // ============================================================================
@@ -351,7 +351,7 @@ export default {
   'Load Memory From Include Directories':
     'Загружать память из включенных директорий',
   'Respect .gitignore': 'Учитывать .gitignore',
-  'Respect .qwenignore': 'Учитывать .qwenignore',
+  'Respect .apexignore': 'Учитывать .apexignore',
   'Enable Recursive File Search': 'Включить рекурсивный поиск файлов',
   'Disable Fuzzy Search': 'Отключить нечеткий поиск',
   'Interactive Shell (PTY)': 'Интерактивный терминал (PTY)',
@@ -447,8 +447,8 @@ export default {
   remote: 'удалённый',
   'This extension will add the following commands: {{commands}}.':
     'Это расширение добавит следующие команды: {{commands}}.',
-  'This extension will append info to your QWEN.md context using {{fileName}}':
-    'Это расширение добавит информацию в ваш контекст QWEN.md с помощью {{fileName}}',
+  'This extension will append info to your APEX.md context using {{fileName}}':
+    'Это расширение добавит информацию в ваш контекст APEX.md с помощью {{fileName}}',
   'This extension will exclude the following core tools: {{tools}}':
     'Это расширение исключит следующие основные инструменты: {{tools}}',
   'This extension will install the following skills:':
@@ -456,8 +456,8 @@ export default {
   'This extension will install the following subagents:':
     'Это расширение установит следующие подагенты:',
   'Installation cancelled for "{{name}}".': 'Установка "{{name}}" отменена.',
-  'You are installing an extension from {{originSource}}. Some features may not work perfectly with Qwen Code.':
-    'Вы устанавливаете расширение от {{originSource}}. Некоторые функции могут работать не идеально с Qwen Code.',
+  'You are installing an extension from {{originSource}}. Some features may not work perfectly with APEX.':
+    'Вы устанавливаете расширение от {{originSource}}. Некоторые функции могут работать не идеально с APEX.',
   '--ref and --auto-update are not applicable for marketplace extensions.':
     '--ref и --auto-update неприменимы для расширений из маркетплейса.',
   'Extension "{{name}}" installed successfully and enabled.':
@@ -566,8 +566,8 @@ export default {
     'Установить необходимый компаньон IDE для {{ideName}}',
   'enable IDE integration': 'Включение интеграции с IDE',
   'disable IDE integration': 'Отключение интеграции с IDE',
-  'IDE integration is not supported in your current environment. To use this feature, run Qwen Code in one of these supported IDEs: VS Code or VS Code forks.':
-    'Интеграция с IDE не поддерживается в вашем окружении. Для использования этой функции запустите Qwen Code в одной из поддерживаемых IDE: VS Code или форках VS Code.',
+  'IDE integration is not supported in your current environment. To use this feature, run APEX in one of these supported IDEs: VS Code or VS Code forks.':
+    'Интеграция с IDE не поддерживается в вашем окружении. Для использования этой функции запустите APEX в одной из поддерживаемых IDE: VS Code или форках VS Code.',
   'Set up GitHub Actions': 'Настройка GitHub Actions',
   'Configure terminal keybindings for multiline input (VS Code, Cursor, Windsurf, Trae)':
     'Настройка привязки клавиш терминала для многострочного ввода (VS Code, Cursor, Windsurf, Trae)',
@@ -601,7 +601,7 @@ export default {
   // ============================================================================
   // Commands - Hooks
   // ============================================================================
-  'Manage Qwen Code hooks': 'Управлять хуками Qwen Code',
+  'Manage APEX hooks': 'Управлять хуками APEX',
   'List all configured hooks': 'Показать все настроенные хуки',
   'Enable a disabled hook': 'Включить отключенный хук',
   'Disable an active hook': 'Отключить активный хук',
@@ -959,8 +959,8 @@ export default {
   // ============================================================================
   // Команды - Резюме
   // ============================================================================
-  'Generate a project summary and save it to .qwen/PROJECT_SUMMARY.md':
-    'Сгенерировать сводку проекта и сохранить её в .qwen/PROJECT_SUMMARY.md',
+  'Generate a project summary and save it to .apex/PROJECT_SUMMARY.md':
+    'Сгенерировать сводку проекта и сохранить её в .apex/PROJECT_SUMMARY.md',
   'No chat client available to generate summary.':
     'Нет доступного чат-клиента для генерации сводки.',
   'Already generating summary, wait for previous request to complete':
@@ -1022,8 +1022,8 @@ export default {
     'Команда /directory add не поддерживается в ограничительных профилях песочницы. Пожалуйста, используйте --include-directories при запуске сессии.',
   "Error adding '{{path}}': {{error}}":
     "Ошибка при добавлении '{{path}}': {{error}}",
-  'Successfully added QWEN.md files from the following directories if there are:\n- {{directories}}':
-    'Успешно добавлены файлы QWEN.md из следующих директорий (если они есть):\n- {{directories}}',
+  'Successfully added APEX.md files from the following directories if there are:\n- {{directories}}':
+    'Успешно добавлены файлы APEX.md из следующих директорий (если они есть):\n- {{directories}}',
   'Error refreshing memory: {{error}}':
     'Ошибка при обновлении памяти: {{error}}',
   'Successfully added directories:\n- {{directories}}':
@@ -1151,11 +1151,10 @@ export default {
     'Вы должны выбрать метод авторизации для продолжения. Нажмите Ctrl+C снова для выхода.',
   'Terms of Services and Privacy Notice':
     'Условия обслуживания и уведомление о конфиденциальности',
-  'Qwen OAuth': 'Qwen OAuth',
+  'Qwen OAuth': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
-    'Бесплатно \u00B7 До 1 000 запросов/день \u00B7 Новейшие модели Qwen',
-  'Login with QwenChat account to use daily free quota.':
-    'Войдите с помощью аккаунта QwenChat, чтобы использовать ежедневную бесплатную квоту.',
+    'Бесплатно \u00B7 До 1 000 запросов/день \u00B7 Настроенные модели',
+  'Login with QwenChat account to use daily free quota.': 'Войти через OAuth',
   'Paid \u00B7 Up to 6,000 requests/5 hrs \u00B7 All Alibaba Cloud Coding Plan Models':
     'Платно \u00B7 До 6 000 запросов/5 часов \u00B7 Все модели Alibaba Cloud Coding Plan',
   'Alibaba Cloud Coding Plan': 'Alibaba Cloud Coding Plan',
@@ -1169,26 +1168,25 @@ export default {
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     'Авторизация должна быть {{enforcedType}}, но вы сейчас используете {{currentType}}.',
   'Qwen OAuth authentication timed out. Please try again.':
-    'Время ожидания авторизации Qwen OAuth истекло. Пожалуйста, попробуйте снова.',
-  'Qwen OAuth authentication cancelled.': 'Авторизация Qwen OAuth отменена.',
-  'Qwen OAuth Authentication': 'Авторизация Qwen OAuth',
+    'Время ожидания авторизации OAuth истекло. Пожалуйста, попробуйте снова.',
+  'Qwen OAuth authentication cancelled.': 'Авторизация OAuth отменена.',
+  'Qwen OAuth Authentication': 'Авторизация OAuth',
   'Please visit this URL to authorize:':
     'Пожалуйста, посетите этот URL для авторизации:',
   'Or scan the QR code below:': 'Или отсканируйте QR-код ниже:',
   'Waiting for authorization': 'Ожидание авторизации',
   'Time remaining:': 'Осталось времени:',
   '(Press ESC or CTRL+C to cancel)': '(Нажмите ESC или CTRL+C для отмены)',
-  'Qwen OAuth Authentication Timeout': 'Таймаут авторизации Qwen OAuth',
+  'Qwen OAuth Authentication Timeout': 'Таймаут авторизации OAuth',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'Токен OAuth истек (более {{seconds}} секунд). Пожалуйста, выберите метод авторизации снова.',
   'Press any key to return to authentication type selection.':
     'Нажмите любую клавишу для возврата к выбору типа авторизации.',
-  'Waiting for Qwen OAuth authentication...':
-    'Ожидание авторизации Qwen OAuth...',
+  'Waiting for Qwen OAuth authentication...': 'Ожидание авторизации OAuth...',
   'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
-    'Примечание: Ваш существующий ключ API в settings.json не будет удален при использовании Qwen OAuth. Вы можете переключиться обратно на авторизацию OpenAI позже при необходимости.',
+    'Примечание: Ваш существующий ключ API в settings.json не будет удален при использовании OAuth. Вы можете переключиться обратно на авторизацию OpenAI позже при необходимости.',
   'Note: Your existing API key will not be cleared when using Qwen OAuth.':
-    'Примечание: Ваш существующий ключ API не будет удален при использовании Qwen OAuth.',
+    'Примечание: Ваш существующий ключ API не будет удален при использовании OAuth.',
   'Authentication timed out. Please try again.':
     'Время ожидания авторизации истекло. Пожалуйста, попробуйте снова.',
   'Waiting for auth... (Press ESC or CTRL+C to cancel)':
@@ -1263,12 +1261,12 @@ export default {
   Ask: 'Спросить',
   Deny: 'Запретить',
   Workspace: 'Рабочая область',
-  "Qwen Code won't ask before using allowed tools.":
-    'Qwen Code не будет спрашивать перед использованием разрешённых инструментов.',
-  'Qwen Code will ask before using these tools.':
-    'Qwen Code спросит перед использованием этих инструментов.',
-  'Qwen Code is not allowed to use denied tools.':
-    'Qwen Code не может использовать запрещённые инструменты.',
+  "APEX won't ask before using allowed tools.":
+    'APEX не будет спрашивать перед использованием разрешённых инструментов.',
+  'APEX will ask before using these tools.':
+    'APEX спросит перед использованием этих инструментов.',
+  'APEX is not allowed to use denied tools.':
+    'APEX не может использовать запрещённые инструменты.',
   'Manage trusted directories for this workspace.':
     'Управление доверенными каталогами для этой рабочей области.',
   'Any use of the {{tool}} tool': 'Любое использование инструмента {{tool}}',
@@ -1278,11 +1276,11 @@ export default {
   'From project settings': 'Из настроек проекта',
   'From session': 'Из сессии',
   'Project settings (local)': 'Настройки проекта (локальные)',
-  'Saved in .qwen/settings.local.json': 'Сохранено в .qwen/settings.local.json',
+  'Saved in .apex/settings.local.json': 'Сохранено в .apex/settings.local.json',
   'Project settings': 'Настройки проекта',
-  'Checked in at .qwen/settings.json': 'Зафиксировано в .qwen/settings.json',
+  'Checked in at .apex/settings.json': 'Зафиксировано в .apex/settings.json',
   'User settings': 'Пользовательские настройки',
-  'Saved in at ~/.qwen/settings.json': 'Сохранено в ~/.qwen/settings.json',
+  'Saved in at ~/.apex/settings.json': 'Сохранено в ~/.apex/settings.json',
   'Add a new rule…': 'Добавить новое правило…',
   'Add {{type}} permission rule': 'Добавить правило разрешения {{type}}',
   'Permission rules are a tool name, optionally followed by a specifier in parentheses.':
@@ -1307,10 +1305,10 @@ export default {
   // Workspace directory management
   'Add directory…': 'Добавить каталог…',
   'Add directory to workspace': 'Добавить каталог в рабочую область',
-  'Qwen Code can read files in the workspace, and make edits when auto-accept edits is on.':
-    'Qwen Code может читать файлы в рабочей области и вносить правки, когда автоприём правок включён.',
-  'Qwen Code will be able to read files in this directory and make edits when auto-accept edits is on.':
-    'Qwen Code сможет читать файлы в этом каталоге и вносить правки, когда автоприём правок включён.',
+  'APEX can read files in the workspace, and make edits when auto-accept edits is on.':
+    'APEX может читать файлы в рабочей области и вносить правки, когда автоприём правок включён.',
+  'APEX will be able to read files in this directory and make edits when auto-accept edits is on.':
+    'APEX сможет читать файлы в этом каталоге и вносить правки, когда автоприём правок включён.',
   'Enter the path to the directory:': 'Введите путь к каталогу:',
   'Enter directory path…': 'Введите путь к каталогу…',
   'Tab to complete · Enter to add · Esc to cancel':
@@ -1396,8 +1394,8 @@ export default {
     '1. Задавайте вопросы, редактируйте файлы или выполняйте команды.',
   '2. Be specific for the best results.':
     '2. Будьте конкретны для лучших результатов.',
-  'files to customize your interactions with Qwen Code.':
-    'файлы для настройки взаимодействия с Qwen Code.',
+  'files to customize your interactions with APEX.':
+    'файлы для настройки взаимодействия с APEX.',
   'for more information.': 'для получения дополнительной информации.',
 
   // ============================================================================
@@ -1671,12 +1669,12 @@ export default {
     'Используйте /bug, чтобы сообщить о проблемах разработчикам.',
   'Switch auth type quickly with /auth.':
     'Быстро переключите тип аутентификации с помощью /auth.',
-  'You can run any shell commands from Qwen Code using ! (e.g. !ls).':
-    'Вы можете выполнять любые shell-команды в Qwen Code с помощью ! (например, !ls).',
+  'You can run any shell commands from APEX using ! (e.g. !ls).':
+    'Вы можете выполнять любые shell-команды в APEX с помощью ! (например, !ls).',
   'Type / to open the command popup; Tab autocompletes slash commands and saved prompts.':
     'Введите /, чтобы открыть меню команд; Tab автодополняет слэш-команды и сохранённые промпты.',
-  'You can resume a previous conversation by running qwen --continue or qwen --resume.':
-    'Вы можете продолжить предыдущий разговор, запустив qwen --continue или qwen --resume.',
+  'You can resume a previous conversation by running qwen --continue or apex --resume.':
+    'Вы можете продолжить предыдущий разговор, запустив qwen --continue или apex --resume.',
   'You can switch permission mode quickly with Shift+Tab or /approval-mode.':
     'Вы можете быстро переключать режим разрешений с помощью Shift+Tab или /approval-mode.',
   'You can switch permission mode quickly with Tab or /approval-mode.':
@@ -1802,8 +1800,8 @@ export default {
   servers: 'серверов',
   'Add MCP servers to your settings to get started.':
     'Добавьте серверы MCP в настройки, чтобы начать.',
-  'Run qwen --debug to see error logs':
-    'Запустите qwen --debug для просмотра журналов ошибок',
+  'Run apex --debug to see error logs':
+    'Запустите apex --debug для просмотра журналов ошибок',
 
   // MCP OAuth Authentication
   'OAuth Authentication': 'OAuth-аутентификация',
@@ -1877,8 +1875,8 @@ export default {
   // Commands - Auth
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
-    'Настроить аутентификацию Qwen через Qwen-OAuth или Alibaba Cloud Coding Plan',
-  'Authenticate using Qwen OAuth': 'Аутентификация через Qwen OAuth',
+    'Настроить аутентификацию через OAuth или Alibaba Cloud Coding Plan',
+  'Authenticate using Qwen OAuth': 'Аутентификация через OAuth',
   'Authenticate using Alibaba Cloud Coding Plan':
     'Аутентификация через Alibaba Cloud Coding Plan',
   'Region for Coding Plan (china/global)':
@@ -1887,12 +1885,11 @@ export default {
   'Show current authentication status':
     'Показать текущий статус аутентификации',
   'Authentication completed successfully.': 'Аутентификация успешно завершена.',
-  'Starting Qwen OAuth authentication...':
-    'Запуск аутентификации Qwen OAuth...',
+  'Starting Qwen OAuth authentication...': 'Запуск аутентификации OAuth...',
   'Successfully authenticated with Qwen OAuth.':
-    'Успешная аутентификация через Qwen OAuth.',
+    'Успешная аутентификация через OAuth.',
   'Failed to authenticate with Qwen OAuth: {{error}}':
-    'Ошибка аутентификации через Qwen OAuth: {{error}}',
+    'Ошибка аутентификации через OAuth: {{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     'Обработка аутентификации Alibaba Cloud Coding Plan...',
   'Successfully authenticated with Alibaba Cloud Coding Plan.':
@@ -1911,17 +1908,17 @@ export default {
     '⚠️  Метод аутентификации не настроен.\n',
   'Run one of the following commands to get started:\n':
     'Выполните одну из следующих команд для начала:\n',
-  '  qwen auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  qwen auth qwen-oauth     - Аутентификация через Qwen OAuth (бесплатно)',
-  '  qwen auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
-    '  qwen auth coding-plan      - Аутентификация через Alibaba Cloud Coding Plan\n',
+  '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
+    '  apex auth qwen-oauth     - Аутентификация через OAuth (бесплатно)',
+  '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
+    '  apex auth coding-plan      - Аутентификация через Alibaba Cloud Coding Plan\n',
   'Or simply run:': 'Или просто выполните:',
-  '  qwen auth                - Interactive authentication setup\n':
-    '  qwen auth                - Интерактивная настройка аутентификации\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ Метод аутентификации: Qwen OAuth',
+  '  apex auth                - Interactive authentication setup\n':
+    '  apex auth                - Интерактивная настройка аутентификации\n',
+  '✓ Authentication Method: Qwen OAuth': '✓ Метод аутентификации: OAuth',
   '  Type: Free tier': '  Тип: Бесплатный',
   '  Limit: Up to 1,000 requests/day': '  Лимит: До 1 000 запросов/день',
-  '  Models: Qwen latest models\n': '  Модели: Последние модели Qwen\n',
+  '  Models: Qwen latest models\n': '  Модели: Настроенные модели\n',
   '✓ Authentication Method: Alibaba Cloud Coding Plan':
     '✓ Метод аутентификации: Alibaba Cloud Coding Plan',
   '中国 (China) - 阿里云百炼': '中国 (China) - 阿里云百炼',
@@ -1934,8 +1931,8 @@ export default {
     '⚠️  Метод аутентификации: Alibaba Cloud Coding Plan (Не завершён)',
   '  Issue: API key not found in environment or settings\n':
     '  Проблема: API-ключ не найден в окружении или настройках\n',
-  '  Run `qwen auth coding-plan` to re-configure.\n':
-    '  Выполните `qwen auth coding-plan` для повторной настройки.\n',
+  '  Run `apex auth coding-plan` to re-configure.\n':
+    '  Выполните `apex auth coding-plan` для повторной настройки.\n',
   '✓ Authentication Method: {{type}}': '✓ Метод аутентификации: {{type}}',
   '  Status: Configured\n': '  Статус: Настроено\n',
   'Failed to check authentication status: {{error}}':

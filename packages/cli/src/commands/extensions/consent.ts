@@ -149,13 +149,13 @@ export function extensionConsentString(
   commands: string[] = [],
   skills: SkillConfig[] = [],
   subagents: SubagentConfig[] = [],
-  originSource: string = 'QwenCode',
+  originSource: string = 'APEX',
 ): string {
   const output: string[] = [];
-  if (originSource !== 'QwenCode') {
+  if (originSource !== 'APEX') {
     output.push(
       t(
-        'You are installing an extension from {{originSource}}. Some features may not work perfectly with Qwen Code.',
+        'You are installing an extension from {{originSource}}. Some features may not work perfectly with APEX.',
         { originSource },
       ),
     );
@@ -195,7 +195,7 @@ export function extensionConsentString(
       : extensionConfig.contextFileName;
     output.push(
       t(
-        'This extension will append info to your QWEN.md context using {{fileName}}',
+        'This extension will append info to your APEX.md context using {{fileName}}',
         { fileName },
       ),
     );
@@ -231,7 +231,7 @@ export const requestConsentOrFail = async (
   if (!options) return;
   const {
     extensionConfig,
-    originSource = 'QwenCode',
+    originSource = 'APEX',
     commands = [],
     skills = [],
     subagents = [],

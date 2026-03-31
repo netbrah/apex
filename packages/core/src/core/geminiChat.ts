@@ -38,7 +38,7 @@ import type { UiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 
-const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
+const debugLogger = createDebugLogger('APEX_CHAT');
 
 export enum StreamEventType {
   /** A regular content chunk from the API. */
@@ -696,9 +696,16 @@ export class GeminiChat {
       }
     }
 
+    type ExtPart = Part & { _redactedThinkingData?: string };
+    const redactedParts = (allModelParts as ExtPart[]).filter(
+      (part) => part._redactedThinkingData !== undefined,
+    );
+    const regularThoughtParts = allModelParts.filter(
+      (part) => part.thought && !('_redactedThinkingData' in part),
+    );
+
     let thoughtContentPart: Part | undefined;
-    const thoughtText = allModelParts
-      .filter((part) => part.thought)
+    const thoughtText = regularThoughtParts
       .map((part) => part.text)
       .join('')
       .trim();
@@ -709,15 +716,17 @@ export class GeminiChat {
         thought: true,
       };
 
-      const thoughtSignature = allModelParts.filter(
-        (part) => part.thoughtSignature && part.thought,
+      const thoughtSignature = regularThoughtParts.filter(
+        (part) => part.thoughtSignature,
       )?.[0]?.thoughtSignature;
       if (thoughtContentPart && thoughtSignature) {
         thoughtContentPart.thoughtSignature = thoughtSignature;
       }
     }
 
-    const contentParts = allModelParts.filter((part) => !part.thought);
+    const contentParts = allModelParts.filter(
+      (part) => !part.thought && !('_redactedThinkingData' in part),
+    );
     const consolidatedHistoryParts: Part[] = [];
     for (const part of contentParts) {
       const lastPart =
@@ -746,6 +755,7 @@ export class GeminiChat {
       this.chatRecordingService?.recordAssistantTurn({
         model,
         message: [
+          ...(redactedParts as Part[]),
           ...(thoughtContentPart ? [thoughtContentPart] : []),
           ...(contentText ? [{ text: contentText }] : []),
           ...(hasToolCall
@@ -783,6 +793,7 @@ export class GeminiChat {
     this.history.push({
       role: 'model',
       parts: [
+        ...(redactedParts as Part[]),
         ...(thoughtContentPart ? [thoughtContentPart] : []),
         ...consolidatedHistoryParts,
       ],

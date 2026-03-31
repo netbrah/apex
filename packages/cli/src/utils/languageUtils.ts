@@ -65,7 +65,7 @@ export function resolveOutputLanguage(
  */
 function getOutputLanguageFilePath(): string {
   return path.join(
-    Storage.getGlobalQwenDir(),
+    Storage.getGlobalApexDir(),
     LLM_OUTPUT_LANGUAGE_RULE_FILENAME,
   );
 }

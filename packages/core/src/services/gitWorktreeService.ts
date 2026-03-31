@@ -24,7 +24,7 @@ export const BASELINE_COMMIT_MESSAGE = 'baseline (dirty state overlay)';
 
 /**
  * Default directory and branch-prefix name used for worktrees.
- * Changing this value affects the on-disk layout (`~/.qwen/<WORKTREES_DIR>/`)
+ * Changing this value affects the on-disk layout (`~/.apex/<WORKTREES_DIR>/`)
  * **and** the default git branch prefix (`<WORKTREES_DIR>/<sessionId>/…`).
  */
 export const WORKTREES_DIR = 'worktrees';
@@ -109,7 +109,7 @@ export class GitWorktreeService {
     if (customDir) {
       return path.resolve(customDir);
     }
-    return path.join(Storage.getGlobalQwenDir(), WORKTREES_DIR);
+    return path.join(Storage.getGlobalApexDir(), WORKTREES_DIR);
   }
 
   /**
@@ -827,16 +827,16 @@ export class GitWorktreeService {
 }
 
 /**
- * Detects if a directory path is inside a managed qwen-code worktree.
+ * Detects if a directory path is inside a managed apex worktree.
  * Uses realpath resolution to handle symlinks correctly.
  */
-export function isQwenWorktree(
+export function isApexWorktree(
   dirPath: string,
   _projectRoot?: string,
 ): boolean {
   try {
     const realDir = fsSync.realpathSync(dirPath);
-    const worktreesBase = path.join(Storage.getGlobalQwenDir(), WORKTREES_DIR);
+    const worktreesBase = path.join(Storage.getGlobalApexDir(), WORKTREES_DIR);
     const realWorktrees = fsSync.realpathSync(worktreesBase);
     const relative = path.relative(realWorktrees, realDir);
     return !relative.startsWith('..');

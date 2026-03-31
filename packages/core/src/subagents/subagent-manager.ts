@@ -41,7 +41,8 @@ const debugLogger = createDebugLogger('SUBAGENT_MANAGER');
 import { BuiltinAgentRegistry } from './builtin-agents.js';
 import { ToolDisplayNamesMigration } from '../tools/tool-names.js';
 
-const QWEN_CONFIG_DIR = '.qwen';
+import { APEX_DIR } from '../config/storage.js';
+const QWEN_CONFIG_DIR = APEX_DIR;
 const AGENT_CONFIG_DIR = 'agents';
 
 /**

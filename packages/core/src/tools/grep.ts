@@ -8,6 +8,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { EOL } from 'node:os';
 import { spawn } from 'node:child_process';
+import ignore from 'ignore';
 import { globStream } from 'glob';
 import type { ToolInvocation, ToolResult } from './tools.js';
 import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
@@ -23,6 +24,7 @@ import type { PermissionDecision } from '../permissions/types.js';
 import type { FileExclusions } from '../utils/ignorePatterns.js';
 import { ToolErrorType } from './tool-error.js';
 import { isCommandAvailable } from '../utils/shell-utils.js';
+import { loadUserRgIgnorePatterns } from '../utils/rgIgnoreUtils.js';
 
 // --- Interfaces ---
 
@@ -65,6 +67,7 @@ class GrepToolInvocation extends BaseToolInvocation<
   ToolResult
 > {
   private readonly fileExclusions: FileExclusions;
+  private readonly userRgIgnorePatterns = loadUserRgIgnorePatterns();
 
   constructor(
     private readonly config: Config,
@@ -379,7 +382,9 @@ class GrepToolInvocation extends BaseToolInvocation<
                 );
             });
           });
-          return this.parseGrepOutput(output, absolutePath);
+          return this.filterMatchesByUserRgIgnore(
+            this.parseGrepOutput(output, absolutePath),
+          );
         } catch (gitError: unknown) {
           debugLogger.debug(
             `GrepLogic: git grep failed: ${getErrorMessage(
@@ -481,7 +486,9 @@ class GrepToolInvocation extends BaseToolInvocation<
             child.on('error', onError);
             child.on('close', onClose);
           });
-          return this.parseGrepOutput(output, absolutePath);
+          return this.filterMatchesByUserRgIgnore(
+            this.parseGrepOutput(output, absolutePath),
+          );
         } catch (grepError: unknown) {
           debugLogger.debug(
             `GrepLogic: System grep failed: ${getErrorMessage(
@@ -539,7 +546,7 @@ class GrepToolInvocation extends BaseToolInvocation<
         }
       }
 
-      return allMatches;
+      return this.filterMatchesByUserRgIgnore(allMatches);
     } catch (error: unknown) {
       debugLogger.error(
         `GrepLogic: Error in performGrepSearch (Strategy: ${strategyUsed}): ${getErrorMessage(
@@ -547,6 +554,24 @@ class GrepToolInvocation extends BaseToolInvocation<
         )}`,
       );
       throw error; // Re-throw
+    }
+  }
+
+  private filterMatchesByUserRgIgnore(matches: GrepMatch[]): GrepMatch[] {
+    if (this.userRgIgnorePatterns.length === 0) {
+      return matches;
+    }
+
+    try {
+      const rgIgnoreMatcher = ignore();
+      rgIgnoreMatcher.add(this.userRgIgnorePatterns);
+      return matches.filter((match) => {
+        const normalizedPath = match.filePath.replace(/\\/g, '/');
+        return !rgIgnoreMatcher.ignores(normalizedPath);
+      });
+    } catch {
+      // If ignore pattern parsing fails, keep original results.
+      return matches;
     }
   }
 }

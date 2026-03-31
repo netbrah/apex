@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  getContextBudgetSystemReminder,
   getCoreSystemPrompt,
   getCustomSystemPrompt,
   getSubagentSystemReminder,
@@ -16,7 +17,7 @@ import { isGitRepository } from '../utils/gitUtils.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { QWEN_CONFIG_DIR } from '../tools/memoryTool.js';
+import { APEX_CONFIG_DIR } from '../tools/memoryTool.js';
 
 // Mock tool names if they are dynamically generated or complex
 vi.mock('../tools/ls', () => ({ LSTool: { Name: 'list_directory' } }));
@@ -41,23 +42,23 @@ vi.mock('node:fs');
 describe('Core System Prompt (prompts.ts)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.stubEnv('QWEN_SYSTEM_MD', undefined);
-    vi.stubEnv('QWEN_WRITE_SYSTEM_MD', undefined);
+    vi.stubEnv('APEX_SYSTEM_MD', undefined);
+    vi.stubEnv('APEX_WRITE_SYSTEM_MD', undefined);
   });
 
   it('should return the base prompt when no userMemory is provided', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt();
-    expect(prompt).not.toContain('---\n\n'); // Separator should not be present
-    expect(prompt).toContain('You are Qwen Code, an interactive CLI agent'); // Check for core content
-    expect(prompt).toMatchSnapshot(); // Use snapshot for base prompt structure
+    expect(prompt).not.toContain('---\n\n');
+    expect(prompt).toContain('You are **SPECTRE**');
+    expect(prompt).toMatchSnapshot();
   });
 
   it('should return the base prompt when userMemory is empty string', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are Qwen Code, an interactive CLI agent');
+    expect(prompt).toContain('You are **SPECTRE**');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -65,7 +66,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('   \n  \t ');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are Qwen Code, an interactive CLI agent');
+    expect(prompt).toContain('You are **SPECTRE**');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -76,8 +77,8 @@ describe('Core System Prompt (prompts.ts)', () => {
     const prompt = getCoreSystemPrompt(memory);
 
     expect(prompt.endsWith(expectedSuffix)).toBe(true);
-    expect(prompt).toContain('You are Qwen Code, an interactive CLI agent'); // Ensure base prompt follows
-    expect(prompt).toMatchSnapshot(); // Snapshot the combined prompt
+    expect(prompt).toContain('You are **SPECTRE**');
+    expect(prompt).toMatchSnapshot();
   });
 
   it('should append extra system prompt instructions after user memory when provided', () => {
@@ -152,33 +153,33 @@ describe('Core System Prompt (prompts.ts)', () => {
     expect(prompt).toMatchSnapshot();
   });
 
-  describe('QWEN_SYSTEM_MD environment variable', () => {
-    it('should use default prompt when QWEN_SYSTEM_MD is "false"', () => {
-      vi.stubEnv('QWEN_SYSTEM_MD', 'false');
+  describe('APEX_SYSTEM_MD environment variable', () => {
+    it('should use default prompt when APEX_SYSTEM_MD is "false"', () => {
+      vi.stubEnv('APEX_SYSTEM_MD', 'false');
       const prompt = getCoreSystemPrompt();
       expect(fs.readFileSync).not.toHaveBeenCalled();
       expect(prompt).not.toContain('custom system prompt');
     });
 
-    it('should use default prompt when QWEN_SYSTEM_MD is "0"', () => {
-      vi.stubEnv('QWEN_SYSTEM_MD', '0');
+    it('should use default prompt when APEX_SYSTEM_MD is "0"', () => {
+      vi.stubEnv('APEX_SYSTEM_MD', '0');
       const prompt = getCoreSystemPrompt();
       expect(fs.readFileSync).not.toHaveBeenCalled();
       expect(prompt).not.toContain('custom system prompt');
     });
 
-    it('should throw error if QWEN_SYSTEM_MD points to a non-existent file', () => {
+    it('should throw error if APEX_SYSTEM_MD points to a non-existent file', () => {
       const customPath = '/non/existent/path/system.md';
-      vi.stubEnv('QWEN_SYSTEM_MD', customPath);
+      vi.stubEnv('APEX_SYSTEM_MD', customPath);
       vi.mocked(fs.existsSync).mockReturnValue(false);
       expect(() => getCoreSystemPrompt()).toThrow(
         `missing system prompt file '${path.resolve(customPath)}'`,
       );
     });
 
-    it('should read from default path when QWEN_SYSTEM_MD is "true"', () => {
-      const defaultPath = path.resolve(path.join(QWEN_CONFIG_DIR, 'system.md'));
-      vi.stubEnv('QWEN_SYSTEM_MD', 'true');
+    it('should read from default path when APEX_SYSTEM_MD is "true"', () => {
+      const defaultPath = path.resolve(path.join(APEX_CONFIG_DIR, 'system.md'));
+      vi.stubEnv('APEX_SYSTEM_MD', 'true');
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
 
@@ -187,9 +188,9 @@ describe('Core System Prompt (prompts.ts)', () => {
       expect(prompt).toBe('custom system prompt');
     });
 
-    it('should read from default path when QWEN_SYSTEM_MD is "1"', () => {
-      const defaultPath = path.resolve(path.join(QWEN_CONFIG_DIR, 'system.md'));
-      vi.stubEnv('QWEN_SYSTEM_MD', '1');
+    it('should read from default path when APEX_SYSTEM_MD is "1"', () => {
+      const defaultPath = path.resolve(path.join(APEX_CONFIG_DIR, 'system.md'));
+      vi.stubEnv('APEX_SYSTEM_MD', '1');
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
 
@@ -198,9 +199,9 @@ describe('Core System Prompt (prompts.ts)', () => {
       expect(prompt).toBe('custom system prompt');
     });
 
-    it('should read from custom path when QWEN_SYSTEM_MD provides one, preserving case', () => {
+    it('should read from custom path when APEX_SYSTEM_MD provides one, preserving case', () => {
       const customPath = path.resolve('/custom/path/SyStEm.Md');
-      vi.stubEnv('QWEN_SYSTEM_MD', customPath);
+      vi.stubEnv('APEX_SYSTEM_MD', customPath);
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
 
@@ -209,12 +210,12 @@ describe('Core System Prompt (prompts.ts)', () => {
       expect(prompt).toBe('custom system prompt');
     });
 
-    it('should expand tilde in custom path when QWEN_SYSTEM_MD is set', () => {
+    it('should expand tilde in custom path when APEX_SYSTEM_MD is set', () => {
       const homeDir = '/Users/test';
       vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
       const customPath = '~/custom/system.md';
       const expectedPath = path.join(homeDir, 'custom/system.md');
-      vi.stubEnv('QWEN_SYSTEM_MD', customPath);
+      vi.stubEnv('APEX_SYSTEM_MD', customPath);
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
 
@@ -227,22 +228,22 @@ describe('Core System Prompt (prompts.ts)', () => {
     });
   });
 
-  describe('QWEN_WRITE_SYSTEM_MD environment variable', () => {
-    it('should not write to file when QWEN_WRITE_SYSTEM_MD is "false"', () => {
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', 'false');
+  describe('APEX_WRITE_SYSTEM_MD environment variable', () => {
+    it('should not write to file when APEX_WRITE_SYSTEM_MD is "false"', () => {
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', 'false');
       getCoreSystemPrompt();
       expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
-    it('should not write to file when QWEN_WRITE_SYSTEM_MD is "0"', () => {
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', '0');
+    it('should not write to file when APEX_WRITE_SYSTEM_MD is "0"', () => {
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', '0');
       getCoreSystemPrompt();
       expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
-    it('should write to default path when QWEN_WRITE_SYSTEM_MD is "true"', () => {
-      const defaultPath = path.resolve(path.join(QWEN_CONFIG_DIR, 'system.md'));
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', 'true');
+    it('should write to default path when APEX_WRITE_SYSTEM_MD is "true"', () => {
+      const defaultPath = path.resolve(path.join(APEX_CONFIG_DIR, 'system.md'));
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', 'true');
       getCoreSystemPrompt();
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         defaultPath,
@@ -250,9 +251,9 @@ describe('Core System Prompt (prompts.ts)', () => {
       );
     });
 
-    it('should write to default path when QWEN_WRITE_SYSTEM_MD is "1"', () => {
-      const defaultPath = path.resolve(path.join(QWEN_CONFIG_DIR, 'system.md'));
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', '1');
+    it('should write to default path when APEX_WRITE_SYSTEM_MD is "1"', () => {
+      const defaultPath = path.resolve(path.join(APEX_CONFIG_DIR, 'system.md'));
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', '1');
       getCoreSystemPrompt();
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         defaultPath,
@@ -260,9 +261,9 @@ describe('Core System Prompt (prompts.ts)', () => {
       );
     });
 
-    it('should write to custom path when QWEN_WRITE_SYSTEM_MD provides one', () => {
+    it('should write to custom path when APEX_WRITE_SYSTEM_MD provides one', () => {
       const customPath = path.resolve('/custom/path/system.md');
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', customPath);
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', customPath);
       getCoreSystemPrompt();
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         customPath,
@@ -270,12 +271,12 @@ describe('Core System Prompt (prompts.ts)', () => {
       );
     });
 
-    it('should expand tilde in custom path when QWEN_WRITE_SYSTEM_MD is set', () => {
+    it('should expand tilde in custom path when APEX_WRITE_SYSTEM_MD is set', () => {
       const homeDir = '/Users/test';
       vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
       const customPath = '~/custom/system.md';
       const expectedPath = path.join(homeDir, 'custom/system.md');
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', customPath);
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', customPath);
       getCoreSystemPrompt();
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         path.resolve(expectedPath),
@@ -283,12 +284,12 @@ describe('Core System Prompt (prompts.ts)', () => {
       );
     });
 
-    it('should expand tilde in custom path when QWEN_WRITE_SYSTEM_MD is just ~', () => {
+    it('should expand tilde in custom path when APEX_WRITE_SYSTEM_MD is just ~', () => {
       const homeDir = '/Users/test';
       vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
       const customPath = '~';
       const expectedPath = homeDir;
-      vi.stubEnv('QWEN_WRITE_SYSTEM_MD', customPath);
+      vi.stubEnv('APEX_WRITE_SYSTEM_MD', customPath);
       getCoreSystemPrompt();
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         path.resolve(expectedPath),
@@ -457,7 +458,8 @@ describe('getSubagentSystemReminder', () => {
     const result = getSubagentSystemReminder(['python']);
 
     expect(result).toMatch(/^<system-reminder>.*<\/system-reminder>$/);
-    expect(result).toContain('available agent types are: python');
+    expect(result).toContain('specialized subagents available: python');
+    expect(result).toContain('delegated recon and relief assets');
     expect(result).toContain('PROACTIVELY use the');
   });
 
@@ -465,14 +467,14 @@ describe('getSubagentSystemReminder', () => {
     const result = getSubagentSystemReminder(['python', 'web', 'analysis']);
 
     expect(result).toContain(
-      'available agent types are: python, web, analysis',
+      'specialized subagents available: python, web, analysis',
     );
   });
 
   it('should handle empty array', () => {
     const result = getSubagentSystemReminder([]);
 
-    expect(result).toContain('available agent types are: ');
+    expect(result).toContain('specialized subagents available: ');
     expect(result).toContain('<system-reminder>');
   });
 });
@@ -483,14 +485,16 @@ describe('getPlanModeSystemReminder', () => {
 
     expect(result).toMatch(/^<system-reminder>[\s\S]*<\/system-reminder>$/);
     expect(result).toContain('Plan mode is active');
-    expect(result).toContain('MUST NOT make any edits');
+    expect(result).toContain('recon-only phase');
+    expect(result).toContain('MUST NOT make edits');
   });
 
   it('should include workflow instructions', () => {
     const result = getPlanModeSystemReminder();
 
-    expect(result).toContain("1. Answer the user's query comprehensively");
-    expect(result).toContain("2. When you're done researching");
+    expect(result).toContain('1. Build the operating picture');
+    expect(result).toContain('2. Surface constraints, assumptions, risks');
+    expect(result).toContain('ask_user_question');
     expect(result).toContain('exit_plan_mode tool');
   });
 
@@ -642,5 +646,82 @@ describe('resolvePathFromEnv helper function', () => {
         isDisabled: false,
       });
     });
+  });
+});
+
+describe('getContextBudgetSystemReminder', () => {
+  it('should return empty string when ratio is below 0.75 (GREEN)', () => {
+    expect(getContextBudgetSystemReminder(0.0, false)).toBe('');
+    expect(getContextBudgetSystemReminder(0.5, false)).toBe('');
+    expect(getContextBudgetSystemReminder(0.74, false)).toBe('');
+    expect(getContextBudgetSystemReminder(0.749, true)).toBe('');
+  });
+
+  it('should return BINGO reminder when ratio is >= 0.75 and < 0.90', () => {
+    const result = getContextBudgetSystemReminder(0.75, false);
+    expect(result).toContain('BINGO');
+    expect(result).toContain('75%');
+    expect(result).toContain('<system-reminder>');
+    expect(result).toContain('</system-reminder>');
+    // BINGO level — starts with BINGO, not WINCHESTER
+    expect(result).toMatch(/^<system-reminder>\nBINGO/);
+  });
+
+  it('should return BINGO at 0.89 ratio', () => {
+    const result = getContextBudgetSystemReminder(0.89, false);
+    expect(result).toContain('BINGO');
+    expect(result).toContain('89%');
+    expect(result).toMatch(/^<system-reminder>\nBINGO/);
+  });
+
+  it('should return WINCHESTER reminder when ratio is >= 0.90', () => {
+    const result = getContextBudgetSystemReminder(0.9, false);
+    expect(result).toContain('WINCHESTER');
+    expect(result).toContain('90%');
+    expect(result).toContain('<system-reminder>');
+    expect(result).not.toContain('BINGO');
+  });
+
+  it('should return WINCHESTER at ratio > 1.0', () => {
+    const result = getContextBudgetSystemReminder(1.05, false);
+    expect(result).toContain('WINCHESTER');
+    expect(result).toContain('105%');
+  });
+
+  it('should include compaction note when isSummarized is true', () => {
+    const bingo = getContextBudgetSystemReminder(0.8, true);
+    expect(bingo).toContain('already been compacted once');
+
+    const winchester = getContextBudgetSystemReminder(0.95, true);
+    expect(winchester).toContain('already been compacted once');
+  });
+
+  it('should not include compaction note when isSummarized is false', () => {
+    const bingo = getContextBudgetSystemReminder(0.8, false);
+    expect(bingo).not.toContain('already been compacted');
+
+    const winchester = getContextBudgetSystemReminder(0.95, false);
+    expect(winchester).not.toContain('already been compacted');
+  });
+
+  it('should mention BROWNING and JOKER callouts in both levels', () => {
+    const bingo = getContextBudgetSystemReminder(0.8, false);
+    expect(bingo).toContain('BROWNING');
+    expect(bingo).toContain('JOKER');
+
+    const winchester = getContextBudgetSystemReminder(0.95, false);
+    expect(winchester).toContain('BROWNING');
+    expect(winchester).toContain('JOKER');
+  });
+
+  it('should round percentage correctly', () => {
+    const result = getContextBudgetSystemReminder(0.777, false);
+    expect(result).toContain('78%');
+  });
+
+  it('should be deterministic', () => {
+    const r1 = getContextBudgetSystemReminder(0.85, true);
+    const r2 = getContextBudgetSystemReminder(0.85, true);
+    expect(r1).toBe(r2);
   });
 });

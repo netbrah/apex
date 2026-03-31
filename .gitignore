@@ -53,13 +53,13 @@ packages/web-templates/src/generated/
 .integration-tests/
 packages/vscode-ide-companion/*.vsix
 
-# Qwen Code Configs
+# APEX Configs
 
-.qwen/*
-!.qwen/commands/
-!.qwen/commands/**
-!.qwen/skills/
-!.qwen/skills/**
+.apex/*
+!.apex/commands/
+!.apex/commands/**
+!.apex/skills/
+!.apex/skills/**
 logs/
 # GHA credentials
 gha-creds-*.json
@@ -87,7 +87,14 @@ storybook-static
 # SEA binary build artifacts
 .bin/*
 !.bin/.gitkeep
+!.bin/ontap-apex
 sea-config.json
+
+# APEX overlay assets — deployed skill definitions (SKILL.md) and config.
+# Tracked on feat/apex-embed-assets; bundled into binary at build time.
+# apex-assets/
+apex-assets/debug/
+apex-assets/installation_id
 
 # Local scratch files
 *.md.bak
@@ -106,17 +113,21 @@ bsd_net/
 02-*.md
 token-banner-*.md
 
-# Apex assets staging dir (bundled into binary; not committed here)
-apex-assets/
+# Apex assets — see line 93 (un-ignored on feat/apex-embed-assets)
+# apex-assets/
 
 # Symlink to external api-reference (local only)
 api-reference
 
 # Integration test runtime output dirs (debug logs, runtime state)
+custom/
+first/
+from-env/
+workspace/
+.superset/
 packages/cli/custom/
 packages/cli/first/
 packages/cli/from-env/
 packages/cli/workspace/
-
-# Dev symlink: qc-helper bundled skill docs (created by scripts/dev.js)
-packages/core/src/skills/bundled/qc-helper/docs
+tests/*.jsonl
+netapp-seclab-apex-*.tgz

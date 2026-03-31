@@ -203,6 +203,61 @@ describe('AnthropicContentConverter', () => {
       ]);
     });
 
+    it('sanitizes invalid tool IDs and preserves tool_use/tool_result linkage', () => {
+      const rawId = 'call:abc.def/ghi?jkl';
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              {
+                functionCall: {
+                  id: rawId,
+                  name: 'tool_name',
+                  args: { a: 1 },
+                },
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: rawId,
+                  name: 'tool_name',
+                  response: { output: 'ok' },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const assistantBlocks = messages[0]?.content as Array<{
+        type: string;
+        id?: string;
+      }>;
+      const userBlocks = messages[1]?.content as Array<{
+        type: string;
+        tool_use_id?: string;
+      }>;
+
+      const toolUse = assistantBlocks.find(
+        (block) => block.type === 'tool_use',
+      );
+      const toolResult = userBlocks.find(
+        (block) => block.type === 'tool_result',
+      );
+
+      expect(toolUse).toBeDefined();
+      expect(toolResult).toBeDefined();
+      expect(toolUse?.id).toMatch(/^[a-zA-Z0-9_-]+$/);
+      expect(toolUse?.id).not.toBe(rawId);
+      expect(toolResult?.tool_use_id).toBe(toolUse?.id);
+    });
+
     it('extracts function response error field when present', () => {
       const { messages } = converter.convertGeminiRequestToAnthropic({
         model: 'models/test',
@@ -229,6 +284,7 @@ describe('AnthropicContentConverter', () => {
             type: 'tool_result',
             tool_use_id: 'call-1',
             content: 'boom',
+            is_error: true,
           },
         ],
       });
@@ -830,7 +886,7 @@ describe('AnthropicContentConverter', () => {
         { text: 'thought', thought: true, thoughtSignature: 'sig' },
         { text: 'hello' },
         { functionCall: { id: 't1', name: 'tool', args: { x: 1 } } },
-        { text: '', thought: true },
+        { text: '', thought: true, _redactedThinkingData: '' },
       ]);
     });
 
@@ -941,6 +997,113 @@ describe('AnthropicContentConverter', () => {
         },
       });
       expect(result[0]).not.toHaveProperty('cache_control');
+    });
+  });
+
+  describe('null space fixes', () => {
+    it('should preserve redacted_thinking data through round-trip', () => {
+      const anthropicResponse = {
+        id: 'msg_test',
+        type: 'message',
+        role: 'assistant',
+        content: [
+          { type: 'redacted_thinking', data: 'opaque_blob_abc123' },
+          { type: 'text', text: 'Hello', citations: [] },
+        ],
+        model: 'test-model',
+        stop_reason: 'end_turn',
+        stop_sequence: null,
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      } as unknown as Anthropic.Message;
+
+      const geminiResponse =
+        converter.convertAnthropicResponseToGemini(anthropicResponse);
+      const parts = geminiResponse.candidates?.[0]?.content?.parts ?? [];
+
+      const redactedPart = parts.find((p) => '_redactedThinkingData' in p);
+      expect(redactedPart).toBeDefined();
+      expect(
+        (redactedPart as unknown as Record<string, unknown>)[
+          '_redactedThinkingData'
+        ],
+      ).toBe('opaque_blob_abc123');
+
+      const geminiContents: Content[] = [{ role: 'model', parts }];
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: geminiContents,
+      });
+
+      const assistantMsg = messages.find((m) => m.role === 'assistant');
+      expect(assistantMsg).toBeDefined();
+      const blocks = assistantMsg!.content as unknown as Array<
+        Record<string, unknown>
+      >;
+      const redactedBlock = blocks.find(
+        (b) => b['type'] === 'redacted_thinking',
+      );
+      expect(redactedBlock).toBeDefined();
+      expect(redactedBlock!['data']).toBe('opaque_blob_abc123');
+    });
+
+    it('should set is_error on tool_result when FunctionResponse has error key', () => {
+      const geminiContents: Content[] = [
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                id: 'tool_1',
+                name: 'shell',
+                response: { error: 'command not found' },
+              },
+            },
+          ],
+        },
+      ];
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: geminiContents,
+      });
+
+      const userMsg = messages.find((m) => m.role === 'user');
+      expect(userMsg).toBeDefined();
+      const content = userMsg!.content as Anthropic.ToolResultBlockParam[];
+      const toolResult = content.find((b) => b.type === 'tool_result');
+      expect(toolResult).toBeDefined();
+      expect(toolResult!.is_error).toBe(true);
+    });
+
+    it('should NOT set is_error when FunctionResponse has output key', () => {
+      const geminiContents: Content[] = [
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: {
+                id: 'tool_2',
+                name: 'shell',
+                response: { output: 'file1.txt\nfile2.txt' },
+              },
+            },
+          ],
+        },
+      ];
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: geminiContents,
+      });
+
+      const userMsg = messages.find((m) => m.role === 'user');
+      const content = userMsg!.content as Anthropic.ToolResultBlockParam[];
+      const toolResult = content.find((b) => b.type === 'tool_result');
+      expect(toolResult).toBeDefined();
+      expect(toolResult!.is_error).toBeUndefined();
     });
   });
 });

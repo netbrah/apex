@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# ontap-apex — APEX launcher (hermetic distribution)
+#
+# Everything lives in BIN_DIR: binary (apex), settings.json, skills/, this script.
+# At launch: deploys config → ~/.apex/, sets env, execs binary.
+# Uses QWEN_CODE_HOME to isolate from personal ~/.apex/ config.
+#
+# USAGE:
+#   ontap-apex                  # interactive
+#   ontap-apex -p "analyze X"  # one-shot
+#
+# REQUIRES:
+#   export APEX_LLM_PROXY_KEY="user=<SSO>&key=<LLM_PROXY_KEY>"
+#     Get key: https://llm-proxy-web.ai.eng.netapp.com/Manage_keys
+#
+# OPTIONAL:
+#   export GITHUB_TOKEN="ghp_..."
+#   export JIRA_TOKEN="<raw PAT>"                      # https://jira.ngage.netapp.com → Profile → PAT
+#   export CONFLUENCE_TOKEN="ATATT..."                 # https://id.atlassian.com/manage-profile/security/api-tokens
+#   export CONFLUENCE_USERNAME="first.last@netapp.com" # auto-derived from whoami if not set
+#   export REVIEWBOARD_API_TOKEN="rbp_..."             # https://reviewboard.netapp.com/account/preferences/#authentication
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Resolve BIN_DIR (where this script + binary + settings live)
+# ---------------------------------------------------------------------------
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APEX_HOME="${APEX_HOME:-$HOME/.apex}"
+APEX_MODEL="${APEX_MODEL:-claude-opus-4.6}"
+
+# Config dir — QWEN_CODE_HOME points the binary here
+APEX_CONFIG_DIR="$APEX_HOME"
+
+# ---------------------------------------------------------------------------
+# Create config directory FIRST (before any file copies)
+# ---------------------------------------------------------------------------
+mkdir -p "$APEX_CONFIG_DIR"
+
+# ---------------------------------------------------------------------------
+# Styled download helper — purple→blue gradient progress
+# ---------------------------------------------------------------------------
+_C_RESET='\033[0m'
+_C_PURPLE='\033[38;2;192;134;162m'
+_C_BLUE='\033[38;2;147;115;149m'
+_C_CYAN='\033[38;2;248;145;175m'
+_C_DIM='\033[2m'
+_C_BOLD='\033[1m'
+_C_CHECK='\033[38;2;78;174;80m'
+_C_CROSS='\033[38;2;244;95;106m'
+
+_SPINNER_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+
+_apex_download() {
+    local label="$1" url="$2" dest="$3" is_tar="${4:-false}"
+    local dest_dir
+    dest_dir="$(dirname "$dest")"
+    mkdir -p "$dest_dir"
+
+    local tmp="$dest_dir/_download.tmp"
+    curl -fSL -o "$tmp" "$url" 2>/dev/null &
+    local curl_pid=$!
+
+    local i=0
+    while kill -0 "$curl_pid" 2>/dev/null; do
+        printf "\r${_C_BOLD}${_C_PURPLE}  ${_SPINNER_FRAMES[$((i % 10))]} ${_C_BLUE}%-36s${_C_RESET}" "$label" >&2
+        sleep 0.12
+        ((i++))
+    done
+
+    wait "$curl_pid"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        printf "\r${_C_BOLD}${_C_CROSS}  ✗ %-36s${_C_RESET} ${_C_CROSS}FAILED${_C_RESET}\n" "$label" >&2
+        rm -f "$tmp"
+        return 1
+    fi
+
+    if [[ "$is_tar" == "true" ]]; then
+        tar xzf "$tmp" -C "$dest_dir"
+        rm -f "$tmp"
+    else
+        chmod +x "$tmp"
+        mv "$tmp" "$dest"
+    fi
+
+    printf "\r${_C_BOLD}${_C_CHECK}  ✓ ${_C_CYAN}%-36s${_C_RESET}\n" "$label" >&2
+}
+
+# ---------------------------------------------------------------------------
+# Binary — auto-download from Artifactory if not cached
+# ---------------------------------------------------------------------------
+APEX_VERSION="${APEX_VERSION:-release}"
+APEX_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/apex/${APEX_VERSION}/apex-linux-amd64"
+APEX_BIN="$APEX_HOME/bin/apex-${APEX_VERSION}"
+
+_needs_download=false
+[[ ! -x "$APEX_BIN" ]] && _needs_download=true
+
+MASTRA_VERSION="${MASTRA_VERSION:-latest}"
+MASTRA_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/mastra-search-mcp/${MASTRA_VERSION}/mastra-search-mcp-linux-amd64.tar.gz"
+MASTRA_DIR="$APEX_HOME/bin/mastra-search-mcp-${MASTRA_VERSION}"
+MASTRA_BIN="$MASTRA_DIR/mastra-search-mcp"
+[[ ! -x "$MASTRA_BIN" ]] && _needs_download=true
+
+RB_VERSION="${RB_VERSION:-latest}"
+RB_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/reviewboard-mcp/${RB_VERSION}/reviewboard-mcp.tar.gz"
+RB_DIR="$APEX_HOME/bin/reviewboard-mcp-${RB_VERSION}"
+RB_INDEX="$RB_DIR/index.js"
+[[ ! -f "$RB_INDEX" ]] && _needs_download=true
+
+CIT_VERSION="${CIT_VERSION:-latest}"
+CIT_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/cit-mcp/${CIT_VERSION}/cit-mcp-linux-amd64"
+CIT_BIN="$APEX_HOME/bin/cit-mcp-${CIT_VERSION}"
+[[ ! -x "$CIT_BIN" ]] && _needs_download=true
+
+# Feather palette: pink → rose → red → blue → purple (top to bottom)
+_F_PINK_LIGHT='\033[38;2;240;160;184m'
+_F_PINK='\033[38;2;230;120;150m'
+_F_ROSE='\033[38;2;220;80;110m'
+_F_RED='\033[38;2;232;64;96m'
+_F_CRIMSON='\033[38;2;180;60;120m'
+_F_BLUE='\033[38;2;96;144;224m'
+_F_INDIGO='\033[38;2;120;100;200m'
+_F_PURPLE_LIGHT='\033[38;2;144;112;192m'
+_F_PURPLE='\033[38;2;130;96;176m'
+
+if [[ "$_needs_download" == "true" ]]; then
+    printf "\n" >&2
+    printf "${_F_PINK_LIGHT}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣴⣶⣿${_C_RESET}\n" >&2
+    printf "${_F_PINK}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣷⣿⣿⣿⠟⠁${_C_RESET}\n" >&2
+    printf "${_F_ROSE}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃${_C_RESET}\n" >&2
+    printf "${_F_RED}     ⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂${_C_RESET}\n" >&2
+    printf "${_F_CRIMSON}     ⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇${_C_RESET}\n" >&2
+    printf "${_F_BLUE}     ⠀⠀⠀⠀⠀⠀⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃${_C_RESET}\n" >&2
+    printf "${_F_INDIGO}     ⠀⠀⠀⠀⠀⠀⣸⣫⣿⣶⣿⠿⠶⠄${_C_RESET}\n" >&2
+    printf "${_F_PURPLE_LIGHT}     ⠀⠀⠀⠀⠀⡠⠞⠛⠻⠷⠄${_C_RESET}\n" >&2
+    printf "${_F_PURPLE}     ⠀⠀⠀⠐⠋${_C_RESET}\n" >&2
+    printf "\n" >&2
+    printf "${_C_BOLD}${_F_RED}   >_ ${_F_PINK}Greenlighting the Asset${_C_RESET}\n\n" >&2
+fi
+
+if [[ ! -x "$APEX_BIN" ]]; then
+    _apex_download "Loading flight computer..." "$APEX_REPO_URL" "$APEX_BIN" || exit 1
+fi
+
+if [[ ! -x "$MASTRA_BIN" ]]; then
+    _apex_download "Booting ISR feed..." "$MASTRA_REPO_URL" "$MASTRA_BIN" true || exit 1
+    chmod +x "$MASTRA_BIN"
+fi
+
+if [[ ! -f "$RB_INDEX" ]]; then
+    _apex_download "Arming strike platform..." "$RB_REPO_URL" "$RB_INDEX" true || exit 1
+fi
+
+if [[ ! -x "$CIT_BIN" ]]; then
+    _apex_download "Calibrating sensors..." "$CIT_REPO_URL" "$CIT_BIN" || exit 1
+fi
+
+if [[ "$_needs_download" == "true" ]]; then
+    printf "\n${_C_BOLD}${_C_CHECK}  ▶ ${_C_CYAN}All systems nominal. Cleared for takeoff.${_C_RESET}\n\n" >&2
+fi
+
+# Agent configs (APEX.md, skills/, settings.json) are baked into the binary.
+# The SEA launcher deploys them to $QWEN_CODE_HOME at startup.
+
+# ---------------------------------------------------------------------------
+# Auto-detect workspace from cwd (git first, then p4)
+# ---------------------------------------------------------------------------
+WS_USER=""
+WS_CLIENT=""
+WS_ROOT=""
+
+if command -v git &>/dev/null; then
+    WS_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ -n "$WS_ROOT" ]]; then
+        WS_USER="$(git config user.name 2>/dev/null || whoami)"
+        WS_CLIENT="git:$(basename "$WS_ROOT")"
+    fi
+fi
+
+if [[ -z "$WS_ROOT" ]] && command -v b4p4 &>/dev/null; then
+    P4_INFO="$(b4p4 info 2>/dev/null || true)"
+    if [[ -n "$P4_INFO" ]]; then
+        WS_USER="$(echo "$P4_INFO"  | grep '^User name:'   | sed 's/^User name: *//')"
+        WS_CLIENT="$(echo "$P4_INFO" | grep '^Client name:' | sed 's/^Client name: *//')"
+        WS_ROOT="$(echo "$P4_INFO"   | grep '^Client root:' | sed 's/^Client root: *//')"
+    fi
+fi
+WS_USER="${WS_USER:-$(whoami)}"
+
+if [[ -z "$WS_ROOT" ]]; then
+    echo "⚠  No workspace detected (tried git, p4). Continuing without workspace config." >&2
+fi
+
+# ---------------------------------------------------------------------------
+# Generate trustedFolders.json (dynamic — depends on cwd)
+# ---------------------------------------------------------------------------
+if [[ -n "$WS_ROOT" ]]; then
+    printf '{"%s":"TRUST_PARENT"}\n' "$WS_ROOT" > "$APEX_CONFIG_DIR/trustedFolders.json"
+fi
+
+# ---------------------------------------------------------------------------
+# Credentials
+# ---------------------------------------------------------------------------
+LLM_PROXY_KEY="${APEX_LLM_PROXY_KEY:-${CODEX_LLM_PROXY_KEY:-${LLM_PROXY_KEY:-}}}"
+
+if [[ -z "$LLM_PROXY_KEY" ]]; then
+    echo "ERROR: No LLM proxy key. Set APEX_LLM_PROXY_KEY=\"user=<SSO>&key=<KEY>\"" >&2
+    echo "  Get key: https://llm-proxy-web.ai.eng.netapp.com/Manage_keys" >&2
+    exit 1
+fi
+
+if [[ "$LLM_PROXY_KEY" != *user=* ]] || [[ "$LLM_PROXY_KEY" != *key=* ]]; then
+    echo "ERROR: Wrong format. Expected: user=<sso>&key=<key>" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
+export OPENAI_COMPATIBLE_ENDPOINT="${OPENAI_COMPATIBLE_ENDPOINT:-https://llm-proxy-api.ai.eng.netapp.com}"
+export OPENAI_COMPATIBLE_API_KEY="${LLM_PROXY_KEY}"
+export OPENAI_COMPATIBLE_MODEL="${APEX_MODEL}"
+export QWEN_CODE_HOME="$APEX_CONFIG_DIR"
+export QWEN_CODE_BRAND="APEX"
+
+
+# CA certs
+if [[ -z "${NODE_EXTRA_CA_CERTS:-}" ]]; then
+    for ca in "$APEX_HOME/ca-bundle.pem" "/etc/pki/tls/certs/ca-bundle.crt" "/etc/ssl/certs/ca-certificates.crt"; do
+        [[ -f "$ca" ]] && export NODE_EXTRA_CA_CERTS="$ca" && break
+    done
+fi
+
+# Service tokens
+export GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+[[ -n "${JIRA_TOKEN:-}" ]]             && export JIRA_TOKEN
+[[ -n "${CONFLUENCE_TOKEN:-}" ]]       && export CONFLUENCE_TOKEN
+[[ -n "${REVIEWBOARD_API_TOKEN:-}" ]]  && export REVIEWBOARD_API_TOKEN
+
+# Auto-derive CONFLUENCE_USERNAME from WS_USER if not set
+if [[ -z "${CONFLUENCE_USERNAME:-}" ]]; then
+    _user="${WS_USER:-$(whoami)}"
+    if [[ "$_user" == *@* ]]; then
+        export CONFLUENCE_USERNAME="$_user"
+    else
+        export CONFLUENCE_USERNAME="${_user}@netapp.com"
+    fi
+fi
+
+# MCP server env — map to what settings.json expects
+export OPENAI_API_KEY="${OPENAI_COMPATIBLE_API_KEY}"
+export OPENAI_BASE_URL="${OPENAI_COMPATIBLE_ENDPOINT}"
+export MASTRA_BIN="$MASTRA_BIN"
+export MASTRA_NODE_PATH="$MASTRA_DIR/node_modules"
+export RB_INDEX="$RB_INDEX"
+export CIT_BIN="$CIT_BIN"
+# Native Anthropic auth (same proxy key; no /v1 suffix — SDK appends /v1/messages)
+export ANTHROPIC_API_KEY="${OPENAI_COMPATIBLE_API_KEY}"
+export ANTHROPIC_BASE_URL="${OPENAI_COMPATIBLE_ENDPOINT}"
+
+# ---------------------------------------------------------------------------
+# Validate MCP env vars — warn on missing
+# ---------------------------------------------------------------------------
+_mcp_missing=()
+[[ -z "${OPENAI_API_KEY:-}" ]]          && _mcp_missing+=("OPENAI_API_KEY (via LLM_PROXY_KEY)")
+[[ -z "${OPENAI_BASE_URL:-}" ]]         && _mcp_missing+=("OPENAI_BASE_URL")
+[[ -z "${NODE_EXTRA_CA_CERTS:-}" ]]     && _mcp_missing+=("NODE_EXTRA_CA_CERTS")
+[[ -z "${JIRA_TOKEN:-}" ]]             && _mcp_missing+=("JIRA_TOKEN")
+[[ -z "${CONFLUENCE_TOKEN:-}" ]]       && _mcp_missing+=("CONFLUENCE_TOKEN")
+[[ -z "${CONFLUENCE_USERNAME:-}" ]]    && _mcp_missing+=("CONFLUENCE_USERNAME")
+[[ -z "${REVIEWBOARD_API_TOKEN:-}" ]]  && _mcp_missing+=("REVIEWBOARD_API_TOKEN")
+
+if [[ ${#_mcp_missing[@]} -gt 0 ]]; then
+    echo "⚠  MCP server may not work — missing env vars:" >&2
+    for v in "${_mcp_missing[@]}"; do
+        echo "  • $v" >&2
+    done
+    echo "  Set them in ~/.bashrc or export before launching." >&2
+fi
+
+# settings.json is baked into the binary. The SEA launcher resolves
+# $VAR references using process.env and writes to $QWEN_CODE_HOME.
+
+# ---------------------------------------------------------------------------
+# Status + launch
+# ---------------------------------------------------------------------------
+_C_YELLOW='\033[38;2;254;185;65m'
+printf "\n${_C_BOLD}${_F_RED}  >_ APEX ${_C_DIM}${_F_PINK}| ${_F_PURPLE_LIGHT}${APEX_MODEL} ${_F_PINK}| ${_F_PURPLE_LIGHT}${WS_USER} ${_F_PINK}| ${_F_PURPLE_LIGHT}${WS_CLIENT:-none}${_C_RESET}\n" >&2
+printf "${_C_YELLOW}  tip: ${_C_DIM}change models with ${_C_BOLD}/model${_C_RESET}\n\n" >&2
+exec "$APEX_BIN" --model "$APEX_MODEL" "$@"

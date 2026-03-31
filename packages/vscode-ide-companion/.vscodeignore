@@ -1,10 +1,8 @@
 **
-!dist/
-!dist/**
-../
-../../
+!dist/extension.cjs
 !LICENSE
 !NOTICES.txt
-!assets/
+!assets/sidebar-icon.svg
+!assets/icon.png
 !schemas/
 !schemas/**

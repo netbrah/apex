@@ -194,6 +194,32 @@ describe('GrepTool', () => {
       expect(result.returnDisplay).toBe('Found 3 matches');
     });
 
+    it('should honor ~/.rgignore in fallback search', async () => {
+      const tempHomeDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'grep-home-'),
+      );
+      const userRgIgnorePath = path.join(tempHomeDir, '.rgignore');
+      await fs.writeFile(userRgIgnorePath, 'ignored.txt\n');
+      await fs.writeFile(
+        path.join(tempRootDir, 'ignored.txt'),
+        'world should be filtered',
+      );
+
+      const homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHomeDir);
+      try {
+        const rgIgnoreAwareTool = new GrepTool(mockConfig);
+        const params: GrepToolParams = { pattern: 'world' };
+        const invocation = rgIgnoreAwareTool.build(params);
+        const result = await invocation.execute(abortSignal);
+
+        expect(result.llmContent).toContain('Found 3 matches');
+        expect(result.llmContent).not.toContain('ignored.txt');
+      } finally {
+        homedirSpy.mockRestore();
+        await fs.rm(tempHomeDir, { recursive: true, force: true });
+      }
+    });
+
     it('should find matches in a specific path', async () => {
       const params: GrepToolParams = { pattern: 'world', path: 'sub' };
       const invocation = grepTool.build(params);

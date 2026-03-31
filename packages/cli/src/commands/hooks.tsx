@@ -1,25 +1,25 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import type { CommandModule } from 'yargs';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
-
-const debugLogger = createDebugLogger('HOOKS_UI');
+import { enableCommand } from './hooks/enable.js';
+import { disableCommand } from './hooks/disable.js';
 
 export const hooksCommand: CommandModule = {
-  command: 'hooks',
+  command: 'hooks <command>',
   aliases: ['hook'],
-  describe: 'Manage Qwen Code hooks (use /hooks in interactive mode).',
-  builder: (yargs) => yargs.version(false).help(false),
+  describe: 'Manage Apex hooks.',
+  builder: (yargs) =>
+    yargs
+      .command(enableCommand)
+      .command(disableCommand)
+      .demandCommand(1, 'You need at least one command before continuing.')
+      .version(false),
   handler: () => {
-    // In CLI mode, this command is not interactive.
-    // Users should use /hooks in interactive mode for the full UI experience.
-    debugLogger.debug(
-      'Use /hooks in interactive mode to manage hooks with the UI.',
-    );
-    process.exit(0);
+    // This handler is not called when a subcommand is provided.
+    // Yargs will show the help menu.
   },
 };

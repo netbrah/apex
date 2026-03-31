@@ -8,11 +8,13 @@ import { StreamingState } from '../types.js';
 import { useTimer } from './useTimer.js';
 import { usePhraseCycler } from './usePhraseCycler.js';
 import { useState, useEffect, useRef } from 'react';
+import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
 
 export const useLoadingIndicator = (
   streamingState: StreamingState,
   customWittyPhrases?: string[],
   currentCandidatesTokens?: number,
+  thought?: ThoughtSummary | null,
 ) => {
   const [timerResetKey, setTimerResetKey] = useState(0);
   const isTimerActive = streamingState === StreamingState.Responding;
@@ -25,6 +27,7 @@ export const useLoadingIndicator = (
     isPhraseCyclingActive,
     isWaiting,
     customWittyPhrases,
+    thought,
   );
 
   const [retainedElapsedTime, setRetainedElapsedTime] = useState(0);

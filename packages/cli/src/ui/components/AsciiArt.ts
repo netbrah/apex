@@ -4,6 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// Auto-generated feather logo from apex-icon-transparent.png
+// ascii-image-converter --braille --width 25 --threshold 128 --color
+const apexFeatherLogo = `
+     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣴⣶⣿⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣷⣿⣿⣿⠟⠁⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⣸⣫⣿⣶⣿⠿⠶⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⡠⠞⠛⠻⠷⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠐⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+`;
+
 const qwenAsciiLogo = `
  ▄▄▄▄▄▄  ▄▄     ▄▄ ▄▄▄▄▄▄▄ ▄▄▄    ▄▄
 ██╔═══██╗██║    ██║██╔════╝████╗  ██║
@@ -13,18 +27,7 @@ const qwenAsciiLogo = `
  ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝
 `;
 
-const apexAsciiLogo = `
- █████╗ ██████╗ ███████╗██╗  ██╗
-██╔══██╗██╔══██╗██╔════╝╚██╗██╔╝
-███████║██████╔╝█████╗   ╚███╔╝
-██╔══██║██╔═══╝ ██╔══╝   ██╔██╗
-██║  ██║██║     ███████╗██╔╝ ██╗
-╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝
-`;
-
-const brandLogos: Record<string, string> = {
-  APEX: apexAsciiLogo,
-};
+const brand = process.env['QWEN_CODE_BRAND'] ?? '';
 
 export const shortAsciiLogo =
-  brandLogos[process.env['QWEN_CODE_BRAND'] ?? ''] ?? qwenAsciiLogo;
+  brand === 'APEX' ? apexFeatherLogo : qwenAsciiLogo;

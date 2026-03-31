@@ -45,6 +45,29 @@ export class LspConfigLoader {
   }
 
   /**
+   * Load LSP server config from ~/.apex/settings.json lspServers key.
+   *
+   * This is the GLOBAL config path — no per-workspace .lsp.json needed.
+   * Format is identical to .lsp.json: { "c": { "command": "...", "args": [...] } }
+   *
+   * Every ONTAP workspace has compile_commands.json at root, so a single
+   * global entry with "./compile_commands.json" works for all checkouts.
+   *
+   * Runs BEFORE loadUserConfigs so per-workspace .lsp.json can override.
+   */
+  loadSettingsConfigs(
+    lspServers: Record<string, unknown> | undefined,
+  ): LspServerConfig[] {
+    if (!lspServers || !this.isRecord(lspServers)) return [];
+    try {
+      return this.parseConfigSource(lspServers, 'settings.json lspServers');
+    } catch (error) {
+      debugLogger.warn('Failed to parse settings.json lspServers:', error);
+      return [];
+    }
+  }
+
+  /**
    * Load LSP configurations declared by extensions (Claude plugins).
    */
   async loadExtensionConfigs(
@@ -106,17 +129,23 @@ export class LspConfigLoader {
   }
 
   /**
-   * Merge configs: extension configs + user configs
-   * Note: Built-in presets are disabled. LSP servers must be explicitly configured
-   * by the user via .lsp.json or through extensions.
+   * Merge configs: built-in presets + extension configs + user configs
    */
   mergeConfigs(
-    _detectedLanguages: string[],
+    detectedLanguages: string[],
     extensionConfigs: LspServerConfig[],
     userConfigs: LspServerConfig[],
   ): LspServerConfig[] {
+    // Skip built-in presets (pylsp, tsserver, gopls) when the user has
+    // explicitly configured lspServers — the preset commands usually don't
+    // exist on the target machine and each takes 2s to time out.
+    const presets =
+      extensionConfigs.length > 0
+        ? []
+        : this.getBuiltInPresets(detectedLanguages);
+
     // Merge configs, user configs take priority
-    const mergedConfigs: LspServerConfig[] = [];
+    const mergedConfigs = [...presets];
 
     const applyConfigs = (configs: LspServerConfig[]) => {
       for (const config of configs) {
@@ -158,6 +187,71 @@ export class LspConfigLoader {
       }
     }
     return overrides;
+  }
+
+  /**
+   * Get built-in preset configurations
+   */
+  private getBuiltInPresets(detectedLanguages: string[]): LspServerConfig[] {
+    const presets: LspServerConfig[] = [];
+
+    // Convert directory path to file URI format
+    const rootUri = pathToFileURL(this.workspaceRoot).toString();
+
+    // Generate corresponding LSP server config based on detected languages
+    if (
+      detectedLanguages.includes('typescript') ||
+      detectedLanguages.includes('javascript')
+    ) {
+      presets.push({
+        name: 'typescript-language-server',
+        languages: [
+          'typescript',
+          'javascript',
+          'typescriptreact',
+          'javascriptreact',
+        ],
+        command: 'typescript-language-server',
+        args: ['--stdio'],
+        transport: 'stdio',
+        initializationOptions: {},
+        rootUri,
+        workspaceFolder: this.workspaceRoot,
+        trustRequired: true,
+      });
+    }
+
+    if (detectedLanguages.includes('python')) {
+      presets.push({
+        name: 'pylsp',
+        languages: ['python'],
+        command: 'pylsp',
+        args: [],
+        transport: 'stdio',
+        initializationOptions: {},
+        rootUri,
+        workspaceFolder: this.workspaceRoot,
+        trustRequired: true,
+      });
+    }
+
+    if (detectedLanguages.includes('go')) {
+      presets.push({
+        name: 'gopls',
+        languages: ['go'],
+        command: 'gopls',
+        args: [],
+        transport: 'stdio',
+        initializationOptions: {},
+        rootUri,
+        workspaceFolder: this.workspaceRoot,
+        trustRequired: true,
+      });
+    }
+
+    // Additional language presets can be added as needed
+
+    return presets;
   }
 
   /**

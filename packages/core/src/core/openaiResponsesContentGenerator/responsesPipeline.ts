@@ -164,12 +164,13 @@ export class ResponsesPipeline {
       convertGeminiContentsToResponsesInput(request);
     const tools = convertGeminiToolsToResponsesTools(request);
 
-    // NOTE: encrypted_content replay and previous_response_id are disabled
-    // because the LLM proxy load-balances across Azure deployments with
-    // different API keys. Encrypted content from deployment A can't be
-    // decrypted by deployment B. These features require sticky routing
-    // (store: true + single deployment) or WebSocket transport.
-    this.state.pendingEncryptedItems = [];
+    // Encrypted content replay and previous_response_id require sticky routing
+    // (store: true + single deployment) or WebSocket transport. When the proxy
+    // load-balances across Azure deployments, encrypted content from deployment
+    // A can't be decrypted by deployment B. Enable via config when infra supports it.
+    if (!this.config.enableEncryptedContentReplay) {
+      this.state.pendingEncryptedItems = [];
+    }
 
     const effectiveInput: ResponsesApiInputItem[] = input;
 

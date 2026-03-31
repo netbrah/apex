@@ -17,7 +17,7 @@ interface GenerationOption {
 const generationOptions: GenerationOption[] = [
   {
     get label() {
-      return t('Generate with Qwen Code (Recommended)');
+      return t('Generate with Apex (Recommended)');
     },
     value: 'qwen',
   },

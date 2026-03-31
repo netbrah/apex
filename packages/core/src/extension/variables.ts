@@ -6,9 +6,8 @@
 
 import { type VariableSchema, VARIABLE_SCHEMA } from './variableSchema.js';
 import path from 'node:path';
-import { QWEN_DIR } from '../config/storage.js';
-import type { HookDefinition } from '../hooks/types.js';
-import type { HookEventName } from '../hooks/types.js';
+import { APEX_DIR } from '../config/storage.js';
+import type { HookEventName, HookDefinition } from '../hooks/types.js';
 import * as fs from 'node:fs';
 import { glob } from 'glob';
 import { createDebugLogger } from '../utils/debugLogger.js';
@@ -16,9 +15,9 @@ import { createDebugLogger } from '../utils/debugLogger.js';
 const debugLogger = createDebugLogger('Extension:variables');
 
 // Re-export types for substituteHookVariables
-export type { HookDefinition };
+export type { HookEventName, HookDefinition };
 
-export const EXTENSIONS_DIRECTORY_NAME = path.join(QWEN_DIR, 'extensions');
+export const EXTENSIONS_DIRECTORY_NAME = path.join(APEX_DIR, 'extensions');
 export const EXTENSIONS_CONFIG_FILENAME = 'qwen-extension.json';
 export const INSTALL_METADATA_FILENAME = '.qwen-extension-install.json';
 export const EXTENSION_SETTINGS_FILENAME = '.env';
@@ -148,24 +147,16 @@ export function performVariableReplacement(extensionPath: string): void {
 
         // Replace Markdown shell syntax ```! ... ``` with system-recognized !{...} syntax
         // This regex finds code blocks with ! language identifier and captures their content
-        const syntaxUpdatedContent = updatedContent.replace(
+        const updatedMdContent = updatedContent.replace(
           /```!(?:\s*\n)?([\s\S]*?)\n*```/g,
           '!{$1}',
-        );
-
-        // Replace references to ".claude" directory with ".qwen" in markdown files
-        // Only match path references (e.g., ~/.claude/, $HOME/.claude, ./.claude/)
-        // Avoid matching URLs, comments, or string literals containing .claude
-        const updatedMdContent = syntaxUpdatedContent.replace(
-          /(\$\{?HOME\}?\/|~\/)?\.claude(\/|$)/g,
-          '$1.qwen$2',
         );
 
         // Only write if content was actually changed
         if (updatedMdContent !== content) {
           fs.writeFileSync(filePath, updatedMdContent, 'utf8');
           debugLogger.debug(
-            `Updated variables, syntax, and .claude paths in file: ${filePath}`,
+            `Updated variables and syntax in file: ${filePath}`,
           );
         }
       } catch (error) {

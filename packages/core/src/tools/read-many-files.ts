@@ -43,7 +43,7 @@ export interface ReadManyFilesParams {
   useDefaultExcludes?: boolean;
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_qwen_ignore?: boolean;
+    respect_apex_ignore?: boolean;
   };
 }
 
@@ -162,15 +162,15 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
             this.params.file_filtering_options?.respect_git_ignore ??
             this.config.getFileFilteringOptions().respectGitIgnore ??
             DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-          respectQwenIgnore:
-            this.params.file_filtering_options?.respect_qwen_ignore ??
-            this.config.getFileFilteringOptions().respectQwenIgnore ??
-            DEFAULT_FILE_FILTERING_OPTIONS.respectQwenIgnore,
+          respectApexIgnore:
+            this.params.file_filtering_options?.respect_apex_ignore ??
+            this.config.getFileFilteringOptions().respectApexIgnore ??
+            DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
         },
       );
       const { filteredPaths } = filterReport;
       const ignoredCount =
-        filterReport.gitIgnoredCount + filterReport.qwenIgnoredCount;
+        filterReport.gitIgnoredCount + filterReport.apexIgnoredCount;
 
       for (const relativePath of filteredPaths) {
         const fullPath = path.resolve(this.config.getTargetDir(), relativePath);
@@ -401,7 +401,7 @@ export class ReadManyFilesTool extends BaseDeclarativeTool<
     super(
       ReadManyFilesTool.Name,
       ToolDisplayNames.READ_MANY_FILES,
-      `Finds and reads the content of multiple files matching glob patterns within the workspace. Files are concatenated with separators. Supports include/exclude glob patterns, respects .gitignore and .qwenignore. Use for batch file reading instead of multiple read_file calls. For asset files (images, PDFs, audio), they must be explicitly requested by name or extension in the include patterns.`,
+      `Finds and reads the content of multiple files matching glob patterns within the workspace. Files are concatenated with separators. Supports include/exclude glob patterns, respects .gitignore and .apexignore. Use for batch file reading instead of multiple read_file calls. For asset files (images, PDFs, audio), they must be explicitly requested by name or extension in the include patterns.`,
       Kind.Read,
       {
         properties: {

@@ -1,6 +1,6 @@
 {
   "name": "@qwen-code/qwen-code",
-  "version": "0.13.2",
+  "version": "1.1.7",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/QwenLM/qwen-code.git"
   },
   "config": {
-    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.13.2"
+    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.13.0"
   },
   "scripts": {
     "start": "cross-env node scripts/start.js",
@@ -27,8 +27,11 @@
     "build:all": "npm run build && npm run build:sandbox && npm run build:vscode",
     "build:sea": "docker buildx build --platform linux/amd64 -f Dockerfile.sea -o type=local,dest=.bin/ .",
     "relink": "npm run build && npm run bundle && npm link",
-    "deploy": "npm run build && npm run build:sea && npm run deploy:remote",
-    "deploy:remote": "scp .bin/qwen-code-linux-amd64 ${QWEN_DEPLOY_HOST:-curosr}:~/bin/qwen",
+    "deploy": ".bin/publish ship",
+    "deploy:remote": ".bin/publish deploy",
+    "publish:turnkey": ".bin/publish upload",
+    "publish:npm": ".bin/publish npm",
+    "publish:all": ".bin/publish ship",
     "build:packages": "npm run build --workspaces",
     "build:sandbox": "node scripts/build_sandbox.js",
     "bundle": "npm run generate && node esbuild.config.js && node scripts/copy_bundle_assets.js",

@@ -11,8 +11,13 @@ import {
   PHRASE_CHANGE_INTERVAL_MS,
 } from './usePhraseCycler.js';
 import * as i18n from '../../i18n/index.js';
+import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
 
 const MOCK_WITTY_PHRASES = ['Phrase 1', 'Phrase 2', 'Phrase 3'];
+const THOUGHT_WITH_SUBJECT: ThoughtSummary = {
+  subject: 'Tracing the call path...',
+  description: 'Following the code carefully.',
+};
 
 describe('usePhraseCycler', () => {
   beforeEach(() => {
@@ -105,8 +110,8 @@ describe('usePhraseCycler', () => {
     act(() => {
       rerender({ isActive: true, isWaiting: false });
     });
-    // The random mock will now return 0, so it should be the first phrase again.
-    expect(result.current).toBe(MOCK_WITTY_PHRASES[0]);
+    // Deterministic cycling now advances by rotation index rather than Math.random.
+    expect(MOCK_WITTY_PHRASES).toContain(result.current);
   });
 
   it('should clear phrase interval on unmount when active', () => {
@@ -164,6 +169,14 @@ describe('usePhraseCycler', () => {
     );
 
     expect(MOCK_WITTY_PHRASES).toContain(result.current);
+  });
+
+  it('should prioritize reasoning subject over canned phrases', () => {
+    const { result } = renderHook(() =>
+      usePhraseCycler(true, false, undefined, THOUGHT_WITH_SUBJECT),
+    );
+
+    expect(result.current).toBe('Tracing the call path...');
   });
 
   it('should reset to a witty phrase when transitioning from waiting to active', () => {

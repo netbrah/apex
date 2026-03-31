@@ -72,6 +72,17 @@ export type SendSdkMcpMessage = (
 export const MCP_DEFAULT_TIMEOUT_MSEC = 10 * 60 * 1000; // default to 10 minutes
 
 const debugLogger = createDebugLogger('MCP');
+const NATIVE_ALIAS_MCP_SERVERS = new Set([
+  'mastra-search',
+  'mastra_search',
+  'vsim-mcp',
+  'vsim_mcp',
+]);
+const NATIVE_MASTRA_TOOL_ALIASES = new Map<string, string>([
+  ['search_jira', 'search_jira'],
+  ['get_confluence_page', 'get_confluence_page'],
+  ['get_jira_issue', 'get_jira'],
+]);
 
 export type DiscoveredMCPPrompt = Prompt & {
   serverName: string;
@@ -124,7 +135,7 @@ export class McpClient {
     private readonly sendSdkMcpMessage?: SendSdkMcpMessage,
   ) {
     this.client = new Client({
-      name: `qwen-cli-mcp-client-${this.serverName}`,
+      name: `apex-mcp-client-${this.serverName}`,
       version: '0.0.1',
     });
   }
@@ -671,28 +682,60 @@ export async function discoverTools(
 
     const mcpTimeout = mcpServerConfig.timeout ?? MCP_DEFAULT_TIMEOUT_MSEC;
     const discoveredTools: DiscoveredMCPTool[] = [];
+    const enableNativeAliases = NATIVE_ALIAS_MCP_SERVERS.has(mcpServerName);
     for (const funcDecl of tool.functionDeclarations) {
       try {
         if (!isEnabled(funcDecl, mcpServerName, mcpServerConfig)) {
           continue;
         }
 
+        const serverToolName = funcDecl.name!;
+        const description = funcDecl.description ?? '';
+        const parameterSchema = funcDecl.parametersJsonSchema ?? {
+          type: 'object',
+          properties: {},
+        };
+        const annotations = resolvedMcpToolAnnotations(
+          mcpServerConfig,
+          annotationsMap.get(serverToolName),
+        );
+
+        // For selected mastra-search tools, expose bare aliases while keeping
+        // fully-qualified mcp__ names for compatibility.
+        const aliasName = enableNativeAliases
+          ? NATIVE_MASTRA_TOOL_ALIASES.get(serverToolName)
+          : undefined;
+        if (aliasName) {
+          discoveredTools.push(
+            new DiscoveredMCPTool(
+              mcpCallableTool,
+              mcpServerName,
+              serverToolName,
+              description,
+              parameterSchema,
+              mcpServerConfig.trust,
+              aliasName,
+              cliConfig,
+              mcpClient,
+              mcpTimeout,
+              annotations,
+            ),
+          );
+        }
+
         discoveredTools.push(
           new DiscoveredMCPTool(
             mcpCallableTool,
             mcpServerName,
-            funcDecl.name!,
-            funcDecl.description ?? '',
-            funcDecl.parametersJsonSchema ?? { type: 'object', properties: {} },
+            serverToolName,
+            description,
+            parameterSchema,
             mcpServerConfig.trust,
             undefined,
             cliConfig,
             mcpClient, // raw MCP Client for direct callTool with progress
             mcpTimeout,
-            resolvedMcpToolAnnotations(
-              mcpServerConfig,
-              annotationsMap.get(funcDecl.name!),
-            ),
+            annotations,
           ),
         );
       } catch (error) {
@@ -838,7 +881,7 @@ export async function connectToMcpServer(
   sendSdkMcpMessage?: SendSdkMcpMessage,
 ): Promise<Client> {
   const mcpClient = new Client({
-    name: 'qwen-code-mcp-client',
+    name: 'apex-mcp-client',
     version: '0.0.1',
   });
 

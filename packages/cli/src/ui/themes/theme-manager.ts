@@ -4,19 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AyuDark } from './ayu.js';
-import { AyuLight } from './ayu-light.js';
-import { AtomOneDark } from './atom-one-dark.js';
-import { Dracula } from './dracula.js';
-import { GitHubDark } from './github-dark.js';
-import { GitHubLight } from './github-light.js';
-import { GoogleCode } from './googlecode.js';
-import { DefaultLight } from './default-light.js';
+import { ApexDark } from './apex-dark.js';
+import { ApexOperator } from './apex-operator.js';
 import { DefaultDark } from './default.js';
-import { ShadesOfPurple } from './shades-of-purple.js';
-import { XCode } from './xcode.js';
-import { QwenLight } from './qwen-light.js';
-import { QwenDark } from './qwen-dark.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -37,7 +27,7 @@ export interface ThemeDisplay {
   isCustom?: boolean;
 }
 
-export const DEFAULT_THEME: Theme = QwenDark;
+export const DEFAULT_THEME: Theme = ApexDark;
 
 class ThemeManager {
   private readonly availableThemes: Theme[];
@@ -46,19 +36,9 @@ class ThemeManager {
 
   constructor() {
     this.availableThemes = [
-      AyuDark,
-      AyuLight,
-      AtomOneDark,
-      Dracula,
-      DefaultLight,
+      ApexDark,
+      ApexOperator,
       DefaultDark,
-      GitHubDark,
-      GitHubLight,
-      GoogleCode,
-      QwenLight,
-      QwenDark,
-      ShadesOfPurple,
-      XCode,
       ANSI,
       ANSILight,
     ];
@@ -195,12 +175,14 @@ class ThemeManager {
       }),
     );
 
-    // Separate Qwen themes
-    const qwenThemes = builtInThemes.filter(
-      (theme) => theme.name === QwenLight.name || theme.name === QwenDark.name,
+    // Separate Apex themes (pinned to top)
+    const apexThemes = builtInThemes.filter(
+      (theme) =>
+        theme.name === ApexDark.name || theme.name === ApexOperator.name,
     );
     const otherBuiltInThemes = builtInThemes.filter(
-      (theme) => theme.name !== QwenLight.name && theme.name !== QwenDark.name,
+      (theme) =>
+        theme.name !== ApexDark.name && theme.name !== ApexOperator.name,
     );
 
     // Sort other themes by type and then name
@@ -230,7 +212,7 @@ class ThemeManager {
     );
 
     // Combine Qwen themes first, then sorted others
-    return [...qwenThemes, ...sortedOtherThemes];
+    return [...apexThemes, ...sortedOtherThemes];
   }
 
   /**

@@ -441,6 +441,52 @@ describe('mcp-client', () => {
 
       expect(tools[0]!.kind).toBe(Kind.Other);
     });
+
+    it('creates bare aliases for mastra-search tools while preserving fully-qualified names', async () => {
+      vi.mocked(GenAiLib.mcpToTool).mockReturnValue({
+        tool: () => ({
+          functionDeclarations: [{ name: 'search_jira' }],
+        }),
+      } as unknown as GenAiLib.CallableTool);
+      const mockClient = {
+        listTools: vi
+          .fn()
+          .mockResolvedValue({ tools: [{ name: 'search_jira' }] }),
+      } as unknown as ClientLib.Client;
+
+      const tools = await discoverTools(
+        'mastra-search',
+        { command: 'c' } as MCPServerConfig,
+        mockClient,
+        {} as Config,
+      );
+
+      const names = tools.map((t) => t.name);
+      expect(names).toContain('search_jira');
+      expect(names).toContain('mcp__mastra-search__search_jira');
+    });
+
+    it('does not create bare get_file alias for mastra-search', async () => {
+      vi.mocked(GenAiLib.mcpToTool).mockReturnValue({
+        tool: () => ({
+          functionDeclarations: [{ name: 'get_file' }],
+        }),
+      } as unknown as GenAiLib.CallableTool);
+      const mockClient = {
+        listTools: vi.fn().mockResolvedValue({ tools: [{ name: 'get_file' }] }),
+      } as unknown as ClientLib.Client;
+
+      const tools = await discoverTools(
+        'mastra-search',
+        { command: 'c' } as MCPServerConfig,
+        mockClient,
+        {} as Config,
+      );
+
+      const names = tools.map((t) => t.name);
+      expect(names).not.toContain('get_file');
+      expect(names).toContain('mcp__mastra-search__get_file');
+    });
   });
 
   describe('hasNetworkTransport', () => {

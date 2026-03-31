@@ -1,0 +1,354 @@
+{
+  "security": {
+    "auth": {
+      "selectedType": "anthropic"
+    }
+  },
+  "model": {
+    "name": "claude-opus-4.6"
+  },
+  "ui": {
+    "theme": "Apex Dark"
+  },
+  "lsp": {
+    "enabled": true,
+    "lspServers": {
+      "cpp": {
+        "command": "python3.11",
+        "args": ["/u/palanisd/.apex/bin/ontap_lsp_bridge.py"],
+        "extensionToLanguage": {
+          ".cc": "cpp",
+          ".h": "cpp",
+          ".ut": "cpp"
+        }
+      }
+    }
+  },
+  "context": {
+    "fileName": ["APEX.md", "QWEN.md", "AGENTS.md"]
+  },
+  "ide": {
+    "hasSeenNudge": false
+  },
+  "advanced": {
+    "autoConfigureMemory": true
+  },
+  "mcpServers": {
+    "reviewboard": {
+      "command": "node",
+      "args": ["$RB_INDEX"],
+      "timeout": 30000,
+      "trust": true,
+      "env": {
+        "REVIEWBOARD_BASE_URL": "https://reviewboard.netapp.com",
+        "REVIEWBOARD_API_TOKEN": "$REVIEWBOARD_API_TOKEN"
+      }
+    },
+    "cit": {
+      "command": "$CIT_BIN",
+      "timeout": 30000,
+      "trust": true
+    },
+    "mastra-search": {
+      "command": "$MASTRA_BIN",
+      "args": [],
+      "timeout": 30000,
+      "trust": true,
+      "excludeTools": [
+        "search",
+        "analyze_symbol_ast",
+        "get_file",
+        "file_search",
+        "call_graph_fast",
+        "trace_call_chain",
+        "analyze_iterator",
+        "generate_test_plan",
+        "generate_unit_test",
+        "smf_cli_mapping",
+        "swagger_rest_mapping",
+        "search_jira",
+        "get_jira_issue",
+        "get_confluence_page",
+        "ask_reviewboard",
+        "ask_confluence",
+        "ask_jira",
+        "analyze_defect",
+        "ask_codeAnalyst",
+        "agent_investigate"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "$OPENAI_API_KEY",
+        "OPENAI_BASE_URL": "$OPENAI_BASE_URL",
+        "NODE_EXTRA_CA_CERTS": "$NODE_EXTRA_CA_CERTS",
+        "NODE_PATH": "$MASTRA_NODE_PATH",
+        "JIRA_TOKEN": "$JIRA_TOKEN",
+        "CONFLUENCE_TOKEN": "$CONFLUENCE_TOKEN",
+        "REVIEWBOARD_API_TOKEN": "$REVIEWBOARD_API_TOKEN",
+        "CONFLUENCE_USERNAME": "$CONFLUENCE_USERNAME"
+      }
+    }
+  },
+  "tools": {
+    "truncateToolOutputThreshold": 200000,
+    "truncateToolOutputLines": 5000
+  },
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 latest flagship",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "gpt-5.2",
+        "name": "GPT-5.2",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "gpt-5.1",
+        "name": "GPT-5.1",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 fast, cheap",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 fast, cheap",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "o3",
+        "name": "O3",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 reasoning",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "o4-mini",
+        "name": "O4 Mini",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 fast reasoning",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1"
+      },
+      {
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Gemini on VertexAI \u2014 1M context",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "capabilities": {
+          "vision": true
+        }
+      },
+      {
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash",
+        "description": "OpenAI-compat /v1/chat/completions \u2192 LLM Proxy \u2192 Gemini on VertexAI \u2014 1M context",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "capabilities": {
+          "vision": true
+        }
+      }
+    ],
+    "openai-responses": [
+      {
+        "id": "gpt-5.3-codex",
+        "name": "GPT-5.3 Codex",
+        "description": "Native /v1/responses \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 code-optimized, xhigh reasoning",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "generationConfig": {
+          "reasoning": {
+            "effort": "xhigh",
+            "summary": "auto"
+          }
+        }
+      },
+      {
+        "id": "gpt-5.2-codex",
+        "name": "GPT-5.2 Codex",
+        "description": "Native /v1/responses \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 code-optimized, xhigh reasoning",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "generationConfig": {
+          "reasoning": {
+            "effort": "xhigh",
+            "summary": "auto"
+          }
+        }
+      },
+      {
+        "id": "gpt-5.1-codex",
+        "name": "GPT-5.1 Codex",
+        "description": "Native /v1/responses \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 code-optimized",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "generationConfig": {
+          "reasoning": {
+            "effort": "high",
+            "summary": "auto"
+          }
+        }
+      },
+      {
+        "id": "gpt-5.1-codex-max",
+        "name": "GPT-5.1 Codex Max",
+        "description": "Native /v1/responses \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 xhigh reasoning",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "generationConfig": {
+          "reasoning": {
+            "effort": "xhigh",
+            "summary": "auto"
+          }
+        }
+      },
+      {
+        "id": "gpt-5-codex",
+        "name": "GPT-5 Codex",
+        "description": "Native /v1/responses \u2192 LLM Proxy \u2192 Azure OpenAI \u2014 code-optimized",
+        "envKey": "OPENAI_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+        "generationConfig": {
+          "reasoning": {
+            "effort": "high",
+            "summary": "auto"
+          }
+        }
+      }
+    ],
+    "_gemini_PENDING_PROXY_UNBLOCK": {
+      "_NOTE": "Rename this key to 'gemini' once LLM Proxy unblocks GOOGLE_GENAI_ROUTES. Requires proxy to handle /v1beta/models/{model}:generateContent, :streamGenerateContent, :countTokens. Set GEMINI_API_KEY and GOOGLE_GEMINI_BASE_URL in ontap-apex launch script.",
+      "_LAUNCH_SCRIPT_ADDITIONS": "export GEMINI_API_KEY=\"${LLM_PROXY_KEY}\"; export GOOGLE_GEMINI_BASE_URL=\"https://llm-proxy-api.ai.eng.netapp.com\"",
+      "models": [
+        {
+          "id": "gemini-3.1-pro-preview",
+          "name": "Gemini 3.1 Pro (native)",
+          "description": "Native GenAI /v1beta/models/{model}:generateContent \u2192 LLM Proxy \u2192 VertexAI \u2014 1M context",
+          "envKey": "GEMINI_API_KEY",
+          "capabilities": {
+            "vision": true
+          }
+        },
+        {
+          "id": "gemini-3-flash-preview",
+          "name": "Gemini 3 Flash (native)",
+          "description": "Native GenAI /v1beta/models/{model}:generateContent \u2192 LLM Proxy \u2192 VertexAI \u2014 1M context",
+          "envKey": "GEMINI_API_KEY",
+          "capabilities": {
+            "vision": true
+          }
+        }
+      ]
+    },
+    "anthropic": [
+      {
+        "id": "claude-opus-4.6",
+        "name": "Claude Opus 4.6 (native)",
+        "description": "Native Anthropic /v1/messages \u2192 LLM Proxy \u2192 Anthropic on VertexAI",
+        "envKey": "ANTHROPIC_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com",
+        "generationConfig": {
+          "samplingParams": {
+            "max_tokens": 128000
+          },
+          "reasoning": {
+            "effort": "high"
+          }
+        }
+      },
+      {
+        "id": "claude-sonnet-4.6",
+        "name": "Claude Sonnet 4.6 (native)",
+        "description": "Native Anthropic /v1/messages \u2192 LLM Proxy \u2192 Anthropic on VertexAI",
+        "envKey": "ANTHROPIC_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com",
+        "generationConfig": {
+          "samplingParams": {
+            "max_tokens": 64000
+          },
+          "reasoning": {
+            "effort": "high"
+          }
+        }
+      },
+      {
+        "id": "claude-opus-4.5",
+        "name": "Claude Opus 4.5 (native)",
+        "description": "Native Anthropic /v1/messages \u2192 LLM Proxy \u2192 Anthropic on VertexAI",
+        "envKey": "ANTHROPIC_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com",
+        "generationConfig": {
+          "samplingParams": {
+            "max_tokens": 64000
+          },
+          "reasoning": {
+            "effort": "high",
+            "budget_tokens": 50000
+          }
+        }
+      },
+      {
+        "id": "claude-sonnet-4.5",
+        "name": "Claude Sonnet 4.5 (native)",
+        "description": "Native Anthropic /v1/messages \u2192 LLM Proxy \u2192 Anthropic on VertexAI",
+        "envKey": "ANTHROPIC_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com",
+        "generationConfig": {
+          "samplingParams": {
+            "max_tokens": 64000
+          },
+          "reasoning": {
+            "effort": "high",
+            "budget_tokens": 50000
+          }
+        }
+      },
+      {
+        "id": "claude-haiku-4.5",
+        "name": "Claude Haiku 4.5 (native)",
+        "description": "Native Anthropic /v1/messages \u2192 LLM Proxy \u2192 Anthropic on VertexAI \u2014 fast, cheap",
+        "envKey": "ANTHROPIC_API_KEY",
+        "baseUrl": "https://llm-proxy-api.ai.eng.netapp.com",
+        "generationConfig": {
+          "samplingParams": {
+            "max_tokens": 64000
+          },
+          "reasoning": {
+            "effort": "medium",
+            "budget_tokens": 32000
+          }
+        }
+      }
+    ]
+  },
+  "env": {
+    "OPENAI_API_KEY": "$APEX_LLM_PROXY_KEY",
+    "OPENAI_BASE_URL": "https://llm-proxy-api.ai.eng.netapp.com/v1",
+    "ANTHROPIC_API_KEY": "$APEX_LLM_PROXY_KEY",
+    "ANTHROPIC_BASE_URL": "https://llm-proxy-api.ai.eng.netapp.com",
+    "NODE_EXTRA_CA_CERTS": "/etc/pki/tls/certs/ca-bundle.crt"
+  },
+  "$version": 3
+}

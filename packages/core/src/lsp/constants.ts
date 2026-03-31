@@ -11,10 +11,10 @@ import type { LspCodeActionKind, LspDiagnosticSeverity } from './types.js';
 // ============================================================================
 
 /** Default timeout for LSP server startup in milliseconds */
-export const DEFAULT_LSP_STARTUP_TIMEOUT_MS = 10000;
+export const DEFAULT_LSP_STARTUP_TIMEOUT_MS = 60000;
 
 /** Default timeout for LSP requests in milliseconds */
-export const DEFAULT_LSP_REQUEST_TIMEOUT_MS = 15000;
+export const DEFAULT_LSP_REQUEST_TIMEOUT_MS = 60000;
 
 /** Default delay for TypeScript server warm-up in milliseconds */
 export const DEFAULT_LSP_WARMUP_DELAY_MS = 150;
