@@ -255,7 +255,7 @@ const disableCommand: SlashCommand = {
 export const hooksCommand: SlashCommand = {
   name: 'hooks',
   get description() {
-    return t('Manage Qwen Code hooks');
+    return t('Manage Apex hooks');
   },
   kind: CommandKind.BUILT_IN,
   subCommands: [listCommand, enableCommand, disableCommand],

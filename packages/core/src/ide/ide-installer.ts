@@ -121,11 +121,7 @@ class VsCodeInstaller implements IdeInstaller {
     try {
       const result = child_process.spawnSync(
         isWindows ? `"${commandPath}"` : commandPath,
-        [
-          '--install-extension',
-          'qwenlm.qwen-code-vscode-ide-companion',
-          '--force',
-        ],
+        ['--install-extension', 'netapp.apex-vscode-ide-companion', '--force'],
         { stdio: 'pipe', shell: isWindows },
       );
 
