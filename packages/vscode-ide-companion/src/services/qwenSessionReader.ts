@@ -43,7 +43,8 @@ export class QwenSessionReader {
   private qwenDir: string;
 
   constructor() {
-    this.qwenDir = path.join(os.homedir(), '.qwen');
+    this.qwenDir =
+      process.env['QWEN_CODE_HOME'] || path.join(os.homedir(), '.apex');
   }
 
   /**

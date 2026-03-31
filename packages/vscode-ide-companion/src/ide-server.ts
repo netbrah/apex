@@ -40,7 +40,9 @@ class CORSError extends Error {
 const MCP_SESSION_ID_HEADER = 'mcp-session-id';
 const IDE_SERVER_PORT_ENV_VAR = 'QWEN_CODE_IDE_SERVER_PORT';
 const IDE_WORKSPACE_PATH_ENV_VAR = 'QWEN_CODE_IDE_WORKSPACE_PATH';
-const QWEN_DIR = '.qwen';
+const QWEN_DIR = process.env['QWEN_CODE_HOME']
+  ? path.basename(process.env['QWEN_CODE_HOME'])
+  : '.apex';
 const IDE_DIR = 'ide';
 
 async function getGlobalIdeDir(): Promise<string> {

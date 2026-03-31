@@ -4,13 +4,48 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const apexAsciiLogo = `
- █████╗ ██████╗ ███████╗██╗  ██╗
-██╔══██╗██╔══██╗██╔════╝╚██╗██╔╝
-███████║██████╔╝█████╗   ╚███╔╝
-██╔══██║██╔═══╝ ██╔══╝   ██╔██╗
-██║  ██║██║     ███████╗██╔╝ ██╗
-╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝
+// ANSI 256-color helper
+const a = (code: number, s: string) => `\x1b[38;5;${code}m${s}\x1b[0m`;
+
+// Feather palette (base→tip): amber → orange → coral → salmon → pink → mauve → lavender
+const A = 214;
+  const O = 208;
+  const C = 203;
+  const S = 174;
+  const P = 175;
+  const M = 139;
+  const L = 140;
+  const Q = 95;
+  const H = 223;
+
+const apexFeatherLogo = [
+  ``,
+  `${a(L, '                             ▄▄')}`,
+  `${a(L, '                           ▟')}${a(M, '◆')}${a(L, '◇')}${a(L, '▙')}`,
+  `${a(M, '                         ▟')}${a(P, '◆')}${a(M, '◇')} ${a(Q, '╱')} ${a(M, '◇')}${a(L, '◆')}${a(L, '▙')}`,
+  `${a(P, '                       ▟')}${a(S, '◆')}${a(P, '◇')}  ${a(Q, '╱')}  ${a(P, '◇')}${a(M, '◆')}${a(M, '▙')}`,
+  `${a(S, '                     ▟')}${a(C, '◆')}${a(S, '◇')}   ${a(Q, '╱')}   ${a(S, '◇')}${a(P, '◆')}${a(P, '▙')}`,
+  `${a(C, '                   ▟')}${a(O, '◆')}${a(C, '◇')}    ${a(Q, '╱')}    ${a(C, '◇')}${a(S, '◆')}${a(S, '▙')}`,
+  `${a(O, '                 ▟')}${a(A, '◆')}${a(O, '◇')}     ${a(Q, '╱')}     ${a(O, '◇')}${a(C, '◆')}${a(C, '▙')}`,
+  `${a(A, '               ▟')}${a(H, '◆')}${a(A, '◇')}      ${a(Q, '╱')}      ${a(A, '◇')}${a(O, '◆')}${a(O, '▙')}`,
+  `                        ${a(Q, '╱')}`,
+  `                      ${a(Q, '╱')}`,
+  `                    ${a(Q, '╱')}`,
+  ``,
+].join('\n');
+
+const qwenAsciiLogo = `
+ ▄▄▄▄▄▄  ▄▄     ▄▄ ▄▄▄▄▄▄▄ ▄▄▄    ▄▄
+██╔═══██╗██║    ██║██╔════╝████╗  ██║
+██║   ██║██║ █╗ ██║█████╗  ██╔██╗ ██║
+██║▄▄ ██║██║███╗██║██╔══╝  ██║╚██╗██║
+╚██████╔╝╚███╔███╔╝███████╗██║ ╚████║
+ ╚══▀▀═╝  ╚══╝╚══╝ ╚══════╝╚═╝  ╚═══╝
 `;
 
-export const shortAsciiLogo = apexAsciiLogo;
+const brandLogos: Record<string, string> = {
+  APEX: apexFeatherLogo,
+};
+
+export const shortAsciiLogo =
+  brandLogos[process.env['QWEN_CODE_BRAND'] ?? ''] ?? qwenAsciiLogo;
