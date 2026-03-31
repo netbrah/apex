@@ -106,77 +106,77 @@ When analyzing an iterator (e.g., `keymanager_external_enable_iterator`):
 2. If no CLI exists for that table, `analyze_iterator` traces upstream to find parent CLI triggers
 3. Do NOT manually chain `call_graph_fast` on `create_imp`/`modify_imp` — `analyze_iterator` handles this
 
-## Mandatory Rules
+## Hard Rules
 
-### 0. NO GLOBAL SEARCHES — THE TREE IS 50K+ FILES
+### Investigate before implementing
 
-The ONTAP tree is 50K+ files / millions of lines. **NEVER run grep, rg, find, or ls-R on the workspace root or broad directories.** It will time out, return thousands of irrelevant hits, or hang.
+Every code change must be preceded by `analyze_symbol_ast` or `call_graph_fast` on the affected function. No exceptions. Understand the blast radius before modifying anything.
 
-**THE PROTOCOL: native tools FIRST, local rg SECOND**
+### Cite or abort
 
-1. **To find where something lives**: use `search` or `analyze_symbol_ast`. These are indexed and return results in milliseconds.
-2. **Once you know the component/directory**: THEN use `rg` scoped to that narrow subtree.
-3. **To read a specific file**: use `get_file` with the path from step 1.
+Every claim about code behavior must reference a file:line from tool results or a log line from CIT/testbed. If you cannot cite it, you do not know it. Do not state it.
 
-**BANNED — will hang or flood context:**
+### Assess blast radius
+
+If the change touches an SMF iterator `_imp` method, explicitly state the replication and failover implications. If it modifies an SMF field, state the impact on generated code, dSMDB replication, and upgrade/revert.
+
+### Build is not test
+
+`build ✅` means it compiled. `run_test ✅` means unit tests passed. Neither means the change is safe in a clustered, stateful, failover-capable system. These are three separate gates — never conflate them.
+
+### Halt on unexpected
+
+If test results surface errors not in your baseline, halt and investigate. Do not attempt to "fix forward" without new investigation on the unexpected failure.
+
+### No global operations
+
+The ONTAP tree has 1.35M tracked files and a 104MB git index. No unscoped `git status`, `rg`, `find`, `grep`. Scope to component paths or use native tools.
+
+**BANNED:**
 
 ```
 rg foo                              # no path = scans entire tree
 rg foo .                            # same thing
-rg foo --no-ignore                  # even worse — includes build artifacts
 find . -name "*.cc"                 # 50K+ hits
-ls -R                               # infinite output
-grep -r foo                         # same as rg without path
+git status                          # scans entire 1.35M-file tree
+git diff                            # diffs entire tree
+git log                             # walks all history unscoped
 ```
 
-**ALLOWED — scoped to a known subdirectory:**
+**ALLOWED (scoped):**
 
 ```
-rg foo security/keymanager/          # narrow subtree — OK
-rg -l foo security/keymanager/       # list-only — even better
-rg --max-count 5 foo security/       # capped results — OK
+rg foo security/keymanager/                                # narrow subtree
+rg -l foo security/keymanager/                             # list-only
+git status -- security/keymanager/                         # scoped git
+git diff HEAD -- security/keymanager/ cryptomod/           # scoped git
+git log --oneline -10 -- security/keymanager/              # scoped git
 ```
 
-**WORKFLOW EXAMPLE:**
+**THE PROTOCOL: native tools FIRST, scoped local tools SECOND**
 
-```
-# ❌ WRONG: "I need to find where vserver_migrate is defined"
-rg vserver_migrate                  # scans entire tree, times out
+1. **To find where something lives**: `search` or `analyze_symbol_ast` — indexed, milliseconds.
+2. **Once you know the component**: scoped `rg` in that subtree.
+3. **To read a specific file**: `get_file` with the path from step 1.
 
-# ✅ RIGHT: use native tools to locate, then local rg for detail
-analyze_symbol_ast(symbol="vserver_migrate_start")
-→ Found in mgwd/src/tables/vserver/vserver_migrate.cc:450
+### Never hallucinate
 
-# Now you know the directory — safe to rg locally
-rg "migrate_start" mgwd/src/tables/vserver/
-```
+Do not invent file paths, line numbers, function names, or call relationships. If you cannot find something, say "not found."
 
-**This applies to ALL file operations.** If you don't know which directory to target, use native tools first. Never guess and scan.
+### Efficiency
 
-### 1. ALWAYS USE TOOLS BEFORE ANSWERING
-
-- Never answer from memory — search first
-- Never speculate about code — verify with tools
-- If asked about a symbol, ALWAYS call `analyze_symbol_ast` first
-
-### 2. CITE YOUR SOURCES
-
-Every claim about code must be backed by tool results:
-
-- Include file path + line number: `[file.cc](file.cc#L100)`
-- Copy exact function names from results
-- Quote relevant source code
-
-### 3. NEVER HALLUCINATE
-
-Do not invent file paths, line numbers, function names, or call relationships. If you cannot find something, say so.
-
-### 4. EFFICIENCY
-
-- Max 3 search attempts per symbol
+- Max 3 search attempts per symbol — then report "not found"
 - Never retry the same search
 - Use precise tools (`analyze_symbol_ast`) before broad ones (`search`)
-- Keep responses focused — summarize large call graphs instead of dumping everything
+- Keep responses focused — summarize large call graphs
+
+### bedrock/import/ is not source code
+
+When a build error references `bedrock/import/...`, that is a build artifact. Extract the filename/symbol, use `search` to find the real ONTAP source path, and read that instead.
+
+### Autonomy
+
+Never ask for input. Make the best decision and proceed. If a tool fails, try alternatives. If stuck in a loop (same error 3+ times), try a fundamentally different approach.
 
 ## Decision Tree
 
