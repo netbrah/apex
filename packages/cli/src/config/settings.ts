@@ -222,6 +222,27 @@ function getSettingsFileKeyWarnings(
       continue;
     }
 
+    // If the new V2/V3 nested path already has a value, the old key is stale
+    // residue — silently ignore it instead of warning.
+    const newPathParts = newPath.split('.');
+    let nested: unknown = settings;
+    let newPathHasValue = true;
+    for (const part of newPathParts) {
+      if (
+        typeof nested === 'object' &&
+        nested !== null &&
+        part in (nested as Record<string, unknown>)
+      ) {
+        nested = (nested as Record<string, unknown>)[part];
+      } else {
+        newPathHasValue = false;
+        break;
+      }
+    }
+    if (newPathHasValue && nested !== undefined) {
+      continue;
+    }
+
     ignoredLegacyKeys.add(oldKey);
     warnings.push(
       `Warning: Legacy setting '${oldKey}' will be ignored in ${settingsFilePath}. Please use '${newPath}' instead.`,
