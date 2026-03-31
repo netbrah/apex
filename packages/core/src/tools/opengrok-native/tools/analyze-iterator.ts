@@ -4,7 +4,7 @@
  * Analyze Iterator Tool — native implementation.
  *
  * Unified analysis of ONTAP SMF iterators: schema, callers, field usage,
- * and _imp methods. Composes OpenGrok search API calls.
+ * and _imp methods. Composes searchOpenGrok calls.
  */
 
 import { createTool } from '../lib/mastra-tool-shim.js';
@@ -12,25 +12,21 @@ import { z } from '../lib/zod-shim.js';
 import { TOOL_DESCRIPTIONS } from '../prompts/index.js';
 import { logTool } from '../lib/logger.js';
 import { classifyError } from '../lib/errors.js';
-import { makeOpenGrokRequest, getFileContent } from '../lib/opengrok.js';
+import { searchOpenGrok, getFileContent } from '../lib/opengrok.js';
 
-/**
- * Find the SMF schema file for an iterator.
- */
 async function findSmfSchema(iteratorName: string): Promise<any> {
-  // Strip _iterator suffix to get table name
   const tableName = iteratorName.replace(/_iterator$/, '');
 
   try {
-    const result = await makeOpenGrokRequest('search', {
+    const { results } = await searchOpenGrok({
       path: `${tableName}.smf`,
-      maxresults: 3,
+      maxResults: 3,
     });
 
-    if (result?.results?.[0]?.path) {
-      const content = await getFileContent(result.results[0].path);
+    if (results[0]?.file) {
+      const content = await getFileContent(results[0].file);
       return {
-        path: result.results[0].path,
+        path: results[0].file,
         content: content?.content || null,
         tableName,
       };
@@ -42,36 +38,21 @@ async function findSmfSchema(iteratorName: string): Promise<any> {
   return { path: null, content: null, tableName };
 }
 
-/**
- * Find callers of the iterator.
- */
 async function findIteratorCallers(
   iteratorName: string,
   maxCallers: number,
 ): Promise<any[]> {
   try {
-    const result = await makeOpenGrokRequest('search', {
+    const { results } = await searchOpenGrok({
       symbol: iteratorName,
-      maxresults: maxCallers,
+      maxResults: maxCallers,
     });
-
-    return (result?.results || [])
-      .filter((r: any) => r.path && !r.path.endsWith('.smf'))
-      .map((r: any) => ({
-        file: r.path,
-        matches: (r.matches || []).slice(0, 3).map((m: any) => ({
-          line: m.lineNumber,
-          text: (m.line || '').trim(),
-        })),
-      }));
+    return results.filter((r: any) => !r.file?.endsWith('.smf'));
   } catch {
     return [];
   }
 }
 
-/**
- * Find _imp method implementations.
- */
 async function findImpMethods(iteratorName: string): Promise<any[]> {
   const impMethods = [
     'create_imp',
@@ -85,17 +66,16 @@ async function findImpMethods(iteratorName: string): Promise<any[]> {
   for (const method of impMethods) {
     const qualifiedName = `${iteratorName}::${method}`;
     try {
-      const result = await makeOpenGrokRequest('search', {
+      const { results } = await searchOpenGrok({
         definition: qualifiedName,
-        maxresults: 2,
+        maxResults: 2,
       });
-
-      if (result?.results?.length > 0) {
+      if (results.length > 0) {
         found.push({
           method,
           qualifiedName,
-          file: result.results[0].path,
-          line: result.results[0].matches?.[0]?.lineNumber,
+          file: results[0].file,
+          line: results[0].matches?.[0]?.line,
         });
       }
     } catch {
@@ -106,9 +86,6 @@ async function findImpMethods(iteratorName: string): Promise<any[]> {
   return found;
 }
 
-/**
- * Extract field usage patterns from caller code.
- */
 function analyzeFieldUsage(callers: any[]): Record<string, string[]> {
   const fieldUsage: Record<string, Set<string>> = {};
 
@@ -137,37 +114,12 @@ export const analyzeIteratorTool = createTool({
   description: TOOL_DESCRIPTIONS.analyze_iterator,
 
   inputSchema: z.object({
-    iterator: z
-      .string()
-      .describe(
-        'Iterator class name (e.g., keymanager_keystore_enable_iterator)',
-      ),
-    maxCallers: z
-      .number()
-      .optional()
-      .default(10)
-      .describe('Maximum number of direct callers to analyze (default: 10)'),
-    maxDepth: z
-      .number()
-      .optional()
-      .default(2)
-      .describe(
-        'Call graph depth: 1=direct callers only, 2=include transitive',
-      ),
-    includeImpMethods: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Analyze *_imp methods (default: true)'),
-    verbose: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Include source snippets and timing'),
-    suggestOnEmpty: z
-      .boolean()
-      .optional()
-      .describe('Suggest similar iterators when not found'),
+    iterator: z.string().describe('Iterator class name'),
+    maxCallers: z.number().optional().default(10),
+    maxDepth: z.number().optional().default(2),
+    includeImpMethods: z.boolean().optional().default(true),
+    verbose: z.boolean().optional().default(false),
+    suggestOnEmpty: z.boolean().optional(),
   }),
 
   execute: async (input) => {
@@ -175,7 +127,6 @@ export const analyzeIteratorTool = createTool({
     const startTime = Date.now();
 
     try {
-      // Parallel: schema + callers + imp methods
       const [schema, callers, impMethods] = await Promise.all([
         findSmfSchema(input.iterator),
         findIteratorCallers(input.iterator, input.maxCallers ?? 10),
@@ -192,7 +143,10 @@ export const analyzeIteratorTool = createTool({
         iterator: input.iterator,
         tableName: schema.tableName,
         smfFile: schema.path,
-        callers: callers.slice(0, input.maxCallers ?? 10),
+        callers: callers.slice(0, input.maxCallers ?? 10).map((c: any) => ({
+          file: c.file,
+          matches: c.matches.slice(0, 3),
+        })),
         totalCallers: callers.length,
         impMethods,
         fieldUsage,

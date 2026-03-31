@@ -4,8 +4,7 @@
  * Trace Call Chain Tool — native implementation.
  *
  * Bidirectional trace: function → tables → CLI commands.
- * Composes OpenGrok search API calls to find downstream tables
- * and upstream CLI entry points.
+ * Composes searchOpenGrok calls.
  */
 
 import { createTool } from '../lib/mastra-tool-shim.js';
@@ -13,52 +12,47 @@ import { z } from '../lib/zod-shim.js';
 import { TOOL_DESCRIPTIONS } from '../prompts/index.js';
 import { logTool } from '../lib/logger.js';
 import { classifyError } from '../lib/errors.js';
-import { makeOpenGrokRequest } from '../lib/opengrok.js';
+import { searchOpenGrok } from '../lib/opengrok.js';
 
-/**
- * Search for a symbol's definition and callees.
- */
-async function findSymbolInfo(symbol: string): Promise<any> {
+async function findDefinition(symbol: string): Promise<any> {
   try {
-    const defResult = await makeOpenGrokRequest('search', {
+    const { results } = await searchOpenGrok({
       definition: symbol,
-      maxresults: 3,
+      maxResults: 3,
     });
-
-    const refResult = await makeOpenGrokRequest('search', {
-      symbol,
-      maxresults: 15,
-    });
-
-    return {
-      definition: defResult?.results?.[0] || null,
-      references: refResult?.results || [],
-    };
+    return results[0] || null;
   } catch {
-    return { definition: null, references: [] };
+    return null;
   }
 }
 
-/**
- * Find iterator tables by looking for _iterator suffix patterns.
- */
+async function findReferences(
+  symbol: string,
+  max: number = 15,
+): Promise<any[]> {
+  try {
+    const { results } = await searchOpenGrok({ symbol, maxResults: max });
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 function extractIteratorNames(references: any[]): string[] {
   const iterators = new Set<string>();
   for (const ref of references) {
     for (const match of ref.matches || []) {
-      const text = match.line || '';
+      const text = match.text || '';
       const iterMatch = text.match(/(\w+_iterator)\b/g);
-      if (iterMatch) {
-        iterMatch.forEach((i: string) => iterators.add(i));
-      }
+      if (iterMatch) iterMatch.forEach((i: string) => iterators.add(i));
     }
+    // Also check file path
+    const pathMatch = (ref.file || '').match(/(\w+_iterator)/);
+    if (pathMatch) iterators.add(pathMatch[1]);
   }
   return [...iterators];
 }
 
-/**
- * Find CLI commands by searching for command strings near iterator usage.
- */
 async function findCliTriggers(
   symbol: string,
   maxDepth: number,
@@ -74,36 +68,24 @@ async function findCliTriggers(
       if (visited.has(sym)) continue;
       visited.add(sym);
 
-      try {
-        const result = await makeOpenGrokRequest('search', {
-          symbol: sym,
-          maxresults: 10,
-        });
+      const refs = await findReferences(sym, 10);
 
-        for (const ref of result?.results || []) {
-          // Check if this is a CLI/iterator entry point
-          if (ref.path?.includes('.smf') || ref.path?.includes('_iterator')) {
-            cliTriggers.push({
-              symbol: sym,
-              file: ref.path,
-              depth: depth + 1,
-              matches: (ref.matches || []).map((m: any) => ({
-                line: m.lineNumber,
-                text: (m.line || '').trim(),
-              })),
-            });
-          }
+      for (const ref of refs) {
+        if (ref.file?.includes('.smf') || ref.file?.includes('_iterator')) {
+          cliTriggers.push({
+            symbol: sym,
+            file: ref.file,
+            depth: depth + 1,
+            matches: ref.matches.slice(0, 3),
+          });
+        }
 
-          // Extract function names for next depth
-          for (const m of ref.matches || []) {
-            const funcMatch = (m.line || '').match(/(\w+(?:::\w+)*)\s*\(/);
-            if (funcMatch && !visited.has(funcMatch[1])) {
-              nextSymbols.push(funcMatch[1]);
-            }
+        for (const m of ref.matches || []) {
+          const funcMatch = (m.text || '').match(/(\w+(?:::\w+)*)\s*\(/);
+          if (funcMatch && !visited.has(funcMatch[1])) {
+            nextSymbols.push(funcMatch[1]);
           }
         }
-      } catch {
-        // Continue on search failures
       }
     }
 
@@ -118,25 +100,10 @@ export const traceCallChainTool = createTool({
   description: TOOL_DESCRIPTIONS.trace_call_chain,
 
   inputSchema: z.object({
-    symbol: z
-      .string()
-      .describe(
-        'Function or iterator method to trace (e.g., "pushKeyToKmipServerForced")',
-      ),
-    maxDepth: z
-      .number()
-      .optional()
-      .default(2)
-      .describe('Maximum depth to trace upstream (default: 2)'),
-    verbose: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Full output with callers/callees arrays'),
-    suggestOnEmpty: z
-      .boolean()
-      .optional()
-      .describe('Suggest similar symbols when no results found'),
+    symbol: z.string().describe('Function or iterator method to trace'),
+    maxDepth: z.number().optional().default(2),
+    verbose: z.boolean().optional().default(true),
+    suggestOnEmpty: z.boolean().optional(),
   }),
 
   execute: async (input) => {
@@ -144,8 +111,12 @@ export const traceCallChainTool = createTool({
     const startTime = Date.now();
 
     try {
-      const symbolInfo = await findSymbolInfo(input.symbol);
-      const iterators = extractIteratorNames(symbolInfo.references);
+      const [definition, references] = await Promise.all([
+        findDefinition(input.symbol),
+        findReferences(input.symbol, 15),
+      ]);
+
+      const iterators = extractIteratorNames(references);
       const cliTriggers = await findCliTriggers(
         input.symbol,
         input.maxDepth ?? 2,
@@ -156,20 +127,15 @@ export const traceCallChainTool = createTool({
         success: true,
         function: {
           name: input.symbol,
-          file: symbolInfo.definition?.path || null,
-          line: symbolInfo.definition?.matches?.[0]?.lineNumber || null,
+          file: definition?.file || null,
+          line: definition?.matches?.[0]?.line || null,
         },
         iteratorsDiscovered: iterators,
         cliTriggers,
-        upstreamCallers: symbolInfo.references
-          .filter((r: any) => r.path)
-          .map((r: any) => ({
-            file: r.path,
-            matches: (r.matches || []).slice(0, 3).map((m: any) => ({
-              line: m.lineNumber,
-              text: (m.line || '').trim(),
-            })),
-          })),
+        upstreamCallers: references.map((r: any) => ({
+          file: r.file,
+          matches: r.matches.slice(0, 3),
+        })),
         ...(input.verbose ? { elapsedMs: elapsed } : {}),
       };
 

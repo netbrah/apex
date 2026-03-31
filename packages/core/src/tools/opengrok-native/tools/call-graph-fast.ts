@@ -3,9 +3,8 @@
 /**
  * Call Graph Fast Tool — native implementation.
  *
- * Builds upstream call graphs by composing OpenGrok search API calls.
- * Uses makeOpenGrokRequest to find callers via symbol search, then
- * recursively traces upstream.
+ * Builds upstream call graphs by composing searchOpenGrok calls.
+ * Uses symbol search to find callers, then BFS traversal upstream.
  */
 
 import { createTool } from '../lib/mastra-tool-shim.js';
@@ -13,46 +12,46 @@ import { z } from '../lib/zod-shim.js';
 import { TOOL_DESCRIPTIONS } from '../prompts/index.js';
 import { logTool } from '../lib/logger.js';
 import { classifyError } from '../lib/errors.js';
-import { makeOpenGrokRequest } from '../lib/opengrok.js';
+import { searchOpenGrok } from '../lib/opengrok.js';
 
-/**
- * Find callers of a symbol using OpenGrok symbol search.
- */
 async function findCallers(
   symbol: string,
   pathFilter?: string,
   maxCallers: number = 10,
 ): Promise<any[]> {
-  const params: Record<string, unknown> = {
-    symbol,
-    maxresults: maxCallers,
-  };
-  if (pathFilter) {
-    params.path = pathFilter;
-  }
-
   try {
-    const result = await makeOpenGrokRequest('search', params);
-    if (!result?.results) return [];
-
-    return result.results
-      .filter((r: any) => r.path !== undefined)
-      .slice(0, maxCallers)
-      .map((r: any) => ({
-        file: r.path,
-        matches: (r.matches || []).map((m: any) => ({
-          line: m.lineNumber,
-          text: (m.line || '').trim(),
-        })),
-      }));
+    const { results } = await searchOpenGrok({
+      symbol,
+      path: pathFilter,
+      maxResults: maxCallers,
+    });
+    return results.slice(0, maxCallers);
   } catch {
     return [];
   }
 }
 
-/**
- * Build a call graph by BFS traversal of callers.
- */
+async function findDefinition(symbol: string): Promise<any> {
+  try {
+    const { results } = await searchOpenGrok({
+      definition: symbol,
+      maxResults: 3,
+    });
+    return results[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+const NOISE_PATTERNS = [
+  /^std::/,
+  /^trace/i,
+  /^log/i,
+  /^debug/i,
+  /^assert/i,
+  /^ON_SCOPE_EXIT/,
+];
+
 async function buildCallGraph(
   symbol: string,
   maxDepth: number,
@@ -60,19 +59,11 @@ async function buildCallGraph(
   pathFilter?: string,
   filterNoise: boolean = true,
 ): Promise<any> {
-  const noisePatterns = [
-    /^std::/,
-    /^trace/i,
-    /^log/i,
-    /^debug/i,
-    /^assert/i,
-    /^ON_SCOPE_EXIT/,
-  ];
-
   const visited = new Set<string>();
   const graph: any = {
     root: symbol,
     depth: maxDepth,
+    definition: await findDefinition(symbol),
     callers: [],
   };
 
@@ -88,25 +79,23 @@ async function buildCallGraph(
       const callers = await findCallers(sym, pathFilter, maxCallers);
 
       for (const caller of callers) {
-        const callerInfo = {
-          symbol: sym,
-          file: caller.file,
-          depth: depth + 1,
-          callSites: caller.matches,
-        };
-
         if (filterNoise) {
           const isNoise = caller.matches.every((m: any) =>
-            noisePatterns.some((p) => p.test(m.text)),
+            NOISE_PATTERNS.some((p) => p.test(m.text || '')),
           );
           if (isNoise) continue;
         }
 
-        graph.callers.push(callerInfo);
+        graph.callers.push({
+          symbol: sym,
+          file: caller.file,
+          depth: depth + 1,
+          callSites: caller.matches.slice(0, 5),
+        });
 
-        // Extract function names from call sites for next level
+        // Extract containing function names for next BFS level
         for (const m of caller.matches) {
-          const funcMatch = m.text.match(/(\w+(?:::\w+)*)\s*\(/);
+          const funcMatch = (m.text || '').match(/(\w+(?:::\w+)*)\s*\(/);
           if (funcMatch && !visited.has(funcMatch[1])) {
             nextLevel.push(funcMatch[1]);
           }
@@ -126,54 +115,19 @@ export const callGraphFastTool = createTool({
 
   inputSchema: z.object({
     symbol: z.string().describe('Entry point function to find callers for'),
-    max_depth: z
-      .number()
-      .optional()
-      .default(1)
-      .describe('Maximum depth to traverse upstream (default: 1, max: 3)'),
-    max_callers: z
-      .number()
-      .optional()
-      .default(10)
-      .describe('Maximum callers to find per level (default: 10)'),
+    max_depth: z.number().optional().default(1),
+    max_callers: z.number().optional().default(10),
     format: z
       .enum(['mermaid', 'structured', 'all'])
       .optional()
-      .default('structured')
-      .describe('Output format'),
-    filter_noise: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Filter out noise functions like traceError, std::*'),
-    path_filter: z
-      .string()
-      .optional()
-      .describe('Only include callers from files matching this path'),
-    include_code: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include code snippets in output'),
-    track_instantiations: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Search for iterator instantiation patterns'),
-    verbose: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Include timing stats and debug info'),
-    references: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Return flat file:line references array'),
-    suggestOnEmpty: z
-      .boolean()
-      .optional()
-      .describe('Suggest similar symbols when no results found'),
+      .default('structured'),
+    filter_noise: z.boolean().optional().default(true),
+    path_filter: z.string().optional(),
+    include_code: z.boolean().optional().default(true),
+    track_instantiations: z.boolean().optional().default(false),
+    verbose: z.boolean().optional().default(false),
+    references: z.boolean().optional().default(false),
+    suggestOnEmpty: z.boolean().optional(),
   }),
 
   execute: async (input) => {
@@ -193,6 +147,7 @@ export const callGraphFastTool = createTool({
       const result = {
         success: true,
         symbol: input.symbol,
+        definition: graph.definition,
         totalCallers: graph.callers.length,
         graph,
         ...(input.verbose ? { elapsedMs: elapsed } : {}),
