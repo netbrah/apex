@@ -17,6 +17,7 @@ import { ShadesOfPurple } from './shades-of-purple.js';
 import { XCode } from './xcode.js';
 import { QwenLight } from './qwen-light.js';
 import { QwenDark } from './qwen-dark.js';
+import { ApexDark } from './apex-dark.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -61,6 +62,7 @@ class ThemeManager {
       XCode,
       ANSI,
       ANSILight,
+      ApexDark,
     ];
     this.activeTheme = DEFAULT_THEME;
   }
