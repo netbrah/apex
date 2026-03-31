@@ -9,24 +9,21 @@ description: Guidance for using native and MCP tools to analyze ONTAP C/C++ sour
 > Native tools (search, analyze_symbol_ast, call_graph_fast, etc.) run in-process.
 > Specialized tools (find_cits, prepare_unit_test_context, verify_generated_code) are via mastra-search MCP.
 
-## Investigation Doctrine: Parallel Fan-Out → Deep Dive
+## Investigation Doctrine: Orient → BFS → DFS
 
-**NEVER investigate serially.** Always launch parallel subagents for the initial pass.
+1. **Orient** — `get_jira_issue` first. Read the ticket to extract symptoms, symbols, error strings.
 
-**Pattern:**
-
-1. **Fan out** — Launch 3-5 parallel subagents simultaneously:
-   - `analyze_symbol_ast` on the target function
+2. **BFS fan-out** — Launch parallel subagents on the symbols from the ticket:
+   - `analyze_symbol_ast` on each relevant function (one per agent)
+   - `analyze_iterator` on affected iterators
+   - `search` for SMF schemas and test files
    - `search_jira` for related defects
-   - `analyze_iterator` on the affected iterator
-   - `search` for SMF schema + test files
-   - `get_jira_issue` on the ticket (if investigating a defect)
 
-2. **Gather** — Collect results. You now have definition, callers, Jira context, iterator schema, and test coverage in parallel time.
+   Subagents have full native tool access. Spawning is cheap — serial is waste.
 
-3. **Deep dive** — Use saved context budget for `trace_call_chain` and `call_graph_fast` on the symbols that matter, informed by what the fan-out found.
+3. **Digest** — Gather BFS results into a focused picture: definitions, callers, iterator schemas, test coverage.
 
-Subagents have full access to all native tools. The cost of spawning is negligible. The cost of serial investigation is minutes of wasted time and context window. **Parallelize aggressively.**
+4. **DFS deep dive** — Main agent goes depth-first: `trace_call_chain`, `call_graph_fast` (depth=2), `get_file` on the code regions that matter. Read actual code chunks informed by BFS.
 
 ---
 

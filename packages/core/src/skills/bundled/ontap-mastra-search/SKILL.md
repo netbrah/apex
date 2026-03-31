@@ -9,20 +9,20 @@ description: Analyze ONTAP source code and related engineering artifacts with na
 
 Native tools (search, analyze_symbol_ast, call_graph_fast, trace_call_chain, analyze_iterator, search_jira, get_jira_issue, get_confluence_page) run in-process against OpenGrok and service APIs. Specialized tools (find_cits, prepare_unit_test_context, verify_generated_code) run via the mastra-search MCP server.
 
-## Investigation Doctrine: Parallel Fan-Out → Deep Dive
+## Investigation Doctrine: Orient → BFS → DFS
 
-**ALWAYS launch parallel subagents for initial investigation.** Do not investigate serially.
+1. **Orient** — `get_jira_issue` first. Understand the symptom, component, error strings, mentioned symbols.
 
-**Fan out first:**
+2. **BFS fan-out** — Launch parallel subagents on multiple axes simultaneously:
+   - `analyze_symbol_ast` on each function mentioned in the ticket
+   - `analyze_iterator` on affected iterators
+   - `search_jira` for related defects, same component, similar error patterns
+   - `search` for SMF schemas, test files, header files
+   - Each subagent has full native tool access. Spawning is cheap — serial is waste.
 
-- Spawn 3-5 subagents simultaneously, each hitting a different axis (symbol definition, Jira history, iterator analysis, test coverage, SMF schema)
-- Subagents have full access to all native tools
-- Cost of spawning is negligible; serial investigation wastes minutes and context
+3. **Digest** — Gather BFS results. You now have definitions, callers, Jira history, iterator schemas, test coverage.
 
-**Then deep dive:**
-
-- Use the gathered context to run targeted `trace_call_chain` and `call_graph_fast`
-- You now have the full picture with context budget to spare
+4. **DFS deep dive** — Main agent goes depth-first with `trace_call_chain`, `call_graph_fast` (depth=2), and `get_file` on the specific code regions identified by BFS. Read actual code chunks that matter.
 
 ## Default Workflow (Pick the Smallest Hammer)
 

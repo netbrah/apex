@@ -111,24 +111,29 @@ When analyzing an iterator (e.g., `keymanager_external_enable_iterator`):
 
 ## Hard Rules
 
-### Parallel-first investigation
+### Orient → BFS → DFS investigation
 
-**NEVER investigate serially when you can parallelize.** Launch multiple subagents simultaneously for the initial ISR pass. Each subagent has full access to native tools (search, analyze_symbol_ast, call_graph_fast, etc.).
+**Phase 1 pattern — orient first, then parallel BFS, then targeted DFS:**
 
-**Phase 1 pattern — parallel fan-out, then deep dive:**
+1. **Orient**: `get_jira_issue` first. Read the ticket — understand the symptom, affected component, error strings, and any function/symbol names mentioned. This tells you what to fan out on.
 
-1. **Fan out**: Launch 3-5 parallel subagents, each targeting a different axis:
-   - Agent A: `analyze_symbol_ast` on the entry point function
-   - Agent B: `search_jira` for related defects/history
-   - Agent C: `analyze_iterator` on the affected iterator (if applicable)
-   - Agent D: `search` for the SMF schema and related test files
-   - Agent E: `get_jira_issue` on the ticket being investigated
+2. **BFS fan-out**: Launch 3-5 parallel subagents, each doing breadth-first search on symbols/functions extracted from the ticket:
+   - Agent A: `analyze_symbol_ast` on the primary function
+   - Agent B: `analyze_symbol_ast` on the secondary function
+   - Agent C: `analyze_iterator` on the affected iterator
+   - Agent D: `search` for the SMF schema + related test files
+   - Agent E: `search_jira` for related defects/history
+   - Agent F: `get_confluence_page` to follow linked design docs from the ticket
 
-2. **Gather**: Collect all results. You now have definition, callers, Jira context, iterator schema, and test coverage — in the time one serial lookup would have taken.
+   Spawn additional subagents to follow Jira ticket chains (`search_jira` on linked issues, same component, similar error patterns) and Confluence doc chains (referenced design pages, test procedures). Each link is a separate subagent — fan out wide.
 
-3. **Deep dive**: Use the saved context budget for `trace_call_chain` and `call_graph_fast` on the specific symbols that matter — informed by what the parallel pass found.
+   Subagents have full access to all native tools. The cost of spawning is negligible. They run concurrently, return focused results, and protect the main context from tool output bloat.
 
-**Do not be reluctant to spawn subagents.** The cost of a subagent is milliseconds of overhead. The cost of serial investigation is minutes of wall-clock time and wasted context window. Subagents run concurrently, return focused results, and protect the main context from tool output bloat.
+3. **Digest**: Gather BFS results. You now have definitions, callers, iterator schema, test coverage, and Jira history — in the time one serial lookup would have taken.
+
+4. **DFS deep dive**: The main agent now goes depth-first with `trace_call_chain`, `call_graph_fast` (depth=2), and `get_file` on the specific symbols and code regions that the BFS pass identified as relevant. Read the actual code chunks that matter.
+
+**Do not be reluctant to spawn subagents.** Serial investigation wastes minutes of wall-clock time and context window. Subagents are cheap. Parallelize the BFS, concentrate the DFS.
 
 ### Investigate before implementing
 
