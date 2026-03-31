@@ -24,7 +24,7 @@ const apexDarkColors: ColorsTheme = {
   DiffRemoved: '#2e1a1a',
   Comment: '#4a4a5e',
   Gray: '#4a4a5e',
-  GradientColors: ['#d4a27a', '#ef4444', '#7dd3fc'],
+  GradientColors: ['#f0a0b8', '#e84060', '#6090e0', '#9070c0'],
 };
 
 const apexDarkSemanticColors: SemanticColors = {
@@ -49,7 +49,7 @@ const apexDarkSemanticColors: SemanticColors = {
   ui: {
     comment: '#4a4a5e',
     symbol: '#22d3ee',
-    gradient: ['#d4a27a', '#ef4444', '#7dd3fc'],
+    gradient: ['#f0a0b8', '#e84060', '#6090e0', '#9070c0'],
   },
   status: {
     error: '#ef4444',

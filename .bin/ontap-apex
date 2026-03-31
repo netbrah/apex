@@ -90,7 +90,7 @@ _apex_download() {
 # ---------------------------------------------------------------------------
 # Binary — auto-download from Artifactory if not cached
 # ---------------------------------------------------------------------------
-APEX_VERSION="${APEX_VERSION:-1.1.6}"
+APEX_VERSION="${APEX_VERSION:-release}"
 APEX_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/apex/${APEX_VERSION}/apex-linux-amd64"
 APEX_BIN="$APEX_HOME/bin/apex-${APEX_VERSION}"
 
@@ -114,28 +114,30 @@ CIT_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/cit-mcp/${CIT_VE
 CIT_BIN="$APEX_HOME/bin/cit-mcp-${CIT_VERSION}"
 [[ ! -x "$CIT_BIN" ]] && _needs_download=true
 
-# Feather palette (used in logo + status line)
-_F_LAVENDER='\033[38;2;147;115;149m'
-_F_MAUVE='\033[38;2;192;134;162m'
-_F_PINK='\033[38;2;248;145;175m'
-_F_CORAL='\033[38;2;244;95;106m'
-_F_ORANGE='\033[38;2;252;175;63m'
-_F_AMBER='\033[38;2;254;161;29m'
-_F_GOLD='\033[38;2;201;124;33m'
+# Feather palette: pink → rose → red → blue → purple (top to bottom)
+_F_PINK_LIGHT='\033[38;2;240;160;184m'
+_F_PINK='\033[38;2;230;120;150m'
+_F_ROSE='\033[38;2;220;80;110m'
+_F_RED='\033[38;2;232;64;96m'
+_F_CRIMSON='\033[38;2;180;60;120m'
+_F_BLUE='\033[38;2;96;144;224m'
+_F_INDIGO='\033[38;2;120;100;200m'
+_F_PURPLE_LIGHT='\033[38;2;144;112;192m'
+_F_PURPLE='\033[38;2;130;96;176m'
 
 if [[ "$_needs_download" == "true" ]]; then
     printf "\n" >&2
-    printf "${_F_LAVENDER}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣴⣶⣿${_C_RESET}\n" >&2
-    printf "${_F_MAUVE}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣷⣿⣿⣿⠟⠁${_C_RESET}\n" >&2
-    printf "${_F_PINK}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃${_C_RESET}\n" >&2
-    printf "${_F_PINK}     ⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂${_C_RESET}\n" >&2
-    printf "${_F_CORAL}     ⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇${_C_RESET}\n" >&2
-    printf "${_F_ORANGE}     ⠀⠀⠀⠀⠀⠀⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃${_C_RESET}\n" >&2
-    printf "${_F_AMBER}     ⠀⠀⠀⠀⠀⠀⣸⣫⣿⣶⣿⠿⠶⠄${_C_RESET}\n" >&2
-    printf "${_F_AMBER}     ⠀⠀⠀⠀⠀⡠⠞⠛⠻⠷⠄${_C_RESET}\n" >&2
-    printf "${_F_GOLD}     ⠀⠀⠀⠐⠋${_C_RESET}\n" >&2
+    printf "${_F_PINK_LIGHT}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣴⣶⣿${_C_RESET}\n" >&2
+    printf "${_F_PINK}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣷⣿⣿⣿⠟⠁${_C_RESET}\n" >&2
+    printf "${_F_ROSE}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃${_C_RESET}\n" >&2
+    printf "${_F_RED}     ⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂${_C_RESET}\n" >&2
+    printf "${_F_CRIMSON}     ⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇${_C_RESET}\n" >&2
+    printf "${_F_BLUE}     ⠀⠀⠀⠀⠀⠀⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃${_C_RESET}\n" >&2
+    printf "${_F_INDIGO}     ⠀⠀⠀⠀⠀⠀⣸⣫⣿⣶⣿⠿⠶⠄${_C_RESET}\n" >&2
+    printf "${_F_PURPLE_LIGHT}     ⠀⠀⠀⠀⠀⡠⠞⠛⠻⠷⠄${_C_RESET}\n" >&2
+    printf "${_F_PURPLE}     ⠀⠀⠀⠐⠋${_C_RESET}\n" >&2
     printf "\n" >&2
-    printf "${_C_BOLD}${_F_AMBER}   >_ ${_F_MAUVE}Greenlighting the Asset${_C_RESET}\n\n" >&2
+    printf "${_C_BOLD}${_F_RED}   >_ ${_F_PINK}Greenlighting the Asset${_C_RESET}\n\n" >&2
 fi
 
 if [[ ! -x "$APEX_BIN" ]]; then
@@ -285,6 +287,6 @@ fi
 # Status + launch
 # ---------------------------------------------------------------------------
 _C_YELLOW='\033[38;2;254;185;65m'
-printf "\n${_C_BOLD}${_F_AMBER}  >_ APEX ${_C_DIM}${_F_MAUVE}| ${_F_LAVENDER}${APEX_MODEL} ${_F_MAUVE}| ${_F_LAVENDER}${WS_USER} ${_F_MAUVE}| ${_F_LAVENDER}${WS_CLIENT:-none}${_C_RESET}\n" >&2
+printf "\n${_C_BOLD}${_F_RED}  >_ APEX ${_C_DIM}${_F_PINK}| ${_F_PURPLE_LIGHT}${APEX_MODEL} ${_F_PINK}| ${_F_PURPLE_LIGHT}${WS_USER} ${_F_PINK}| ${_F_PURPLE_LIGHT}${WS_CLIENT:-none}${_C_RESET}\n" >&2
 printf "${_C_YELLOW}  tip: ${_C_DIM}change models with ${_C_BOLD}/model${_C_RESET}\n\n" >&2
 exec "$APEX_BIN" --model "$APEX_MODEL" "$@"

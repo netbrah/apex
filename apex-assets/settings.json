@@ -7,7 +7,9 @@
   "model": {
     "name": "claude-opus-4.6"
   },
-  "theme": "Apex Dark",
+  "ui": {
+    "theme": "Apex Dark"
+  },
   "lsp": {
     "enabled": true,
     "lspServers": {
@@ -26,7 +28,7 @@
     "fileName": ["APEX.md", "QWEN.md", "AGENTS.md"]
   },
   "ide": {
-    "hasSeenNudge": true
+    "hasSeenNudge": false
   },
   "advanced": {
     "autoConfigureMemory": true
