@@ -438,8 +438,16 @@ function buildAgentContentGeneratorConfig(
     'baseUrl',
   );
 
+  // Strip model-specific fields that should not be inherited across
+  // models/providers. The `reasoning` parameter is only supported by
+  // certain models and certain backends (e.g. direct OpenAI, not Azure
+  // via litellm). Inheriting it from the parent causes 400 errors on
+  // backends that reject unknown parameters.
+   
+  const { reasoning: _stripReasoning, ...inheritedConfig } = parentConfig;
+
   return {
-    ...parentConfig,
+    ...inheritedConfig,
     model: modelId ?? parentConfig.model,
     authType: authOverrides.authType as AuthType,
     apiKey: resolvedApiKey,
