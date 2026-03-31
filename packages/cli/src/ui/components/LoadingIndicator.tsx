@@ -15,7 +15,6 @@ import { formatDuration, formatTokenCount } from '../utils/formatters.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { isNarrowWidth } from '../utils/isNarrowWidth.js';
 import { t } from '../../i18n/index.js';
-import { useEffect, useState } from 'react';
 
 interface LoadingIndicatorProps {
   currentLoadingPhrase?: string;
@@ -35,26 +34,6 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
   const streamingState = useStreamingContext();
   const { columns: terminalWidth } = useTerminalSize();
   const isNarrow = isNarrowWidth(terminalWidth);
-
-  const [shimmerPhase, setShimmerPhase] = useState(0);
-
-  useEffect(() => {
-    if (streamingState === StreamingState.Idle) {
-      setShimmerPhase(0);
-      return;
-    }
-
-    if (streamingState !== StreamingState.Responding) {
-      setShimmerPhase(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setShimmerPhase((prev) => (prev + 1) % 6);
-    }, 160);
-
-    return () => clearInterval(interval);
-  }, [streamingState]);
 
   if (streamingState === StreamingState.Idle) {
     return null;
@@ -96,17 +75,10 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
                   ? '⠏'
                   : ''
               }
-              shimmerPhase={shimmerPhase}
             />
           </Box>
           {primaryText && (
-            <Text
-              color={
-                shimmerPhase % 2 === 0 ? theme.text.accent : theme.text.primary
-              }
-              bold={shimmerPhase % 4 === 0}
-              wrap="truncate-end"
-            >
+            <Text color={theme.text.accent} wrap="truncate-end">
               {primaryText}
             </Text>
           )}
