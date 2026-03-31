@@ -32,7 +32,7 @@ const apexDarkSemanticColors: SemanticColors = {
     primary: '#c8c8d4',
     secondary: '#7a7a8e',
     link: '#38bdf8',
-    accent: '#f59e0b',
+    accent: '#8b5cf6',
     code: '#38bdf8',
   },
   background: {
