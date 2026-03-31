@@ -272,8 +272,7 @@
             "max_tokens": 128000
           },
           "reasoning": {
-            "effort": "high",
-            "budget_tokens": 100000
+            "effort": "high"
           }
         }
       },
@@ -288,8 +287,7 @@
             "max_tokens": 64000
           },
           "reasoning": {
-            "effort": "high",
-            "budget_tokens": 50000
+            "effort": "high"
           }
         }
       },
