@@ -268,7 +268,13 @@ const renderDiffContent = (
         ) {
           acc.push(
             <Box key={`gap-${index}`}>
-              <Text wrap="truncate" color={semanticTheme.text.secondary}>
+              <Text
+                wrap="truncate"
+                color={
+                  semanticTheme.surface?.panelMuted ??
+                  semanticTheme.text.secondary
+                }
+              >
                 {'═'.repeat(contentWidth)}
               </Text>
             </Box>,

@@ -136,8 +136,8 @@ export const Header: React.FC<HeaderProps> = ({
       >
         {/* Title line: >_ Brand (v{version}) */}
         <Text>
-          <Text bold color={theme.text.accent}>
-            &gt;_ APEX
+          <Text bold color={theme.prompt?.prefix ?? theme.text.accent}>
+            &gt;_ {process.env['QWEN_CODE_BRAND'] || 'Qwen Code'}
           </Text>
           <Text color={theme.text.secondary}> (v{version})</Text>
         </Text>
