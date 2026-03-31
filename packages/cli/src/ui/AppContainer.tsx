@@ -1107,6 +1107,7 @@ export const AppContainer = (props: AppContainerProps) => {
       streamingState,
       settings.merged.ui?.customWittyPhrases,
       currentCandidatesTokens,
+      thought,
     );
 
   useAttentionNotifications({

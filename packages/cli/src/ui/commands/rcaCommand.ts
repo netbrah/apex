@@ -43,7 +43,7 @@ Extract from the CONTAP ticket text (not just the URL):
 
 \`\`\`
 # In parallel:
-mcp__mastra-search__get_jira_issue(issueKey="CONTAP-XXXXXX")   # raw structured data
+get_jira_issue(issue_key="CONTAP-XXXXXX")   # raw structured data
 \`\`\`
 
 \`get_jira_issue\` returns the full raw ticket (description + all comments as structured JSON).
@@ -56,7 +56,7 @@ mcp__mastra-search__get_jira_issue(issueKey="CONTAP-XXXXXX")   # raw structured 
 
 ### Related Issues
 
-Use \`mcp__mastra-search__search_jira\` with a JQL query to find related defects by component, error signature, or CIT name. Related tickets often reveal known patterns, regressions, or prior fixes.
+Use \`search_jira\` with a JQL query to find related defects by component, error signature, or CIT name. Related tickets often reveal known patterns, regressions, or prior fixes.
 
 ### Precedent Search
 
@@ -129,9 +129,9 @@ What to look for:
 For every significant log line, find the source code that produced it:
 
 \`\`\`
-mcp__mastra-search__search(query="<unique_substring_from_log>", searchType="text")
-mcp__mastra-search__analyze_symbol_ast(symbol="<function_name>")
-mcp__mastra-search__get_file(path="<file>", startLine=X, endLine=Y)
+search(full="<unique_substring_from_log>", maxResults=20)
+analyze_symbol_ast(symbol="<function_name>")
+read_file(file_path="<absolute-path-to-file>", offset=X, limit=Y)
 \`\`\`
 
 For each log line → code match, answer:

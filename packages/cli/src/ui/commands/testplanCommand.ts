@@ -7,7 +7,6 @@
 import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 
- 
 const TESTPLAN_INSTRUCTIONS = `# ONTAP Functional Test Plan
 
 Produce a QA-executable functional test plan by tracing code changes to real CLI/REST commands, then turning those commands into step-by-step validation with expected results.
@@ -27,22 +26,22 @@ Include these in the prompt when available:
 
 ### 2. Capture Change Intent
 
-- If a Jira ticket is provided, use \`mcp__mastra-search__get_jira_issue\` to capture the problem statement, expected behavior, and prerequisite setup.
+- If a Jira ticket is provided, use \`get_jira_issue\` to capture the problem statement, expected behavior, and prerequisite setup.
 - If a ReviewBoard diff is provided, use \`mcp__reviewboard__get_review_request\` and \`mcp__reviewboard__get_diff_files\` (or \`mcp__reviewboard__get_revision_summary\`) to list changed files.
-- From the changed files, identify touched functions, iterators, and schemas using \`mcp__mastra-search__analyze_symbol_ast\` and \`mcp__mastra-search__analyze_iterator\`.
-- Extract bootargs, FIJI faults, and trace messages from the touched code paths using \`mcp__mastra-search__search\`.
+- From the changed files, identify touched functions, iterators, and schemas using \`analyze_symbol_ast\` and \`analyze_iterator\`.
+- Extract bootargs, FIJI faults, and trace messages from the touched code paths using \`search\`.
 
 ### 3. Trace to CLI/REST Workflows
 
 Run these in parallel when inputs are available:
-- Use \`mcp__mastra-search__analyze_iterator\` on every iterator touched to capture fields, enums, prerequisites, and \`_imp\` methods.
-- Use \`mcp__mastra-search__find_cits\` on the top-level CLI commands that surface from tracing to find existing coverage.
-- Use \`mcp__mastra-search__trace_call_chain\` on touched functions to find root-level callers and CLI triggers.
+- Use \`analyze_iterator\` on every iterator touched to capture fields, enums, prerequisites, and \`_imp\` methods.
+- Use \`find_cits\` on the top-level CLI commands that surface from tracing to find existing coverage.
+- Use \`trace_call_chain\` on touched functions to find root-level callers and CLI triggers.
 - If \`smf_cli_mapping\` is available in the environment, prefer it for iterator->CLI mapping.
 
 Then follow up:
 - If \`swagger_rest_mapping\` is available, run it on discovered CLI commands to capture REST endpoints and curl examples.
-- Use \`mcp__mastra-search__search\` and \`mcp__mastra-search__get_file\` to read help XML for each CLI command and message_catalogs for error strings.
+- Use \`search\` and \`read_file\` to read help XML for each CLI command and message_catalogs for error strings.
 
 ### 4. Write the Plan
 
@@ -95,7 +94,6 @@ Use the template below and fill it with grounded data only.
 - Source every expected error message from message_catalogs.
 - Match every parameter to the .smf schema field definitions exactly.
 - Enumerate enum values from their type .smf definitions.`;
- 
 
 export const testplanCommand: SlashCommand = {
   name: 'testplan',

@@ -12,6 +12,10 @@ import { PHRASE_CHANGE_INTERVAL_MS } from './usePhraseCycler.js';
 import * as i18n from '../../i18n/index.js';
 
 const MOCK_WITTY_PHRASES = ['Phrase 1', 'Phrase 2', 'Phrase 3'];
+const THOUGHT = {
+  subject: 'Verifying the answer... ',
+  description: 'Checking assumptions.',
+};
 
 describe('useLoadingIndicator', () => {
   beforeEach(() => {
@@ -132,6 +136,19 @@ describe('useLoadingIndicator', () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(result.current.elapsedTime).toBe(0);
+  });
+
+  it('should prefer reasoning-derived subject when provided', () => {
+    const { result } = renderHook(() =>
+      useLoadingIndicator(
+        StreamingState.Responding,
+        undefined,
+        undefined,
+        THOUGHT,
+      ),
+    );
+
+    expect(result.current.currentLoadingPhrase).toBe('Verifying the answer...');
   });
 
   describe('token tracking', () => {

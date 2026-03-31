@@ -5,11 +5,17 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
 import { t, ta } from '../../i18n/index.js';
+import {
+  APEX_LOADING_PHRASES,
+  LOADING_PHRASE_ROTATION_MS,
+  selectHybridLoadingPhrase,
+} from './loadingPhrases.js';
 
-export const WITTY_LOADING_PHRASES: string[] = ["I'm Feeling Lucky"];
+export const WITTY_LOADING_PHRASES: string[] = APEX_LOADING_PHRASES;
 
-export const PHRASE_CHANGE_INTERVAL_MS = 15000;
+export const PHRASE_CHANGE_INTERVAL_MS = LOADING_PHRASE_ROTATION_MS;
 
 /**
  * Custom hook to manage cycling through loading phrases.
@@ -21,6 +27,7 @@ export const usePhraseCycler = (
   isActive: boolean,
   isWaiting: boolean,
   customPhrases?: string[],
+  thought?: ThoughtSummary | null,
 ) => {
   // Get phrases from translations if available
   const loadingPhrases = useMemo(() => {
@@ -37,6 +44,7 @@ export const usePhraseCycler = (
     loadingPhrases[0],
   );
   const phraseIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cycleIndexRef = useRef(0);
 
   useEffect(() => {
     if (isWaiting) {
@@ -49,25 +57,37 @@ export const usePhraseCycler = (
       if (phraseIntervalRef.current) {
         clearInterval(phraseIntervalRef.current);
       }
-      // Select an initial random phrase
-      const initialRandomIndex = Math.floor(
-        Math.random() * loadingPhrases.length,
+
+      setCurrentLoadingPhrase(
+        selectHybridLoadingPhrase({
+          thought,
+          translatedPhrases: loadingPhrases,
+          cycleIndex: cycleIndexRef.current,
+        }),
       );
-      setCurrentLoadingPhrase(loadingPhrases[initialRandomIndex]);
 
       phraseIntervalRef.current = setInterval(() => {
-        // Select a new random phrase
-        const randomIndex = Math.floor(Math.random() * loadingPhrases.length);
-        setCurrentLoadingPhrase(loadingPhrases[randomIndex]);
+        cycleIndexRef.current += 1;
+        setCurrentLoadingPhrase(
+          selectHybridLoadingPhrase({
+            thought,
+            translatedPhrases: loadingPhrases,
+            cycleIndex: cycleIndexRef.current,
+          }),
+        );
       }, PHRASE_CHANGE_INTERVAL_MS);
     } else {
-      // Idle or other states, clear the phrase interval
-      // and reset to the first phrase for next active state.
       if (phraseIntervalRef.current) {
         clearInterval(phraseIntervalRef.current);
         phraseIntervalRef.current = null;
       }
-      setCurrentLoadingPhrase(loadingPhrases[0]);
+      setCurrentLoadingPhrase(
+        selectHybridLoadingPhrase({
+          thought,
+          translatedPhrases: loadingPhrases,
+          cycleIndex: cycleIndexRef.current,
+        }),
+      );
     }
 
     return () => {
@@ -76,7 +96,7 @@ export const usePhraseCycler = (
         phraseIntervalRef.current = null;
       }
     };
-  }, [isActive, isWaiting, loadingPhrases]);
+  }, [isActive, isWaiting, loadingPhrases, thought]);
 
   return currentLoadingPhrase;
 };
