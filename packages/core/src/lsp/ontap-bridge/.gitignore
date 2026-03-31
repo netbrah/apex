@@ -1,5 +1,0 @@
-# Test artifacts
-tests/*.jsonl
-tests/__pycache__/
-__pycache__/
-*.pyc

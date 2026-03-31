@@ -26,10 +26,6 @@ import { logFileOperation } from '../telemetry/loggers.js';
 import { FileOperationEvent } from '../telemetry/types.js';
 import { isSubpaths, isSubpath } from '../utils/paths.js';
 import { Storage } from '../config/storage.js';
-import {
-  getFileContent,
-  DEFAULT_PROJECT,
-} from './opengrok-native/lib/opengrok.js';
 
 /**
  * Parameters for the ReadFile tool
@@ -120,14 +116,6 @@ class ReadFileToolInvocation extends BaseToolInvocation<
     );
 
     if (result.error) {
-      // On FILE_NOT_FOUND, transparently fall back to OpenGrok source index
-      if (result.errorType === ToolErrorType.FILE_NOT_FOUND) {
-        const ogResult = await this.tryOpenGrokFallback();
-        if (ogResult) {
-          return ogResult;
-        }
-      }
-
       return {
         llmContent: result.llmContent,
         returnDisplay: result.returnDisplay || 'Error reading file',
@@ -181,47 +169,6 @@ class ReadFileToolInvocation extends BaseToolInvocation<
     };
   }
 
-  /**
-   * When a file doesn't exist locally (not in a checked-out ONTAP repo),
-   * transparently fetch it from the OpenGrok source index.
-   */
-  private async tryOpenGrokFallback(): Promise<ToolResult | null> {
-    try {
-      const content = await getFileContent(
-        this.params.file_path,
-        DEFAULT_PROJECT,
-      );
-      if (!content) {
-        return null;
-      }
-
-      const allLines = content.split('\n');
-      const totalLines = allLines.length;
-      const offset = this.params.offset ?? 0;
-      const limit = this.params.limit ?? totalLines;
-      const selectedLines = allLines.slice(offset, offset + limit);
-
-      // Format with line numbers matching the normal ReadFile output
-      const numbered = selectedLines
-        .map((line, i) => `${String(offset + i + 1).padStart(6)}│${line}`)
-        .join('\n');
-
-      const isTruncated = selectedLines.length < totalLines;
-      let llmContent: string = numbered;
-      if (isTruncated) {
-        llmContent = `Showing lines ${offset + 1}-${offset + selectedLines.length} of ${totalLines} total lines (via OpenGrok).\n\n---\n\n${numbered}`;
-      }
-
-      const shortPath = shortenPath(this.params.file_path);
-      return {
-        llmContent,
-        returnDisplay: `${shortPath} (${selectedLines.length} lines, via OpenGrok)`,
-      };
-    } catch {
-      // OpenGrok unavailable or errored — fall through to normal error
-      return null;
-    }
-  }
 }
 
 /**
