@@ -229,6 +229,7 @@ function deployApexAssets(runtimeDir) {
 
 async function main(getAssetFn = getAsset) {
   process.env.IS_BINARY = 'true';
+  process.env.QWEN_CODE_BRAND = process.env.QWEN_CODE_BRAND || 'APEX';
 
   if (nodeModule.enableCompileCache) {
     nodeModule.enableCompileCache();
