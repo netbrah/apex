@@ -24,6 +24,7 @@ import type { ContentGenerator } from './contentGenerator.js';
 import { GeminiChat } from './geminiChat.js';
 import {
   getArenaSystemReminder,
+  getContextBudgetSystemReminder,
   getCoreSystemPrompt,
   getCustomSystemPrompt,
   getPlanModeSystemReminder,
@@ -42,7 +43,9 @@ import {
   ChatCompressionService,
   COMPRESSION_PRESERVE_THRESHOLD,
   COMPRESSION_TOKEN_THRESHOLD,
+  isCompactionSummary,
 } from '../services/chatCompressionService.js';
+import { DEFAULT_TOKEN_LIMIT } from './tokenLimits.js';
 import { LoopDetectionService } from '../services/loopDetectionService.js';
 import { ToolOutputMaskingService } from '../services/toolOutputMaskingService.js';
 
@@ -646,6 +649,30 @@ export class GeminiClient {
           systemReminders.push(getArenaSystemReminder(configPath));
         } catch {
           // Arena config not yet initialized — skip
+        }
+      }
+
+      // inject context-budget awareness so the model can self-manage its window
+      const promptTokenCount = uiTelemetryService.getLastPromptTokenCount();
+      if (promptTokenCount > 0) {
+        const contextLimit =
+          this.config.getContentGeneratorConfig()?.contextWindowSize ??
+          DEFAULT_TOKEN_LIMIT;
+        const compactionRatio = promptTokenCount / contextLimit;
+        const isSummarized = history.some((entry) =>
+          entry.parts?.some(
+            (part) =>
+              'text' in part &&
+              typeof part.text === 'string' &&
+              isCompactionSummary(part.text),
+          ),
+        );
+        const budgetReminder = getContextBudgetSystemReminder(
+          compactionRatio,
+          isSummarized,
+        );
+        if (budgetReminder) {
+          systemReminders.push(budgetReminder);
         }
       }
 

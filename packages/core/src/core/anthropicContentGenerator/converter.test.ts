@@ -203,6 +203,61 @@ describe('AnthropicContentConverter', () => {
       ]);
     });
 
+    it('sanitizes invalid tool IDs and preserves tool_use/tool_result linkage', () => {
+      const rawId = 'call:abc.def/ghi?jkl';
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              {
+                functionCall: {
+                  id: rawId,
+                  name: 'tool_name',
+                  args: { a: 1 },
+                },
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: rawId,
+                  name: 'tool_name',
+                  response: { output: 'ok' },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const assistantBlocks = messages[0]?.content as Array<{
+        type: string;
+        id?: string;
+      }>;
+      const userBlocks = messages[1]?.content as Array<{
+        type: string;
+        tool_use_id?: string;
+      }>;
+
+      const toolUse = assistantBlocks.find(
+        (block) => block.type === 'tool_use',
+      );
+      const toolResult = userBlocks.find(
+        (block) => block.type === 'tool_result',
+      );
+
+      expect(toolUse).toBeDefined();
+      expect(toolResult).toBeDefined();
+      expect(toolUse?.id).toMatch(/^[a-zA-Z0-9_-]+$/);
+      expect(toolUse?.id).not.toBe(rawId);
+      expect(toolResult?.tool_use_id).toBe(toolUse?.id);
+    });
+
     it('extracts function response error field when present', () => {
       const { messages } = converter.convertGeminiRequestToAnthropic({
         model: 'models/test',

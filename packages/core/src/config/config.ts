@@ -66,8 +66,15 @@ import { WriteFileTool } from '../tools/write-file.js';
 import { LspTool } from '../tools/lsp.js';
 import {
   OpenGrokAnalyzeSymbolAstTool,
-  OpenGrokGetFileTool,
   OpenGrokSearchTool,
+  OntapDiscoverTool,
+  SearchJiraTool,
+  GetJiraIssueTool,
+  GetConfluencePageTool,
+  CallGraphFastTool,
+  TraceCallChainTool,
+  AnalyzeIteratorTool,
+  SearchConfluenceTool,
 } from '../tools/opengrok-tools.js';
 import type { LspClient } from '../lsp/types.js';
 
@@ -2191,8 +2198,15 @@ export class Config {
     registerCoreTool(SkillTool, this);
     registerCoreTool(LSTool, this);
     registerCoreTool(OpenGrokSearchTool);
-    registerCoreTool(OpenGrokGetFileTool);
     registerCoreTool(OpenGrokAnalyzeSymbolAstTool);
+    registerCoreTool(OntapDiscoverTool);
+    registerCoreTool(SearchJiraTool);
+    registerCoreTool(GetJiraIssueTool);
+    registerCoreTool(GetConfluencePageTool);
+    registerCoreTool(CallGraphFastTool);
+    registerCoreTool(TraceCallChainTool);
+    registerCoreTool(AnalyzeIteratorTool);
+    registerCoreTool(SearchConfluenceTool);
     registerCoreTool(ReadFileTool, this);
     registerCoreTool(ReadManyFilesTool, this);
 

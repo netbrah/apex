@@ -35,6 +35,9 @@ export class AnthropicContentConverter {
   private model: string;
   private schemaCompliance: SchemaComplianceMode;
   private enableCacheControl: boolean;
+  private readonly toolIdMap = new Map<string, string>();
+  private readonly usedToolIds = new Set<string>();
+  private generatedToolIdCounter = 0;
 
   constructor(
     model: string,
@@ -50,6 +53,7 @@ export class AnthropicContentConverter {
     system?: Anthropic.TextBlockParam[] | string;
     messages: AnthropicMessageParam[];
   } {
+    this.resetToolIdState();
     const messages: AnthropicMessageParam[] = [];
 
     const systemText = this.extractTextFromContentUnion(
@@ -255,7 +259,6 @@ export class AnthropicContentConverter {
     const parts = content.parts || [];
     const role = content.role === 'model' ? 'assistant' : 'user';
     const contentBlocks: AnthropicContentBlockParam[] = [];
-    let toolCallIndex = 0;
 
     for (const part of parts) {
       if (typeof part === 'string') {
@@ -301,11 +304,10 @@ export class AnthropicContentConverter {
         if (role === 'assistant') {
           contentBlocks.push({
             type: 'tool_use',
-            id: part.functionCall.id || `tool_${toolCallIndex}`,
+            id: this.resolveToolUseId(part.functionCall.id),
             name: part.functionCall.name || '',
             input: (part.functionCall.args as Record<string, unknown>) || {},
           });
-          toolCallIndex += 1;
         }
       }
 
@@ -358,10 +360,63 @@ export class AnthropicContentConverter {
 
     return {
       type: 'tool_result',
-      tool_use_id: response.id || '',
+      tool_use_id: this.resolveToolUseId(response.id),
       content,
       ...(isError ? { is_error: true as const } : {}),
     };
+  }
+
+  private resetToolIdState(): void {
+    this.toolIdMap.clear();
+    this.usedToolIds.clear();
+    this.generatedToolIdCounter = 0;
+  }
+
+  private resolveToolUseId(rawId?: string): string {
+    const sourceId = typeof rawId === 'string' ? rawId.trim() : '';
+    const existingId = sourceId ? this.toolIdMap.get(sourceId) : undefined;
+    if (existingId) {
+      return existingId;
+    }
+
+    const baseId = sourceId
+      ? this.sanitizeToolUseId(sourceId)
+      : this.nextGeneratedToolId();
+    const uniqueId = this.makeUniqueToolUseId(baseId);
+
+    if (sourceId) {
+      this.toolIdMap.set(sourceId, uniqueId);
+    }
+
+    return uniqueId;
+  }
+
+  private sanitizeToolUseId(id: string): string {
+    const cleaned = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return cleaned || this.nextGeneratedToolId();
+  }
+
+  private nextGeneratedToolId(): string {
+    const id = `tool_${this.generatedToolIdCounter}`;
+    this.generatedToolIdCounter += 1;
+    return id;
+  }
+
+  private makeUniqueToolUseId(baseId: string): string {
+    if (!this.usedToolIds.has(baseId)) {
+      this.usedToolIds.add(baseId);
+      return baseId;
+    }
+
+    let suffix = 1;
+    let candidate = `${baseId}_${suffix}`;
+    while (this.usedToolIds.has(candidate)) {
+      suffix += 1;
+      candidate = `${baseId}_${suffix}`;
+    }
+
+    this.usedToolIds.add(candidate);
+    return candidate;
   }
 
   private createMediaBlockFromPart(

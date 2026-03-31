@@ -12,6 +12,94 @@ export const CONTEXT_BUDGET_TRIM_SKIP_THRESHOLD = 1_000_000;
 const CONTEXT_BUDGET_RATIO = 0.7;
 const MIN_TOOL_CONTENT_CHARS = 500;
 
+function hasAssistantContent(
+  content: OpenAI.Chat.ChatCompletionAssistantMessageParam['content'],
+): boolean {
+  if (typeof content === 'string') {
+    return content.trim().length > 0;
+  }
+  if (Array.isArray(content)) {
+    return content.length > 0;
+  }
+  return false;
+}
+
+function cleanOrphanedToolCallsAfterTrim(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const cleaned: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  const toolCallIds = new Set<string>();
+  const toolResponseIds = new Set<string>();
+
+  // First pass: collect tool call and tool response IDs.
+  for (const message of messages) {
+    if (
+      message.role === 'assistant' &&
+      'tool_calls' in message &&
+      message.tool_calls
+    ) {
+      for (const toolCall of message.tool_calls) {
+        if (toolCall.id) {
+          toolCallIds.add(toolCall.id);
+        }
+      }
+    } else if (
+      message.role === 'tool' &&
+      'tool_call_id' in message &&
+      message.tool_call_id
+    ) {
+      toolResponseIds.add(message.tool_call_id);
+    }
+  }
+
+  // Second pass: filter out tool calls/responses that lost their counterpart.
+  for (const message of messages) {
+    if (
+      message.role === 'assistant' &&
+      'tool_calls' in message &&
+      message.tool_calls
+    ) {
+      const validToolCalls = message.tool_calls.filter(
+        (toolCall) => toolCall.id && toolResponseIds.has(toolCall.id),
+      );
+
+      if (validToolCalls.length > 0) {
+        const cleanedMessage = { ...message };
+        (
+          cleanedMessage as OpenAI.Chat.ChatCompletionMessageParam & {
+            tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
+          }
+        ).tool_calls = validToolCalls;
+        cleaned.push(cleanedMessage);
+      } else if (hasAssistantContent(message.content)) {
+        const cleanedMessage = { ...message };
+        delete (
+          cleanedMessage as OpenAI.Chat.ChatCompletionMessageParam & {
+            tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
+          }
+        ).tool_calls;
+        cleaned.push(cleanedMessage);
+      }
+      continue;
+    }
+
+    if (
+      message.role === 'tool' &&
+      'tool_call_id' in message &&
+      message.tool_call_id
+    ) {
+      if (toolCallIds.has(message.tool_call_id)) {
+        cleaned.push(message);
+      }
+      continue;
+    }
+
+    cleaned.push(message);
+  }
+
+  return cleaned;
+}
+
 function estimateTokens(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   tools?: unknown,
@@ -95,5 +183,5 @@ export function trimMessagesForContextBudget(
     estimate = estimateTokens(trimmed, tools);
   }
 
-  return trimmed;
+  return cleanOrphanedToolCallsAfterTrim(trimmed);
 }
