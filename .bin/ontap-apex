@@ -41,13 +41,13 @@ mkdir -p "$APEX_CONFIG_DIR"
 # Styled download helper — purple→blue gradient progress
 # ---------------------------------------------------------------------------
 _C_RESET='\033[0m'
-_C_PURPLE='\033[38;5;135m'
-_C_BLUE='\033[38;5;75m'
-_C_CYAN='\033[38;5;117m'
+_C_PURPLE='\033[38;2;192;134;162m'
+_C_BLUE='\033[38;2;147;115;149m'
+_C_CYAN='\033[38;2;248;145;175m'
 _C_DIM='\033[2m'
 _C_BOLD='\033[1m'
-_C_CHECK='\033[38;5;114m'
-_C_CROSS='\033[38;5;204m'
+_C_CHECK='\033[38;2;78;174;80m'
+_C_CROSS='\033[38;2;244;95;106m'
 
 _SPINNER_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 
@@ -114,27 +114,28 @@ CIT_REPO_URL="https://generic.repo.eng.netapp.com/user/palanisd/cit-mcp/${CIT_VE
 CIT_BIN="$APEX_HOME/bin/cit-mcp-${CIT_VERSION}"
 [[ ! -x "$CIT_BIN" ]] && _needs_download=true
 
+# Feather palette (used in logo + status line)
+_F_LAVENDER='\033[38;2;147;115;149m'
+_F_MAUVE='\033[38;2;192;134;162m'
+_F_PINK='\033[38;2;248;145;175m'
+_F_CORAL='\033[38;2;244;95;106m'
+_F_ORANGE='\033[38;2;252;175;63m'
+_F_AMBER='\033[38;2;254;161;29m'
+_F_GOLD='\033[38;2;201;124;33m'
+
 if [[ "$_needs_download" == "true" ]]; then
-    # Feather logo with amber→coral→pink→mauve→lavender gradient
-    _F_LAVENDER='\033[38;2;147;115;149m'
-    _F_MAUVE='\033[38;2;192;134;162m'
-    _F_PINK='\033[38;2;248;145;175m'
-    _F_CORAL='\033[38;2;244;95;106m'
-    _F_ORANGE='\033[38;2;252;175;63m'
-    _F_AMBER='\033[38;2;254;161;29m'
-    _F_GOLD='\033[38;2;201;124;33m'
     printf "\n" >&2
-    printf "${_F_LAVENDER}                           ⢀⣤⣴⣶⣿${_C_RESET}\n" >&2
-    printf "${_F_MAUVE}                      ⣠⣴⣷⣿⣿⣿⠟⠁${_C_RESET}\n" >&2
-    printf "${_F_PINK}                 ⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃${_C_RESET}\n" >&2
-    printf "${_F_PINK}             ⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂${_C_RESET}\n" >&2
-    printf "${_F_CORAL}           ⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇${_C_RESET}\n" >&2
-    printf "${_F_ORANGE}         ⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃${_C_RESET}\n" >&2
-    printf "${_F_AMBER}         ⣸⣫⣿⣶⣿⠿⠶⠄${_C_RESET}\n" >&2
-    printf "${_F_AMBER}        ⡠⠞⠛⠻⠷⠄${_C_RESET}\n" >&2
-    printf "${_F_GOLD}      ⠐⠋${_C_RESET}\n" >&2
+    printf "${_F_LAVENDER}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣴⣶⣿${_C_RESET}\n" >&2
+    printf "${_F_MAUVE}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣷⣿⣿⣿⠟⠁${_C_RESET}\n" >&2
+    printf "${_F_PINK}     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃${_C_RESET}\n" >&2
+    printf "${_F_PINK}     ⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂${_C_RESET}\n" >&2
+    printf "${_F_CORAL}     ⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇${_C_RESET}\n" >&2
+    printf "${_F_ORANGE}     ⠀⠀⠀⠀⠀⠀⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃${_C_RESET}\n" >&2
+    printf "${_F_AMBER}     ⠀⠀⠀⠀⠀⠀⣸⣫⣿⣶⣿⠿⠶⠄${_C_RESET}\n" >&2
+    printf "${_F_AMBER}     ⠀⠀⠀⠀⠀⡠⠞⠛⠻⠷⠄${_C_RESET}\n" >&2
+    printf "${_F_GOLD}     ⠀⠀⠀⠐⠋${_C_RESET}\n" >&2
     printf "\n" >&2
-    printf "${_C_BOLD}${_F_AMBER}   A P E X ${_C_DIM}${_F_MAUVE}— Greenlighting the Asset${_C_RESET}\n\n" >&2
+    printf "${_C_BOLD}${_F_AMBER}   >_ ${_F_MAUVE}Greenlighting the Asset${_C_RESET}\n\n" >&2
 fi
 
 if [[ ! -x "$APEX_BIN" ]]; then
@@ -283,7 +284,7 @@ fi
 # ---------------------------------------------------------------------------
 # Status + launch
 # ---------------------------------------------------------------------------
-_C_YELLOW='\033[38;5;222m'
-printf "\n${_C_BOLD}${_C_PURPLE}  🪶  LLM Proxy Agent ${_C_DIM}${_C_CYAN}| ${_C_BLUE}${APEX_MODEL} ${_C_CYAN}| ${_C_BLUE}${WS_USER} ${_C_CYAN}| ${_C_BLUE}${WS_CLIENT:-none}${_C_RESET}\n" >&2
+_C_YELLOW='\033[38;2;254;185;65m'
+printf "\n${_C_BOLD}${_F_AMBER}  >_ APEX ${_C_DIM}${_F_MAUVE}| ${_F_LAVENDER}${APEX_MODEL} ${_F_MAUVE}| ${_F_LAVENDER}${WS_USER} ${_F_MAUVE}| ${_F_LAVENDER}${WS_CLIENT:-none}${_C_RESET}\n" >&2
 printf "${_C_YELLOW}  tip: ${_C_DIM}change models with ${_C_BOLD}/model${_C_RESET}\n\n" >&2
 exec "$APEX_BIN" --model "$APEX_MODEL" "$@"
