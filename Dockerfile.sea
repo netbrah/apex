@@ -10,7 +10,8 @@ WORKDIR /build
 
 COPY . .
 
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
+RUN npm install fast-xml-parser --no-save 2>/dev/null || true
 RUN npm run build
 RUN npm run bundle
 RUN BUNDLE_NATIVE_MODULES=false node scripts/build_binary.js
