@@ -12,9 +12,7 @@
     "lspServers": {
       "cpp": {
         "command": "python3.11",
-        "args": [
-          "/u/palanisd/.apex/bin/ontap_lsp_bridge.py"
-        ],
+        "args": ["/u/palanisd/.apex/bin/ontap_lsp_bridge.py"],
         "extensionToLanguage": {
           ".cc": "cpp",
           ".h": "cpp",
@@ -24,11 +22,7 @@
     }
   },
   "context": {
-    "fileName": [
-      "APEX.md",
-      "QWEN.md",
-      "AGENTS.md"
-    ]
+    "fileName": ["APEX.md", "QWEN.md", "AGENTS.md"]
   },
   "ide": {
     "hasSeenNudge": true
@@ -39,9 +33,7 @@
   "mcpServers": {
     "reviewboard": {
       "command": "node",
-      "args": [
-        "$RB_INDEX"
-      ],
+      "args": ["$RB_INDEX"],
       "timeout": 30000,
       "trust": true,
       "env": {
@@ -60,6 +52,9 @@
       "timeout": 30000,
       "trust": true,
       "excludeTools": [
+        "search",
+        "analyze_symbol_ast",
+        "get_file",
         "ask_reviewboard",
         "ask_confluence",
         "ask_jira",
