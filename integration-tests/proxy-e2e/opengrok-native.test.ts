@@ -23,7 +23,7 @@ describeProxy('Proxy Native OpenGrok Tools', () => {
       DEFAULT_GPT_MODEL,
       [
         '--core-tools',
-        'search,get_file,analyze_symbol_ast',
+        'search,analyze_symbol_ast',
         '--allowed-mcp-server-names',
         '',
       ],

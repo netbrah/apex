@@ -7,117 +7,219 @@ allowedTools:
   - grep_search
   - read_file
   - glob
+  - get_jira_issue
 ---
 
 # Code Review
 
 You are an expert code reviewer. Your job is to review code changes and provide actionable feedback.
 
+## Environment
+
+- **GitHub Enterprise**: `github.eng.netapp.com` — all `gh` commands target this instance
+- **Auth**: `gh` CLI is pre-authenticated via `$GH_TOKEN`. Never hardcode or echo tokens.
+- **Repo**: ONTAP monorepo, NFS-mounted. Large repo — avoid full-tree operations.
+- **Git**: Use `--no-ext-diff` on all diff commands. Scope diffs to known paths when possible.
+
 ## Step 1: Determine what to review
 
-Your goal here is to understand the scope of changes so you can dispatch agents effectively in Step 2. Based on the arguments provided:
+### If a PR number is provided (e.g., `4562`)
 
-- **No arguments**: Review local uncommitted changes
-  - Run `git diff` and `git diff --staged` to get all changes
-  - If both diffs are empty, inform the user there are no changes to review and stop here — do not proceed to the review agents
+Do NOT check out the PR branch. Stay on the current branch.
 
-- **PR number or URL** (e.g., `123` or `https://github.com/.../pull/123`):
-  - Save the current branch name, stash any local changes (`git stash --include-untracked`), then `gh pr checkout <number>`
-  - Run `gh pr view <number>` and save the output (title, description, base branch, etc.) to a temp file (e.g., `/tmp/pr-review-context.md`) so agents can read it without you repeating it in each prompt
-  - Note the base branch (e.g., `main`) — agents will use `git diff <base>...HEAD` to get the diff and can read files directly
+1. Check if there's an open PR and gather full context:
 
-- **File path** (e.g., `src/foo.ts`):
-  - Run `git diff HEAD -- <file>` to get recent changes
-  - If no diff, read the file and review its current state
+   ```bash
+   gh pr view <number> --json title,body,state,baseRefName,headRefName,additions,deletions,changedFiles,files,comments,reviews,reviewRequests,labels,author
+   ```
+
+   If this fails, the PR doesn't exist or isn't accessible — tell the user and stop.
+
+2. Save context for the review agents:
+
+   ```bash
+   gh pr view <number> --json title,body,baseRefName,headRefName,files,comments,reviews,author > /tmp/pr-review-context.json
+   ```
+
+3. Get all PR comments and review comments (inline discussion):
+
+   ```bash
+   gh pr view <number> --comments > /tmp/pr-review-comments.txt
+   ```
+
+4. Capture the diff remotely without checking out:
+
+   ```bash
+   gh pr diff <number> --patch > /tmp/pr-review.diff
+   gh pr diff <number> --name-only > /tmp/pr-review-files.txt
+   ```
+
+5. Read `/tmp/pr-review-files.txt` to understand the scope. If the diff is very large (>5000 lines), focus on non-test source files and security-related paths first.
+
+### If a file path is provided (e.g., `src/foo.cc`)
+
+```bash
+git diff --no-ext-diff HEAD -- <file> > /tmp/review-file.diff
+```
+
+If empty, read the file and review its current state.
+
+### If no arguments — review local working tree changes
+
+```bash
+git status --short
+git diff --no-ext-diff --stat
+git diff --no-ext-diff --staged --stat
+```
+
+If everything is clean (no changes at all), tell the user and stop.
+
+Otherwise capture what's there:
+
+```bash
+git diff --no-ext-diff > /tmp/review-unstaged.diff
+git diff --no-ext-diff --staged > /tmp/review-staged.diff
+```
+
+Then check if there's already an open PR for the current branch:
+
+```bash
+gh pr view --json number,title,state 2>/dev/null
+```
 
 ## Step 2: Parallel multi-dimensional review
 
-Launch **four parallel review agents** to analyze the changes from different angles. Each agent should focus exclusively on its dimension.
+Launch **four parallel review agents** using `task`. Do NOT paste the full diff into each prompt. Tell each agent:
 
-**IMPORTANT**: Do NOT paste the full diff into each agent's prompt — this duplicates it 4x. Instead, give each agent the command to obtain the diff, a concise summary of what the changes are about, and its review focus. Each agent can read files and search the codebase on its own.
+- The path to the diff file (e.g., `/tmp/pr-review.diff`)
+- The path to PR context if applicable (`/tmp/pr-review-context.json`)
+- A brief summary of the changeset (files changed, apparent purpose)
+- Its specific focus area
+
+Each agent has `read_file`, `grep_search`, and `glob` — it can explore the surrounding codebase on its own.
 
 ### Agent 1: Correctness & Security
 
-Focus areas:
-
-- Logic errors and edge cases
-- Null/undefined handling
-- Race conditions and concurrency issues
-- Security vulnerabilities (injection, XSS, SSRF, path traversal, etc.)
-- Type safety issues
-- Error handling gaps
+- Logic errors, off-by-one, edge cases
+- Null/nullptr/undefined handling
+- Race conditions, lock ordering, concurrency bugs
+- Security: buffer overflow, injection, path traversal, use-after-free, integer overflow, format strings
+- Unchecked return values, swallowed errors
+- Type confusion or unsafe casts
 
 ### Agent 2: Code Quality
 
-Focus areas:
-
-- Code style consistency with the surrounding codebase
-- Naming conventions (variables, functions, classes)
-- Code duplication and opportunities for reuse
-- Over-engineering or unnecessary abstraction
-- Missing or misleading comments
-- Dead code
+- Style consistency with neighboring files (read them if needed)
+- Naming conventions
+- Duplication — use `grep_search` to check if similar logic exists elsewhere
+- Over-engineering or missing abstraction
+- Stale or misleading comments, dead code
+- For test files: meaningful assertions vs. trivially passing coverage padding
 
 ### Agent 3: Performance & Efficiency
 
-Focus areas:
-
-- Performance bottlenecks (N+1 queries, unnecessary loops, etc.)
-- Memory leaks or excessive memory usage
-- Unnecessary re-renders (for UI code)
-- Inefficient algorithms or data structures
-- Missing caching opportunities
-- Bundle size impact
+- Unnecessary copies, repeated allocations, N+1 patterns
+- Memory leaks, unbounded growth
+- Lock contention, overly broad critical sections
+- Redundant I/O or filesystem operations
+- Algorithm/data structure fit for the data size
 
 ### Agent 4: Undirected Audit
 
-No preset dimension. Review the code with a completely fresh perspective to catch issues the other three agents may miss.
-Focus areas:
+No preset focus. Fresh eyes on the whole changeset.
 
-- Business logic soundness and correctness of assumptions
-- Boundary interactions between modules or services
-- Implicit assumptions that may break under different conditions
-- Unexpected side effects or hidden coupling
-- Anything else that looks off — trust your instincts
+- Business logic soundness, incorrect assumptions
+- Module boundary interactions, hidden coupling
+- Implicit invariants that could break under different conditions
+- Side effects that aren't obvious from the function signature
+- Anything that looks off
 
-## Step 3: Restore environment and present findings
+## Step 3: Present findings
 
-If you checked out a PR branch in Step 1, restore the original state first: check out the original branch, `git stash pop` if changes were stashed, and remove the temp file.
+Clean up temp files:
 
-Then combine results from all four agents into a single, well-organized review. Use this format:
+```bash
+rm -f /tmp/pr-review-context.json /tmp/pr-review.diff /tmp/pr-review-files.txt /tmp/pr-review-comments.txt
+rm -f /tmp/review-unstaged.diff /tmp/review-staged.diff /tmp/review-file.diff
+```
+
+Combine all agent results into a single review:
 
 ### Summary
 
-A 1-2 sentence overview of the changes and overall assessment.
+1-2 sentences. What changed, what's the overall state.
 
 ### Findings
 
-Use severity levels:
+Severity levels:
 
-- **Critical** — Must fix before merging. Bugs, security issues, data loss risks.
-- **Suggestion** — Recommended improvement. Better patterns, clearer code, potential issues.
-- **Nice to have** — Optional optimization. Minor style tweaks, small performance gains.
+- 🔴 **Critical** — Must fix. Bugs, security holes, data loss, crashes.
+- 🟡 **Suggestion** — Worth fixing. Better patterns, clearer logic, latent issues.
+- 🟢 **Nit** — Take it or leave it. Minor style, small optimizations.
 
-For each finding, include:
+Each finding:
 
-1. **File and line reference** (e.g., `src/foo.ts:42`)
-2. **What's wrong** — Clear description of the issue
-3. **Why it matters** — Impact if not addressed
-4. **Suggested fix** — Concrete code suggestion when possible
+1. **File:line** (e.g., `security/keymanager/kmip2/src/tables/kmip_logging_v2.cc:42`)
+2. **Issue** — what's wrong, specifically
+3. **Impact** — what happens if ignored
+4. **Fix** — concrete code change when possible
 
 ### Verdict
 
-One of:
+- ✅ **Approve** — No critical issues
+- ❌ **Request changes** — Critical issues present
+- 💬 **Comment** — Suggestions only, no blockers
 
-- **Approve** — No critical issues, good to merge
-- **Request changes** — Has critical issues that need fixing
-- **Comment** — Has suggestions but no blockers
+Do NOT post comments or approve/request-changes on GitHub unless explicitly asked. If asked, use:
+
+```bash
+gh pr review <number> --approve --body "message"
+gh pr review <number> --request-changes --body "message"
+gh pr review <number> --comment --body "message"
+```
+
+## Step 4: Next steps if changes aren't PR-ready
+
+If there's no open PR, or if local changes are uncommitted/untracked/unstaged, generate the commands the user would need to move forward. Base these on the current git state:
+
+```bash
+# Example flow — adapt to actual state
+git add -A
+git commit -m "CENGTOOLS-XXXXX: <description from review context>"
+git push origin HEAD
+gh pr create --base dev --title "CENGTOOLS-XXXXX: <title>" --body-file /tmp/pr-body.md
+```
+
+If no CONTAP/Jira ticket number is available from the branch name, PR title, or conversation context, ask the user for it. Then use `get_jira_issue` to fetch the ticket details (summary, description, acceptance criteria) and use that context plus the actual code changes to generate a PR body.
+
+Write the PR body to `/tmp/pr-body.md` using this template, filled in from Jira context and the review:
+
+```markdown
+## Description
+
+<What the change does. 2-4 sentences. Reference the Jira ticket.
+Straight to the point — what was added/changed/removed and where.>
+
+## Motivation & Context
+
+<Why this change. What Jira ticket drives it. What was the gap.
+Link the ticket: https://jira.eng.netapp.com/browse/CENGTOOLS-XXXXX>
+
+## Testing
+
+<What was run to validate. Exact commands and their output where relevant.
+For test coverage PRs: which functions/branches are now covered that weren't before.
+For bug fixes: how to reproduce and verify the fix.>
+```
+
+Keep the tone direct and technical — written for a senior dev reviewing the PR, not for a product manager. No filler, no "this enhances the robustness of" — just say what it does.
 
 ## Guidelines
 
-- Be specific and actionable. Avoid vague feedback like "could be improved."
-- Reference the existing codebase conventions — don't impose external style preferences.
-- Focus on the diff, not pre-existing issues in unchanged code.
-- Keep the review concise. Don't repeat the same point for every occurrence.
-- When suggesting a fix, show the actual code change.
-- Flag any exposed secrets, credentials, API keys, or tokens in the diff as **Critical**.
+- Be specific. "Could be improved" is not feedback.
+- Match existing codebase conventions — read neighboring files before flagging style.
+- Review the diff, not pre-existing code in unchanged lines.
+- Group repeated issues. Don't flag the same thing 12 times.
+- Show actual code in suggested fixes.
+- Flag exposed secrets, credentials, API keys, or tokens as 🔴 **Critical**.
+- For coverage-improvement PRs: check whether tests actually exercise meaningful paths or just inflate line counts with trivial assertions.
