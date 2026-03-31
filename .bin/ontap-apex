@@ -115,9 +115,26 @@ CIT_BIN="$APEX_HOME/bin/cit-mcp-${CIT_VERSION}"
 [[ ! -x "$CIT_BIN" ]] && _needs_download=true
 
 if [[ "$_needs_download" == "true" ]]; then
-    printf "\n${_C_BOLD}${_C_PURPLE}  ╔════════════════════════════════════════╗${_C_RESET}\n" >&2
-    printf "${_C_BOLD}${_C_PURPLE}  ║  ${_C_BLUE}🪶  APEX ${_C_DIM}${_C_CYAN}— Ꮆ𝚛𝚎𝚎𝚗𝚕𝚒𝚐𝚑𝚝𝚒𝚗𝚐 𝚝𝚑𝚎 𝙰𝚜𝚜𝚎𝚝${_C_PURPLE}  ║${_C_RESET}\n" >&2
-    printf "${_C_BOLD}${_C_PURPLE}  ╚════════════════════════════════════════╝${_C_RESET}\n\n" >&2
+    # Feather logo with amber→coral→pink→mauve→lavender gradient
+    _F_LAVENDER='\033[38;2;147;115;149m'
+    _F_MAUVE='\033[38;2;192;134;162m'
+    _F_PINK='\033[38;2;248;145;175m'
+    _F_CORAL='\033[38;2;244;95;106m'
+    _F_ORANGE='\033[38;2;252;175;63m'
+    _F_AMBER='\033[38;2;254;161;29m'
+    _F_GOLD='\033[38;2;201;124;33m'
+    printf "\n" >&2
+    printf "${_F_LAVENDER}                           ⢀⣤⣴⣶⣿${_C_RESET}\n" >&2
+    printf "${_F_MAUVE}                      ⣠⣴⣷⣿⣿⣿⠟⠁${_C_RESET}\n" >&2
+    printf "${_F_PINK}                 ⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃${_C_RESET}\n" >&2
+    printf "${_F_PINK}             ⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂${_C_RESET}\n" >&2
+    printf "${_F_CORAL}           ⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇${_C_RESET}\n" >&2
+    printf "${_F_ORANGE}         ⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃${_C_RESET}\n" >&2
+    printf "${_F_AMBER}         ⣸⣫⣿⣶⣿⠿⠶⠄${_C_RESET}\n" >&2
+    printf "${_F_AMBER}        ⡠⠞⠛⠻⠷⠄${_C_RESET}\n" >&2
+    printf "${_F_GOLD}      ⠐⠋${_C_RESET}\n" >&2
+    printf "\n" >&2
+    printf "${_C_BOLD}${_F_AMBER}   A P E X ${_C_DIM}${_F_MAUVE}— Greenlighting the Asset${_C_RESET}\n\n" >&2
 fi
 
 if [[ ! -x "$APEX_BIN" ]]; then
