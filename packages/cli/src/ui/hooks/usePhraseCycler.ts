@@ -60,7 +60,7 @@ export const usePhraseCycler = (
 
       setCurrentLoadingPhrase(
         selectHybridLoadingPhrase({
-          thought,
+          thought: thought ?? undefined,
           translatedPhrases: loadingPhrases,
           cycleIndex: cycleIndexRef.current,
         }),
@@ -83,7 +83,7 @@ export const usePhraseCycler = (
       }
       setCurrentLoadingPhrase(
         selectHybridLoadingPhrase({
-          thought,
+          thought: thought ?? undefined,
           translatedPhrases: loadingPhrases,
           cycleIndex: cycleIndexRef.current,
         }),
