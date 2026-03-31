@@ -198,11 +198,11 @@ export const callGraphFastTool = createTool({
         ...(input.verbose ? { elapsedMs: elapsed } : {}),
       };
 
-      logTool.complete(invocationId, result);
+      logTool.step(invocationId, 'complete', result);
       return result;
     } catch (error) {
       const classified = classifyError(error);
-      logTool.error(invocationId, classified);
+      logTool.step(invocationId, 'error', classified);
       return {
         success: false,
         error: classified.message,
