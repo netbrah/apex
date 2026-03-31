@@ -10,6 +10,7 @@ import { GitIgnoreParser } from '../utils/gitIgnoreParser.js';
 import { QwenIgnoreParser } from '../utils/qwenIgnoreParser.js';
 import { isGitRepository } from '../utils/gitUtils.js';
 import * as path from 'node:path';
+import { isSecretFile } from './secretFileFilter.js';
 
 export interface FilterFilesOptions {
   respectGitIgnore?: boolean;
@@ -46,6 +47,9 @@ export class FileDiscoveryService {
     },
   ): string[] {
     return filePaths.filter((filePath) => {
+      if (isSecretFile(filePath)) {
+        return false;
+      }
       if (options.respectGitIgnore && this.shouldGitIgnoreFile(filePath)) {
         return false;
       }
@@ -72,6 +76,10 @@ export class FileDiscoveryService {
     let apexIgnoredCount = 0;
 
     for (const filePath of filePaths) {
+      if (isSecretFile(filePath)) {
+        continue;
+      }
+
       if (opts.respectGitIgnore && this.shouldGitIgnoreFile(filePath)) {
         gitIgnoredCount++;
         continue;
@@ -124,6 +132,9 @@ export class FileDiscoveryService {
       respectApexIgnore: respectApexIgnore = true,
     } = options;
 
+    if (isSecretFile(filePath)) {
+      return true;
+    }
     if (respectGitIgnore && this.shouldGitIgnoreFile(filePath)) {
       return true;
     }

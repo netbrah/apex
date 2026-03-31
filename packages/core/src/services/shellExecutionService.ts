@@ -20,6 +20,8 @@ import {
   serializeTerminalToObject,
   type AnsiOutput,
 } from '../utils/terminalSerializer.js';
+import { sanitizeEnvironment } from './environmentSanitization.js';
+
 const { Terminal } = pkg;
 
 const SIGKILL_TIMEOUT_MS = 200;
