@@ -159,17 +159,17 @@ describe('systemInfo', () => {
     });
 
     it('should return sandbox name without prefix when stripPrefix is true', () => {
-      process.env['SANDBOX'] = 'qwen-code-test-sandbox';
+      process.env['SANDBOX'] = 'test-sandbox';
       expect(getSandboxEnv(true)).toBe('test-sandbox');
     });
 
     it('should return sandbox name with prefix when stripPrefix is false', () => {
-      process.env['SANDBOX'] = 'qwen-code-test-sandbox';
-      expect(getSandboxEnv(false)).toBe('qwen-code-test-sandbox');
+      process.env['SANDBOX'] = 'test-sandbox';
+      expect(getSandboxEnv(false)).toBe('test-sandbox');
     });
 
     it('should handle qwen- prefix removal', () => {
-      process.env['SANDBOX'] = 'qwen-custom-sandbox';
+      process.env['SANDBOX'] = 'custom-sandbox';
       expect(getSandboxEnv(true)).toBe('custom-sandbox');
     });
   });
@@ -288,7 +288,7 @@ describe('systemInfo', () => {
     });
 
     it('should use sandbox env without prefix for bug reports', async () => {
-      process.env['SANDBOX'] = 'qwen-code-test-sandbox';
+      process.env['SANDBOX'] = 'test-sandbox';
       vi.mocked(IdeClient.getInstance).mockResolvedValue({
         getDetectedIdeDisplayName: vi.fn().mockReturnValue(''),
       } as unknown as IdeClient);

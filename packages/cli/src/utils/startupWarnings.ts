@@ -9,7 +9,7 @@ import os from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { getErrorMessage } from '@apex-code/apex-core';
 
-const warningsFilePath = pathJoin(os.tmpdir(), 'qwen-code-warnings.txt');
+const warningsFilePath = pathJoin(os.tmpdir(), 'apex-warnings.txt');
 
 export async function getStartupWarnings(): Promise<string[]> {
   try {
