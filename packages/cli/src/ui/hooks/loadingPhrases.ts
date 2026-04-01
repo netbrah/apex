@@ -11,7 +11,7 @@ export const LOADING_PHRASE_ROTATION_MS = 9000;
 export const APEX_LOADING_PHRASE_CATEGORIES = [
   'evidence',
   'tracing',
-  'ontap',
+  'system',
   'crossWire',
   'tools',
   'verification',
@@ -47,10 +47,10 @@ export const REASONING_PREFIX_TO_CATEGORY: Array<[
   ['tool', 'tools'],
   ['call', 'tools'],
   ['execute', 'tools'],
-  ['ontap', 'ontap'],
-  ['mgwd', 'ontap'],
-  ['secd', 'ontap'],
-  ['kmip', 'ontap'],
+  ['system', 'system'],
+  ['daemon', 'system'],
+  ['service', 'system'],
+  ['runtime', 'system'],
   ['wire', 'crossWire'],
   ['protocol', 'crossWire'],
   ['convert', 'crossWire'],
@@ -101,23 +101,23 @@ export const APEX_LOADING_PHRASES_BY_CATEGORY: Record<
     'Building a precise map of the behavior...',
     'Following the chain without losing context...',
   ),
-  ontap: makePhrases(
-    'Tracing ONTAP-specific behavior...',
-    'Following the ONTAP management path...',
-    'Checking the ONTAP control plane assumptions...',
-    'Reading the ONTAP code the way it wants to be read...',
-    'Aligning the answer with ONTAP conventions...',
-    'Tracking ONTAP flow across the right layers...',
-    'Verifying the ONTAP behavior against the source...',
-    'Walking the ONTAP path from CLI to implementation...',
-    'Checking how this lands in the ONTAP stack...',
-    'Grounding the result in ONTAP-specific evidence...',
-    'Following the ONTAP story from trigger to state...',
-    'Reading the system through an ONTAP lens...',
-    'Locking onto the ONTAP execution path...',
-    'Checking ONTAP invariants before concluding...',
-    'Preparing an ONTAP-tuned response...',
-    'Resolving the ONTAP-specific details...',
+  system: makePhrases(
+    'Tracing system-specific behavior...',
+    'Following the management path through the stack...',
+    'Checking the control plane assumptions...',
+    'Reading the code the way the system wants to be read...',
+    'Aligning the answer with system conventions...',
+    'Tracking flow across the right layers...',
+    'Verifying the behavior against the source...',
+    'Walking the path from interface to implementation...',
+    'Checking how this lands in the runtime stack...',
+    'Grounding the result in system-level evidence...',
+    'Following the story from trigger to state...',
+    'Reading the system through an systems lens...',
+    'Locking onto the execution path...',
+    'Checking invariants before concluding...',
+    'Preparing an system-aware response...',
+    'Resolving the implementation details...',
   ),
   crossWire: makePhrases(
     'Reconciling wire-level differences...',
@@ -215,7 +215,7 @@ export const APEX_LOADING_PHRASES: string[] = ([] as string[])
   .concat(APEX_LOADING_PHRASES_BY_CATEGORY.calm)
   .concat(APEX_LOADING_PHRASES_BY_CATEGORY.evidence)
   .concat(APEX_LOADING_PHRASES_BY_CATEGORY.tracing)
-  .concat(APEX_LOADING_PHRASES_BY_CATEGORY.ontap)
+  .concat(APEX_LOADING_PHRASES_BY_CATEGORY.system)
   .concat(APEX_LOADING_PHRASES_BY_CATEGORY.crossWire)
   .concat(APEX_LOADING_PHRASES_BY_CATEGORY.tools)
   .concat(APEX_LOADING_PHRASES_BY_CATEGORY.verification)

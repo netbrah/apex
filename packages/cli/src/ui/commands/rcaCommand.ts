@@ -7,7 +7,7 @@
 import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 
-const RCA_INSTRUCTIONS = `# ONTAP Root Cause Analysis
+const RCA_INSTRUCTIONS = `# Root Cause Analysis
 
 Investigate CIT failures by tracing actual runtime evidence (logs) back to source code. Every hypothesis must be grounded in BOTH a log line AND a code reference.
 
@@ -20,7 +20,7 @@ Investigate CIT failures by tracing actual runtime evidence (logs) back to sourc
 
 ## Phase 1: Parse the Ticket
 
-Extract from the CONTAP ticket text (not just the URL):
+Extract from the JIRA ticket text (not just the URL):
 
 1. **Log paths** — Tickets often paste filesystem paths directly. Look for patterns like:
    - \`/u/<user>,<cluster>/presub/logs*/.../<node>/mroot/etc/log/mlog/mgwd.log*\`
@@ -43,7 +43,7 @@ Extract from the CONTAP ticket text (not just the URL):
 
 \`\`\`
 # In parallel:
-get_jira_issue(issue_key="CONTAP-XXXXXX")   # raw structured data
+get_jira_issue(issue_key="JIRA-XXXXXX")   # raw structured data
 \`\`\`
 
 \`get_jira_issue\` returns the full raw ticket (description + all comments as structured JSON).
@@ -62,7 +62,7 @@ Use \`search_jira\` with a JQL query to find related defects by component, error
 
 After identifying the root cause mechanism, search Jira for prior tickets with the same bug class. Use function/API names for best precision:
 \`\`\`
-search_jira(text="<function_or_api_name>", project="CONTAP", limit=5)
+search_jira(text="<function_or_api_name>", project="JIRA", limit=5)
 \`\`\`
 Prior fixes in the same bug class provide:
 - Proven fix patterns (what approach worked before)
@@ -347,7 +347,7 @@ Before publishing, verify:
 
 ## Historical Changeset Lookup (P4)
 
-Some CONTAP tickets reference P4 changelists that predate the git migration. When a ticket mentions a CL number (e.g., \`CL 12345678\` or \`@=12345678\`), use \`p4 describe\` to retrieve the changeset context.
+Some JIRA tickets reference P4 changelists that predate the git migration. When a ticket mentions a CL number (e.g., \`CL 12345678\` or \`@=12345678\`), use \`p4 describe\` to retrieve the changeset context.
 
 \`\`\`bash
 p4 describe -s <changelist_number>
@@ -363,7 +363,7 @@ Returns: author, date, description, and list of affected files with action (add/
 
 ### URL to Filesystem Path Conversion
 
-CONTAP tickets include CIT log URLs in two formats:
+JIRA tickets include CIT log URLs in two formats:
 
 **Format 1: natejobs.cgi (older)**
 \`http://web.<cluster>.gdl.englab.netapp.com/natejobs.cgi?testbed=/u/<user>/presub;logdir=<cit-run-name>\`
@@ -408,10 +408,10 @@ If the standard path doesn't exist, try:
 
 | File | Content | When to Read |
 |------|---------|-------------|
-| \`mgwd.log\` | Management daemon — SMF operations, iterator calls, keymanager, CLI processing | Always — primary investigation target |
+| \`mgwd.log\` | Management daemon — SMF operations, iterator calls, service handlers, CLI processing | Always — primary investigation target |
 | \`mgwd.log.0000000001\` | Rotated mgwd log (older entries) | When failure happened early or after restart |
 | \`kmip2_client.log\` | KMIP client — GET, Register, Create operations, server responses | Key retrieval failures, CRYPTOGRAPHIC_FAILURE, timeout |
-| \`netapp_ekmip.log\` | Embedded KMIP server — partition ops, key storage, encryption | Partition locking, PDEK issues, server-side errors |
+| \`application.log\` | Embedded KMIP server — partition ops, key storage, encryption | Partition locking, PDEK issues, server-side errors |
 | \`notifyd.log\` | Notification daemon — EMS events | EMS-level alerts |
 | \`sktrace.log\` | Security key trace — key lifecycle events | Key creation, deletion, rotation tracing |
 
@@ -458,14 +458,14 @@ The 010_test/ subtree contains NATE test execution logs that show:
 
 export const rcaCommand: SlashCommand = {
   name: 'rca',
-  description: 'Investigate a CONTAP ticket or CIT failure',
+  description: 'Investigate a JIRA ticket or CIT failure',
   kind: CommandKind.BUILT_IN,
   action: (_context, args) => {
     if (!args.trim()) {
       return {
         type: 'message' as const,
         messageType: 'error' as const,
-        content: 'Usage: /rca CONTAP-XXXXXX or /rca <CIT URL>',
+        content: 'Usage: /rca JIRA-XXXXXX or /rca <CIT URL>',
       };
     }
     return {

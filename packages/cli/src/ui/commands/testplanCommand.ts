@@ -7,15 +7,15 @@
 import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 
-const TESTPLAN_INSTRUCTIONS = `# ONTAP Functional Test Plan
+const TESTPLAN_INSTRUCTIONS = `# Functional Test Plan
 
 Produce a QA-executable functional test plan by tracing code changes to real CLI/REST commands, then turning those commands into step-by-step validation with expected results.
 
 ## Inputs
 
 Include these in the prompt when available:
-- \`Ticket: CONTAP-123456\`
-- \`Reviewboard: 901199\`
+- \`Ticket: ISSUE-123456\`
+- \`Review: 901199\`
 
 ## Workflow
 
@@ -99,7 +99,7 @@ export const testplanCommand: SlashCommand = {
   name: 'testplan',
   altNames: ['tp'],
   description:
-    'Generate a functional test plan for a CONTAP or ReviewBoard diff',
+    'Generate a functional test plan for a Jira issue or code review diff',
   kind: CommandKind.BUILT_IN,
   action: (_context, args) => {
     if (!args.trim()) {
@@ -107,7 +107,7 @@ export const testplanCommand: SlashCommand = {
         type: 'message' as const,
         messageType: 'error' as const,
         content:
-          'Usage: /testplan CONTAP-XXXXXX or /testplan Reviewboard: 901199',
+          'Usage: /testplan ISSUE-XXXXXX or /testplan Review: 901199',
       };
     }
     return {
