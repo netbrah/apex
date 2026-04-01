@@ -347,7 +347,7 @@ export function convertClaudeToQwenConfig(
 /**
  * Converts a complete Claude plugin package to Qwen Code format.
  * Creates a new temporary directory with:
- * 1. Converted qwen-extension.json
+ * 1. Converted apex-extension.json
  * 2. Commands, skills, and agents collected to respective folders
  * 3. MCP servers resolved from JSON files if needed
  * 4. All other files preserved
@@ -515,8 +515,8 @@ export async function convertClaudePluginPackage(
     // Step 10: Convert to Qwen format config
     const qwenConfig = convertClaudeToQwenConfig(mergedConfig);
 
-    // Step 11: Write qwen-extension.json
-    const qwenConfigPath = path.join(tmpDir, 'qwen-extension.json');
+    // Step 11: Write apex-extension.json
+    const qwenConfigPath = path.join(tmpDir, 'apex-extension.json');
     fs.writeFileSync(
       qwenConfigPath,
       JSON.stringify(qwenConfig, null, 2),

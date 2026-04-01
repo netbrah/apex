@@ -60,7 +60,7 @@ export function convertGeminiToQwenConfig(
 /**
  * Converts a complete Gemini extension package to Qwen Code format.
  * Creates a new temporary directory with:
- * 1. Converted qwen-extension.json
+ * 1. Converted apex-extension.json
  * 2. Commands converted from TOML to MD
  * 3. All other files/folders preserved
  *
@@ -85,8 +85,8 @@ export async function convertGeminiExtensionPackage(
       await convertCommandsDirectory(commandsDir);
     }
 
-    // Step 3: Create qwen-extension.json with converted config
-    const qwenConfigPath = path.join(tmpDir, 'qwen-extension.json');
+    // Step 3: Create apex-extension.json with converted config
+    const qwenConfigPath = path.join(tmpDir, 'apex-extension.json');
     fs.writeFileSync(
       qwenConfigPath,
       JSON.stringify(geminiConfig, null, 2),

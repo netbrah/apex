@@ -24,7 +24,7 @@ describe('sanitizeHookName', () => {
 
   it('should extract command name from full path on Unix systems', () => {
     expect(sanitizeHookName('/usr/bin/git')).toBe('git');
-    expect(sanitizeHookName('/path/to/.gemini/hooks/check-secrets.sh')).toBe(
+    expect(sanitizeHookName('/path/to/.apex/hooks/check-secrets.sh')).toBe(
       'check-secrets.sh',
     );
     expect(sanitizeHookName('/home/user/script.py --arg=value')).toBe(
@@ -55,7 +55,7 @@ describe('sanitizeHookName', () => {
   it('should handle complex command lines', () => {
     expect(
       sanitizeHookName(
-        '/path/to/.gemini/hooks/check-secrets.sh --api-key=abc123',
+        '/path/to/.apex/hooks/check-secrets.sh --api-key=abc123',
       ),
     ).toBe('check-secrets.sh');
     expect(

@@ -20,7 +20,7 @@ import { t } from '../../i18n/index.js';
 export const initCommand: SlashCommand = {
   name: 'init',
   get description() {
-    return t('Analyzes the project and creates a tailored QWEN.md file.');
+    return t('Analyzes the project and creates a tailored APEX.md file.');
   },
   kind: CommandKind.BUILT_IN,
   action: async (

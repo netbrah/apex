@@ -19,8 +19,8 @@ const debugLogger = createDebugLogger('Extension:variables');
 export type { HookDefinition };
 
 export const EXTENSIONS_DIRECTORY_NAME = path.join(APEX_DIR, 'extensions');
-export const EXTENSIONS_CONFIG_FILENAME = 'qwen-extension.json';
-export const INSTALL_METADATA_FILENAME = '.qwen-extension-install.json';
+export const EXTENSIONS_CONFIG_FILENAME = 'apex-extension.json';
+export const INSTALL_METADATA_FILENAME = '.apex-extension-install.json';
 export const EXTENSION_SETTINGS_FILENAME = '.env';
 
 export type JsonObject = { [key: string]: JsonValue };
@@ -158,7 +158,7 @@ export function performVariableReplacement(extensionPath: string): void {
         // Avoid matching URLs, comments, or string literals containing .claude
         const updatedMdContent = syntaxUpdatedContent.replace(
           /(\$\{?HOME\}?\/|~\/)?\.claude(\/|$)/g,
-          '$1.qwen$2',
+          '$1.apex$2',
         );
 
         // Only write if content was actually changed
@@ -214,14 +214,14 @@ export function performVariableReplacement(extensionPath: string): void {
         // Avoid matching URLs, comments, or string literals containing .claude
         const finalScriptContent = adaptedScriptContent.replace(
           /(\$\{?HOME\}?\/|~\/)?\.claude(\/|$)/g,
-          '$1.qwen$2',
+          '$1.apex$2',
         );
 
         // Only write if content was actually changed
         if (finalScriptContent !== content) {
           fs.writeFileSync(filePath, finalScriptContent, 'utf8');
           debugLogger.debug(
-            `Updated transcript format and replaced .claude with .qwen in shell script: ${filePath}`,
+            `Updated transcript format and replaced .claude with .apex in shell script: ${filePath}`,
           );
         }
       } catch (error) {

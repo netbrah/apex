@@ -28,7 +28,7 @@ import type { Content } from '@google/genai';
 
 import os from 'node:os';
 
-const GEMINI_DIR_NAME = '.qwen';
+const GEMINI_DIR_NAME = '.apex';
 const TMP_DIR_NAME = 'tmp';
 const LOG_FILE_NAME = 'logs.json';
 const CHECKPOINT_FILE_NAME = 'checkpoint.json';
@@ -127,7 +127,7 @@ describe('Logger', () => {
   });
 
   describe('initialize', () => {
-    it('should create .gemini directory and an empty log file if none exist', async () => {
+    it('should create .apex directory and an empty log file if none exist', async () => {
       const dirExists = await fs
         .access(testGeminiDir)
         .then(() => true)

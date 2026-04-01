@@ -24,7 +24,7 @@ afterAll(() => {
 
 describe('WASM path resolution', () => {
   it('resolves bundled WASM relative to the real CLI path when launched via symlink', () => {
-    const symlinkedCliPath = path.join('/usr', 'bin', 'qwen');
+    const symlinkedCliPath = path.join('/usr', 'bin', 'apex');
     const realCliPath = path.join(
       '/opt',
       'homebrew',

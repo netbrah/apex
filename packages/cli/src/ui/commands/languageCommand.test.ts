@@ -67,7 +67,7 @@ vi.mock('@apex-code/apex-core', async (importOriginal) => {
       getGlobalApexDir: vi.fn().mockReturnValue('/mock/.qwen'),
       getGlobalSettingsPath: vi
         .fn()
-        .mockReturnValue('/mock/.qwen/settings.json'),
+        .mockReturnValue('/mock/.apex/settings.json'),
     },
   };
 });

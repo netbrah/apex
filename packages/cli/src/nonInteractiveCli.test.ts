@@ -127,7 +127,7 @@ describe('runNonInteractive', () => {
       getMcpServers: vi.fn().mockReturnValue(undefined),
       getCliVersion: vi.fn().mockReturnValue('test-version'),
       storage: {
-        getProjectTempDir: vi.fn().mockReturnValue('/test/project/.gemini/tmp'),
+        getProjectTempDir: vi.fn().mockReturnValue('/test/project/.apex/tmp'),
       },
       getIdeMode: vi.fn().mockReturnValue(false),
       getFullContext: vi.fn().mockReturnValue(false),

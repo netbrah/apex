@@ -420,8 +420,8 @@ describe('languageUtils', () => {
 
   describe('output-language.md path resolution priority', () => {
     it('should prefer project-level path over global path', () => {
-      const projectPath = '/project/.qwen/output-language.md';
-      const globalPath = '/mock/home/.qwen/output-language.md';
+      const projectPath = '/project/.apex/output-language.md';
+      const globalPath = '/mock/home/.apex/output-language.md';
 
       vi.mocked(fs.existsSync).mockImplementation((p) => {
         if (p.toString() === projectPath) return true;
@@ -440,8 +440,8 @@ describe('languageUtils', () => {
     });
 
     it('should fall back to global path when project-level does not exist', () => {
-      const projectPath = '/project/.qwen/output-language.md';
-      const globalPath = '/mock/home/.qwen/output-language.md';
+      const projectPath = '/project/.apex/output-language.md';
+      const globalPath = '/mock/home/.apex/output-language.md';
 
       vi.mocked(fs.existsSync).mockImplementation((p) => {
         if (p.toString() === projectPath) return false;
@@ -460,8 +460,8 @@ describe('languageUtils', () => {
     });
 
     it('should return undefined when neither path exists', () => {
-      const projectPath = '/project/.qwen/output-language.md';
-      const globalPath = '/mock/home/.qwen/output-language.md';
+      const projectPath = '/project/.apex/output-language.md';
+      const globalPath = '/mock/home/.apex/output-language.md';
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
 

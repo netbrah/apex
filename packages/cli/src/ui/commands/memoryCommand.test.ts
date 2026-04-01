@@ -68,7 +68,7 @@ describe('memoryCommand', () => {
     let mockGetGeminiMdFileCount: Mock;
 
     beforeEach(() => {
-      setGeminiMdFilename('QWEN.md');
+      setGeminiMdFilename('APEX.md');
       mockReadFile.mockReset();
       vi.restoreAllMocks();
 
@@ -169,13 +169,13 @@ describe('memoryCommand', () => {
       );
     });
 
-    it('should fall back to AGENTS.md when QWEN.md does not exist for --project', async () => {
+    it('should fall back to AGENTS.md when APEX.md does not exist for --project', async () => {
       const projectCommand = showCommand.subCommands?.find(
         (cmd) => cmd.name === '--project',
       );
       if (!projectCommand?.action) throw new Error('Command has no action');
 
-      setGeminiMdFilename(['QWEN.md', 'AGENTS.md']);
+      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
       vi.spyOn(process, 'cwd').mockReturnValue('/test/project');
       mockReadFile.mockImplementation(async (filePath: string) => {
         if (filePath.endsWith('AGENTS.md')) return 'agents memory content';
@@ -195,13 +195,13 @@ describe('memoryCommand', () => {
       );
     });
 
-    it('should fall back to AGENTS.md when QWEN.md does not exist for --global', async () => {
+    it('should fall back to AGENTS.md when APEX.md does not exist for --global', async () => {
       const globalCommand = showCommand.subCommands?.find(
         (cmd) => cmd.name === '--global',
       );
       if (!globalCommand?.action) throw new Error('Command has no action');
 
-      setGeminiMdFilename(['QWEN.md', 'AGENTS.md']);
+      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
       vi.spyOn(os, 'homedir').mockReturnValue('/home/user');
       mockReadFile.mockImplementation(async (filePath: string) => {
         if (filePath.endsWith('AGENTS.md')) return 'global agents memory';
@@ -221,16 +221,16 @@ describe('memoryCommand', () => {
       );
     });
 
-    it('should show content from both QWEN.md and AGENTS.md for --project when both exist', async () => {
+    it('should show content from both APEX.md and AGENTS.md for --project when both exist', async () => {
       const projectCommand = showCommand.subCommands?.find(
         (cmd) => cmd.name === '--project',
       );
       if (!projectCommand?.action) throw new Error('Command has no action');
 
-      setGeminiMdFilename(['QWEN.md', 'AGENTS.md']);
+      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
       vi.spyOn(process, 'cwd').mockReturnValue('/test/project');
       mockReadFile.mockImplementation(async (filePath: string) => {
-        if (filePath.endsWith('QWEN.md')) return 'qwen memory';
+        if (filePath.endsWith('APEX.md')) return 'qwen memory';
         if (filePath.endsWith('AGENTS.md')) return 'agents memory';
         throw new Error('ENOENT');
       });
@@ -238,7 +238,7 @@ describe('memoryCommand', () => {
       await projectCommand.action(mockContext, '');
 
       expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/test/project', 'QWEN.md'),
+        path.join('/test/project', 'APEX.md'),
         'utf-8',
       );
       expect(mockReadFile).toHaveBeenCalledWith(
@@ -256,10 +256,10 @@ describe('memoryCommand', () => {
       );
       if (!globalCommand?.action) throw new Error('Command has no action');
 
-      setGeminiMdFilename(['QWEN.md', 'AGENTS.md']);
+      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
       vi.spyOn(os, 'homedir').mockReturnValue('/home/user');
       mockReadFile.mockImplementation(async (filePath: string) => {
-        if (filePath.endsWith('QWEN.md')) return 'global qwen memory';
+        if (filePath.endsWith('APEX.md')) return 'global qwen memory';
         if (filePath.endsWith('AGENTS.md')) return 'global agents memory';
         throw new Error('ENOENT');
       });
@@ -267,7 +267,7 @@ describe('memoryCommand', () => {
       await globalCommand.action(mockContext, '');
 
       expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/home/user', APEX_DIR, 'QWEN.md'),
+        path.join('/home/user', APEX_DIR, 'APEX.md'),
         'utf-8',
       );
       expect(mockReadFile).toHaveBeenCalledWith(

@@ -24,6 +24,7 @@ import type { ContentGenerator } from './contentGenerator.js';
 import { GeminiChat } from './geminiChat.js';
 import {
   getArenaSystemReminder,
+  getContextBudgetSystemReminder,
   getCoreSystemPrompt,
   getCustomSystemPrompt,
   getPlanModeSystemReminder,
@@ -42,7 +43,9 @@ import {
   ChatCompressionService,
   COMPRESSION_PRESERVE_THRESHOLD,
   COMPRESSION_TOKEN_THRESHOLD,
+  isCompactionSummary,
 } from '../services/chatCompressionService.js';
+import { DEFAULT_TOKEN_LIMIT } from './tokenLimits.js';
 import { LoopDetectionService } from '../services/loopDetectionService.js';
 import { ToolOutputMaskingService } from '../services/toolOutputMaskingService.js';
 
@@ -66,7 +69,7 @@ import {
   replayUiTelemetryFromConversation,
 } from '../services/sessionService.js';
 import { reportError } from '../utils/errorReporting.js';
-import { getErrorMessage } from '../utils/errors.js';
+import { getErrorMessage, isAbortError } from '../utils/errors.js';
 import { checkNextSpeaker } from '../utils/nextSpeakerChecker.js';
 import { flatMapTextParts } from '../utils/partUtils.js';
 import { retryWithBackoff } from '../utils/retry.js';
@@ -229,6 +232,12 @@ export class GeminiClient {
   async startChat(extraHistory?: Content[]): Promise<GeminiChat> {
     this.forceFullIdeContext = true;
     this.hasFailedCompressionAttempt = false;
+    try {
+      const { resetJitContextState } = await import('../tools/jit-context.js');
+      resetJitContextState();
+    } catch {
+      // JIT context module may not exist in all builds
+    }
 
     const history = await getInitialChatHistory(this.config, extraHistory);
 
@@ -537,7 +546,7 @@ export class GeminiClient {
       return new Turn(this.getChat(), prompt_id);
     }
 
-    const compressed = await this.tryCompressChat(prompt_id, false, signal);
+    const compressed = await this.tryCompressChat(prompt_id, false);
 
     if (compressed.compressionStatus === CompressionStatus.COMPRESSED) {
       yield { type: GeminiEventType.ChatCompressed, value: compressed };
@@ -643,6 +652,30 @@ export class GeminiClient {
         }
       }
 
+      // inject context-budget awareness so the model can self-manage its window
+      const promptTokenCount = uiTelemetryService.getLastPromptTokenCount();
+      if (promptTokenCount > 0) {
+        const contextLimit =
+          this.config.getContentGeneratorConfig()?.contextWindowSize ??
+          DEFAULT_TOKEN_LIMIT;
+        const compactionRatio = promptTokenCount / contextLimit;
+        const isSummarized = history.some((entry) =>
+          entry.parts?.some(
+            (part) =>
+              'text' in part &&
+              typeof part.text === 'string' &&
+              isCompactionSummary(part.text),
+          ),
+        );
+        const budgetReminder = getContextBudgetSystemReminder(
+          compactionRatio,
+          isSummarized,
+        );
+        if (budgetReminder) {
+          systemReminders.push(budgetReminder);
+        }
+      }
+
       requestToSent = [...systemReminders, ...requestToSent];
     }
 
@@ -651,33 +684,41 @@ export class GeminiClient {
       requestToSent,
       signal,
     );
-    for await (const event of resultStream) {
-      if (!this.config.getSkipLoopDetection()) {
-        if (this.loopDetector.addAndCheck(event)) {
-          yield { type: GeminiEventType.LoopDetected };
+    try {
+      for await (const event of resultStream) {
+        if (!this.config.getSkipLoopDetection()) {
+          if (this.loopDetector.addAndCheck(event)) {
+            yield { type: GeminiEventType.LoopDetected };
+            if (arenaAgentClient) {
+              await arenaAgentClient.reportError('Loop detected');
+            }
+            return turn;
+          }
+        }
+        // Update arena status on Finished events — stats are derived
+        // automatically from uiTelemetryService by the reporter.
+        if (arenaAgentClient && event.type === GeminiEventType.Finished) {
+          await arenaAgentClient.updateStatus();
+        }
+
+        yield event;
+        if (event.type === GeminiEventType.Error) {
           if (arenaAgentClient) {
-            await arenaAgentClient.reportError('Loop detected');
+            const errorMsg =
+              event.value instanceof Error
+                ? event.value.message
+                : 'Unknown error';
+            await arenaAgentClient.reportError(errorMsg);
           }
           return turn;
         }
       }
-      // Update arena status on Finished events — stats are derived
-      // automatically from uiTelemetryService by the reporter.
-      if (arenaAgentClient && event.type === GeminiEventType.Finished) {
-        await arenaAgentClient.updateStatus();
-      }
-
-      yield event;
-      if (event.type === GeminiEventType.Error) {
-        if (arenaAgentClient) {
-          const errorMsg =
-            event.value instanceof Error
-              ? event.value.message
-              : 'Unknown error';
-          await arenaAgentClient.reportError(errorMsg);
-        }
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) {
+        yield { type: GeminiEventType.UserCancelled };
         return turn;
       }
+      throw error;
     }
     // Fire Stop hook through MessageBus (only if hooks are enabled)
     // This must be done before any early returns to ensure hooks are always triggered
@@ -845,7 +886,6 @@ export class GeminiClient {
   async tryCompressChat(
     prompt_id: string,
     force: boolean = false,
-    abortSignal?: AbortSignal,
   ): Promise<ChatCompressionInfo> {
     const compressionService = new ChatCompressionService();
 
@@ -856,7 +896,6 @@ export class GeminiClient {
       this.config.getModel(),
       this.config,
       this.hasFailedCompressionAttempt,
-      abortSignal,
     );
 
     // Handle compression result
@@ -870,6 +909,7 @@ export class GeminiClient {
         });
 
         await this.startChat(newHistory);
+        this.config.getContentGenerator().resetPipelineState?.();
         uiTelemetryService.setLastPromptTokenCount(info.newTokenCount);
         this.forceFullIdeContext = true;
       }

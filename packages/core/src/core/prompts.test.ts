@@ -50,7 +50,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt();
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are **SPECTRE**');
+    expect(prompt).toContain('You are **APEX**');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -58,7 +58,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are **SPECTRE**');
+    expect(prompt).toContain('You are **APEX**');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -66,7 +66,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('   \n  \t ');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are **SPECTRE**');
+    expect(prompt).toContain('You are **APEX**');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -77,7 +77,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     const prompt = getCoreSystemPrompt(memory);
 
     expect(prompt.endsWith(expectedSuffix)).toBe(true);
-    expect(prompt).toContain('You are **SPECTRE**');
+    expect(prompt).toContain('You are **APEX**');
     expect(prompt).toMatchSnapshot();
   });
 

@@ -15,7 +15,7 @@ const createMockExtension = (name: string, isActive = true): Extension =>
     id: name,
     name,
     version: '1.0.0',
-    path: `/home/user/.qwen/extensions/${name}`,
+    path: `/home/user/.apex/extensions/${name}`,
     isActive,
     installMetadata: {
       type: 'git',

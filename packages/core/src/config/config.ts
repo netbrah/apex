@@ -1234,13 +1234,45 @@ export class Config {
       return;
     }
 
-    // Hot update path: only supported for qwen-oauth.
-    // For other auth types we always refresh to recreate the ContentGenerator.
-    //
-    // Rationale:
-    // - Non-qwen providers may need to re-validate credentials / baseUrl / envKey.
-    // - ModelsConfig.applyResolvedModelDefaults can clear or change credentials sources.
-    // - Refresh keeps runtime behavior consistent and centralized.
+    // Hot update path: when requiresRefresh is false, only sync config fields
+    // without recreating the ContentGenerator (avoids unnecessary auth refresh).
+    if (!requiresRefresh) {
+      const { config, sources } = resolveContentGeneratorConfigWithSources(
+        this,
+        authType,
+        this.modelsConfig.getGenerationConfig(),
+        this.modelsConfig.getGenerationConfigSources(),
+        {
+          strictModelProvider:
+            this.modelsConfig.isStrictModelProviderSelection(),
+        },
+      );
+
+      this.contentGeneratorConfig.model = config.model;
+      this.contentGeneratorConfig.samplingParams = config.samplingParams;
+      this.contentGeneratorConfig.contextWindowSize = config.contextWindowSize;
+      this.contentGeneratorConfig.enableCacheControl =
+        config.enableCacheControl;
+
+      if ('model' in sources) {
+        this.contentGeneratorConfigSources['model'] = sources['model'];
+      }
+      if ('samplingParams' in sources) {
+        this.contentGeneratorConfigSources['samplingParams'] =
+          sources['samplingParams'];
+      }
+      if ('enableCacheControl' in sources) {
+        this.contentGeneratorConfigSources['enableCacheControl'] =
+          sources['enableCacheControl'];
+      }
+      if ('contextWindowSize' in sources) {
+        this.contentGeneratorConfigSources['contextWindowSize'] =
+          sources['contextWindowSize'];
+      }
+      return;
+    }
+
+    // Full refresh path — recreate the ContentGenerator.
     await this.refreshAuth(authType);
   }
 

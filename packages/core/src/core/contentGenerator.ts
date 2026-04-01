@@ -231,6 +231,11 @@ export function validateModelConfig(
 ): ModelConfigValidationResult {
   const errors: Error[] = [];
 
+  // QWEN_OAUTH uses dynamic tokens — no API key validation needed
+  if (config.authType === AuthType.QWEN_OAUTH) {
+    return { valid: true, errors: [] };
+  }
+
   // API key is required for all other auth types
   if (!config.apiKey) {
     if (isStrictModelProvider) {

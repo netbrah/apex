@@ -987,7 +987,7 @@ Important Rules:
  - When the task is complete, return the final result as a normal model response (not a tool call) and stop.`;
     }
 
-    // Append user memory (QWEN.md + output-language.md) to ensure subagent respects project conventions
+    // Append user memory (APEX.md + output-language.md) to ensure subagent respects project conventions
     const userMemory = this.runtimeContext.getUserMemory();
     if (userMemory && userMemory.trim().length > 0) {
       finalPrompt += `\n\n---\n\n${userMemory.trim()}`;

@@ -134,7 +134,7 @@ export const summaryCommand: SlashCommand = {
     }> => {
       // Ensure .qwen directory exists
       const projectRoot = config.getProjectRoot();
-      const qwenDir = path.join(projectRoot, '.qwen');
+      const qwenDir = path.join(projectRoot, '.apex');
       try {
         await fsPromises.mkdir(qwenDir, { recursive: true });
       } catch (_err) {

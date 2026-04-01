@@ -37,6 +37,7 @@ import {
   getCommandRoots,
   splitCommands,
   stripShellWrapper,
+  detectCommandSubstitution,
 } from '../utils/shell-utils.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import {
@@ -91,11 +92,17 @@ export class ShellToolInvocation extends BaseToolInvocation<
 
   /**
    * AST-based permission check for the shell command.
+   * - Command substitution → 'deny' (security)
    * - Read-only commands (via AST analysis) → 'allow'
    * - All other commands → 'ask'
    */
   override async getDefaultPermission(): Promise<PermissionDecision> {
     const command = stripShellWrapper(this.params.command);
+
+    // Security: command substitution ($(), ``, <(), >()) → deny
+    if (detectCommandSubstitution(command)) {
+      return 'deny';
+    }
 
     // AST-based read-only detection
     try {
@@ -120,40 +127,25 @@ export class ShellToolInvocation extends BaseToolInvocation<
     _abortSignal: AbortSignal,
   ): Promise<ToolCallConfirmationDetails> {
     const command = stripShellWrapper(this.params.command);
-    const pm = this.config.getPermissionManager?.();
 
     // Split compound command and filter out already-allowed (read-only) sub-commands
     const subCommands = splitCommands(command);
-    const confirmableSubCommands: string[] = [];
+    const nonReadOnlySubCommands: string[] = [];
     for (const sub of subCommands) {
-      let isReadOnly = false;
       try {
-        isReadOnly = await isShellCommandReadOnlyAST(sub);
-      } catch {
-        // conservative: treat unknown commands as requiring confirmation
-      }
-
-      if (isReadOnly) {
-        continue;
-      }
-
-      if (pm) {
-        try {
-          if ((await pm.isCommandAllowed(sub)) === 'allow') {
-            continue;
-          }
-        } catch (e) {
-          debugLogger.warn('PermissionManager command check failed:', e);
+        const isReadOnly = await isShellCommandReadOnlyAST(sub);
+        if (!isReadOnly) {
+          nonReadOnlySubCommands.push(sub);
         }
+      } catch {
+        nonReadOnlySubCommands.push(sub); // conservative: include if check fails
       }
-
-      confirmableSubCommands.push(sub);
     }
 
     // Fallback to all sub-commands if everything was filtered out (shouldn't
     // normally happen since getDefaultPermission already returned 'ask').
     const effectiveSubCommands =
-      confirmableSubCommands.length > 0 ? confirmableSubCommands : subCommands;
+      nonReadOnlySubCommands.length > 0 ? nonReadOnlySubCommands : subCommands;
 
     const rootCommands = [
       ...new Set(
@@ -597,10 +589,18 @@ ${processGroupNote}
 }
 
 function getCommandDescription(): string {
+  const cmd_substitution_warning =
+    '\n*** WARNING: Command substitution using $(), `` ` ``, <(), or >() is not allowed for security reasons.';
   if (os.platform() === 'win32') {
-    return 'Exact command to execute as `cmd.exe /c <command>`';
+    return (
+      'Exact command to execute as `cmd.exe /c <command>`' +
+      cmd_substitution_warning
+    );
   } else {
-    return 'Exact bash command to execute as `bash -c <command>`';
+    return (
+      'Exact bash command to execute as `bash -c <command>`' +
+      cmd_substitution_warning
+    );
   }
 }
 
@@ -653,9 +653,9 @@ export class ShellTool extends BaseDeclarativeTool<
   protected override validateToolParamValues(
     params: ShellToolParams,
   ): string | null {
-    // NOTE: Permission checks (read-only detection, PM rules) are handled at
-    // L3 (getDefaultPermission) and L4 (PM override) in coreToolScheduler.
-    // This method only performs pure parameter validation.
+    // NOTE: Permission checks (command substitution, read-only detection, PM rules)
+    // are now handled at L3 (getDefaultPermission) and L4 (PM override) in
+    // coreToolScheduler. This method only performs pure parameter validation.
     if (!params.command.trim()) {
       return 'Command cannot be empty.';
     }

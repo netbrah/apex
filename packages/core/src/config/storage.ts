@@ -232,7 +232,7 @@ export class Storage {
   }
 
   getExtensionsConfigPath(): string {
-    return path.join(this.getExtensionsDir(), 'qwen-extension.json');
+    return path.join(this.getExtensionsDir(), 'apex-extension.json');
   }
 
   getUserSkillsDirs(): string[] {

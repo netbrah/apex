@@ -28,12 +28,12 @@ vi.mock('fs', async (importOriginal) => {
 vi.mock('@apex-code/apex-core', () => {
   class Storage {
     getProjectTempDir(): string {
-      return path.join('/test/home/', '.qwen', 'tmp', 'mocked_hash');
+      return path.join('/test/home/', '.apex', 'tmp', 'mocked_hash');
     }
     getHistoryFilePath(): string {
       return path.join(
         '/test/home/',
-        '.qwen',
+        '.apex',
         'tmp',
         'mocked_hash',
         'shell_history',
@@ -59,7 +59,7 @@ const MOCKED_PROJECT_HASH = 'mocked_hash';
 
 const MOCKED_HISTORY_DIR = path.join(
   MOCKED_HOME_DIR,
-  '.qwen',
+  '.apex',
   'tmp',
   MOCKED_PROJECT_HASH,
 );

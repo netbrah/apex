@@ -1604,7 +1604,7 @@ describe('ModelsConfig', () => {
           {
             id: 'gemini-pro',
             name: 'Gemini Pro',
-            baseUrl: 'https://api.gemini.example.com/v1',
+            baseUrl: 'https://api.apex.example.com/v1',
           },
         ],
       };

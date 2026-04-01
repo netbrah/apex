@@ -46,10 +46,10 @@ describe('ChatRecordingService', () => {
       storage: {
         getProjectTempDir: vi
           .fn()
-          .mockReturnValue('/test/project/root/.gemini/tmp/hash'),
+          .mockReturnValue('/test/project/root/.apex/tmp/hash'),
         getProjectDir: vi
           .fn()
-          .mockReturnValue('/test/project/root/.gemini/projects/test-project'),
+          .mockReturnValue('/test/project/root/.apex/projects/test-project'),
       },
       getModel: vi.fn().mockReturnValue('gemini-pro'),
       getDebugMode: vi.fn().mockReturnValue(false),

@@ -119,9 +119,9 @@ vi.mock('../tools/read-many-files', () => ({
 vi.mock('../tools/memoryTool', () => ({
   MemoryTool: createToolMock('save_memory'),
   setGeminiMdFilename: vi.fn(),
-  getCurrentGeminiMdFilename: vi.fn(() => 'QWEN.md'), // Mock the original filename
-  getAllGeminiMdFilenames: vi.fn(() => ['QWEN.md', 'AGENTS.md']),
-  DEFAULT_CONTEXT_FILENAME: 'QWEN.md',
+  getCurrentGeminiMdFilename: vi.fn(() => 'APEX.md'), // Mock the original filename
+  getAllGeminiMdFilenames: vi.fn(() => ['APEX.md', 'AGENTS.md']),
+  DEFAULT_CONTEXT_FILENAME: 'APEX.md',
   QWEN_CONFIG_DIR: '.apex',
 }));
 

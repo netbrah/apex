@@ -164,15 +164,29 @@ export class ResponsesPipeline {
       convertGeminiContentsToResponsesInput(request);
     const tools = convertGeminiToolsToResponsesTools(request);
 
-    // Encrypted content replay and previous_response_id require sticky routing
-    // (store: true + single deployment) or WebSocket transport. When the proxy
-    // load-balances across Azure deployments, encrypted content from deployment
-    // A can't be decrypted by deployment B. Enable via config when infra supports it.
+    let effectiveInput: ResponsesApiInputItem[] = [...input];
+
+    // Drain pending encrypted items into input first
+    if (this.state.pendingEncryptedItems.length > 0) {
+      effectiveInput = [
+        ...this.state.pendingEncryptedItems.map((item) => item as unknown as ResponsesApiInputItem),
+        ...effectiveInput,
+      ];
+      this.state.pendingEncryptedItems = [];
+    }
+
+    // Encrypted content replay and previous_response_id require sticky routing.
+    // When infra doesn't support it, we still drain items but don't persist them.
     if (!this.config.enableEncryptedContentReplay) {
       this.state.pendingEncryptedItems = [];
     }
 
-    const effectiveInput: ResponsesApiInputItem[] = input;
+    // Use previous_response_id only when there are new items beyond what was already sent
+    let previousResponseId: string | undefined;
+    if (this.state.lastResponseId && effectiveInput.length > this.state.lastInputItemCount) {
+      previousResponseId = this.state.lastResponseId;
+      effectiveInput = effectiveInput.slice(this.state.lastInputItemCount);
+    }
 
     const reasoning = this.buildReasoning();
     const text = this.buildTextControls();
@@ -180,17 +194,20 @@ export class ResponsesPipeline {
     const apiRequest: ResponsesApiRequest = {
       model: this.config.model,
       input: effectiveInput,
+      ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
       instructions,
       tools,
       tool_choice: 'auto',
       parallel_tool_calls: true,
-      truncation: 'auto',
+      truncation: { type: 'auto' },
       stream: true,
+      store: true,
       prompt_cache_key: userPromptId,
     };
 
     if (reasoning) {
       apiRequest.reasoning = reasoning;
+      apiRequest.include = ['reasoning.encrypted_content'];
     }
 
     if (text) {
