@@ -1,4 +1,4 @@
-// Stub: Qwen OAuth removed in Apex
+// Stub: API Key removed in Apex
 export interface QwenAuthState {
   deviceAuth: unknown;
   authStatus: string | null;

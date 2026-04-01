@@ -57,10 +57,10 @@ describe('showAuthStatus', () => {
       expect.stringContaining('No authentication method configured'),
     );
     expect(writeStdoutLine).toHaveBeenCalledWith(
-      expect.stringContaining('qwen auth qwen-oauth'),
+      expect.stringContaining('apex auth api-key'),
     );
     expect(writeStdoutLine).toHaveBeenCalledWith(
-      expect.stringContaining('qwen auth coding-plan'),
+      expect.stringContaining('apex auth api-key'),
     );
     expect(process.exit).toHaveBeenCalledWith(0);
   });
@@ -113,7 +113,7 @@ describe('showAuthStatus', () => {
     await showAuthStatus();
 
     expect(writeStdoutLine).toHaveBeenCalledWith(
-      expect.stringContaining('Alibaba Cloud Coding Plan'),
+      expect.stringContaining('API Key'),
     );
     expect(writeStdoutLine).toHaveBeenCalledWith(
       expect.stringContaining('API key configured'),

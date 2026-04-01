@@ -80,7 +80,7 @@ export function getInstallationInfo(
     if (process.platform === 'darwin') {
       try {
         // We do not support homebrew for now, keep forward compatibility for future use
-        childProcess.execSync('brew list -1 | grep -q "^qwen-code$"', {
+        childProcess.execSync('brew list -1 | grep -q "^apex$"', {
           stdio: 'ignore',
         });
         return {

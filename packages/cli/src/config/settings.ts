@@ -142,9 +142,9 @@ export function getSystemSettingsPath(): string {
   if (platform() === 'darwin') {
     return '/Library/Application Support/QwenCode/settings.json';
   } else if (platform() === 'win32') {
-    return 'C:\\ProgramData\\qwen-code\\settings.json';
+    return 'C:\\ProgramData\\apex\\settings.json';
   } else {
-    return '/etc/qwen-code/settings.json';
+    return '/etc/apex/settings.json';
   }
 }
 
@@ -405,7 +405,7 @@ export function createMinimalSettings(): LoadedSettings {
  * Finds the .env file to load, respecting workspace trust settings.
  *
  * When workspace is untrusted, only allow user-level .env files at:
- * - ~/.qwen/.env
+ * - ~/.apex/.env
  * - ~/.env
  */
 function findEnvFile(settings: Settings, startDir: string): string | null {

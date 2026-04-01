@@ -58,8 +58,8 @@ describe('bugCommand', () => {
 
     const qwenCodeLine =
       GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-        ? `Qwen Code: 0.1.0 (${GIT_COMMIT_INFO})`
-        : 'Qwen Code: 0.1.0';
+        ? `Apex: 0.1.0 (${GIT_COMMIT_INFO})`
+        : 'Apex: 0.1.0';
     const expectedInfo = `${qwenCodeLine}
 Runtime: Node.js v20.0.0 / npm 10.0.0
 IDE Client: VSCode
@@ -70,7 +70,7 @@ Sandbox: test
 Proxy: no proxy
 Memory Usage: 100 MB`;
     const expectedUrl =
-      'https://github.com/QwenLM/qwen-code/issues/new?template=bug_report.yml&title=A%20test%20bug&info=' +
+      'https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title=A%20test%20bug&info=' +
       encodeURIComponent(`\n${expectedInfo}\n`);
 
     expect(open).toHaveBeenCalledWith(expectedUrl);
@@ -92,8 +92,8 @@ Memory Usage: 100 MB`;
 
     const qwenCodeLine =
       GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-        ? `Qwen Code: 0.1.0 (${GIT_COMMIT_INFO})`
-        : 'Qwen Code: 0.1.0';
+        ? `Apex: 0.1.0 (${GIT_COMMIT_INFO})`
+        : 'Apex: 0.1.0';
     const expectedInfo = `${qwenCodeLine}
 Runtime: Node.js v20.0.0 / npm 10.0.0
 IDE Client: VSCode
@@ -144,8 +144,8 @@ Memory Usage: 100 MB`;
 
     const qwenCodeLine =
       GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-        ? `Qwen Code: 0.1.0 (${GIT_COMMIT_INFO})`
-        : 'Qwen Code: 0.1.0';
+        ? `Apex: 0.1.0 (${GIT_COMMIT_INFO})`
+        : 'Apex: 0.1.0';
     const expectedInfo = `${qwenCodeLine}
 Runtime: Node.js v20.0.0 / npm 10.0.0
 IDE Client: VSCode
@@ -158,7 +158,7 @@ Sandbox: test
 Proxy: no proxy
 Memory Usage: 100 MB`;
     const expectedUrl =
-      'https://github.com/QwenLM/qwen-code/issues/new?template=bug_report.yml&title=OpenAI%20bug&info=' +
+      'https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title=OpenAI%20bug&info=' +
       encodeURIComponent(`\n${expectedInfo}\n`);
 
     expect(open).toHaveBeenCalledWith(expectedUrl);

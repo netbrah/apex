@@ -53,7 +53,7 @@ interface MergedSettingsWithCodingPlan {
  * Handles the authentication process based on the specified command and options
  */
 export async function handleQwenAuth(
-  command: 'qwen-oauth' | 'coding-plan',
+  command: 'api-key' | 'coding-plan',
   options: QwenAuthOptions,
 ) {
   try {
@@ -120,7 +120,7 @@ export async function handleQwenAuth(
       [], // No extensions for auth command
     );
 
-    if (command === 'qwen-oauth') {
+    if (command === 'api-key') {
       await handleQwenOAuth(config, settings);
     } else if (command === 'coding-plan') {
       await handleCodePlanAuth(config, settings, options);
@@ -136,13 +136,13 @@ export async function handleQwenAuth(
 }
 
 /**
- * Handles Qwen OAuth authentication
+ * Handles API Key authentication
  */
 async function handleQwenOAuth(
   config: Config,
   settings: LoadedSettings,
 ): Promise<void> {
-  writeStdoutLine(t('Starting Qwen OAuth authentication...'));
+  writeStdoutLine(t('Starting API Key authentication...'));
 
   try {
     await config.refreshAuth(AuthType.QWEN_OAUTH);
@@ -155,11 +155,11 @@ async function handleQwenOAuth(
       AuthType.QWEN_OAUTH,
     );
 
-    writeStdoutLine(t('Successfully authenticated with Qwen OAuth.'));
+    writeStdoutLine(t('Successfully authenticated with API Key.'));
     process.exit(0);
   } catch (error) {
     writeStderrLine(
-      t('Failed to authenticate with Qwen OAuth: {{error}}', {
+      t('Failed to authenticate with API Key: {{error}}', {
         error: getErrorMessage(error),
       }),
     );
@@ -168,7 +168,7 @@ async function handleQwenOAuth(
 }
 
 /**
- * Handles Alibaba Cloud Coding Plan authentication
+ * Handles API Key authentication
  */
 async function handleCodePlanAuth(
   config: Config,
@@ -193,7 +193,7 @@ async function handleCodePlanAuth(
     selectedKey = await promptForKey();
   }
 
-  writeStdoutLine(t('Processing Alibaba Cloud Coding Plan authentication...'));
+  writeStdoutLine(t('Processing API Key authentication...'));
 
   try {
     // Get configuration based on region
@@ -265,7 +265,7 @@ async function handleCodePlanAuth(
     await config.refreshAuth(AuthType.USE_OPENAI);
 
     writeStdoutLine(
-      t('Successfully authenticated with Alibaba Cloud Coding Plan.'),
+      t('Successfully authenticated with API Key.'),
     );
   } catch (error) {
     writeStderrLine(
@@ -369,15 +369,15 @@ export async function runInteractiveAuth() {
   const selector = new InteractiveSelector(
     [
       {
-        value: 'qwen-oauth' as const,
-        label: t('Qwen OAuth'),
-        description: t('Free · Up to 1,000 requests/day · Qwen latest models'),
+        value: 'api-key' as const,
+        label: t('API Key'),
+        description: t('Free · Up to 1,000 requests/day · Available models'),
       },
       {
         value: 'coding-plan' as const,
-        label: t('Alibaba Cloud Coding Plan'),
+        label: t('API Key'),
         description: t(
-          'Paid · Up to 6,000 requests/5 hrs · All Alibaba Cloud Coding Plan Models',
+          'Paid · Up to 6,000 requests/5 hrs · All API Key Models',
         ),
       },
     ],
@@ -389,7 +389,7 @@ export async function runInteractiveAuth() {
   if (choice === 'coding-plan') {
     await handleQwenAuth('coding-plan', {});
   } else {
-    await handleQwenAuth('qwen-oauth', {});
+    await handleQwenAuth('api-key', {});
   }
 }
 
@@ -411,12 +411,12 @@ export async function showAuthStatus(): Promise<void> {
       writeStdoutLine(t('Run one of the following commands to get started:\n'));
       writeStdoutLine(
         t(
-          '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)',
+          '  apex auth api-key     - Authenticate with API Key',
         ),
       );
       writeStdoutLine(
         t(
-          '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n',
+          '  apex auth coding-plan      - Authenticate with API Key\n',
         ),
       );
       writeStdoutLine(t('Or simply run:'));
@@ -428,10 +428,10 @@ export async function showAuthStatus(): Promise<void> {
 
     // Display status based on auth type
     if (selectedType === AuthType.QWEN_OAUTH) {
-      writeStdoutLine(t('✓ Authentication Method: Qwen OAuth'));
+      writeStdoutLine(t('✓ Authentication Method: API Key'));
       writeStdoutLine(t('  Type: Free tier'));
       writeStdoutLine(t('  Limit: Up to 1,000 requests/day'));
-      writeStdoutLine(t('  Models: Qwen latest models\n'));
+      writeStdoutLine(t('  Models: Available models\n'));
     } else if (selectedType === AuthType.USE_OPENAI) {
       // Check for Coding Plan configuration
       const codingPlanRegion = mergedSettings.codingPlan?.region;
@@ -445,7 +445,7 @@ export async function showAuthStatus(): Promise<void> {
 
       if (hasApiKey) {
         writeStdoutLine(
-          t('✓ Authentication Method: Alibaba Cloud Coding Plan'),
+          t('✓ Authentication Method: API Key'),
         );
 
         if (codingPlanRegion) {
@@ -474,7 +474,7 @@ export async function showAuthStatus(): Promise<void> {
       } else {
         writeStdoutLine(
           t(
-            '⚠️  Authentication Method: Alibaba Cloud Coding Plan (Incomplete)',
+            '⚠️  Authentication Method: API Key (Incomplete)',
           ),
         );
         writeStdoutLine(

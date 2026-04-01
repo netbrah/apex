@@ -741,7 +741,7 @@ describe('languageCommand', () => {
       vi.mocked(i18n.detectSystemLanguage).mockReturnValue('en');
       vi.mocked(fs.readFileSync).mockReturnValue(
         `# Output language preference: English
-<!-- qwen-code:llm-output-language: English -->
+<!-- apex:llm-output-language: English -->
 `,
       );
 
@@ -754,7 +754,7 @@ describe('languageCommand', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue(
         `# Output language preference: English
-<!-- qwen-code:llm-output-language: English -->
+<!-- apex:llm-output-language: English -->
 `,
       );
 

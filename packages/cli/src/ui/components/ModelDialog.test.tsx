@@ -12,10 +12,14 @@ import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSel
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import type { Config } from '@apex-code/apex-core';
-import { AuthType, DEFAULT_QWEN_MODEL } from '@apex-code/apex-core';
+import { AuthType } from '@apex-code/apex-core';
 import type { LoadedSettings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
-import { getFilteredQwenModels } from '../models/availableModels.js';
+
+const MOCK_OPENAI_MODELS = [
+  { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Latest GPT model' },
+  { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Efficient GPT model' },
+];
 
 vi.mock('../hooks/useKeypress.js', () => ({
   useKeypress: vi.fn(),
@@ -29,11 +33,11 @@ vi.mock('./shared/DescriptiveRadioButtonSelect.js', () => ({
 // Helper to create getAvailableModelsForAuthType mock
 const createMockGetAvailableModelsForAuthType = () =>
   vi.fn((t: AuthType) => {
-    if (t === AuthType.QWEN_OAUTH) {
-      return getFilteredQwenModels().map((m) => ({
+    if (t === AuthType.USE_OPENAI) {
+      return MOCK_OPENAI_MODELS.map((m) => ({
         id: m.id,
         label: m.label,
-        authType: AuthType.QWEN_OAUTH,
+        authType: AuthType.USE_OPENAI,
       }));
     }
     return [];
@@ -58,16 +62,16 @@ const renderComponent = (
 
   const mockConfig = {
     // --- Functions used by ModelDialog ---
-    getModel: vi.fn(() => DEFAULT_QWEN_MODEL),
+    getModel: vi.fn(() => 'gpt-4.1'),
     setModel: vi.fn().mockResolvedValue(undefined),
     switchModel: vi.fn().mockResolvedValue(undefined),
-    getAuthType: vi.fn(() => 'qwen-oauth'),
+    getAuthType: vi.fn(() => 'openai'),
     getAllConfiguredModels: vi.fn(() =>
-      getFilteredQwenModels().map((m) => ({
+      MOCK_OPENAI_MODELS.map((m) => ({
         id: m.id,
         label: m.label,
         description: m.description || '',
-        authType: AuthType.QWEN_OAUTH,
+        authType: AuthType.USE_OPENAI,
       })),
     ),
 
@@ -76,8 +80,8 @@ const renderComponent = (
     getSessionId: vi.fn(() => 'mock-session-id'),
     getDebugMode: vi.fn(() => false),
     getContentGeneratorConfig: vi.fn(() => ({
-      authType: AuthType.QWEN_OAUTH,
-      model: DEFAULT_QWEN_MODEL,
+      authType: AuthType.USE_OPENAI,
+      model: 'gpt-4.1',
     })),
     getUseModelRouter: vi.fn(() => false),
     getProxy: vi.fn(() => undefined),
@@ -124,16 +128,16 @@ describe('<ModelDialog />', () => {
     expect(mockedSelect).toHaveBeenCalledTimes(1);
 
     const props = mockedSelect.mock.calls[0][0];
-    expect(props.items).toHaveLength(getFilteredQwenModels().length);
+    expect(props.items).toHaveLength(MOCK_OPENAI_MODELS.length);
     // coder-model is the only model and it has vision capability
     expect(props.items[0].value).toBe(
-      `${AuthType.QWEN_OAUTH}::${DEFAULT_QWEN_MODEL}`,
+      `${AuthType.USE_OPENAI}::${'gpt-4.1'}`,
     );
     expect(props.showNumbers).toBe(true);
   });
 
   it('initializes with the model from ConfigContext', () => {
-    const mockGetModel = vi.fn(() => DEFAULT_QWEN_MODEL);
+    const mockGetModel = vi.fn(() => 'gpt-4.1');
     renderComponent(
       {},
       {
@@ -145,9 +149,9 @@ describe('<ModelDialog />', () => {
 
     expect(mockGetModel).toHaveBeenCalled();
     // Calculate expected index dynamically based on model list
-    const qwenModels = getFilteredQwenModels();
+    const qwenModels = MOCK_OPENAI_MODELS;
     const expectedIndex = qwenModels.findIndex(
-      (m) => m.id === DEFAULT_QWEN_MODEL,
+      (m) => m.id === 'gpt-4.1',
     );
     expect(mockedSelect).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -181,7 +185,7 @@ describe('<ModelDialog />', () => {
 
     expect(mockGetModel).toHaveBeenCalled();
 
-    // When getModel returns undefined, preferredModel falls back to DEFAULT_QWEN_MODEL
+    // When getModel returns undefined, preferredModel falls back to 'gpt-4.1'
     // which has index 0, so initialIndex should be 0
     expect(mockedSelect).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -197,11 +201,11 @@ describe('<ModelDialog />', () => {
       {},
       {
         getAvailableModelsForAuthType: vi.fn((t: AuthType) => {
-          if (t === AuthType.QWEN_OAUTH) {
-            return getFilteredQwenModels().map((m) => ({
+          if (t === AuthType.USE_OPENAI) {
+            return MOCK_OPENAI_MODELS.map((m) => ({
               id: m.id,
               label: m.label,
-              authType: AuthType.QWEN_OAUTH,
+              authType: AuthType.USE_OPENAI,
             }));
           }
           return [];
@@ -212,22 +216,22 @@ describe('<ModelDialog />', () => {
     const childOnSelect = mockedSelect.mock.calls[0][0].onSelect;
     expect(childOnSelect).toBeDefined();
 
-    await childOnSelect(`${AuthType.QWEN_OAUTH}::${DEFAULT_QWEN_MODEL}`);
+    await childOnSelect(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
 
     expect(mockConfig?.switchModel).toHaveBeenCalledWith(
-      AuthType.QWEN_OAUTH,
-      DEFAULT_QWEN_MODEL,
+      AuthType.USE_OPENAI,
+      'gpt-4.1',
       undefined,
     );
     expect(mockSettings.setValue).toHaveBeenCalledWith(
       SettingScope.User,
       'model.name',
-      DEFAULT_QWEN_MODEL,
+      'gpt-4.1',
     );
     expect(mockSettings.setValue).toHaveBeenCalledWith(
       SettingScope.User,
       'security.auth.selectedType',
-      AuthType.QWEN_OAUTH,
+      AuthType.USE_OPENAI,
     );
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
@@ -239,13 +243,6 @@ describe('<ModelDialog />', () => {
       if (t === AuthType.USE_OPENAI) {
         return [{ id: 'gpt-4', label: 'GPT-4', authType: t }];
       }
-      if (t === AuthType.QWEN_OAUTH) {
-        return getFilteredQwenModels().map((m) => ({
-          id: m.id,
-          label: m.label,
-          authType: AuthType.QWEN_OAUTH,
-        }));
-      }
       return [];
     });
 
@@ -253,8 +250,8 @@ describe('<ModelDialog />', () => {
       getAuthType,
       getModel: vi.fn(() => 'gpt-4'),
       getContentGeneratorConfig: vi.fn(() => ({
-        authType: AuthType.QWEN_OAUTH,
-        model: DEFAULT_QWEN_MODEL,
+        authType: AuthType.USE_OPENAI,
+        model: 'gpt-4.1',
       })),
       // Add switchModel to the mock object (not the type)
       switchModel,
@@ -268,22 +265,22 @@ describe('<ModelDialog />', () => {
     );
 
     const childOnSelect = mockedSelect.mock.calls[0][0].onSelect;
-    await childOnSelect(`${AuthType.QWEN_OAUTH}::${DEFAULT_QWEN_MODEL}`);
+    await childOnSelect(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
 
     expect(switchModel).toHaveBeenCalledWith(
-      AuthType.QWEN_OAUTH,
-      DEFAULT_QWEN_MODEL,
-      { requireCachedCredentials: true },
+      AuthType.USE_OPENAI,
+      'gpt-4.1',
+      undefined,
     );
     expect(mockSettings.setValue).toHaveBeenCalledWith(
       SettingScope.User,
       'model.name',
-      DEFAULT_QWEN_MODEL,
+      'gpt-4.1',
     );
     expect(mockSettings.setValue).toHaveBeenCalledWith(
       SettingScope.User,
       'security.auth.selectedType',
-      AuthType.QWEN_OAUTH,
+      AuthType.USE_OPENAI,
     );
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
@@ -328,8 +325,8 @@ describe('<ModelDialog />', () => {
   });
 
   it('updates initialIndex when config context changes', () => {
-    const mockGetModel = vi.fn(() => DEFAULT_QWEN_MODEL);
-    const mockGetAuthType = vi.fn(() => 'qwen-oauth');
+    const mockGetModel = vi.fn(() => 'gpt-4.1');
+    const mockGetAuthType = vi.fn(() => 'openai');
     const mockSettings = {
       isTrusted: true,
       user: { settings: {} },
@@ -346,11 +343,11 @@ describe('<ModelDialog />', () => {
               getAvailableModelsForAuthType:
                 createMockGetAvailableModelsForAuthType(),
               getAllConfiguredModels: vi.fn(() =>
-                getFilteredQwenModels().map((m) => ({
+                MOCK_OPENAI_MODELS.map((m) => ({
                   id: m.id,
                   label: m.label,
                   description: m.description || '',
-                  authType: AuthType.QWEN_OAUTH,
+                  authType: AuthType.USE_OPENAI,
                 })),
               ),
             } as unknown as Config
@@ -361,20 +358,20 @@ describe('<ModelDialog />', () => {
       </SettingsContext.Provider>,
     );
 
-    // DEFAULT_QWEN_MODEL (coder-model) is at index 0
+    // 'gpt-4.1' (coder-model) is at index 0
     expect(mockedSelect.mock.calls[0][0].initialIndex).toBe(0);
 
-    mockGetModel.mockReturnValue(DEFAULT_QWEN_MODEL);
+    mockGetModel.mockReturnValue('gpt-4.1');
     const newMockConfig = {
       getModel: mockGetModel,
       getAuthType: mockGetAuthType,
       getAvailableModelsForAuthType: createMockGetAvailableModelsForAuthType(),
       getAllConfiguredModels: vi.fn(() =>
-        getFilteredQwenModels().map((m) => ({
+        MOCK_OPENAI_MODELS.map((m) => ({
           id: m.id,
           label: m.label,
           description: m.description || '',
-          authType: AuthType.QWEN_OAUTH,
+          authType: AuthType.USE_OPENAI,
         })),
       ),
     } as unknown as Config;
@@ -389,10 +386,10 @@ describe('<ModelDialog />', () => {
 
     // Should be called at least twice: initial render + re-render after context change
     expect(mockedSelect).toHaveBeenCalledTimes(2);
-    // Calculate expected index for DEFAULT_QWEN_MODEL dynamically
-    const qwenModels = getFilteredQwenModels();
+    // Calculate expected index for 'gpt-4.1' dynamically
+    const qwenModels = MOCK_OPENAI_MODELS;
     const expectedCoderIndex = qwenModels.findIndex(
-      (m) => m.id === DEFAULT_QWEN_MODEL,
+      (m) => m.id === 'gpt-4.1',
     );
     expect(mockedSelect.mock.calls[1][0].initialIndex).toBe(expectedCoderIndex);
   });

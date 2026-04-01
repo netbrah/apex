@@ -34,7 +34,7 @@ export interface WebSearchConfig {
  *
  * @param argv - Command line arguments
  * @param settings - User settings from settings.json
- * @param authType - Authentication type (e.g., 'qwen-oauth')
+ * @param authType - Authentication type (e.g., 'api-key')
  * @returns WebSearch configuration or undefined if no providers available
  */
 export function buildWebSearchConfig(
@@ -77,7 +77,7 @@ export function buildWebSearchConfig(
     }
   }
 
-  // Step 2: Ensure dashscope is available for qwen-oauth users
+  // Step 2: Ensure dashscope is available for api-key users
   if (isQwenOAuth) {
     const hasDashscope = providers.some((p) => p.type === 'dashscope');
     if (!hasDashscope) {

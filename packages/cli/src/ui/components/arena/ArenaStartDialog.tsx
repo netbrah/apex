@@ -21,7 +21,7 @@ interface ArenaStartDialogProps {
 }
 
 const MODEL_PROVIDERS_DOCUMENTATION_URL =
-  'https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/#modelproviders';
+  'https://apex-code.dev/docs/en/users/configuration/settings/#modelproviders';
 
 export function ArenaStartDialog({
   onClose,
@@ -113,7 +113,7 @@ export function ArenaStartDialog({
         <Box marginTop={1} flexDirection="column">
           {hasDisabledQwenOauth && (
             <Text color={theme.status.warning}>
-              {t('Note: qwen-oauth models are not supported in Arena.')}
+              {t('Note: api-key models are not supported in Arena.')}
             </Text>
           )}
           {needsMoreModels && (

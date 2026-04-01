@@ -21,7 +21,7 @@ describe('computeWindowTitle', () => {
 
   it('should use default Qwen title when CLI_TITLE is not set', () => {
     const result = computeWindowTitle('my-project');
-    expect(result).toBe('Qwen - my-project');
+    expect(result).toBe('APEX - my-project');
   });
 
   it('should use CLI_TITLE environment variable when set', () => {
@@ -39,21 +39,21 @@ describe('computeWindowTitle', () => {
 
   it('should handle folder names with control characters', () => {
     const result = computeWindowTitle('project\x07name');
-    expect(result).toBe('Qwen - projectname');
+    expect(result).toBe('APEX - projectname');
   });
 
   it('should handle empty folder name', () => {
     const result = computeWindowTitle('');
-    expect(result).toBe('Qwen - ');
+    expect(result).toBe('APEX - ');
   });
 
   it('should handle folder names with spaces', () => {
     const result = computeWindowTitle('my project');
-    expect(result).toBe('Qwen - my project');
+    expect(result).toBe('APEX - my project');
   });
 
   it('should handle folder names with special characters', () => {
     const result = computeWindowTitle('project-name_v1.0');
-    expect(result).toBe('Qwen - project-name_v1.0');
+    expect(result).toBe('APEX - project-name_v1.0');
   });
 });

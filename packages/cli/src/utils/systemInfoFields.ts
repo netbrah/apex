@@ -26,7 +26,7 @@ export function getSystemInfoFields(
 ): SystemInfoDisplayField[] {
   const fields: SystemInfoDisplayField[] = [];
 
-  addField(fields, t('APEX'), formatCliVersion(info));
+  addField(fields, t('Apex'), formatCliVersion(info));
   addField(fields, t('Runtime'), formatRuntime(info));
   addField(fields, t('IDE Client'), info.ideClient);
   addField(fields, t('OS'), formatOs(info));
@@ -95,7 +95,7 @@ function formatAuth(info: ExtendedSystemInfo): string {
 
   if (
     info.selectedAuthType.startsWith('oauth') ||
-    info.selectedAuthType === 'qwen-oauth'
+    info.selectedAuthType === 'api-key'
   ) {
     return 'OAuth';
   }
@@ -110,7 +110,7 @@ function formatBaseUrl(info: ExtendedSystemInfo): string {
 
   if (
     info.selectedAuthType.startsWith('oauth') ||
-    info.selectedAuthType === 'qwen-oauth'
+    info.selectedAuthType === 'api-key'
   ) {
     return '';
   }

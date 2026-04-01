@@ -202,7 +202,7 @@ describe('languageUtils', () => {
 
       const writtenContent = vi.mocked(fs.writeFileSync).mock.calls[0][1];
       expect(writtenContent).toContain(
-        '<!-- qwen-code:llm-output-language: Chinese -->',
+        '<!-- apex:llm-output-language: Chinese -->',
       );
     });
 
@@ -215,7 +215,7 @@ describe('languageUtils', () => {
         '# Output language preference: Test--Language',
       );
       expect(writtenContent).toContain(
-        '<!-- qwen-code:llm-output-language: TestLanguage -->',
+        '<!-- apex:llm-output-language: TestLanguage -->',
       );
     });
 
@@ -314,7 +314,7 @@ describe('languageUtils', () => {
       vi.mocked(i18n.detectSystemLanguage).mockReturnValue('en');
       vi.mocked(fs.readFileSync).mockReturnValue(
         `# Output language preference: English
-<!-- qwen-code:llm-output-language: English -->
+<!-- apex:llm-output-language: English -->
 `,
       );
 
@@ -327,7 +327,7 @@ describe('languageUtils', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue(
         `# Output language preference: English
-<!-- qwen-code:llm-output-language: English -->
+<!-- apex:llm-output-language: English -->
 `,
       );
 

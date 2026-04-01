@@ -142,7 +142,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, false);
 
     expect(mockedExecSync).toHaveBeenCalledWith(
-      'brew list -1 | grep -q "^qwen-code$"',
+      'brew list -1 | grep -q "^apex$"',
       { stdio: 'ignore' },
     );
     expect(info.packageManager).toBe(PackageManager.HOMEBREW);
@@ -164,7 +164,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, false);
 
     expect(mockedExecSync).toHaveBeenCalledWith(
-      'brew list -1 | grep -q "^qwen-code$"',
+      'brew list -1 | grep -q "^apex$"',
       { stdio: 'ignore' },
     );
     // Should fall back to default global npm

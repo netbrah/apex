@@ -20,12 +20,12 @@ export function buildAuthMethods(): AuthMethod[] {
     },
     {
       id: AuthType.QWEN_OAUTH,
-      name: 'Qwen OAuth',
+      name: 'API Key',
       description:
         'OAuth authentication for Qwen models with free daily requests',
       _meta: {
         type: 'terminal',
-        args: ['--auth-type=qwen-oauth'],
+        args: ['--auth-type=api-key'],
       },
     },
   ];
@@ -43,7 +43,7 @@ export function pickAuthMethodsForDetails(details?: string): AuthMethod[] {
   if (!details) {
     return authMethods;
   }
-  if (details.includes('qwen-oauth') || details.includes('Qwen OAuth')) {
+  if (details.includes('api-key') || details.includes('API Key')) {
     const narrowed = filterAuthMethodsById(authMethods, AuthType.QWEN_OAUTH);
     return narrowed.length ? narrowed : authMethods;
   }

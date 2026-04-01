@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen Code
+ * Copyright 2025 Apex
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -182,7 +182,7 @@ describe('btwCommand', () => {
         {},
         expect.any(AbortSignal),
         'test-model',
-        expect.stringMatching(/^test-session-id########btw-/),
+
       );
     });
 

@@ -296,7 +296,7 @@ export const DialogManager = ({
 
   if (uiState.isAuthenticating) {
     // OpenAI authentication now handled through AuthDialog with coding-plan/custom sub-modes
-    // Qwen OAuth remains as a separate flow
+    // API Key remains as a separate flow
     if (uiState.pendingAuthType === AuthType.QWEN_OAUTH) {
       return (
         <QwenOAuthProgress
@@ -304,7 +304,7 @@ export const DialogManager = ({
           authStatus={uiState.qwenAuthState.authStatus}
           authMessage={uiState.qwenAuthState.authMessage}
           onTimeout={() => {
-            uiActions.onAuthError('Qwen OAuth authentication timed out.');
+            uiActions.onAuthError('API Key authentication timed out.');
             uiActions.cancelAuthentication();
             uiActions.setAuthState(AuthState.Updating);
           }}

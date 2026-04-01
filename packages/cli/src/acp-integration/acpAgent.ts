@@ -142,7 +142,7 @@ class QwenAgent implements Agent {
     return {
       protocolVersion: PROTOCOL_VERSION,
       agentInfo: {
-        name: 'qwen-code',
+        name: 'apex',
         title: 'Apex',
         version,
       },
@@ -415,7 +415,7 @@ class QwenAgent implements Agent {
     if (!selectedType) {
       throw RequestError.authRequired(
         { authMethods: this.pickAuthMethodsForAuthRequired() },
-        'Use Qwen Code CLI to authenticate first.',
+        'Use Apex CLI to authenticate first.',
       );
     }
 
@@ -439,8 +439,8 @@ class QwenAgent implements Agent {
     const authMethods = buildAuthMethods();
     const errorMessage = this.extractErrorMessage(error);
     if (
-      errorMessage?.includes('qwen-oauth') ||
-      errorMessage?.includes('Qwen OAuth')
+      errorMessage?.includes('api-key') ||
+      errorMessage?.includes('API Key')
     ) {
       const qwenOAuthMethods = authMethods.filter(
         (m) => m.id === AuthType.QWEN_OAUTH,

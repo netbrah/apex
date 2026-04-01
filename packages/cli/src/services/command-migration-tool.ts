@@ -157,7 +157,7 @@ ${t('The TOML format for commands is being deprecated in favor of Markdown forma
 ${t('Markdown format is more readable and easier to edit.')}
 
 ${t('You can migrate these files automatically using:')}
-  qwen-code migrate-commands
+  apex migrate-commands
 
 ${t('Or manually convert each file:')}
   - ${t('TOML: prompt = "..." / description = "..."')}

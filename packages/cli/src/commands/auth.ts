@@ -14,10 +14,10 @@ import { t } from '../i18n/index.js';
 
 // Define subcommands separately
 const qwenOauthCommand = {
-  command: 'qwen-oauth',
-  describe: t('Authenticate using Qwen OAuth'),
+  command: 'api-key',
+  describe: t('Authenticate using API Key'),
   handler: async () => {
-    await handleQwenAuth('qwen-oauth', {});
+    await handleQwenAuth('api-key', {});
   },
 };
 

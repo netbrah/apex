@@ -18,7 +18,7 @@ import { useTerminalSize } from '../hooks/useTerminalSize.js';
  * Simplified representation of authentication method shown to users.
  */
 export enum AuthDisplayType {
-  QWEN_OAUTH = 'OAuth',
+  QWEN_OAUTH = 'API Key',
   CODING_PLAN = 'Coding Plan',
   API_KEY = 'API Key',
   UNKNOWN = 'Unknown',

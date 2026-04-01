@@ -46,7 +46,7 @@ export interface UIState {
   authError: string | null;
   isAuthDialogOpen: boolean;
   pendingAuthType: AuthType | undefined;
-  // Qwen OAuth state
+  // API Key state
   qwenAuthState: QwenAuthState;
   editorError: string | null;
   isEditorDialogOpen: boolean;

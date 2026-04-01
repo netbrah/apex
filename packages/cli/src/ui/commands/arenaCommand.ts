@@ -114,7 +114,7 @@ function buildArenaExecutionInput(
         '\n' +
         'Examples:\n' +
         '  /arena start --models openai:gpt-4o,anthropic:claude-3 "implement sorting"\n' +
-        '  /arena start --models qwen-coder-plus,kimi-for-coding "fix the bug"',
+        '  /arena start --models apexr-plus,kimi-for-coding "fix the bug"',
     };
   }
 

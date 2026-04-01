@@ -47,7 +47,7 @@
           "default": true
         },
         "gitCoAuthor": {
-          "description": "Automatically add a Co-authored-by trailer to git commit messages when commits are made through Qwen Code.",
+          "description": "Automatically add a Co-authored-by trailer to git commit messages when commits are made through Apex.",
           "type": "boolean",
           "default": true
         },
@@ -68,7 +68,7 @@
           "default": false
         },
         "language": {
-          "description": "The language for the user interface. Use \"auto\" to detect from system settings. You can also use custom language codes (e.g., \"es\", \"fr\") by placing JS language files in ~/.qwen/locales/ (e.g., ~/.qwen/locales/es.js). Options: auto, en, zh, ru, de, ja, pt",
+          "description": "The language for the user interface. Use \"auto\" to detect from system settings. You can also use custom language codes (e.g., \"es\", \"fr\") by placing JS language files in ~/.apex/locales/ (e.g., ~/.apex/locales/es.js). Options: auto, en, zh, ru, de, ja, pt",
           "enum": [
             "auto",
             "en",
@@ -139,7 +139,7 @@
           "default": false
         },
         "showStatusInTitle": {
-          "description": "Show Qwen Code status and thoughts in the terminal window title",
+          "description": "Show Apex status and thoughts in the terminal window title",
           "type": "boolean",
           "default": false
         },
@@ -301,7 +301,7 @@
               "default": "auto"
             },
             "contextWindowSize": {
-              "description": "Overrides the default context window size for the selected model. Use this setting when a provider's effective context limit differs from Qwen Code's default. This value defines the model's assumed maximum context capacity, not a per-request token limit.",
+              "description": "Overrides the default context window size for the selected model. Use this setting when a provider's effective context limit differs from Apex's default. This value defines the model's assumed maximum context capacity, not a per-request token limit.",
               "type": "number"
             }
           }
@@ -610,7 +610,7 @@
           "type": "object",
           "properties": {
             "worktreeBaseDir": {
-              "description": "Custom base directory for Arena worktrees. Defaults to ~/.qwen/arena.",
+              "description": "Custom base directory for Arena worktrees. Defaults to ~/.apex/arena.",
               "type": "string"
             },
             "preserveArtifacts": {
