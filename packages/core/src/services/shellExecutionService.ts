@@ -20,7 +20,6 @@ import {
   serializeTerminalToObject,
   type AnsiOutput,
 } from '../utils/terminalSerializer.js';
-import { sanitizeEnvironment } from './environmentSanitization.js';
 
 const { Terminal } = pkg;
 

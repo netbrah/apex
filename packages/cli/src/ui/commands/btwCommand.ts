@@ -54,7 +54,6 @@ async function askBtw(
     {},
     abortSignal,
     model,
-    promptId,
   );
 
   const parts = response.candidates?.[0]?.content?.parts;

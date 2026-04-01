@@ -60,8 +60,8 @@ describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
     }
   });
 
-  it('defaults to getGlobalApexDir() when nothing is configured', () => {
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
+  it('defaults to getGlobalQwenDir() when nothing is configured', () => {
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
   });
 
   it('uses setRuntimeBaseDir value when set with absolute path', () => {
@@ -136,19 +136,19 @@ describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
     expect(Storage.getRuntimeBaseDir()).toBe(customDir);
 
     Storage.setRuntimeBaseDir(null);
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
   });
 
   it('resets to default when setRuntimeBaseDir is called with undefined', () => {
     Storage.setRuntimeBaseDir(path.resolve('custom'));
     Storage.setRuntimeBaseDir(undefined);
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
   });
 
   it('resets to default when setRuntimeBaseDir is called with empty string', () => {
     Storage.setRuntimeBaseDir(path.resolve('custom'));
     Storage.setRuntimeBaseDir('');
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
   });
 
   it('handles bare tilde (~) as home directory', () => {
@@ -242,7 +242,7 @@ describe('Storage – runtime path methods use getRuntimeBaseDir', () => {
 
 describe('Storage – config paths remain at ~/.qwen regardless of runtime dir', () => {
   const originalEnv = process.env['QWEN_RUNTIME_DIR'];
-  const globalQwenDir = Storage.getGlobalApexDir();
+  const globalQwenDir = Storage.getGlobalQwenDir();
 
   beforeEach(() => {
     Storage.setRuntimeBaseDir(path.resolve('custom-runtime'));

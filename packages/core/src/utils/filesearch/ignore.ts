@@ -28,7 +28,7 @@ export function loadIgnoreRules(options: LoadIgnoreRulesOptions): Ignore {
   }
 
   if (options.useQwenignore) {
-    const qwenignorePath = path.join(options.projectRoot, '.apexignore');
+    const qwenignorePath = path.join(options.projectRoot, '.qwenignore');
     if (fs.existsSync(qwenignorePath)) {
       ignorer.add(fs.readFileSync(qwenignorePath, 'utf8'));
     }

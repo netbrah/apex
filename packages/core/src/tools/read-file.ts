@@ -10,7 +10,6 @@ import { makeRelative, shortenPath } from '../utils/paths.js';
 import type { ToolInvocation, ToolLocation, ToolResult } from './tools.js';
 import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
-import { ToolErrorType } from './tool-error.js';
 
 import type { PartUnion } from '@google/genai';
 import type { PermissionDecision } from '../permissions/types.js';
@@ -18,7 +17,6 @@ import {
   processSingleFileContent,
   getSpecificMimeType,
 } from '../utils/fileUtils.js';
-import { discoverJitContext, appendJitContext } from './jit-context.js';
 import type { Config } from '../config/config.js';
 import { FileOperation } from '../telemetry/metrics.js';
 import { getProgrammingLanguage } from '../telemetry/telemetry-utils.js';
@@ -155,20 +153,11 @@ class ReadFileToolInvocation extends BaseToolInvocation<
       ),
     );
 
-    const jitContext = await discoverJitContext(
-      this.config,
-      this.params.file_path,
-    );
-    if (jitContext && typeof llmContent === 'string') {
-      llmContent = appendJitContext(llmContent, jitContext);
-    }
-
     return {
       llmContent,
       returnDisplay: result.returnDisplay || '',
     };
   }
-
 }
 
 /**
@@ -230,8 +219,8 @@ export class ReadFileTool extends BaseDeclarativeTool<
     }
 
     const fileService = this.config.getFileService();
-    if (fileService.shouldApexIgnoreFile(params.file_path)) {
-      return `File path '${filePath}' is ignored by .apexignore pattern(s).`;
+    if (fileService.shouldQwenIgnoreFile(params.file_path)) {
+      return `File path '${filePath}' is ignored by .qwenignore pattern(s).`;
     }
 
     return null;

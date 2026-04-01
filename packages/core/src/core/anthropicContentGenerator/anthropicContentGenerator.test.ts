@@ -492,6 +492,146 @@ describe('AnthropicContentGenerator', () => {
         );
       });
     });
+
+    describe('max_tokens vs thinking.budget_tokens guard', () => {
+      it('bumps max_tokens when it equals budget_tokens', async () => {
+        const { AnthropicContentGenerator } = await importGenerator();
+        anthropicState.createImpl.mockResolvedValue({
+          id: 'anthropic-1',
+          model: 'claude-test',
+          content: [{ type: 'text', text: 'hi' }],
+        });
+
+        const generator = new AnthropicContentGenerator(
+          {
+            model: 'claude-test',
+            apiKey: 'test-key',
+            timeout: 10_000,
+            maxRetries: 2,
+            samplingParams: { max_tokens: 32_000 },
+            schemaCompliance: 'auto',
+            reasoning: { budget_tokens: 32_000 },
+          },
+          mockConfig,
+        );
+
+        await generator.generateContent({
+          model: 'models/ignored',
+          contents: 'Hello',
+        } as unknown as GenerateContentParameters);
+
+        const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
+        expect(req).toEqual(
+          expect.objectContaining({
+            max_tokens: 40_000,
+            thinking: { type: 'enabled', budget_tokens: 32_000 },
+          }),
+        );
+      });
+
+      it('bumps max_tokens when it is less than budget_tokens', async () => {
+        const { AnthropicContentGenerator } = await importGenerator();
+        anthropicState.createImpl.mockResolvedValue({
+          id: 'anthropic-1',
+          model: 'claude-test',
+          content: [{ type: 'text', text: 'hi' }],
+        });
+
+        const generator = new AnthropicContentGenerator(
+          {
+            model: 'claude-test',
+            apiKey: 'test-key',
+            timeout: 10_000,
+            maxRetries: 2,
+            samplingParams: { max_tokens: 5_000 },
+            schemaCompliance: 'auto',
+            reasoning: { budget_tokens: 64_000 },
+          },
+          mockConfig,
+        );
+
+        await generator.generateContent({
+          model: 'models/ignored',
+          contents: 'Hello',
+        } as unknown as GenerateContentParameters);
+
+        const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
+        expect(req).toEqual(
+          expect.objectContaining({
+            max_tokens: 72_000,
+            thinking: { type: 'enabled', budget_tokens: 64_000 },
+          }),
+        );
+      });
+
+      it('does not modify max_tokens when it already exceeds budget_tokens', async () => {
+        const { AnthropicContentGenerator } = await importGenerator();
+        anthropicState.createImpl.mockResolvedValue({
+          id: 'anthropic-1',
+          model: 'custom-model',
+          content: [{ type: 'text', text: 'hi' }],
+        });
+
+        const generator = new AnthropicContentGenerator(
+          {
+            model: 'custom-model',
+            apiKey: 'test-key',
+            timeout: 10_000,
+            maxRetries: 2,
+            samplingParams: { max_tokens: 128_000 },
+            schemaCompliance: 'auto',
+            reasoning: { budget_tokens: 64_000 },
+          },
+          mockConfig,
+        );
+
+        await generator.generateContent({
+          model: 'models/ignored',
+          contents: 'Hello',
+        } as unknown as GenerateContentParameters);
+
+        const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
+        expect(req).toEqual(
+          expect.objectContaining({
+            max_tokens: 128_000,
+            thinking: { type: 'enabled', budget_tokens: 64_000 },
+          }),
+        );
+      });
+
+      it('does not modify max_tokens when thinking is disabled', async () => {
+        const { AnthropicContentGenerator } = await importGenerator();
+        anthropicState.createImpl.mockResolvedValue({
+          id: 'anthropic-1',
+          model: 'claude-test',
+          content: [{ type: 'text', text: 'hi' }],
+        });
+
+        const generator = new AnthropicContentGenerator(
+          {
+            model: 'claude-test',
+            apiKey: 'test-key',
+            timeout: 10_000,
+            maxRetries: 2,
+            samplingParams: { max_tokens: 500 },
+            schemaCompliance: 'auto',
+            reasoning: false,
+          },
+          mockConfig,
+        );
+
+        await generator.generateContent({
+          model: 'models/ignored',
+          contents: 'Hello',
+        } as unknown as GenerateContentParameters);
+
+        const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
+        expect(req).toEqual(expect.objectContaining({ max_tokens: 500 }));
+        expect(req).toEqual(
+          expect.not.objectContaining({ thinking: expect.anything() }),
+        );
+      });
+    });
   });
 
   describe('countTokens', () => {

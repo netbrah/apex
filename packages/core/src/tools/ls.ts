@@ -13,7 +13,6 @@ import { isSubpaths, isSubpath } from '../utils/paths.js';
 import type { Config } from '../config/config.js';
 import type { PermissionDecision } from '../permissions/types.js';
 import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
-import { discoverJitContext, appendJitContext } from './jit-context.js';
 import { ToolErrorType } from './tool-error.js';
 import { ToolDisplayNames, ToolNames } from './tool-names.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
@@ -38,11 +37,11 @@ export interface LSToolParams {
   ignore?: string[];
 
   /**
-   * Whether to respect .gitignore and .apexignore patterns (optional, defaults to true)
+   * Whether to respect .gitignore and .qwenignore patterns (optional, defaults to true)
    */
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_apex_ignore?: boolean;
+    respect_qwen_ignore?: boolean;
   };
 }
 
@@ -198,16 +197,16 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
       );
 
       const fileDiscovery = this.config.getFileService();
-      const { filteredPaths, gitIgnoredCount, apexIgnoredCount } =
+      const { filteredPaths, gitIgnoredCount, qwenIgnoredCount } =
         fileDiscovery.filterFilesWithReport(relativePaths, {
           respectGitIgnore:
             this.params.file_filtering_options?.respect_git_ignore ??
             this.config.getFileFilteringOptions().respectGitIgnore ??
             DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-          respectApexIgnore:
-            this.params.file_filtering_options?.respect_apex_ignore ??
-            this.config.getFileFilteringOptions().respectApexIgnore ??
-            DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
+          respectQwenIgnore:
+            this.params.file_filtering_options?.respect_qwen_ignore ??
+            this.config.getFileFilteringOptions().respectQwenIgnore ??
+            DEFAULT_FILE_FILTERING_OPTIONS.respectQwenIgnore,
         });
 
       const entries = [];
@@ -266,8 +265,8 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
       if (gitIgnoredCount > 0) {
         ignoredMessages.push(`${gitIgnoredCount} git-ignored`);
       }
-      if (apexIgnoredCount > 0) {
-        ignoredMessages.push(`${apexIgnoredCount} apex-ignored`);
+      if (qwenIgnoredCount > 0) {
+        ignoredMessages.push(`${qwenIgnoredCount} qwen-ignored`);
       }
       if (ignoredMessages.length > 0) {
         resultMessage += `\n\n(${ignoredMessages.join(', ')})`;
@@ -279,14 +278,6 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
       }
       if (truncated) {
         displayMessage += ' (truncated)';
-      }
-
-      const jitContext = await discoverJitContext(
-        this.config,
-        this.params.path,
-      );
-      if (jitContext) {
-        resultMessage = appendJitContext(resultMessage, jitContext);
       }
 
       return {
@@ -332,7 +323,7 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
           },
           file_filtering_options: {
             description:
-              'Optional: Whether to respect ignore patterns from .gitignore or .apexignore',
+              'Optional: Whether to respect ignore patterns from .gitignore or .qwenignore',
             type: 'object',
             properties: {
               respect_git_ignore: {
@@ -340,9 +331,9 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
                   'Optional: Whether to respect .gitignore patterns when listing files. Only available in git repositories. Defaults to true.',
                 type: 'boolean',
               },
-              respect_apex_ignore: {
+              respect_qwen_ignore: {
                 description:
-                  'Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.',
+                  'Optional: Whether to respect .qwenignore patterns when listing files. Defaults to true.',
                 type: 'boolean',
               },
             },

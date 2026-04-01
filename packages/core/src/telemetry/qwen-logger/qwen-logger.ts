@@ -106,8 +106,8 @@ export interface LogResponse {
 
 // Singleton class for batch posting log events to RUM. When a new event comes in, the elapsed time
 // is checked and events are flushed to RUM if at least a minute has passed since the last flush.
-export class ApexLogger {
-  private static instance: ApexLogger;
+export class QwenLogger {
+  private static instance: QwenLogger;
   private config?: Config;
   private debugLogger: DebugLogger;
   private readonly installationManager: InstallationManager;
@@ -151,7 +151,7 @@ export class ApexLogger {
 
   private constructor(config: Config) {
     this.config = config;
-    this.debugLogger = createDebugLogger('APEX_LOGGER');
+    this.debugLogger = createDebugLogger('QWEN_LOGGER');
     this.events = new FixedDeque<RumEvent>(Array, MAX_EVENTS);
     this.installationManager = new InstallationManager();
     this.userId = this.generateUserId();
@@ -166,14 +166,14 @@ export class ApexLogger {
     return `user-${installationId ?? 'unknown'}`;
   }
 
-  static getInstance(config?: Config): ApexLogger | undefined {
+  static getInstance(config?: Config): QwenLogger | undefined {
     if (config === undefined || !config?.getUsageStatisticsEnabled())
       return undefined;
-    if (!ApexLogger.instance) {
-      ApexLogger.instance = new ApexLogger(config);
+    if (!QwenLogger.instance) {
+      QwenLogger.instance = new QwenLogger(config);
     }
 
-    return ApexLogger.instance;
+    return QwenLogger.instance;
   }
 
   enqueueLogEvent(event: RumEvent): void {
@@ -189,11 +189,11 @@ export class ApexLogger {
 
       if (wasAtCapacity) {
         this.debugLogger.debug(
-          `ApexLogger: Dropped old event to prevent memory leak (queue size: ${this.events.size})`,
+          `QwenLogger: Dropped old event to prevent memory leak (queue size: ${this.events.size})`,
         );
       }
     } catch (error) {
-      this.debugLogger.error('ApexLogger: Failed to enqueue log event.', error);
+      this.debugLogger.error('QwenLogger: Failed to enqueue log event.', error);
     }
   }
 
@@ -273,7 +273,7 @@ export class ApexLogger {
       },
       view: {
         id: this.sessionId || this.config?.getSessionId(),
-        name: 'apex-cli',
+        name: 'qwen-code-cli',
       },
       os: osMetadata,
 
@@ -289,7 +289,7 @@ export class ApexLogger {
           ? { channel: this.config.getChannel() }
           : {}),
       },
-      _v: `apex@${version}`,
+      _v: `qwen-code@${version}`,
     } as RumPayload;
   }
 
@@ -303,7 +303,7 @@ export class ApexLogger {
 
   readSourceInfo(): string {
     try {
-      const sourceJsonPath = path.join(os.homedir(), '.apex', 'source.json');
+      const sourceJsonPath = path.join(os.homedir(), '.qwen', 'source.json');
       if (fs.existsSync(sourceJsonPath)) {
         const sourceJsonContent = fs.readFileSync(sourceJsonPath, 'utf8');
         const sourceData = JSON.parse(sourceJsonContent);
@@ -325,7 +325,7 @@ export class ApexLogger {
   async flushToRum(): Promise<LogResponse> {
     if (this.isFlushInProgress) {
       this.debugLogger.debug(
-        'ApexLogger: Flush already in progress, marking pending flush.',
+        'QwenLogger: Flush already in progress, marking pending flush.',
       );
       this.pendingFlush = true;
       return Promise.resolve({});
@@ -1062,7 +1062,7 @@ export class ApexLogger {
     // Log a warning if we're dropping events
     if (eventsToSend.length > MAX_RETRY_EVENTS) {
       this.debugLogger.warn(
-        `ApexLogger: Dropping ${
+        `QwenLogger: Dropping ${
           eventsToSend.length - MAX_RETRY_EVENTS
         } events due to retry queue limit. Total events: ${
           eventsToSend.length
@@ -1094,7 +1094,7 @@ export class ApexLogger {
     }
 
     this.debugLogger.debug(
-      `ApexLogger: Re-queued ${numEventsToRequeue} events for retry (queue size: ${this.events.size})`,
+      `QwenLogger: Re-queued ${numEventsToRequeue} events for retry (queue size: ${this.events.size})`,
     );
   }
 }

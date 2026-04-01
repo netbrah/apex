@@ -282,7 +282,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: true,
         description:
-          'Automatically add a Co-authored-by trailer to git commit messages when commits are made through APEX.',
+          'Automatically add a Co-authored-by trailer to git commit messages when commits are made through Qwen Code.',
         showInDialog: true,
       },
       checkpointing: {
@@ -323,7 +323,7 @@ const SETTINGS_SCHEMA = {
         description:
           'The language for the user interface. Use "auto" to detect from system settings. ' +
           'You can also use custom language codes (e.g., "es", "fr") by placing JS language files ' +
-          'in ~/.apex/locales/ (e.g., ~/.apex/locales/es.js).',
+          'in ~/.qwen/locales/ (e.g., ~/.qwen/locales/es.js).',
         showInDialog: true,
         options: [] as readonly SettingEnumOption[],
       },
@@ -413,7 +413,7 @@ const SETTINGS_SCHEMA = {
         label: 'Theme',
         category: 'UI',
         requiresRestart: false,
-        default: 'APEX Dark' as string,
+        default: 'Qwen Dark' as string,
         description: 'The color theme for the UI.',
         showInDialog: true,
       },
@@ -442,7 +442,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: false,
         description:
-          'Show APEX status and thoughts in the terminal window title',
+          'Show Qwen Code status and thoughts in the terminal window title',
         showInDialog: false,
       },
       hideTips: {
@@ -498,7 +498,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: true,
         description:
-          'Show optional feedback dialog after conversations to help improve APEX performance.',
+          'Show optional feedback dialog after conversations to help improve Qwen performance.',
         showInDialog: true,
       },
       accessibility: {
@@ -758,7 +758,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: false,
             default: undefined,
             description:
-              "Overrides the default context window size for the selected model. Use this setting when a provider's effective context limit differs from APEX's default. This value defines the model's assumed maximum context capacity, not a per-request token limit.",
+              "Overrides the default context window size for the selected model. Use this setting when a provider's effective context limit differs from Qwen Code's default. This value defines the model's assumed maximum context capacity, not a per-request token limit.",
             parentKey: 'generationConfig',
             showInDialog: false,
           },
@@ -832,13 +832,13 @@ const SETTINGS_SCHEMA = {
             description: 'Respect .gitignore files when searching',
             showInDialog: true,
           },
-          respectApexIgnore: {
+          respectQwenIgnore: {
             type: 'boolean',
-            label: 'Respect .apexignore',
+            label: 'Respect .qwenignore',
             category: 'Context',
             requiresRestart: true,
             default: true,
-            description: 'Respect .apexignore files when searching',
+            description: 'Respect .qwenignore files when searching',
             showInDialog: true,
           },
           enableRecursiveFileSearch: {
@@ -1271,7 +1271,7 @@ const SETTINGS_SCHEMA = {
         default: undefined as string | undefined,
         description:
           'Custom directory for runtime output (temp files, debug logs, session data, todos, etc.). ' +
-          'Config files remain at ~/.apex. Env var QWEN_RUNTIME_DIR takes priority.',
+          'Config files remain at ~/.qwen. Env var QWEN_RUNTIME_DIR takes priority.',
         showInDialog: false,
       },
       tavilyApiKey: {
@@ -1346,7 +1346,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'Custom base directory for Arena worktrees. Defaults to ~/.apex/arena.',
+              'Custom base directory for Arena worktrees. Defaults to ~/.qwen/arena.',
             showInDialog: false,
           },
           preserveArtifacts: {
@@ -1588,68 +1588,6 @@ const SETTINGS_SCHEMA = {
     },
   },
 
-  lsp: {
-    type: 'object',
-    label: 'LSP',
-    category: 'LSP',
-    requiresRestart: true,
-    default: {},
-    description:
-      'Language Server Protocol (LSP) settings for code intelligence.',
-    showInDialog: false,
-    properties: {
-      enabled: {
-        type: 'boolean',
-        label: 'Enable LSP',
-        category: 'LSP',
-        requiresRestart: true,
-        default: false,
-        description:
-          'Enable the LSP server for code intelligence (definitions, references, hover, diagnostics). ' +
-          'Requires a configured LSP server (e.g. .lsp.json in workspace root or lspServers in extension config).',
-        showInDialog: false,
-      },
-    },
-  },
-
-  lsp: {
-    type: 'object',
-    label: 'LSP',
-    category: 'LSP',
-    requiresRestart: true,
-    default: {},
-    description:
-      'Language Server Protocol (LSP) settings for code intelligence.',
-    showInDialog: false,
-    properties: {
-      enabled: {
-        type: 'boolean',
-        label: 'Enable LSP',
-        category: 'LSP',
-        requiresRestart: true,
-        default: false,
-        description:
-          'Enable the LSP server for code intelligence (definitions, references, hover, diagnostics). ' +
-          'Requires a configured LSP server (e.g. .lsp.json in workspace root, lspServers here, or lspServers in extension config).',
-        showInDialog: false,
-      },
-      lspServers: {
-        type: 'object',
-        label: 'LSP Servers (global)',
-        category: 'LSP',
-        requiresRestart: true,
-        default: {},
-        description:
-          'Global LSP server config — same format as .lsp.json but applies to ALL workspaces. ' +
-          'Per-workspace .lsp.json overrides this. ' +
-          'ONTAP: { "c": { "command": "python3.11", "args": ["~/.apex/bin/ontap_lsp_bridge.py", ' +
-          '"--compile-commands", "./compile_commands.json"], "transport": "stdio", ' +
-          '"extensionToLanguage": { ".c": "c", ".cc": "c", ".h": "c", ".ut": "c" } } }',
-        showInDialog: false,
-      },
-    },
-  },
-
   experimental: {
     type: 'object',
     label: 'Experimental',
@@ -1658,59 +1596,7 @@ const SETTINGS_SCHEMA = {
     default: {},
     description: 'Setting to enable experimental features',
     showInDialog: false,
-    properties: {
-      toolOutputMasking: {
-        type: 'object',
-        label: 'Tool Output Masking',
-        category: 'Experimental',
-        requiresRestart: true,
-        default: {},
-        description:
-          'Mask older bulky tool outputs to save context (full output kept on disk).',
-        showInDialog: false,
-        properties: {
-          enabled: {
-            type: 'boolean',
-            label: 'Enable Tool Output Masking',
-            category: 'Experimental',
-            requiresRestart: true,
-            default: false,
-            description: 'Enables tool output masking to save tokens.',
-            showInDialog: false,
-          },
-          toolProtectionThreshold: {
-            type: 'number',
-            label: 'Tool Protection Threshold',
-            category: 'Experimental',
-            requiresRestart: true,
-            default: 50_000,
-            description:
-              'Token budget of the newest tool outputs to keep unmasked.',
-            showInDialog: false,
-          },
-          minPrunableTokensThreshold: {
-            type: 'number',
-            label: 'Min Prunable Tokens Threshold',
-            category: 'Experimental',
-            requiresRestart: true,
-            default: 30_000,
-            description:
-              'Minimum prunable tokens required before a masking pass runs.',
-            showInDialog: false,
-          },
-          protectLatestTurn: {
-            type: 'boolean',
-            label: 'Protect Latest Turn',
-            category: 'Experimental',
-            requiresRestart: true,
-            default: true,
-            description:
-              'When true, the most recent conversation turn is never masked.',
-            showInDialog: false,
-          },
-        },
-      },
-    },
+    properties: {},
   },
 } as const satisfies SettingsSchema;
 

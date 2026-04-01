@@ -30,7 +30,7 @@ describe('GlobTool', () => {
     getFileFilteringRespectGitIgnore: () => true,
     getFileFilteringOptions: () => ({
       respectGitIgnore: true,
-      respectApexIgnore: true,
+      respectQwenIgnore: true,
     }),
     getTargetDir: () => tempRootDir,
     getWorkspaceContext: () => createMockWorkspaceContext(tempRootDir),
@@ -467,13 +467,13 @@ describe('GlobTool', () => {
       expect(result.llmContent).not.toContain('a.ignored.txt');
     });
 
-    it('should respect .apexignore files by default', async () => {
+    it('should respect .qwenignore files by default', async () => {
       await fs.writeFile(
-        path.join(tempRootDir, '.apexignore'),
-        '*.apexignored.txt',
+        path.join(tempRootDir, '.qwenignore'),
+        '*.qwenignored.txt',
       );
       await fs.writeFile(
-        path.join(tempRootDir, 'a.apexignored.txt'),
+        path.join(tempRootDir, 'a.qwenignored.txt'),
         'ignored content',
       );
       await fs.writeFile(
@@ -481,7 +481,7 @@ describe('GlobTool', () => {
         'not ignored content',
       );
 
-      // Recreate the tool to pick up the new .apexignore file
+      // Recreate the tool to pick up the new .qwenignore file
       globTool = new GlobTool(mockConfig);
 
       const params: GlobToolParams = { pattern: '*.txt' };
@@ -489,7 +489,7 @@ describe('GlobTool', () => {
       const result = await invocation.execute(abortSignal);
 
       expect(result.llmContent).toContain('Found 3 file(s)'); // fileA.txt, FileB.TXT, b.notignored.txt
-      expect(result.llmContent).not.toContain('a.apexignored.txt');
+      expect(result.llmContent).not.toContain('a.qwenignored.txt');
     });
 
     it('should respect .gitignore when searching a subdirectory (path option)', async () => {

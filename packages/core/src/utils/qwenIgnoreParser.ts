@@ -24,7 +24,7 @@ export class QwenIgnoreParser implements QwenIgnoreFilter {
   }
 
   private loadPatterns(): void {
-    const patternsFilePath = path.join(this.projectRoot, '.apexignore');
+    const patternsFilePath = path.join(this.projectRoot, '.qwenignore');
     let content: string;
     try {
       content = fs.readFileSync(patternsFilePath, 'utf-8');

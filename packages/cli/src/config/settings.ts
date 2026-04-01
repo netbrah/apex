@@ -222,27 +222,6 @@ function getSettingsFileKeyWarnings(
       continue;
     }
 
-    // If the new V2/V3 nested path already has a value, the old key is stale
-    // residue — silently ignore it instead of warning.
-    const newPathParts = newPath.split('.');
-    let nested: unknown = settings;
-    let newPathHasValue = true;
-    for (const part of newPathParts) {
-      if (
-        typeof nested === 'object' &&
-        nested !== null &&
-        part in (nested as Record<string, unknown>)
-      ) {
-        nested = (nested as Record<string, unknown>)[part];
-      } else {
-        newPathHasValue = false;
-        break;
-      }
-    }
-    if (newPathHasValue && nested !== undefined) {
-      continue;
-    }
-
     ignoredLegacyKeys.add(oldKey);
     warnings.push(
       `Warning: Legacy setting '${oldKey}' will be ignored in ${settingsFilePath}. Please use '${newPath}' instead.`,
@@ -433,10 +412,10 @@ function findEnvFile(settings: Settings, startDir: string): string | null {
   const homeDir = homedir();
   const isTrusted = isWorkspaceTrusted(settings).isTrusted;
 
-  const globalQwenDir = Storage.getGlobalApexDir();
+  // Pre-compute user-level .env paths for fast comparison
   const userLevelPaths = new Set([
     path.normalize(path.join(homeDir, '.env')),
-    path.normalize(path.join(globalQwenDir, '.env')),
+    path.normalize(path.join(homeDir, QWEN_DIR, '.env')),
   ]);
 
   // Determine if we can use this .env file based on trust settings
@@ -458,7 +437,8 @@ function findEnvFile(settings: Settings, startDir: string): string | null {
 
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir || !parentDir) {
-      const homeGeminiEnvPath = path.join(globalQwenDir, '.env');
+      // At home directory - check fallback .env files
+      const homeGeminiEnvPath = path.join(homeDir, QWEN_DIR, '.env');
       if (fs.existsSync(homeGeminiEnvPath)) {
         return homeGeminiEnvPath;
       }

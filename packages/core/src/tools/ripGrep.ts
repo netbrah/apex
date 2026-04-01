@@ -13,7 +13,6 @@ import { resolveAndValidatePath } from '../utils/paths.js';
 import { getErrorMessage } from '../utils/errors.js';
 import type { Config } from '../config/config.js';
 import { runRipgrep } from '../utils/ripgrepUtils.js';
-import { getUserRgIgnorePath } from '../utils/rgIgnoreUtils.js';
 import { SchemaValidator } from '../utils/schemaValidator.js';
 import type { FileFilteringOptions } from '../config/constants.js';
 import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
@@ -59,17 +58,32 @@ class GrepToolInvocation extends BaseToolInvocation<
 
   async execute(signal: AbortSignal): Promise<ToolResult> {
     try {
-      const searchDirAbs = resolveAndValidatePath(
-        this.config,
-        this.params.path,
-        { allowFiles: true },
-      );
-      const searchDirDisplay = this.params.path || '.';
+      // Determine which paths to search
+      const searchPaths: string[] = [];
+      let searchDirDisplay: string;
+
+      if (this.params.path) {
+        // User specified a path — search only that path
+        const searchDirAbs = resolveAndValidatePath(
+          this.config,
+          this.params.path,
+          { allowFiles: true },
+        );
+        searchPaths.push(searchDirAbs);
+        searchDirDisplay = this.params.path;
+      } else {
+        // No path specified — search all workspace directories
+        const workspaceDirs = this.config
+          .getWorkspaceContext()
+          .getDirectories();
+        searchPaths.push(...workspaceDirs);
+        searchDirDisplay = '.';
+      }
 
       // Get raw ripgrep output
       const rawOutput = await this.performRipgrepSearch({
         pattern: this.params.pattern,
-        path: searchDirAbs,
+        paths: searchPaths,
         glob: this.params.glob,
         signal,
       });
@@ -77,7 +91,9 @@ class GrepToolInvocation extends BaseToolInvocation<
       // Build search description
       const searchLocationDescription = this.params.path
         ? `in path "${searchDirDisplay}"`
-        : `in the workspace directory`;
+        : searchPaths.length > 1
+          ? `across ${searchPaths.length} workspace directories`
+          : `in the workspace directory`;
 
       const filterDescription = this.params.glob
         ? ` (filter: "${this.params.glob}")`
@@ -90,7 +106,27 @@ class GrepToolInvocation extends BaseToolInvocation<
       }
 
       // Split into lines and count total matches
-      const allLines = rawOutput.split('\n').filter((line) => line.trim());
+      let allLines = rawOutput.split('\n').filter((line) => line.trim());
+
+      // Deduplicate lines from potentially overlapping workspace directories.
+      // ripgrep reports the same file twice when given paths like /a and /a/sub.
+      if (searchPaths.length > 1) {
+        const seen = new Set<string>();
+        allLines = allLines.filter((line) => {
+          // ripgrep output format: filepath:linenum:content
+          const firstColon = line.indexOf(':');
+          if (firstColon !== -1) {
+            const secondColon = line.indexOf(':', firstColon + 1);
+            if (secondColon !== -1) {
+              const key = line.substring(0, secondColon);
+              if (seen.has(key)) return false;
+              seen.add(key);
+            }
+          }
+          return true;
+        });
+      }
+
       const totalMatches = allLines.length;
       const matchTerm = totalMatches === 1 ? 'match' : 'matches';
 
@@ -172,11 +208,11 @@ class GrepToolInvocation extends BaseToolInvocation<
 
   private async performRipgrepSearch(options: {
     pattern: string;
-    path: string; // Can be a file or directory
+    paths: string[]; // Can be files or directories
     glob?: string;
     signal: AbortSignal;
   }): Promise<string> {
-    const { pattern, path: absolutePath, glob } = options;
+    const { pattern, paths, glob } = options;
 
     const rgArgs: string[] = [
       '--line-number',
@@ -187,26 +223,29 @@ class GrepToolInvocation extends BaseToolInvocation<
       pattern,
     ];
 
-    // Add file exclusions from .gitignore and .apexignore
+    // Add file exclusions from .gitignore and .qwenignore
     const filteringOptions = this.getFileFilteringOptions();
     if (!filteringOptions.respectGitIgnore) {
       rgArgs.push('--no-ignore-vcs');
     }
 
-    if (filteringOptions.respectApexIgnore) {
-      const qwenIgnorePath = path.join(
-        this.config.getTargetDir(),
-        '.apexignore',
-      );
-      if (fs.existsSync(qwenIgnorePath)) {
-        rgArgs.push('--ignore-file', qwenIgnorePath);
+    if (filteringOptions.respectQwenIgnore) {
+      // Load .qwenignore from each workspace directory, not just the primary one
+      const seenIgnoreFiles = new Set<string>();
+      for (const searchPath of paths) {
+        const dir =
+          fs.existsSync(searchPath) && fs.statSync(searchPath).isDirectory()
+            ? searchPath
+            : path.dirname(searchPath);
+        const qwenIgnorePath = path.join(dir, '.qwenignore');
+        if (
+          !seenIgnoreFiles.has(qwenIgnorePath) &&
+          fs.existsSync(qwenIgnorePath)
+        ) {
+          rgArgs.push('--ignore-file', qwenIgnorePath);
+          seenIgnoreFiles.add(qwenIgnorePath);
+        }
       }
-    }
-
-    // Always honor user-level ripgrep ignore rules when present.
-    const userRgIgnorePath = getUserRgIgnorePath();
-    if (userRgIgnorePath) {
-      rgArgs.push('--ignore-file', userRgIgnorePath);
     }
 
     // Add glob pattern if provided
@@ -215,7 +254,8 @@ class GrepToolInvocation extends BaseToolInvocation<
     }
 
     rgArgs.push('--threads', '4');
-    rgArgs.push(absolutePath);
+    // Pass all search paths to ripgrep (it supports multiple paths natively)
+    rgArgs.push(...paths);
 
     const result = await runRipgrep(rgArgs, options.signal);
     if (result.error && !result.stdout) {
@@ -231,9 +271,9 @@ class GrepToolInvocation extends BaseToolInvocation<
       respectGitIgnore:
         options?.respectGitIgnore ??
         DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-      respectApexIgnore:
-        options?.respectApexIgnore ??
-        DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
+      respectQwenIgnore:
+        options?.respectQwenIgnore ??
+        DEFAULT_FILE_FILTERING_OPTIONS.respectQwenIgnore,
     };
   }
 

@@ -5,7 +5,6 @@
  */
 
 import * as fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import { simpleGit, CheckRepoActions } from 'simple-git';
@@ -24,7 +23,7 @@ export const BASELINE_COMMIT_MESSAGE = 'baseline (dirty state overlay)';
 
 /**
  * Default directory and branch-prefix name used for worktrees.
- * Changing this value affects the on-disk layout (`~/.apex/<WORKTREES_DIR>/`)
+ * Changing this value affects the on-disk layout (`~/.qwen/<WORKTREES_DIR>/`)
  * **and** the default git branch prefix (`<WORKTREES_DIR>/<sessionId>/…`).
  */
 export const WORKTREES_DIR = 'worktrees';
@@ -109,7 +108,7 @@ export class GitWorktreeService {
     if (customDir) {
       return path.resolve(customDir);
     }
-    return path.join(Storage.getGlobalApexDir(), WORKTREES_DIR);
+    return path.join(Storage.getGlobalQwenDir(), WORKTREES_DIR);
   }
 
   /**
@@ -823,69 +822,5 @@ export class GitWorktreeService {
     } catch {
       return false;
     }
-  }
-}
-
-/**
- * Detects if a directory path is inside a managed apex worktree.
- * Uses realpath resolution to handle symlinks correctly.
- */
-export function isApexWorktree(
-  dirPath: string,
-  _projectRoot?: string,
-): boolean {
-  try {
-    const realDir = fsSync.realpathSync(dirPath);
-    const worktreesBase = path.join(Storage.getGlobalApexDir(), WORKTREES_DIR);
-    const realWorktrees = fsSync.realpathSync(worktreesBase);
-    const relative = path.relative(realWorktrees, realDir);
-    return !relative.startsWith('..');
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Resolves the main repository root from inside a git worktree
- * by inspecting `git rev-parse --git-common-dir`.
- */
-export function getProjectRootForWorktree(cwd: string): string | null {
-  try {
-    const commonDir = execSync('git rev-parse --git-common-dir', {
-      cwd,
-      encoding: 'utf8',
-    }).trim();
-    if (commonDir === '.git') {
-      return cwd;
-    }
-    const resolved = path.resolve(cwd, commonDir);
-    return path.dirname(resolved);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Checks if a worktree has uncommitted changes or diverges from a base SHA.
- */
-export function hasWorktreeChanges(dirPath: string, baseSha?: string): boolean {
-  try {
-    const status = execSync('git status --porcelain', {
-      cwd: dirPath,
-      encoding: 'utf8',
-    }).trim();
-    if (status.length > 0) return true;
-
-    if (baseSha) {
-      const headSha = execSync('git rev-parse HEAD', {
-        cwd: dirPath,
-        encoding: 'utf8',
-      }).trim();
-      return headSha !== baseSha;
-    }
-
-    return false;
-  } catch {
-    return false;
   }
 }

@@ -62,7 +62,7 @@ import {
   recordArenaAgentCompletedMetrics,
   recordArenaSessionEndedMetrics,
 } from './metrics.js';
-import { ApexLogger } from './qwen-logger/qwen-logger.js';
+import { QwenLogger } from './qwen-logger/qwen-logger.js';
 import { isTelemetrySdkInitialized } from './sdk.js';
 import type {
   ApiErrorEvent,
@@ -104,6 +104,7 @@ import type {
   ArenaAgentCompletedEvent,
   ArenaSessionEndedEvent,
 } from './types.js';
+import type { HookCallEvent } from './types.js';
 import type { UiEvent } from './uiTelemetry.js';
 import { uiTelemetryService } from './uiTelemetry.js';
 
@@ -116,11 +117,13 @@ function getCommonAttributes(config: Config): LogAttributes {
   };
 }
 
+export { getCommonAttributes };
+
 export function logStartSession(
   config: Config,
   event: StartSessionEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logStartSessionEvent(event);
+  QwenLogger.getInstance(config)?.logStartSessionEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -156,7 +159,7 @@ export function logStartSession(
 }
 
 export function logUserPrompt(config: Config, event: UserPromptEvent): void {
-  ApexLogger.getInstance(config)?.logNewPromptEvent(event);
+  QwenLogger.getInstance(config)?.logNewPromptEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -184,7 +187,7 @@ export function logUserPrompt(config: Config, event: UserPromptEvent): void {
 }
 
 export function logUserRetry(config: Config, event: UserRetryEvent): void {
-  ApexLogger.getInstance(config)?.logRetryEvent(event);
+  QwenLogger.getInstance(config)?.logRetryEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -210,7 +213,7 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent);
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
-  ApexLogger.getInstance(config)?.logToolCallEvent(event);
+  QwenLogger.getInstance(config)?.logToolCallEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -245,7 +248,7 @@ export function logToolOutputTruncated(
   config: Config,
   event: ToolOutputTruncatedEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logToolOutputTruncatedEvent(event);
+  QwenLogger.getInstance(config)?.logToolOutputTruncatedEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -267,7 +270,7 @@ export function logFileOperation(
   config: Config,
   event: FileOperationEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logFileOperationEvent(event);
+  QwenLogger.getInstance(config)?.logFileOperationEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -308,7 +311,7 @@ export function logFileOperation(
 }
 
 export function logApiRequest(config: Config, event: ApiRequestEvent): void {
-  // ApexLogger.getInstance(config)?.logApiRequestEvent(event);
+  // QwenLogger.getInstance(config)?.logApiRequestEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -330,7 +333,7 @@ export function logFlashFallback(
   config: Config,
   event: FlashFallbackEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logFlashFallbackEvent(event);
+  QwenLogger.getInstance(config)?.logFlashFallbackEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -352,7 +355,7 @@ export function logRipgrepFallback(
   config: Config,
   event: RipgrepFallbackEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logRipgrepFallbackEvent(event);
+  QwenLogger.getInstance(config)?.logRipgrepFallbackEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -378,7 +381,7 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent);
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
-  ApexLogger.getInstance(config)?.logApiErrorEvent(event);
+  QwenLogger.getInstance(config)?.logApiErrorEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -418,7 +421,7 @@ export function logApiCancel(config: Config, event: ApiCancelEvent): void {
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent);
-  ApexLogger.getInstance(config)?.logApiCancelEvent(event);
+  QwenLogger.getInstance(config)?.logApiCancelEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -445,7 +448,7 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent);
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
-  ApexLogger.getInstance(config)?.logApiResponseEvent(event);
+  QwenLogger.getInstance(config)?.logApiResponseEvent(event);
   if (!isTelemetrySdkInitialized()) return;
   const attributes: LogAttributes = {
     ...getCommonAttributes(config),
@@ -498,7 +501,7 @@ export function logLoopDetected(
   config: Config,
   event: LoopDetectedEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logLoopDetectedEvent(event);
+  QwenLogger.getInstance(config)?.logLoopDetectedEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -518,14 +521,14 @@ export function logLoopDetectionDisabled(
   config: Config,
   _event: LoopDetectionDisabledEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logLoopDetectionDisabledEvent();
+  QwenLogger.getInstance(config)?.logLoopDetectionDisabledEvent();
 }
 
 export function logNextSpeakerCheck(
   config: Config,
   event: NextSpeakerCheckEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logNextSpeakerCheck(event);
+  QwenLogger.getInstance(config)?.logNextSpeakerCheck(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -546,7 +549,7 @@ export function logSlashCommand(
   config: Config,
   event: SlashCommandEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logSlashCommandEvent(event);
+  QwenLogger.getInstance(config)?.logSlashCommandEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -567,7 +570,7 @@ export function logIdeConnection(
   config: Config,
   event: IdeConnectionEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logIdeConnectionEvent(event);
+  QwenLogger.getInstance(config)?.logIdeConnectionEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -588,7 +591,7 @@ export function logConversationFinishedEvent(
   config: Config,
   event: ConversationFinishedEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logConversationFinishedEvent(event);
+  QwenLogger.getInstance(config)?.logConversationFinishedEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -609,7 +612,7 @@ export function logChatCompression(
   config: Config,
   event: ChatCompressionEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logChatCompressionEvent(event);
+  QwenLogger.getInstance(config)?.logChatCompressionEvent(event);
 
   const attributes: LogAttributes = {
     ...getCommonAttributes(config),
@@ -634,7 +637,7 @@ export function logToolOutputMasking(
   config: Config,
   event: ToolOutputMaskingEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logToolOutputMaskingEvent(event);
+  QwenLogger.getInstance(config)?.logToolOutputMaskingEvent(event);
 
   const attributes: LogAttributes = {
     ...getCommonAttributes(config),
@@ -658,7 +661,7 @@ export function logKittySequenceOverflow(
   config: Config,
   event: KittySequenceOverflowEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logKittySequenceOverflowEvent(event);
+  QwenLogger.getInstance(config)?.logKittySequenceOverflowEvent(event);
   if (!isTelemetrySdkInitialized()) return;
   const attributes: LogAttributes = {
     ...getCommonAttributes(config),
@@ -676,7 +679,7 @@ export function logMalformedJsonResponse(
   config: Config,
   event: MalformedJsonResponseEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logMalformedJsonResponseEvent(event);
+  QwenLogger.getInstance(config)?.logMalformedJsonResponseEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -697,7 +700,7 @@ export function logInvalidChunk(
   config: Config,
   event: InvalidChunkEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logInvalidChunkEvent(event);
+  QwenLogger.getInstance(config)?.logInvalidChunkEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -723,7 +726,7 @@ export function logContentRetry(
   config: Config,
   event: ContentRetryEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logContentRetryEvent(event);
+  QwenLogger.getInstance(config)?.logContentRetryEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -745,7 +748,7 @@ export function logContentRetryFailure(
   config: Config,
   event: ContentRetryFailureEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logContentRetryFailureEvent(event);
+  QwenLogger.getInstance(config)?.logContentRetryFailureEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -767,7 +770,7 @@ export function logSubagentExecution(
   config: Config,
   event: SubagentExecutionEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logSubagentExecutionEvent(event);
+  QwenLogger.getInstance(config)?.logSubagentExecutionEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -795,7 +798,7 @@ export function logModelSlashCommand(
   config: Config,
   event: ModelSlashCommandEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logModelSlashCommandEvent(event);
+  QwenLogger.getInstance(config)?.logModelSlashCommandEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -813,11 +816,16 @@ export function logModelSlashCommand(
   recordModelSlashCommand(config, event);
 }
 
+export function logHookCall(config: Config, event: HookCallEvent): void {
+  // Log to QwenLogger for RUM telemetry only
+  QwenLogger.getInstance(config)?.logHookCallEvent(event);
+}
+
 export function logExtensionInstallEvent(
   config: Config,
   event: ExtensionInstallEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logExtensionInstallEvent(event);
+  QwenLogger.getInstance(config)?.logExtensionInstallEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -843,7 +851,7 @@ export function logExtensionUninstall(
   config: Config,
   event: ExtensionUninstallEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logExtensionUninstallEvent(event);
+  QwenLogger.getInstance(config)?.logExtensionUninstallEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -865,7 +873,7 @@ export async function logExtensionUpdateEvent(
   config: Config,
   event: ExtensionUpdateEvent,
 ): Promise<void> {
-  ApexLogger.getInstance(config)?.logExtensionUpdateEvent(event);
+  QwenLogger.getInstance(config)?.logExtensionUpdateEvent(event);
 
   const attributes: LogAttributes = {
     ...getCommonAttributes(config),
@@ -891,7 +899,7 @@ export function logExtensionEnable(
   config: Config,
   event: ExtensionEnableEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logExtensionEnableEvent(event);
+  QwenLogger.getInstance(config)?.logExtensionEnableEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -913,7 +921,7 @@ export function logExtensionDisable(
   config: Config,
   event: ExtensionDisableEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logExtensionDisableEvent(event);
+  QwenLogger.getInstance(config)?.logExtensionDisableEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -932,7 +940,7 @@ export function logExtensionDisable(
 }
 
 export function logAuth(config: Config, event: AuthEvent): void {
-  ApexLogger.getInstance(config)?.logAuthEvent(event);
+  QwenLogger.getInstance(config)?.logAuthEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -986,7 +994,7 @@ export function logUserFeedback(
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent);
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
-  ApexLogger.getInstance(config)?.logUserFeedbackEvent(event);
+  QwenLogger.getInstance(config)?.logUserFeedbackEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -1008,7 +1016,7 @@ export function logArenaSessionStarted(
   config: Config,
   event: ArenaSessionStartedEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logArenaSessionStartedEvent(event);
+  QwenLogger.getInstance(config)?.logArenaSessionStartedEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -1032,7 +1040,7 @@ export function logArenaAgentCompleted(
   config: Config,
   event: ArenaAgentCompletedEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logArenaAgentCompletedEvent(event);
+  QwenLogger.getInstance(config)?.logArenaAgentCompletedEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -1062,7 +1070,7 @@ export function logArenaSessionEnded(
   config: Config,
   event: ArenaSessionEndedEvent,
 ): void {
-  ApexLogger.getInstance(config)?.logArenaSessionEndedEvent(event);
+  QwenLogger.getInstance(config)?.logArenaSessionEndedEvent(event);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {

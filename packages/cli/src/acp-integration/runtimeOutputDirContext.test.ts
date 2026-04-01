@@ -29,6 +29,6 @@ describe('runWithAcpRuntimeOutputDir', () => {
       expect(Storage.getRuntimeBaseDir()).toBe(path.join(cwd, '.qwen-runtime'));
     });
 
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
   });
 });

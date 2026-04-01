@@ -53,12 +53,12 @@ describe('FileDiscoveryService', () => {
       expect(service.shouldGitIgnoreFile('node_modules/foo.js')).toBe(false);
     });
 
-    it('should load .apexignore patterns even when not in a git repo', async () => {
-      await createTestFile('.apexignore', 'secrets.txt');
+    it('should load .qwenignore patterns even when not in a git repo', async () => {
+      await createTestFile('.qwenignore', 'secrets.txt');
       const service = new FileDiscoveryService(projectRoot);
 
-      expect(service.shouldApexIgnoreFile('secrets.txt')).toBe(true);
-      expect(service.shouldApexIgnoreFile('src/index.js')).toBe(false);
+      expect(service.shouldQwenIgnoreFile('secrets.txt')).toBe(true);
+      expect(service.shouldQwenIgnoreFile('src/index.js')).toBe(false);
     });
   });
 
@@ -66,7 +66,7 @@ describe('FileDiscoveryService', () => {
     beforeEach(async () => {
       await fs.mkdir(path.join(projectRoot, '.git'));
       await createTestFile('.gitignore', 'node_modules/\n.git/\ndist');
-      await createTestFile('.apexignore', 'logs/');
+      await createTestFile('.qwenignore', 'logs/');
     });
 
     it('should filter out git-ignored and qwen-ignored files by default', () => {
@@ -98,7 +98,7 @@ describe('FileDiscoveryService', () => {
 
       const filtered = service.filterFiles(files, {
         respectGitIgnore: false,
-        respectApexIgnore: true, // still respect this one
+        respectQwenIgnore: true, // still respect this one
       });
 
       expect(filtered).toEqual(
@@ -108,7 +108,7 @@ describe('FileDiscoveryService', () => {
       );
     });
 
-    it('should not filter files when respectApexIgnore is false', () => {
+    it('should not filter files when respectQwenIgnore is false', () => {
       const files = [
         'src/index.ts',
         'node_modules/package/index.js',
@@ -119,7 +119,7 @@ describe('FileDiscoveryService', () => {
 
       const filtered = service.filterFiles(files, {
         respectGitIgnore: true,
-        respectApexIgnore: false,
+        respectQwenIgnore: false,
       });
 
       expect(filtered).toEqual(
@@ -136,11 +136,11 @@ describe('FileDiscoveryService', () => {
     });
   });
 
-  describe('shouldGitIgnoreFile & shouldApexIgnoreFile', () => {
+  describe('shouldGitIgnoreFile & shouldQwenIgnoreFile', () => {
     beforeEach(async () => {
       await fs.mkdir(path.join(projectRoot, '.git'));
       await createTestFile('.gitignore', 'node_modules/');
-      await createTestFile('.apexignore', '*.log');
+      await createTestFile('.qwenignore', '*.log');
     });
 
     it('should return true for git-ignored files', () => {
@@ -165,7 +165,7 @@ describe('FileDiscoveryService', () => {
       const service = new FileDiscoveryService(projectRoot);
 
       expect(
-        service.shouldApexIgnoreFile(path.join(projectRoot, 'debug.log')),
+        service.shouldQwenIgnoreFile(path.join(projectRoot, 'debug.log')),
       ).toBe(true);
     });
 
@@ -173,7 +173,7 @@ describe('FileDiscoveryService', () => {
       const service = new FileDiscoveryService(projectRoot);
 
       expect(
-        service.shouldApexIgnoreFile(path.join(projectRoot, 'src/index.ts')),
+        service.shouldQwenIgnoreFile(path.join(projectRoot, 'src/index.ts')),
       ).toBe(false);
     });
   });

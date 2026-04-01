@@ -10,17 +10,16 @@ import { GitIgnoreParser } from '../utils/gitIgnoreParser.js';
 import { QwenIgnoreParser } from '../utils/qwenIgnoreParser.js';
 import { isGitRepository } from '../utils/gitUtils.js';
 import * as path from 'node:path';
-import { isSecretFile } from './secretFileFilter.js';
 
 export interface FilterFilesOptions {
   respectGitIgnore?: boolean;
-  respectApexIgnore?: boolean;
+  respectQwenIgnore?: boolean;
 }
 
 export interface FilterReport {
   filteredPaths: string[];
   gitIgnoredCount: number;
-  apexIgnoredCount: number;
+  qwenIgnoredCount: number;
 }
 
 export class FileDiscoveryService {
@@ -43,17 +42,14 @@ export class FileDiscoveryService {
     filePaths: string[],
     options: FilterFilesOptions = {
       respectGitIgnore: true,
-      respectApexIgnore: true,
+      respectQwenIgnore: true,
     },
   ): string[] {
     return filePaths.filter((filePath) => {
-      if (isSecretFile(filePath)) {
-        return false;
-      }
       if (options.respectGitIgnore && this.shouldGitIgnoreFile(filePath)) {
         return false;
       }
-      if (options.respectApexIgnore && this.shouldApexIgnoreFile(filePath)) {
+      if (options.respectQwenIgnore && this.shouldQwenIgnoreFile(filePath)) {
         return false;
       }
       return true;
@@ -68,25 +64,21 @@ export class FileDiscoveryService {
     filePaths: string[],
     opts: FilterFilesOptions = {
       respectGitIgnore: true,
-      respectApexIgnore: true,
+      respectQwenIgnore: true,
     },
   ): FilterReport {
     const filteredPaths: string[] = [];
     let gitIgnoredCount = 0;
-    let apexIgnoredCount = 0;
+    let qwenIgnoredCount = 0;
 
     for (const filePath of filePaths) {
-      if (isSecretFile(filePath)) {
-        continue;
-      }
-
       if (opts.respectGitIgnore && this.shouldGitIgnoreFile(filePath)) {
         gitIgnoredCount++;
         continue;
       }
 
-      if (opts.respectApexIgnore && this.shouldApexIgnoreFile(filePath)) {
-        apexIgnoredCount++;
+      if (opts.respectQwenIgnore && this.shouldQwenIgnoreFile(filePath)) {
+        qwenIgnoredCount++;
         continue;
       }
 
@@ -96,7 +88,7 @@ export class FileDiscoveryService {
     return {
       filteredPaths,
       gitIgnoredCount,
-      apexIgnoredCount,
+      qwenIgnoredCount,
     };
   }
 
@@ -113,7 +105,7 @@ export class FileDiscoveryService {
   /**
    * Checks if a single file should be qwen-ignored
    */
-  shouldApexIgnoreFile(filePath: string): boolean {
+  shouldQwenIgnoreFile(filePath: string): boolean {
     if (this.qwenIgnoreFilter) {
       return this.qwenIgnoreFilter.isIgnored(filePath);
     }
@@ -129,23 +121,20 @@ export class FileDiscoveryService {
   ): boolean {
     const {
       respectGitIgnore = true,
-      respectApexIgnore: respectApexIgnore = true,
+      respectQwenIgnore: respectQwenIgnore = true,
     } = options;
 
-    if (isSecretFile(filePath)) {
-      return true;
-    }
     if (respectGitIgnore && this.shouldGitIgnoreFile(filePath)) {
       return true;
     }
-    if (respectApexIgnore && this.shouldApexIgnoreFile(filePath)) {
+    if (respectQwenIgnore && this.shouldQwenIgnoreFile(filePath)) {
       return true;
     }
     return false;
   }
 
   /**
-   * Returns loaded patterns from .apexignore
+   * Returns loaded patterns from .qwenignore
    */
   getQwenIgnorePatterns(): string[] {
     return this.qwenIgnoreFilter?.getPatterns() ?? [];

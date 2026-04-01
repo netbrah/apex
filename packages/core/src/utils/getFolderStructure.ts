@@ -135,8 +135,8 @@ async function readFullStructure(
           const shouldIgnore =
             (options.fileFilteringOptions.respectGitIgnore &&
               options.fileService.shouldGitIgnoreFile(filePath)) ||
-            (options.fileFilteringOptions.respectApexIgnore &&
-              options.fileService.shouldApexIgnoreFile(filePath));
+            (options.fileFilteringOptions.respectQwenIgnore &&
+              options.fileService.shouldQwenIgnoreFile(filePath));
           if (shouldIgnore) {
             continue;
           }
@@ -175,8 +175,8 @@ async function readFullStructure(
           isIgnored =
             (options.fileFilteringOptions.respectGitIgnore &&
               options.fileService.shouldGitIgnoreFile(subFolderPath)) ||
-            (options.fileFilteringOptions.respectApexIgnore &&
-              options.fileService.shouldApexIgnoreFile(subFolderPath));
+            (options.fileFilteringOptions.respectQwenIgnore &&
+              options.fileService.shouldQwenIgnoreFile(subFolderPath));
         }
 
         if (options.ignoredFolders.has(subFolderName) || isIgnored) {
