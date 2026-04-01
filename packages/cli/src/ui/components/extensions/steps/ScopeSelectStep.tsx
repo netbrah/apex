@@ -6,7 +6,7 @@
 
 import { Box, Text } from 'ink';
 import { RadioButtonSelect } from '../../shared/RadioButtonSelect.js';
-import { type Extension } from '@qwen-code/qwen-code-core';
+import { type Extension } from '@apex-code/apex-core';
 import { theme } from '../../../semantic-colors.js';
 import { t } from '../../../../i18n/index.js';
 

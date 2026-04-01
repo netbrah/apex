@@ -34,10 +34,10 @@ vi.mock('../i18n/index.js', () => ({
   }),
 }));
 
-// Mock @qwen-code/qwen-code-core
-vi.mock('@qwen-code/qwen-code-core', () => ({
+// Mock @apex-code/apex-core
+vi.mock('@apex-code/apex-core', () => ({
   Storage: {
-    getGlobalQwenDir: vi.fn(() => '/mock/home/.qwen'),
+    getGlobalApexDir: vi.fn(() => '/mock/home/.qwen'),
   },
 }));
 

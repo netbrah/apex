@@ -16,7 +16,7 @@ import { isNarrowWidth } from '../utils/isNarrowWidth.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useVimMode } from '../contexts/VimModeContext.js';
-import { ApprovalMode, AuthType } from '@qwen-code/qwen-code-core';
+import { ApprovalMode, AuthType } from '@apex-code/apex-core';
 import { t } from '../../i18n/index.js';
 
 const DEFAULT_COMPRESSION_THRESHOLD = 0.7;

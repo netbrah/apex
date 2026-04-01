@@ -25,7 +25,7 @@ import type {
   IdeContext,
   ApprovalMode,
   IdeInfo,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type { DOMElement } from 'ink';
 import type { SessionStatsState } from '../contexts/SessionContext.js';
 import type { ExtensionUpdateState } from '../state/extensions.js';

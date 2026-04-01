@@ -9,10 +9,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useAtCompletion } from './useAtCompletion.js';
-import type { Config, FileSearch } from '@qwen-code/qwen-code-core';
-import { FileSearchFactory } from '@qwen-code/qwen-code-core';
-import type { FileSystemStructure } from '@qwen-code/qwen-code-test-utils';
-import { createTmpDir, cleanupTmpDir } from '@qwen-code/qwen-code-test-utils';
+import type { Config, FileSearch } from '@apex-code/apex-core';
+import { FileSearchFactory } from '@apex-code/apex-core';
+import type { FileSystemStructure } from '@apex-code/apex-test-utils';
+import { createTmpDir, cleanupTmpDir } from '@apex-code/apex-test-utils';
 import { useState } from 'react';
 import type { Suggestion } from '../components/SuggestionsDisplay.js';
 
@@ -46,7 +46,7 @@ describe('useAtCompletion', () => {
     mockConfig = {
       getFileFilteringOptions: vi.fn(() => ({
         respectGitIgnore: true,
-        respectQwenIgnore: true,
+        respectApexIgnore: true,
       })),
       getEnableRecursiveFileSearch: () => true,
       getFileFilteringEnableFuzzySearch: () => true,
@@ -477,7 +477,7 @@ describe('useAtCompletion', () => {
         getEnableRecursiveFileSearch: () => false,
         getFileFilteringOptions: vi.fn(() => ({
           respectGitIgnore: true,
-          respectQwenIgnore: true,
+          respectApexIgnore: true,
         })),
         getFileFilteringEnableFuzzySearch: () => true,
       } as unknown as Config;

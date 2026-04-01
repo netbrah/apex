@@ -17,7 +17,7 @@ import { ANSI } from './ansi.js';
 import { ANSILight } from './ansi-light.js';
 import { NoColorTheme } from './no-color.js';
 import process from 'node:process';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
+import { createDebugLogger } from '@apex-code/apex-core';
 
 const debugLogger = createDebugLogger('THEME_MANAGER');
 

@@ -10,7 +10,7 @@ import {
   HookEventName,
   HookType,
   HooksConfigSource,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { HooksListStep } from './HooksListStep.js';
 import type { HookEventDisplayInfo } from './types.js';
 

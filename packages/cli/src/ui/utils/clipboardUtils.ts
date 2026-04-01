@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
+import { createDebugLogger } from '@apex-code/apex-core';
 
 const debugLogger = createDebugLogger('CLIPBOARD_UTILS');
 

@@ -6,7 +6,7 @@
 
 import { execSync } from 'node:child_process';
 import { ProxyAgent } from 'undici';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
+import { createDebugLogger } from '@apex-code/apex-core';
 
 const debugLogger = createDebugLogger('GIT');
 

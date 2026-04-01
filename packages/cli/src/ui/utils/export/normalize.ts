@@ -5,8 +5,8 @@
  */
 
 import type { Part } from '@google/genai';
-import { ExitPlanModeTool, ToolNames } from '@qwen-code/qwen-code-core';
-import type { ChatRecord, Config, Kind } from '@qwen-code/qwen-code-core';
+import { ExitPlanModeTool, ToolNames } from '@apex-code/apex-core';
+import type { ChatRecord, Config, Kind } from '@apex-code/apex-core';
 import type { ExportMessage, ExportSessionData } from './types.js';
 
 /**

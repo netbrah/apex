@@ -161,7 +161,7 @@ export type {
 // Telemetry
 // ============================================================================
 
-export { QwenLogger } from './telemetry/qwen-logger/qwen-logger.js';
+export { ApexLogger } from './telemetry/apex-logger/apex-logger.js';
 export * from './telemetry/index.js';
 export {
   logAuth,
@@ -241,7 +241,6 @@ export * from './utils/yaml-parser.js';
 // OAuth & Authentication
 // ============================================================================
 
-export * from './qwen/qwenOAuth2.js';
 
 // ============================================================================
 // Testing Utilities
@@ -264,3 +263,15 @@ export {
   firePermissionRequestHook,
   type NotificationHookResult,
 } from './core/toolHookTriggers.js';
+
+// Stubs for removed Qwen OAuth (kept for backward compat with acpAgent)
+export function clearCachedCredentialFile(): void { /* no-op */ }
+export type DeviceAuthorizationData = Record<string, unknown>;
+export const QwenOAuth2Event = { DEVICE_AUTH: 'device_auth', AuthUri: 'auth_uri' } as const;
+export type QwenOAuth2Event = typeof QwenOAuth2Event;
+export const qwenOAuth2Events = {
+  on: (_event: string, _handler: (...args: unknown[]) => void) => {},
+  once: (_event: string, _handler: (...args: unknown[]) => void) => {},
+  off: (_event: string, _handler: (...args: unknown[]) => void) => {},
+  removeAllListeners: () => {},
+};

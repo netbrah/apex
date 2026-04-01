@@ -1,5 +1,5 @@
 {
-  "name": "@qwen-code/web-templates",
+  "name": "@apex-code/web-templates",
   "version": "1.0.0",
   "description": "Web templates bundled as embeddable JS/CSS strings",
   "repository": {

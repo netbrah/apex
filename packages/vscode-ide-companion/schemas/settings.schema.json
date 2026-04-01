@@ -342,8 +342,8 @@
               "type": "boolean",
               "default": true
             },
-            "respectQwenIgnore": {
-              "description": "Respect .qwenignore files when searching",
+            "respectApexIgnore": {
+              "description": "Respect .apexignore files when searching",
               "type": "boolean",
               "default": true
             },

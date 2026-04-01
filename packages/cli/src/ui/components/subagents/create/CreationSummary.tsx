@@ -10,8 +10,8 @@ import type { WizardStepProps } from '../types.js';
 import type {
   SubagentManager,
   SubagentConfig,
-} from '@qwen-code/qwen-code-core';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
+import { createDebugLogger } from '@apex-code/apex-core';
 import { theme } from '../../../semantic-colors.js';
 import { shouldShowColor, getColorForDisplay } from '../utils.js';
 import { useLaunchEditor } from '../../../hooks/useLaunchEditor.js';

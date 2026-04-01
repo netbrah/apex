@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ExtensionManager } from '@qwen-code/qwen-code-core';
+import type { ExtensionManager } from '@apex-code/apex-core';
 import { getErrorMessage } from '../../utils/errors.js';
 import {
   ExtensionUpdateState,

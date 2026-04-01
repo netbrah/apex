@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { ApprovalMode } from '@qwen-code/qwen-code-core';
+import { ApprovalMode } from '@apex-code/apex-core';
 import { t } from '../../i18n/index.js';
 
 interface AutoAcceptIndicatorProps {

@@ -42,7 +42,7 @@ import {
   SessionEndReason,
   SessionStartSource,
   type PermissionMode,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { buildResumedHistoryItems } from './utils/resumeHistoryUtils.js';
 import { validateAuthMethod } from '../config/auth.js';
 import { loadHierarchicalGeminiMemory } from '../config/config.js';
@@ -1130,7 +1130,6 @@ export const AppContainer = (props: AppContainerProps) => {
       streamingState,
       settings.merged.ui?.customWittyPhrases,
       currentCandidatesTokens,
-      thought,
     );
 
   useAttentionNotifications({

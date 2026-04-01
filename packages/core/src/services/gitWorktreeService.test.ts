@@ -35,7 +35,7 @@ vi.mock('../utils/shell-utils.js', () => ({
 const hoistedMockGetGlobalQwenDir = vi.hoisted(() => vi.fn());
 vi.mock('../config/storage.js', () => ({
   Storage: {
-    getGlobalQwenDir: hoistedMockGetGlobalQwenDir,
+    getGlobalApexDir: hoistedMockGetGlobalQwenDir,
   },
 }));
 

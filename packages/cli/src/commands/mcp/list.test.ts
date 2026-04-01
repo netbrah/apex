@@ -8,7 +8,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { listMcpServers } from './list.js';
 import { loadSettings } from '../../config/settings.js';
 import { isWorkspaceTrusted } from '../../config/trustedFolders.js';
-import { createTransport, ExtensionManager } from '@qwen-code/qwen-code-core';
+import { createTransport, ExtensionManager } from '@apex-code/apex-core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
 const mockWriteStdoutLine = vi.hoisted(() => vi.fn());
@@ -26,7 +26,7 @@ vi.mock('../../config/settings.js', () => ({
 vi.mock('../../config/trustedFolders.js', () => ({
   isWorkspaceTrusted: vi.fn(),
 }));
-vi.mock('@qwen-code/qwen-code-core', () => ({
+vi.mock('@apex-code/apex-core', () => ({
   createTransport: vi.fn(),
   MCPServerStatus: {
     CONNECTED: 'CONNECTED',

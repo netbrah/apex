@@ -24,7 +24,7 @@ import {
   isTerminalStatus,
   ApprovalMode,
   APPROVAL_MODES,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import {
   useAgentViewState,
   useAgentViewActions,

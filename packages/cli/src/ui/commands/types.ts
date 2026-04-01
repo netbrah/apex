@@ -6,7 +6,7 @@
 
 import type { MutableRefObject, ReactNode } from 'react';
 import type { Content, PartListUnion } from '@google/genai';
-import type { Config, GitService, Logger } from '@qwen-code/qwen-code-core';
+import type { Config, GitService, Logger } from '@apex-code/apex-core';
 import type {
   HistoryItemWithoutId,
   HistoryItem,

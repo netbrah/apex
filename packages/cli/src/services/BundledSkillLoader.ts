@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '@qwen-code/qwen-code-core';
+import type { Config } from '@apex-code/apex-core';
 import {
   createDebugLogger,
   appendToLastTextPart,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type { ICommandLoader } from './types.js';
 import type {
   SlashCommand,

@@ -5,7 +5,7 @@
  */
 
 import { Box } from 'ink';
-import { AuthType } from '@qwen-code/qwen-code-core';
+import { AuthType } from '@apex-code/apex-core';
 import { Header, AuthDisplayType } from './Header.js';
 import { Tips } from './Tips.js';
 import { useSettings } from '../contexts/SettingsContext.js';

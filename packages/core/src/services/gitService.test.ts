@@ -18,7 +18,7 @@ import { Storage } from '../config/storage.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
-import { getProjectHash, QWEN_DIR } from '../utils/paths.js';
+import { getProjectHash, APEX_DIR } from '../utils/paths.js';
 import { isCommandAvailable } from '../utils/shell-utils.js';
 
 vi.mock('../utils/shell-utils.js', () => ({
@@ -141,7 +141,7 @@ describe('GitService', () => {
     let gitConfigPath: string;
 
     beforeEach(() => {
-      repoDir = path.join(homedir, QWEN_DIR, 'history', hash);
+      repoDir = path.join(homedir, APEX_DIR, 'history', hash);
       gitConfigPath = path.join(repoDir, '.gitconfig');
     });
 

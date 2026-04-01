@@ -7,14 +7,14 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { PartListUnion } from '@google/genai';
-import type { Config } from '@qwen-code/qwen-code-core';
+import type { Config } from '@apex-code/apex-core';
 import {
   getErrorMessage,
   isNodeError,
   Storage,
   unescapePath,
   readManyFiles,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type {
   HistoryItemToolGroup,
   HistoryItemWithoutId,
@@ -203,18 +203,18 @@ export async function handleAtCommand({
       respectFileIgnore.respectGitIgnore &&
       fileDiscovery.shouldIgnoreFile(pathName, {
         respectGitIgnore: true,
-        respectQwenIgnore: false,
+        respectApexIgnore: false,
       });
-    const qwenIgnored =
-      respectFileIgnore.respectQwenIgnore &&
+    const apexIgnored =
+      respectFileIgnore.respectApexIgnore &&
       fileDiscovery.shouldIgnoreFile(pathName, {
         respectGitIgnore: false,
-        respectQwenIgnore: true,
+        respectApexIgnore: true,
       });
 
-    if (gitIgnored || qwenIgnored) {
+    if (gitIgnored || apexIgnored) {
       const reason =
-        gitIgnored && qwenIgnored ? 'both' : gitIgnored ? 'git' : 'qwen';
+        gitIgnored && apexIgnored ? 'both' : gitIgnored ? 'git' : 'qwen';
       ignoredByReason[reason].push(pathName);
       const reasonText =
         reason === 'both'

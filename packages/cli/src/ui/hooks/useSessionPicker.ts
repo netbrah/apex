@@ -18,7 +18,7 @@ import type {
   ListSessionsResult,
   SessionListItem,
   SessionService,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import {
   filterSessions,
   SESSION_PAGE_SIZE,

@@ -126,7 +126,7 @@ async function getGeminiMdFilePathsInternalForEachDir(
   for (const geminiMdFilename of geminiMdFilenames) {
     const resolvedHome = path.resolve(userHomePath);
     const globalMemoryPath = path.join(
-      Storage.getGlobalQwenDir(),
+      Storage.getGlobalApexDir(),
       geminiMdFilename,
     );
 
@@ -177,7 +177,7 @@ async function getGeminiMdFilePathsInternalForEachDir(
         : path.dirname(resolvedHome);
 
       while (currentDir && currentDir !== path.dirname(currentDir)) {
-        if (currentDir === Storage.getGlobalQwenDir()) {
+        if (currentDir === Storage.getGlobalApexDir()) {
           break;
         }
 

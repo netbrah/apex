@@ -18,7 +18,7 @@ import {
   SlashCommandStatus,
   ToolConfirmationOutcome,
   IdeClient,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import type {
   Message,

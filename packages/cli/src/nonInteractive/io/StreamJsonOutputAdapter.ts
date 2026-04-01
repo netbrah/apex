@@ -9,7 +9,7 @@ import type {
   Config,
   ToolCallRequestInfo,
   McpToolProgressData,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type {
   CLIAssistantMessage,
   CLIMessage,

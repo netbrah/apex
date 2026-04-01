@@ -23,7 +23,7 @@ import type {
   EditorType,
   GeminiClient,
   AnyToolInvocation,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import {
   ApprovalMode,
   AuthType,
@@ -31,7 +31,7 @@ import {
   SendMessageType,
   ToolErrorType,
   ToolConfirmationOutcome,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type { Part, PartListUnion } from '@google/genai';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import type { HistoryItem, SlashCommandProcessorResult } from '../types.js';
@@ -75,7 +75,7 @@ const mockParseAndFormatApiError = vi.hoisted(() =>
 );
 const mockLogApiCancel = vi.hoisted(() => vi.fn());
 
-vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actualCoreModule = (await importOriginal()) as any;
   return {
     ...actualCoreModule,

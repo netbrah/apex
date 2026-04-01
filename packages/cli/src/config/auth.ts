@@ -9,7 +9,7 @@ import {
   type Config,
   type ModelProvidersConfig,
   type ProviderModelConfig,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { loadEnvironment, loadSettings, type Settings } from './settings.js';
 import { t } from '../i18n/index.js';
 

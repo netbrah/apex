@@ -4,16 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { promises as fs } from 'node:fs';
-import * as os from 'os';
-import * as path from 'path';
 import { BaseWebSearchProvider } from '../base-provider.js';
 import type {
   WebSearchResult,
   WebSearchResultItem,
   DashScopeProviderConfig,
 } from '../types.js';
-import type { QwenCredentials } from '../../../qwen/qwenOAuth2.js';
 
 interface DashScopeSearchItem {
   _id: string;
@@ -58,30 +54,6 @@ interface DashScopeSearchResponse {
   success: boolean;
 }
 
-// File System Configuration
-const QWEN_DIR = '.qwen';
-const QWEN_CREDENTIAL_FILENAME = 'oauth_creds.json';
-
-/**
- * Get the path to the cached OAuth credentials file.
- */
-function getQwenCachedCredentialPath(): string {
-  return path.join(os.homedir(), QWEN_DIR, QWEN_CREDENTIAL_FILENAME);
-}
-
-/**
- * Load cached Qwen OAuth credentials from disk.
- */
-async function loadQwenCredentials(): Promise<QwenCredentials | null> {
-  try {
-    const keyFile = getQwenCachedCredentialPath();
-    const creds = await fs.readFile(keyFile, 'utf-8');
-    return JSON.parse(creds) as QwenCredentials;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Web search provider using Alibaba Cloud DashScope API.
  */
@@ -107,36 +79,9 @@ export class DashScopeProvider extends BaseWebSearchProvider {
     accessToken: string | null;
     apiEndpoint: string;
   }> {
-    // Load credentials once
-    const credentials = await loadQwenCredentials();
-
-    // Get access token: try OAuth credentials first, fallback to apiKey
-    let accessToken: string | null = null;
-    if (credentials?.access_token) {
-      // Check if token is not expired
-      if (credentials.expiry_date && credentials.expiry_date > Date.now()) {
-        accessToken = credentials.access_token;
-      }
-    }
-    if (!accessToken) {
-      accessToken = this.config.apiKey || null;
-    }
-
-    // Get API endpoint: use resource_url from credentials
-    if (!credentials?.resource_url) {
-      throw new Error(
-        'No resource_url found in credentials. Please authenticate using OAuth',
-      );
-    }
-
-    // Normalize the URL: add protocol if missing
-    const baseUrl = credentials.resource_url.startsWith('http')
-      ? credentials.resource_url
-      : `https://${credentials.resource_url}`;
-    // Remove trailing slash if present
-    const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
-    const apiEndpoint = `${normalizedBaseUrl}/api/v1/indices/plugin/web_search`;
-
+    const accessToken = this.config.apiKey || null;
+    const baseUrl = ('https://dashscope.aliyuncs.com').replace(/\/$/, '');
+    const apiEndpoint = `${baseUrl}/api/v1/indices/plugin/web_search`;
     return { accessToken, apiEndpoint };
   }
 

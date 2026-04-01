@@ -8,7 +8,7 @@ import type {
   HookConfig,
   HooksConfigSource,
   HookEventName,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 
 /**
  * Exit code description for hooks

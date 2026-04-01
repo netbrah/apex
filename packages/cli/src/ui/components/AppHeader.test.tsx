@@ -82,7 +82,7 @@ describe('<AppHeader />', () => {
     );
     // When screen reader is enabled, header is not rendered
     expect(lastFrame()).not.toContain('/projects/qwen-code');
-    expect(lastFrame()).not.toContain('Qwen Code');
+    expect(lastFrame()).not.toContain('Apex');
   });
 
   it('shows the header with all info when banner is visible', () => {

@@ -1,5 +1,5 @@
 {
-  "name": "@qwen-code/webui",
+  "name": "@apex-code/webui",
   "version": "1.0.0",
   "description": "Shared UI components for Qwen Code packages",
   "type": "module",

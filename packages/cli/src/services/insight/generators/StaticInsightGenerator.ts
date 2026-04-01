@@ -13,7 +13,7 @@ import type {
   InsightProgressCallback,
 } from '../types/StaticInsightTypes.js';
 
-import { updateSymlink, Storage, type Config } from '@qwen-code/qwen-code-core';
+import { updateSymlink, Storage, type Config } from '@apex-code/apex-core';
 
 export class StaticInsightGenerator {
   private dataProcessor: DataProcessor;

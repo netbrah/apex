@@ -26,7 +26,7 @@ export class TrustedHooksManager {
 
   constructor() {
     this.configPath = path.join(
-      Storage.getGlobalQwenDir(),
+      Storage.getGlobalApexDir(),
       'trusted_hooks.json',
     );
     this.load();

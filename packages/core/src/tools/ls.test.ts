@@ -39,7 +39,7 @@ describe('LSTool', () => {
       getFileService: () => new FileDiscoveryService(tempRootDir),
       getFileFilteringOptions: () => ({
         respectGitIgnore: true,
-        respectQwenIgnore: true,
+        respectApexIgnore: true,
       }),
       getTruncateToolOutputLines: () => 1000,
       storage: {
@@ -174,7 +174,7 @@ describe('LSTool', () => {
     it('should respect qwenignore patterns', async () => {
       await fs.writeFile(path.join(tempRootDir, 'file1.txt'), 'content1');
       await fs.writeFile(path.join(tempRootDir, 'file2.log'), 'content1');
-      await fs.writeFile(path.join(tempRootDir, '.qwenignore'), '*.log');
+      await fs.writeFile(path.join(tempRootDir, '.apexignore'), '*.log');
       const invocation = lsTool.build({ path: tempRootDir });
       const result = await invocation.execute(abortSignal);
 

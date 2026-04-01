@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
+import type { ThoughtSummary } from '@apex-code/apex-core';
 import { t, ta } from '../../i18n/index.js';
 import {
   APEX_LOADING_PHRASES,

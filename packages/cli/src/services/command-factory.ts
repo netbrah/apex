@@ -10,7 +10,7 @@
  */
 
 import path from 'node:path';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
+import { createDebugLogger } from '@apex-code/apex-core';
 import type {
   CommandContext,
   SlashCommand,

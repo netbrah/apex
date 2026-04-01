@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
-import { shortenPath, tildeifyPath } from '@qwen-code/qwen-code-core';
+import { shortenPath, tildeifyPath } from '@apex-code/apex-core';
 import { theme } from '../semantic-colors.js';
 import { shortAsciiLogo } from './AsciiArt.js';
 import { getAsciiArtWidth, getCachedStringWidth } from '../utils/textUtils.js';
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Title line: >_ Brand (v{version}) */}
         <Text>
           <Text bold color={theme.prompt?.prefix ?? theme.text.accent}>
-            &gt;_ {process.env['QWEN_CODE_BRAND'] || 'Qwen Code'}
+            &gt;_ {process.env['QWEN_CODE_BRAND'] || 'Apex'}
           </Text>
           <Text color={theme.text.secondary}> (v{version})</Text>
         </Text>

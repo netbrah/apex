@@ -11,7 +11,7 @@ import {
   PHRASE_CHANGE_INTERVAL_MS,
 } from './usePhraseCycler.js';
 import * as i18n from '../../i18n/index.js';
-import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
+import type { ThoughtSummary } from '@apex-code/apex-core';
 
 const MOCK_WITTY_PHRASES = ['Phrase 1', 'Phrase 2', 'Phrase 3'];
 const THOUGHT_WITH_SUBJECT: ThoughtSummary = {

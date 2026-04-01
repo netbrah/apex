@@ -23,7 +23,7 @@ import {
   TodoWriteTool,
   Kind,
   ExitPlanModeTool,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 
 /**
  * Unified tool call event emitter.

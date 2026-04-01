@@ -11,12 +11,12 @@ import type {
   AuthType,
   ChatCompressionSettings,
   ModelProvidersConfig,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import {
   ApprovalMode,
   DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES,
   DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type { CustomTheme } from '../ui/themes/theme.js';
 import { getLanguageSettingsOptions } from '../i18n/languages.js';
 
@@ -832,13 +832,13 @@ const SETTINGS_SCHEMA = {
             description: 'Respect .gitignore files when searching',
             showInDialog: true,
           },
-          respectQwenIgnore: {
+          respectApexIgnore: {
             type: 'boolean',
-            label: 'Respect .qwenignore',
+            label: 'Respect .apexignore',
             category: 'Context',
             requiresRestart: true,
             default: true,
-            description: 'Respect .qwenignore files when searching',
+            description: 'Respect .apexignore files when searching',
             showInDialog: true,
           },
           enableRecursiveFileSearch: {

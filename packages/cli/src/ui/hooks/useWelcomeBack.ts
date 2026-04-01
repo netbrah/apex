@@ -9,7 +9,7 @@ import {
   getProjectSummaryInfo,
   type ProjectSummaryInfo,
   type Config,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { type Settings } from '../../config/settingsSchema.js';
 
 export interface WelcomeBackState {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SubagentLevel, Config } from '@qwen-code/qwen-code-core';
+import type { SubagentLevel, Config } from '@apex-code/apex-core';
 
 /**
  * State management for the subagent creation wizard.

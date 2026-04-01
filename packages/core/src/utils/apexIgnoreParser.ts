@@ -8,12 +8,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import ignore from 'ignore';
 
-export interface QwenIgnoreFilter {
+export interface ApexIgnoreFilter {
   isIgnored(filePath: string): boolean;
   getPatterns(): string[];
 }
 
-export class QwenIgnoreParser implements QwenIgnoreFilter {
+export class ApexIgnoreParser implements ApexIgnoreFilter {
   private projectRoot: string;
   private patterns: string[] = [];
   private ig = ignore();
@@ -24,7 +24,7 @@ export class QwenIgnoreParser implements QwenIgnoreFilter {
   }
 
   private loadPatterns(): void {
-    const patternsFilePath = path.join(this.projectRoot, '.qwenignore');
+    const patternsFilePath = path.join(this.projectRoot, '.apexignore');
     let content: string;
     try {
       content = fs.readFileSync(patternsFilePath, 'utf-8');

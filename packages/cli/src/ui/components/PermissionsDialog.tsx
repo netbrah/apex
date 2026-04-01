@@ -23,8 +23,8 @@ import type {
   PermissionManager,
   RuleWithSource,
   RuleType,
-} from '@qwen-code/qwen-code-core';
-import { isPathWithinRoot } from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
+import { isPathWithinRoot } from '@apex-code/apex-core';
 
 // ---------------------------------------------------------------------------
 // Types

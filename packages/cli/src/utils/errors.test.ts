@@ -5,12 +5,12 @@
  */
 
 import { vi, type Mock, type MockInstance } from 'vitest';
-import type { Config } from '@qwen-code/qwen-code-core';
+import type { Config } from '@apex-code/apex-core';
 import {
   OutputFormat,
   FatalInputError,
   ToolErrorType,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import {
   getErrorMessage,
   handleError,
@@ -28,9 +28,9 @@ const debugLoggerSpy = vi.hoisted(() => ({
 }));
 
 // Mock the core modules
-vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@qwen-code/qwen-code-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
 
   return {
     ...original,

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { FileSystemService } from '@qwen-code/qwen-code-core';
+import type { FileSystemService } from '@apex-code/apex-core';
 import { AcpFileSystemService } from './filesystem.js';
 import type { AgentSideConnection } from '@agentclientprotocol/sdk';
 

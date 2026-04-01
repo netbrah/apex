@@ -108,7 +108,7 @@ export class GitWorktreeService {
     if (customDir) {
       return path.resolve(customDir);
     }
-    return path.join(Storage.getGlobalQwenDir(), WORKTREES_DIR);
+    return path.join(Storage.getGlobalApexDir(), WORKTREES_DIR);
   }
 
   /**

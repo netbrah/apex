@@ -17,15 +17,15 @@ import path from 'node:path';
 import {
   getErrorMessage,
   loadServerHierarchicalMemory,
-  QWEN_DIR,
+  APEX_DIR,
   setGeminiMdFilename,
   type FileDiscoveryService,
   type LoadServerHierarchicalMemoryResponse,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 
-vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@qwen-code/qwen-code-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...original,
     getErrorMessage: vi.fn((error: unknown) => {
@@ -158,7 +158,7 @@ describe('memoryCommand', () => {
 
       await globalCommand.action(mockContext, '');
 
-      const expectedGlobalPath = path.join('/home/user', QWEN_DIR, 'AGENTS.md');
+      const expectedGlobalPath = path.join('/home/user', APEX_DIR, 'AGENTS.md');
       expect(mockReadFile).toHaveBeenCalledWith(expectedGlobalPath, 'utf-8');
       expect(mockContext.ui.addItem).toHaveBeenCalledWith(
         {
@@ -210,7 +210,7 @@ describe('memoryCommand', () => {
 
       await globalCommand.action(mockContext, '');
 
-      const expectedPath = path.join('/home/user', QWEN_DIR, 'AGENTS.md');
+      const expectedPath = path.join('/home/user', APEX_DIR, 'AGENTS.md');
       expect(mockReadFile).toHaveBeenCalledWith(expectedPath, 'utf-8');
       expect(mockContext.ui.addItem).toHaveBeenCalledWith(
         {
@@ -267,11 +267,11 @@ describe('memoryCommand', () => {
       await globalCommand.action(mockContext, '');
 
       expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/home/user', QWEN_DIR, 'QWEN.md'),
+        path.join('/home/user', APEX_DIR, 'QWEN.md'),
         'utf-8',
       );
       expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/home/user', QWEN_DIR, 'AGENTS.md'),
+        path.join('/home/user', APEX_DIR, 'AGENTS.md'),
         'utf-8',
       );
       const addItemCall = (mockContext.ui.addItem as Mock).mock.calls[0][0];

@@ -10,7 +10,7 @@ import type {
   AgentResultDisplay,
   AgentStatsSummary,
   Config,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { theme } from '../../../semantic-colors.js';
 import { useKeypress } from '../../../hooks/useKeypress.js';
 import { COLOR_OPTIONS } from '../constants.js';

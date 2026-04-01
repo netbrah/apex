@@ -5,7 +5,7 @@
  */
 
 import { Box, Text } from 'ink';
-import { Storage, isDebugLoggingDegraded } from '@qwen-code/qwen-code-core';
+import { Storage, isDebugLoggingDegraded } from '@apex-code/apex-core';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { theme } from '../semantic-colors.js';
 

@@ -16,7 +16,7 @@ import type {
   ThoughtSummary,
   ToolCallRequestInfo,
   GeminiErrorEventValue,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import {
   GeminiEventType as ServerGeminiEventType,
   SendMessageType,
@@ -40,7 +40,7 @@ import {
   ApiCancelEvent,
   isSupportedImageMimeType,
   getUnsupportedImageFormatWarning,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { type Part, type PartListUnion, FinishReason } from '@google/genai';
 import type {
   HistoryItem,

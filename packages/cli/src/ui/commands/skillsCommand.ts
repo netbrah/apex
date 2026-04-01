@@ -13,8 +13,8 @@ import {
 import { MessageType, type HistoryItemSkillsList } from '../types.js';
 import { t } from '../../i18n/index.js';
 import { AsyncFzf } from 'fzf';
-import type { SkillConfig } from '@qwen-code/qwen-code-core';
-import { createDebugLogger } from '@qwen-code/qwen-code-core';
+import type { SkillConfig } from '@apex-code/apex-core';
+import { createDebugLogger } from '@apex-code/apex-core';
 
 const debugLogger = createDebugLogger('SKILLS_COMMAND');
 

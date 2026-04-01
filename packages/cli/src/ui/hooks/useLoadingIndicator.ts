@@ -8,7 +8,7 @@ import { StreamingState } from '../types.js';
 import { useTimer } from './useTimer.js';
 import { usePhraseCycler } from './usePhraseCycler.js';
 import { useState, useEffect, useRef } from 'react';
-import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
+import type { ThoughtSummary } from '@apex-code/apex-core';
 
 export const useLoadingIndicator = (
   streamingState: StreamingState,

@@ -30,7 +30,7 @@ import {
   createDebugLogger,
   NativeLspService,
   isToolEnabled,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { extensionsCommand } from '../commands/extensions.js';
 import { hooksCommand } from '../commands/hooks.js';
 import type { Settings } from './settings.js';
@@ -731,11 +731,11 @@ export async function loadCliConfig(
   // Automatically load output-language.md if it exists
   const projectStorage = new Storage(cwd);
   const projectOutputLanguagePath = path.join(
-    projectStorage.getQwenDir(),
+    projectStorage.getApexDir(),
     'output-language.md',
   );
   const globalOutputLanguagePath = path.join(
-    Storage.getGlobalQwenDir(),
+    Storage.getGlobalApexDir(),
     'output-language.md',
   );
 

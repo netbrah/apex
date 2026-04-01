@@ -15,10 +15,10 @@ import {
   OutputFormat,
   NativeLspService,
   Storage,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { loadCliConfig, parseArguments, type CliArgs } from './config.js';
 import type { Settings } from './settings.js';
-import * as ServerConfig from '@qwen-code/qwen-code-core';
+import * as ServerConfig from '@apex-code/apex-core';
 import { isWorkspaceTrusted } from './trustedFolders.js';
 
 const mockWriteStderrLine = vi.hoisted(() => vi.fn());
@@ -115,7 +115,7 @@ vi.mock('read-package-up', () => ({
   ),
 }));
 
-vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actualServer = await importOriginal<typeof ServerConfig>();
   const SkillManagerMock = vi.fn();
   SkillManagerMock.prototype.startWatching = vi
@@ -148,11 +148,11 @@ vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
     ),
     DEFAULT_MEMORY_FILE_FILTERING_OPTIONS: {
       respectGitIgnore: false,
-      respectQwenIgnore: true,
+      respectApexIgnore: true,
     },
     DEFAULT_FILE_FILTERING_OPTIONS: {
       respectGitIgnore: true,
-      respectQwenIgnore: true,
+      respectApexIgnore: true,
     },
   };
 });
@@ -2163,13 +2163,13 @@ describe('loadCliConfig fileFiltering', () => {
       value: false,
     },
     {
-      property: 'respectQwenIgnore',
-      getter: (c) => c.getFileFilteringRespectQwenIgnore(),
+      property: 'respectApexIgnore',
+      getter: (c) => c.getFileFilteringRespectApexIgnore(),
       value: true,
     },
     {
-      property: 'respectQwenIgnore',
-      getter: (c) => c.getFileFilteringRespectQwenIgnore(),
+      property: 'respectApexIgnore',
+      getter: (c) => c.getFileFilteringRespectApexIgnore(),
       value: false,
     },
     {
@@ -2487,7 +2487,7 @@ describe('loadCliConfig runtimeOutputDir', () => {
     const argv = await parseArguments();
     const settings: Settings = {};
     await loadCliConfig(settings, argv);
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
   });
 
   it('should let QWEN_RUNTIME_DIR env var take priority over settings', async () => {
@@ -2513,6 +2513,6 @@ describe('loadCliConfig runtimeOutputDir', () => {
     expect(Storage.getRuntimeBaseDir()).toBe(firstRuntimeDir);
 
     await loadCliConfig({}, argv);
-    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalQwenDir());
+    expect(Storage.getRuntimeBaseDir()).toBe(Storage.getGlobalApexDir());
   });
 });

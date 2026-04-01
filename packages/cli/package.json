@@ -1,5 +1,5 @@
 {
-  "name": "@qwen-code/qwen-code",
+  "name": "@apex-code/apex",
   "version": "1.0.0",
   "description": "Qwen Code",
   "repository": {
@@ -10,7 +10,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "qwen": "dist/index.js"
+    "apex": "dist/index.js"
   },
   "exports": {
     ".": {
@@ -40,8 +40,8 @@
     "@google/genai": "1.30.0",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "@qwen-code/qwen-code-core": "file:../core",
-    "@qwen-code/web-templates": "file:../web-templates",
+    "@apex-code/apex-core": "file:../core",
+    "@apex-code/web-templates": "file:../web-templates",
     "@types/update-notifier": "^6.0.8",
     "ansi-regex": "^6.2.2",
     "command-exists": "^1.2.9",
@@ -75,7 +75,7 @@
   "devDependencies": {
     "@babel/runtime": "^7.27.6",
     "@google/gemini-cli-test-utils": "file:../test-utils",
-    "@qwen-code/qwen-code-test-utils": "file:../test-utils",
+    "@apex-code/apex-test-utils": "file:../test-utils",
     "@testing-library/react": "^16.3.0",
     "@types/archiver": "^6.0.3",
     "@types/command-exists": "^1.2.3",

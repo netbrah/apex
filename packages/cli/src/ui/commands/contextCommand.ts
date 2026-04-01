@@ -25,7 +25,7 @@ import {
   ToolNames,
   SkillTool,
   buildSkillLlmContent,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { t } from '../../i18n/index.js';
 
 /**

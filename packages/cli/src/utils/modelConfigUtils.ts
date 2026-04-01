@@ -11,7 +11,7 @@ import {
   resolveModelConfig,
   type ModelConfigSourcesInput,
   type ProviderModelConfig,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import type { Settings } from '../config/settings.js';
 
 export interface CliGenerationConfigInputs {

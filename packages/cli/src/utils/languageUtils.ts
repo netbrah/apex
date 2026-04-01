@@ -12,7 +12,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Storage } from '@qwen-code/qwen-code-core';
+import { Storage } from '@apex-code/apex-core';
 import {
   detectSystemLanguage,
   getLanguageNameFromLocale,
@@ -65,7 +65,7 @@ export function resolveOutputLanguage(
  */
 function getOutputLanguageFilePath(): string {
   return path.join(
-    Storage.getGlobalQwenDir(),
+    Storage.getGlobalApexDir(),
     LLM_OUTPUT_LANGUAGE_RULE_FILENAME,
   );
 }

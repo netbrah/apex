@@ -5,7 +5,7 @@
  */
 
 import { theme } from '../semantic-colors.js';
-import { AgentStatus } from '@qwen-code/qwen-code-core';
+import { AgentStatus } from '@apex-code/apex-core';
 
 // --- Status Labels ---
 

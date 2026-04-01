@@ -7,7 +7,7 @@
 import type {
   MCPServerConfig,
   MCPServerStatus,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 
 /**
  * MCP管理步骤定义

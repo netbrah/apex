@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ThoughtSummary } from '@qwen-code/qwen-code-core';
+import type { ThoughtSummary } from '@apex-code/apex-core';
 
 export const LOADING_PHRASE_ROTATION_MS = 9000;
 

@@ -26,7 +26,7 @@ import {
   type AgentInteractive,
   type ApprovalMode,
   type Config,
-} from '@qwen-code/qwen-code-core';
+} from '@apex-code/apex-core';
 import { useArenaInProcess } from '../hooks/useArenaInProcess.js';
 
 // ─── Types ──────────────────────────────────────────────────

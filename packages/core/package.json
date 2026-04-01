@@ -1,5 +1,5 @@
 {
-  "name": "@qwen-code/qwen-code-core",
+  "name": "@apex-code/apex-core",
   "version": "1.0.0",
   "description": "Qwen Code Core",
   "repository": {
@@ -84,7 +84,7 @@
     "@lydell/node-pty-win32-x64": "1.1.0"
   },
   "devDependencies": {
-    "@qwen-code/qwen-code-test-utils": "file:../test-utils",
+    "@apex-code/apex-test-utils": "file:../test-utils",
     "@types/diff": "^7.0.2",
     "@types/js-yaml": "^4.0.9",
     "@types/dotenv": "^6.1.1",
