@@ -199,9 +199,9 @@ export class ResponsesPipeline {
       tools,
       tool_choice: 'auto',
       parallel_tool_calls: true,
-      truncation: { type: 'auto' },
+      truncation: 'auto',
       stream: true,
-      store: true,
+      ...(this.config.enableEncryptedContentReplay ? { store: true } : {}),
       prompt_cache_key: userPromptId,
     };
 

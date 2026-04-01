@@ -184,7 +184,7 @@ export async function parseArguments(): Promise<CliArgs> {
   // hack: if the first argument is the CLI entry point, remove it
   if (
     rawArgv.length > 0 &&
-    (rawArgv[0].endsWith('/dist/qwen-cli/cli.js') ||
+    (rawArgv[0].endsWith('/dist/apex-cli/cli.js') ||
       rawArgv[0].endsWith('/dist/cli.js') ||
       rawArgv[0].endsWith('/dist/cli/cli.js'))
   ) {
@@ -193,9 +193,9 @@ export async function parseArguments(): Promise<CliArgs> {
 
   const yargsInstance = yargs(rawArgv)
     .locale('en')
-    .scriptName('qwen')
+    .scriptName('apex')
     .usage(
-      'Usage: qwen [options] [command]\n\nApex - Launch an interactive CLI, use -p/--prompt for non-interactive mode',
+      'Usage: apex [options] [command]\n\nApex - Launch an interactive CLI, use -p/--prompt for non-interactive mode',
     )
     .option('telemetry', {
       type: 'boolean',
@@ -511,6 +511,7 @@ export async function parseArguments(): Promise<CliArgs> {
           type: 'string',
           choices: [
             AuthType.USE_OPENAI,
+            AuthType.USE_OPENAI_RESPONSES,
             AuthType.USE_ANTHROPIC,
             AuthType.QWEN_OAUTH,
             AuthType.USE_GEMINI,
@@ -707,9 +708,9 @@ export async function loadCliConfig(
 ): Promise<Config> {
   const debugMode = isDebugMode(argv);
 
-  // Set runtime output directory from settings (env var QWEN_RUNTIME_DIR
+  // Set runtime output directory from settings (env var APEX_RUNTIME_DIR
   // is auto-detected inside getRuntimeBaseDir() at each call site).
-  // Pass cwd so that relative paths like ".qwen" resolve per-project.
+  // Pass cwd so that relative paths like ".apex" resolve per-project.
   Storage.setRuntimeBaseDir(settings.advanced?.runtimeOutputDir, cwd);
 
   const ideMode = settings.ide?.enabled ?? false;

@@ -149,11 +149,11 @@ describe('ResponsesPipeline', () => {
       const result = callBuildRequest(pipeline, request, 'prompt-1');
 
       expect(result.model).toBe('codex-mini');
-      expect(result.truncation).toEqual({ type: 'auto' });
+      expect(result.truncation).toBe('auto');
       expect(result.parallel_tool_calls).toBe(true);
       expect(result.tool_choice).toBe('auto');
       expect(result.stream).toBe(true);
-      expect(result.store).toBe(true);
+      expect(result.store).toBeUndefined();
       expect(result.prompt_cache_key).toBe('prompt-1');
     });
 
