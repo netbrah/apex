@@ -1,20 +1,20 @@
-# Qwen Code Hooks Documentation
+# APEX Hooks Documentation
 
 ## Overview
 
-Qwen Code hooks provide a powerful mechanism for extending and customizing the behavior of the Qwen Code application. Hooks allow users to execute custom scripts or programs at specific points in the application lifecycle, such as before tool execution, after tool execution, at session start/end, and during other key events.
+APEX hooks provide a powerful mechanism for extending and customizing the behavior of the APEX application. Hooks allow users to execute custom scripts or programs at specific points in the application lifecycle, such as before tool execution, after tool execution, at session start/end, and during other key events.
 
 > **⚠️ EXPERIMENTAL FEATURE**
 >
-> Hooks are currently in an experimental stage. To enable hooks, start Qwen Code with the `--experimental-hooks` flag:
+> Hooks are currently in an experimental stage. To enable hooks, start APEX with the `--experimental-hooks` flag:
 >
 > ```bash
-> qwen --experimental-hooks
+> apex --experimental-hooks
 > ```
 
 ## What are Hooks?
 
-Hooks are user-defined scripts or programs that are automatically executed by Qwen Code at predefined points in the application flow. They allow users to:
+Hooks are user-defined scripts or programs that are automatically executed by APEX at predefined points in the application flow. They allow users to:
 
 - Monitor and audit tool usage
 - Enforce security policies
@@ -25,7 +25,7 @@ Hooks are user-defined scripts or programs that are automatically executed by Qw
 
 ## Hook Architecture
 
-The Qwen Code hook system consists of several key components:
+The APEX hook system consists of several key components:
 
 1. **Hook Registry**: Stores and manages all configured hooks
 2. **Hook Planner**: Determines which hooks should run for each event
@@ -35,13 +35,13 @@ The Qwen Code hook system consists of several key components:
 
 ## Hook Events
 
-Hooks fire at specific points during a Qwen Code session. When an event fires and a matcher matches, Qwen Code passes JSON context about the event to your hook handler. For command hooks, input arrives on stdin. Your handler can inspect the input, take action, and optionally return a decision. Some events fire once per session, while others fire repeatedly inside the agentic loop.
+Hooks fire at specific points during a APEX session. When an event fires and a matcher matches, APEX passes JSON context about the event to your hook handler. For command hooks, input arrives on stdin. Your handler can inspect the input, take action, and optionally return a decision. Some events fire once per session, while others fire repeatedly inside the agentic loop.
 
 <div align="center">
 <img src="https://img.alicdn.com/imgextra/i4/O1CN01sYWUTh1RDJl7Lz2ne_!!6000000002077-2-tps-812-1212.png" alt="Hook Lifecycle Diagram" width="400"/>
 </div>
 
-The following table lists all available hook events in Qwen Code:
+The following table lists all available hook events in APEX:
 
 | Event Name           | Description                                 | Use Case                                        |
 | -------------------- | ------------------------------------------- | ----------------------------------------------- |
@@ -290,7 +290,7 @@ Event-specific fields are added based on the hook type. Below are the event-spec
 ```json
 {
   "decision": "block",
-  "reason": "Must be provided when Qwen Code is blocked from stopping"
+  "reason": "Must be provided when APEX is blocked from stopping"
 }
 ```
 
@@ -350,7 +350,7 @@ Event-specific fields are added based on the hook type. Below are the event-spec
 ```json
 {
   "decision": "block",
-  "reason": "Must be provided when Qwen Code is blocked from stopping"
+  "reason": "Must be provided when APEX is blocked from stopping"
 }
 ```
 
@@ -453,7 +453,7 @@ Event-specific fields are added based on the hook type. Below are the event-spec
 
 ## Hook Configuration
 
-Hooks are configured in Qwen Code settings, typically in `.qwen/settings.json` or user configuration files:
+Hooks are configured in APEX settings, typically in `.apex/settings.json` or user configuration files:
 
 ```json
 {
@@ -633,7 +633,7 @@ echo '{
 exit 0
 ```
 
-Configure in `.qwen/settings.json`:
+Configure in `.apex/settings.json`:
 
 ```json
 {

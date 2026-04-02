@@ -1,6 +1,6 @@
-# Qwen Code Keyboard Shortcuts
+# APEX Keyboard Shortcuts
 
-This document lists the available keyboard shortcuts in Qwen Code.
+This document lists the available keyboard shortcuts in APEX.
 
 ## General
 

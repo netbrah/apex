@@ -14,9 +14,9 @@ export default {
   'integration-zed': 'Zed IDE',
   'integration-jetbrains': 'JetBrains IDEs',
   'integration-github-action': 'Github Actions',
-  'Code with Qwen Code': {
+  'Code with APEX': {
     type: 'separator',
-    title: 'Code with Qwen Code', // Title is optional
+    title: 'Code with APEX', // Title is optional
   },
   features: 'Features',
   configuration: 'Configuration',

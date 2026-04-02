@@ -1,6 +1,6 @@
-# Qwen Code file system tools
+# APEX file system tools
 
-Qwen Code provides a comprehensive suite of tools for interacting with the local file system. These tools allow the model to read from, write to, list, search, and modify files and directories, all under your control and typically with confirmation for sensitive operations.
+APEX provides a comprehensive suite of tools for interacting with the local file system. These tools allow the model to read from, write to, list, search, and modify files and directories, all under your control and typically with confirmation for sensitive operations.
 
 **Note:** All file system tools operate within a `rootDirectory` (usually the current working directory where you launched the CLI) for security. Paths that you provide to these tools are generally expected to be absolute or are resolved relative to this root directory.
 
@@ -73,7 +73,7 @@ Qwen Code provides a comprehensive suite of tools for interacting with the local
 - **Behavior:**
   - Searches for files matching the glob pattern within the specified directory.
   - Returns a list of absolute paths, sorted with the most recently modified files first.
-  - Respects .gitignore and .qwenignore patterns by default.
+  - Respects .gitignore and .apexignore patterns by default.
   - Limits results to 100 files to prevent context overflow.
 - **Output (`llmContent`):** A message like: `Found 5 file(s) matching "*.ts" within /path/to/search/dir, sorted by modification time (newest first):\n---\n/path/to/file1.ts\n/path/to/subdir/file2.ts\n---\n[95 files truncated] ...`
 - **Confirmation:** No.
@@ -94,7 +94,7 @@ Qwen Code provides a comprehensive suite of tools for interacting with the local
   - Uses ripgrep for fast search when available; otherwise falls back to a JavaScript-based search implementation.
   - Returns matching lines with file paths and line numbers.
   - Case-insensitive by default.
-  - Respects .gitignore and .qwenignore patterns.
+  - Respects .gitignore and .apexignore patterns.
   - Limits output to prevent context overflow.
 - **Output (`llmContent`):** A formatted string of matches, e.g.:
 
@@ -169,7 +169,7 @@ grep_search(pattern="function", glob="*.js", limit=10)
 
 ### Encoding detection and preservation
 
-When reading files, Qwen Code detects the file's encoding using a multi-step strategy:
+When reading files, APEX detects the file's encoding using a multi-step strategy:
 
 1. **UTF-8** — tried first (most modern tooling outputs UTF-8)
 2. **chardet** — statistical detection for non-UTF-8 content
@@ -187,7 +187,7 @@ The `defaultFileEncoding` setting controls encoding for **newly created** files 
 | `utf-8`     | UTF-8 without BOM, no automatic adjustments                                 |
 | `utf-8-bom` | UTF-8 with BOM for all new files                                            |
 
-Set it in `.qwen/settings.json` or `~/.qwen/settings.json`:
+Set it in `.apex/settings.json` or `~/.apex/settings.json`:
 
 ```json
 {
@@ -224,4 +224,4 @@ If you explicitly set `defaultFileEncoding` to `"utf-8"`, the automatic BOM is d
 | `.ps1`         | Windows (non-UTF-8 code page) | UTF-8 BOM on new files      |
 | All others     | All                           | UTF-8 without BOM (default) |
 
-These file system tools provide a foundation for Qwen Code to understand and interact with your local project context.
+These file system tools provide a foundation for APEX to understand and interact with your local project context.

@@ -1,8 +1,8 @@
-# Qwen Code Extensions
+# APEX Extensions
 
-Qwen Code extensions package prompts, MCP servers, subagents, skills and custom commands into a familiar and user-friendly format. With extensions, you can expand the capabilities of Qwen Code and share those capabilities with others. They are designed to be easily installable and shareable.
+APEX extensions package prompts, MCP servers, subagents, skills and custom commands into a familiar and user-friendly format. With extensions, you can expand the capabilities of APEX and share those capabilities with others. They are designed to be easily installable and shareable.
 
-Extensions and plugins from [Gemini CLI Extensions Gallery](https://geminicli.com/extensions/) and [Claude Code Marketplace](https://claudemarketplaces.com/) can be directly installed into Qwen Code. This cross-platform compatibility gives you access to a rich ecosystem of extensions and plugins, dramatically expanding Qwen Code's capabilities without requiring extension authors to maintain separate versions.
+Extensions and plugins from [Gemini CLI Extensions Gallery](https://geminicli.com/extensions/) and [Claude Code Marketplace](https://claudemarketplaces.com/) can be directly installed into APEX. This cross-platform compatibility gives you access to a rich ecosystem of extensions and plugins, dramatically expanding APEX's capabilities without requiring extension authors to maintain separate versions.
 
 ## Extension management
 
@@ -28,7 +28,7 @@ You can install an extension using `qwen extensions install` from multiple sourc
 
 #### From Claude Code Marketplace
 
-Qwen Code also supports plugins from the [Claude Code Marketplace](https://claudemarketplaces.com/). Install from a marketplace and choose a plugin:
+APEX also supports plugins from the [Claude Code Marketplace](https://claudemarketplaces.com/). Install from a marketplace and choose a plugin:
 
 ```bash
 qwen extensions install <marketplace-name>
@@ -52,7 +52,7 @@ qwen extensions install f/awesome-chatgpt-prompts:prompts.chat
 qwen extensions install https://github.com/f/awesome-chatgpt-prompts:prompts.chat
 ```
 
-Claude plugins are automatically converted to Qwen Code format during installation:
+Claude plugins are automatically converted to APEX format during installation:
 
 - `claude-plugin.json` is converted to `qwen-extension.json`
 - Agent configurations are converted to Qwen subagent format
@@ -69,13 +69,13 @@ You can quickly browse available extensions from different marketplaces using th
 /extensions explore ClaudeCode
 ```
 
-This command opens the respective marketplace in your default browser, allowing you to discover new extensions to enhance your Qwen Code experience.
+This command opens the respective marketplace in your default browser, allowing you to discover new extensions to enhance your APEX experience.
 
-> **Cross-Platform Compatibility**: This allows you to leverage the rich extension ecosystems from both Gemini CLI and Claude Code, dramatically expanding the available functionality for Qwen Code users.
+> **Cross-Platform Compatibility**: This allows you to leverage the rich extension ecosystems from both Gemini CLI and Claude Code, dramatically expanding the available functionality for APEX users.
 
 #### From Gemini CLI Extensions
 
-Qwen Code fully supports extensions from the [Gemini CLI Extensions Gallery](https://geminicli.com/extensions/). Simply install them using the git URL:
+APEX fully supports extensions from the [Gemini CLI Extensions Gallery](https://geminicli.com/extensions/). Simply install them using the git URL:
 
 ```bash
 qwen extensions install <gemini-cli-extension-github-url>
@@ -83,7 +83,7 @@ qwen extensions install <gemini-cli-extension-github-url>
 qwen extensions install <owner>/<repo>
 ```
 
-Gemini extensions are automatically converted to Qwen Code format during installation:
+Gemini extensions are automatically converted to APEX format during installation:
 
 - `gemini-extension.json` is converted to `qwen-extension.json`
 - TOML command files are automatically migrated to Markdown format
@@ -137,11 +137,11 @@ qwen extensions update --all
 
 ## How it works
 
-On startup, Qwen Code looks for extensions in `<home>/.qwen/extensions`
+On startup, APEX looks for extensions in `<home>/.apex/extensions`
 
 Extensions exist as a directory that contains a `qwen-extension.json` file. For example:
 
-`<home>/.qwen/extensions/my-extension/qwen-extension.json`
+`<home>/.apex/extensions/my-extension/qwen-extension.json`
 
 ### `qwen-extension.json`
 
@@ -156,7 +156,7 @@ The `qwen-extension.json` file contains the configuration for the extension. The
       "command": "node my-server.js"
     }
   },
-  "contextFileName": "QWEN.md",
+  "contextFileName": "APEX.md",
   "commands": "commands",
   "skills": "skills",
   "agents": "agents",
@@ -175,7 +175,7 @@ The `qwen-extension.json` file contains the configuration for the extension. The
 - `version`: The version of the extension.
 - `mcpServers`: A map of MCP servers to configure. The key is the name of the server, and the value is the server configuration. These servers will be loaded on startup just like MCP servers configured in a [`settings.json` file](./cli/configuration.md). If both an extension and a `settings.json` file configure an MCP server with the same name, the server defined in the `settings.json` file takes precedence.
   - Note that all MCP server configuration options are supported except for `trust`.
-- `contextFileName`: The name of the file that contains the context for the extension. This will be used to load the context from the extension directory. If this property is not used but a `QWEN.md` file is present in your extension directory, then that file will be loaded.
+- `contextFileName`: The name of the file that contains the context for the extension. This will be used to load the context from the extension directory. If this property is not used but a `APEX.md` file is present in your extension directory, then that file will be loaded.
 - `commands`: The directory containing custom commands (default: `commands`). Commands are `.md` files that define prompts.
 - `skills`: The directory containing custom skills (default: `skills`). Skills are discovered automatically and become available via the `/skills` command.
 - `agents`: The directory containing custom subagents (default: `agents`). Subagents are `.yaml` or `.md` files that define specialized AI assistants.
@@ -216,12 +216,12 @@ qwen extensions settings unset <extension-name> <setting-name> [--scope user|wor
 
 Settings can be configured at two levels:
 
-- **User level** (default): Settings apply across all projects (`~/.qwen/.env`)
-- **Workspace level**: Settings apply only to the current project (`.qwen/.env`)
+- **User level** (default): Settings apply across all projects (`~/.apex/.env`)
+- **Workspace level**: Settings apply only to the current project (`.apex/.env`)
 
 Workspace settings take precedence over user settings. Sensitive settings are stored securely and never displayed in plain text.
 
-When Qwen Code starts, it loads all the extensions and merges their configurations. If there are any conflicts, the workspace configuration takes precedence.
+When APEX starts, it loads all the extensions and merges their configurations. If there are any conflicts, the workspace configuration takes precedence.
 
 ### Custom commands
 
@@ -234,7 +234,7 @@ Extensions can provide [custom commands](./cli/commands.md#custom-commands) by p
 An extension named `gcp` with the following structure:
 
 ```
-.qwen/extensions/gcp/
+.apex/extensions/gcp/
 ├── qwen-extension.json
 └── commands/
     ├── deploy.md
@@ -254,7 +254,7 @@ Extensions can provide custom skills by placing skill files in a `skills/` subdi
 **Example**
 
 ```
-.qwen/extensions/my-extension/
+.apex/extensions/my-extension/
 ├── qwen-extension.json
 └── skills/
     └── pdf-processor/
@@ -270,7 +270,7 @@ Extensions can provide custom subagents by placing agent configuration files in 
 **Example**
 
 ```
-.qwen/extensions/my-extension/
+.apex/extensions/my-extension/
 ├── qwen-extension.json
 └── agents/
     └── testing-expert.yaml
@@ -292,12 +292,12 @@ For example, if both a user and the `gcp` extension define a `deploy` command:
 
 ## Variables
 
-Qwen Code extensions allow variable substitution in `qwen-extension.json`. This can be useful if e.g., you need the current directory to run an MCP server using `"cwd": "${extensionPath}${/}run.ts"`.
+APEX extensions allow variable substitution in `qwen-extension.json`. This can be useful if e.g., you need the current directory to run an MCP server using `"cwd": "${extensionPath}${/}run.ts"`.
 
 **Supported variables:**
 
 | variable                   | description                                                                                                                                                   |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `${extensionPath}`         | The fully-qualified path of the extension in the user's filesystem e.g., '/Users/username/.qwen/extensions/example-extension'. This will not unwrap symlinks. |
+| `${extensionPath}`         | The fully-qualified path of the extension in the user's filesystem e.g., '/Users/username/.apex/extensions/example-extension'. This will not unwrap symlinks. |
 | `${workspacePath}`         | The fully-qualified path of the current workspace.                                                                                                            |
 | `${/} or ${pathSeparator}` | The path separator (differs per OS).                                                                                                                          |

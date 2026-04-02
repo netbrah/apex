@@ -1,6 +1,6 @@
 # Exit Plan Mode Tool (`exit_plan_mode`)
 
-This document describes the `exit_plan_mode` tool for Qwen Code.
+This document describes the `exit_plan_mode` tool for APEX.
 
 ## Description
 
@@ -14,9 +14,9 @@ The tool is specifically designed for tasks that require planning implementation
 
 - `plan` (string, required): The implementation plan you want to present to the user for approval. This should be a concise, markdown-formatted plan describing the implementation steps.
 
-## How to use `exit_plan_mode` with Qwen Code
+## How to use `exit_plan_mode` with APEX
 
-The Exit Plan Mode tool is part of Qwen Code's planning workflow. When you're in plan mode (typically after exploring a codebase and designing an implementation approach), you use this tool to:
+The Exit Plan Mode tool is part of APEX's planning workflow. When you're in plan mode (typically after exploring a codebase and designing an implementation approach), you use this tool to:
 
 1. Present your implementation plan to the user
 2. Request approval to proceed with implementation

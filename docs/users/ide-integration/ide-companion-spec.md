@@ -1,12 +1,12 @@
-# Qwen Code Companion Plugin: Interface Specification
+# APEX Companion Plugin: Interface Specification
 
 > Last Updated: September 15, 2025
 
-This document defines the contract for building a companion plugin to enable Qwen Code's IDE mode. For VS Code, these features (native diffing, context awareness) are provided by the official extension ([marketplace](https://marketplace.visualstudio.com/items?itemName=qwenlm.qwen-code-vscode-ide-companion)). This specification is for contributors who wish to bring similar functionality to other editors like JetBrains IDEs, Sublime Text, etc.
+This document defines the contract for building a companion plugin to enable APEX's IDE mode. For VS Code, these features (native diffing, context awareness) are provided by the official extension ([marketplace](https://marketplace.visualstudio.com/items?itemName=netbrah.apex-vscode-ide-companion)). This specification is for contributors who wish to bring similar functionality to other editors like JetBrains IDEs, Sublime Text, etc.
 
 ## I. The Communication Interface
 
-Qwen Code and the IDE plugin communicate through a local communication channel.
+APEX and the IDE plugin communicate through a local communication channel.
 
 ### 1. Transport Layer: MCP over HTTP
 
@@ -18,10 +18,10 @@ The plugin **MUST** run a local HTTP server that implements the **Model Context 
 
 ### 2. Discovery Mechanism: The Lock File
 
-For Qwen Code to connect, it needs to discover what port your server is using. The plugin **MUST** facilitate this by creating a "lock file" and setting the port environment variable.
+For APEX to connect, it needs to discover what port your server is using. The plugin **MUST** facilitate this by creating a "lock file" and setting the port environment variable.
 
-- **How the CLI Finds the File:** The CLI reads the port from `QWEN_CODE_IDE_SERVER_PORT`, then reads `~/.qwen/ide/<PORT>.lock`. (Legacy fallbacks exist for older extensions; see note below.)
-- **File Location:** The file must be created in a specific directory: `~/.qwen/ide/`. Your plugin must create this directory if it doesn't exist.
+- **How the CLI Finds the File:** The CLI reads the port from `APEX_IDE_SERVER_PORT`, then reads `~/.apex/ide/<PORT>.lock`. (Legacy fallbacks exist for older extensions; see note below.)
+- **File Location:** The file must be created in a specific directory: `~/.apex/ide/`. Your plugin must create this directory if it doesn't exist.
 - **File Naming Convention:** The filename is critical and **MUST** follow the pattern:
   `<PORT>.lock`
   - `<PORT>`: The port your MCP server is listening on.
@@ -43,9 +43,9 @@ For Qwen Code to connect, it needs to discover what port your server is using. T
   - `ideName` (string, required): A user-friendly name for the IDE (e.g., `VS Code`, `JetBrains IDE`).
 
 - **Authentication:** To secure the connection, the plugin **MUST** generate a unique, secret token and include it in the discovery file. The CLI will then include this token in the `Authorization` header for all requests to the MCP server (e.g., `Authorization: Bearer a-very-secret-token`). Your server **MUST** validate this token on every request and reject any that are unauthorized.
-- **Environment Variables (Required):** Your plugin **MUST** set `QWEN_CODE_IDE_SERVER_PORT` in the integrated terminal so the CLI can locate the correct `<PORT>.lock` file.
+- **Environment Variables (Required):** Your plugin **MUST** set `APEX_IDE_SERVER_PORT` in the integrated terminal so the CLI can locate the correct `<PORT>.lock` file.
 
-**Legacy note:** For extensions older than v0.5.1, Qwen Code may fall back to reading JSON files in the system temp directory named `qwen-code-ide-server-<PID>.json` or `qwen-code-ide-server-<PORT>.json`. New integrations should not rely on these legacy files.
+**Legacy note:** For extensions older than v0.5.1, APEX may fall back to reading JSON files in the system temp directory named `apex-ide-server-<PID>.json` or `apex-ide-server-<PORT>.json`. New integrations should not rely on these legacy files.
 
 ## II. The Context Interface
 

@@ -40,7 +40,7 @@ If you omit `--models`, an interactive model selection dialog appears, letting y
 
 ### What happens when you start
 
-1. **Worktree setup**: Qwen Code creates isolated Git worktrees for each agent at `~/.qwen/arena/<session-id>/worktrees/<model-name>/`. Each worktree mirrors your current working directory state exactly — including staged changes, unstaged changes, and untracked files.
+1. **Worktree setup**: APEX creates isolated Git worktrees for each agent at `~/.apex/arena/<session-id>/worktrees/<model-name>/`. Each worktree mirrors your current working directory state exactly — including staged changes, unstaged changes, and untracked files.
 2. **Agent spawning**: Each agent starts in its own worktree with full tool access and its configured model. Agents are launched sequentially but execute in parallel.
 3. **Execution**: All agents work on the task independently with no shared state or communication. You can monitor their progress and interact with any of them.
 4. **Completion**: When all agents finish (or fail), you enter the result comparison phase.
@@ -108,7 +108,7 @@ Arena behavior can be customized in [settings.json](/users/configuration/setting
 ```json
 {
   "arena": {
-    "worktreeBaseDir": "~/.qwen/arena",
+    "worktreeBaseDir": "~/.apex/arena",
     "maxRoundsPerAgent": 50,
     "timeoutSeconds": 600
   }
@@ -117,7 +117,7 @@ Arena behavior can be customized in [settings.json](/users/configuration/setting
 
 | Setting                   | Description                        | Default         |
 | :------------------------ | :--------------------------------- | :-------------- |
-| `arena.worktreeBaseDir`   | Base directory for arena worktrees | `~/.qwen/arena` |
+| `arena.worktreeBaseDir`   | Base directory for arena worktrees | `~/.apex/arena` |
 | `arena.maxRoundsPerAgent` | Maximum reasoning rounds per agent | `50`            |
 | `arena.timeoutSeconds`    | Timeout for each agent in seconds  | `600`           |
 
@@ -167,7 +167,7 @@ For routine changes like renaming a variable or updating a config file, a single
 
 - Verify that each model in `--models` is properly configured with valid API credentials
 - Check that your working directory is a Git repository (worktrees require Git)
-- Ensure you have write access to the worktree base directory (`~/.qwen/arena/` by default)
+- Ensure you have write access to the worktree base directory (`~/.apex/arena/` by default)
 
 ### Worktree creation fails
 
@@ -199,7 +199,7 @@ Agent Arena is experimental. Current limitations:
 
 ## Comparison with other multi-agent modes
 
-Agent Arena is one of several planned multi-agent modes in Qwen Code. **Agent Team** and **Agent Swarm** are not yet implemented — the table below describes their intended design for reference.
+Agent Arena is one of several planned multi-agent modes in APEX. **Agent Team** and **Agent Swarm** are not yet implemented — the table below describes their intended design for reference.
 
 |                   | **Agent Arena**                                        | **Agent Team** (planned)                           | **Agent Swarm** (planned)                                |
 | :---------------- | :----------------------------------------------------- | :------------------------------------------------- | :------------------------------------------------------- |
@@ -215,4 +215,4 @@ Agent Arena is one of several planned multi-agent modes in Qwen Code. **Agent Te
 Explore related approaches for parallel and delegated work:
 
 - **Lightweight delegation**: [Subagents](/users/features/sub-agents) handle focused subtasks within your session — better when you don't need model comparison
-- **Manual parallel sessions**: Run multiple Qwen Code sessions yourself in separate terminals with [Git worktrees](https://git-scm.com/docs/git-worktree) for full manual control
+- **Manual parallel sessions**: Run multiple APEX sessions yourself in separate terminals with [Git worktrees](https://git-scm.com/docs/git-worktree) for full manual control

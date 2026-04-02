@@ -1,6 +1,6 @@
 # Task Tool (`task`)
 
-This document describes the `task` tool for Qwen Code.
+This document describes the `task` tool for APEX.
 
 ## Description
 
@@ -14,7 +14,7 @@ Use `task` to launch a specialized subagent to handle complex, multi-step tasks 
 - `prompt` (string, required): The detailed task prompt for the subagent to execute. Should contain comprehensive instructions for autonomous execution.
 - `subagent_type` (string, required): The type of specialized agent to use for this task. Must match one of the available configured subagents.
 
-## How to use `task` with Qwen Code
+## How to use `task` with APEX
 
 The Task tool dynamically loads available subagents from your configuration and delegates tasks to them. Each subagent runs independently and can use its own set of tools, allowing for specialized expertise and parallel execution.
 
@@ -40,7 +40,7 @@ The available subagents depend on your configuration. Common subagent types migh
 - **test-runner**: For running tests and analyzing results
 - **documentation-writer**: For creating and updating documentation
 
-You can view available subagents by using the `/agents` command in Qwen Code.
+You can view available subagents by using the `/agents` command in APEX.
 
 ## Task Tool Features
 
@@ -135,7 +135,7 @@ Don't use the Task tool for:
 
 ## Configuration
 
-Subagents are configured through Qwen Code's agent configuration system. Use the `/agents` command to:
+Subagents are configured through APEX's agent configuration system. Use the `/agents` command to:
 
 - View available subagents
 - Create new subagent configurations

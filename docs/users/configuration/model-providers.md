@@ -1,14 +1,14 @@
 # Model Providers
 
-Qwen Code allows you to configure multiple model providers through the `modelProviders` setting in your `settings.json`. This enables you to switch between different AI models and providers using the `/model` command.
+APEX allows you to configure multiple model providers through the `modelProviders` setting in your `settings.json`. This enables you to switch between different AI models and providers using the `/model` command.
 
 ## Overview
 
-Use `modelProviders` to declare curated model lists per auth type that the `/model` picker can switch between. Keys must be valid auth types (`openai`, `anthropic`, `gemini`, etc.). Each entry requires an `id` and **must include `envKey`**, with optional `name`, `description`, `baseUrl`, and `generationConfig`. Credentials are never persisted in settings; the runtime reads them from `process.env[envKey]`. Qwen OAuth models remain hard-coded and cannot be overridden.
+Use `modelProviders` to declare curated model lists per auth type that the `/model` picker can switch between. Keys must be valid auth types (`openai`, `anthropic`, `gemini`, etc.). Each entry requires an `id` and **must include `envKey`**, with optional `name`, `description`, `baseUrl`, and `generationConfig`. Credentials are never persisted in settings; the runtime reads them from `process.env[envKey]`. OpenAI-compatible API models remain hard-coded and cannot be overridden.
 
 > [!note]
 >
-> Only the `/model` command exposes non-default auth types. Anthropic, Gemini, etc., must be defined via `modelProviders`. The `/auth` command lists Qwen OAuth, Alibaba Cloud Coding Plan, and API Key as the built-in authentication options.
+> Only the `/model` command exposes non-default auth types. Anthropic, Gemini, etc., must be defined via `modelProviders`. The `/auth` command lists API Key as the built-in authentication option.
 
 > [!warning]
 >
@@ -22,26 +22,24 @@ Below are comprehensive configuration examples for different authentication type
 
 The `modelProviders` object keys must be valid `authType` values. Currently supported auth types are:
 
-| Auth Type    | Description                                                                             |
-| ------------ | --------------------------------------------------------------------------------------- |
-| `openai`     | OpenAI-compatible APIs (OpenAI, Azure OpenAI, local inference servers like vLLM/Ollama) |
-| `anthropic`  | Anthropic Claude API                                                                    |
-| `gemini`     | Google Gemini API                                                                       |
-| `qwen-oauth` | Qwen OAuth (hard-coded, cannot be overridden in `modelProviders`)                       |
+| Auth Type   | Description                                                                             |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `openai`    | OpenAI-compatible APIs (OpenAI, Azure OpenAI, local inference servers like vLLM/Ollama) |
+| `anthropic` | Anthropic Claude API                                                                    |
+| `gemini`    | Google Gemini API                                                                       |
 
 > [!warning]
 > If an invalid auth type key is used (e.g., a typo like `"openai-custom"`), the configuration will be **silently skipped** and the models will not appear in the `/model` picker. Always use one of the supported auth type values listed above.
 
 ### SDKs Used for API Requests
 
-Qwen Code uses the following official SDKs to send requests to each provider:
+APEX uses the following official SDKs to send requests to each provider:
 
-| Auth Type    | SDK Package                                                                                     |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| `openai`     | [`openai`](https://www.npmjs.com/package/openai) - Official OpenAI Node.js SDK                  |
-| `anthropic`  | [`@anthropic-ai/sdk`](https://www.npmjs.com/package/@anthropic-ai/sdk) - Official Anthropic SDK |
-| `gemini`     | [`@google/genai`](https://www.npmjs.com/package/@google/genai) - Official Google GenAI SDK      |
-| `qwen-oauth` | [`openai`](https://www.npmjs.com/package/openai) with custom provider (DashScope-compatible)    |
+| Auth Type   | SDK Package                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------- |
+| `openai`    | [`openai`](https://www.npmjs.com/package/openai) - Official OpenAI Node.js SDK                  |
+| `anthropic` | [`@anthropic-ai/sdk`](https://www.npmjs.com/package/@anthropic-ai/sdk) - Official Anthropic SDK |
+| `gemini`    | [`@google/genai`](https://www.npmjs.com/package/@google/genai) - Official Google GenAI SDK      |
 
 This means the `baseUrl` you configure should be compatible with the corresponding SDK's expected API format. For example, when using `openai` auth type, the endpoint must accept OpenAI API format requests.
 
@@ -268,7 +266,7 @@ export VLLM_API_KEY="not-needed"
 
 > [!note]
 >
-> The `extra_body` parameter is **only supported for OpenAI-compatible providers** (`openai`, `qwen-oauth`). It is ignored for Anthropic, and Gemini providers.
+> The `extra_body` parameter is **only supported for OpenAI-compatible providers** (`openai`). It is ignored for Anthropic, and Gemini providers.
 
 > [!note]
 >
@@ -276,7 +274,7 @@ export VLLM_API_KEY="not-needed"
 >
 > - **Option 1: Using a `.env` file** (recommended for security):
 >   ```bash
->   # ~/.qwen/.env (or project root)
+>   # ~/.apex/.env (or project root)
 >   OPENAI_API_KEY=sk-your-actual-key-here
 >   ```
 >   Be sure to add `.env` to your `.gitignore` to prevent accidentally committing secrets.
@@ -291,114 +289,20 @@ export VLLM_API_KEY="not-needed"
 >
 > Each provider example includes an `env` field to illustrate how the API key should be configured.
 
-## Alibaba Cloud Coding Plan
-
-Alibaba Cloud Coding Plan provides a pre-configured set of Qwen models optimized for coding tasks. This feature is available for users with Alibaba Cloud Coding Plan API access and offers a simplified setup experience with automatic model configuration updates.
-
-### Overview
-
-When you authenticate with an Alibaba Cloud Coding Plan API key using the `/auth` command, Qwen Code automatically configures the following models:
-
-| Model ID               | Name                 | Description                            |
-| ---------------------- | -------------------- | -------------------------------------- |
-| `qwen3.5-plus`         | qwen3.5-plus         | Advanced model with thinking enabled   |
-| `qwen3-coder-plus`     | qwen3-coder-plus     | Optimized for coding tasks             |
-| `qwen3-max-2026-01-23` | qwen3-max-2026-01-23 | Latest max model with thinking enabled |
-
-### Setup
-
-1. Obtain an Alibaba Cloud Coding Plan API key:
-   - **China**: <https://bailian.console.aliyun.com/?tab=model#/efm/coding_plan>
-   - **International**: <https://modelstudio.console.alibabacloud.com/?tab=dashboard#/efm/coding_plan>
-2. Run the `/auth` command in Qwen Code
-3. Select **Alibaba Cloud Coding Plan**
-4. Select your region
-5. Enter your API key when prompted
-
-The models will be automatically configured and added to your `/model` picker.
-
-### Regions
-
-Alibaba Cloud Coding Plan supports two regions:
-
-| Region               | Endpoint                                        | Description             |
-| -------------------- | ----------------------------------------------- | ----------------------- |
-| China                | `https://coding.dashscope.aliyuncs.com/v1`      | Mainland China endpoint |
-| Global/International | `https://coding-intl.dashscope.aliyuncs.com/v1` | International endpoint  |
-
-The region is selected during authentication and stored in `settings.json` under `codingPlan.region`. To switch regions, re-run the `/auth` command and select a different region.
-
-### API Key Storage
-
-When you configure Coding Plan through the `/auth` command, the API key is stored using the reserved environment variable name `BAILIAN_CODING_PLAN_API_KEY`. By default, it is stored in the `env` field of your `settings.json` file.
-
-> [!warning]
->
-> **Security Recommendation**: For better security, it is recommended to move the API key from `settings.json` to a separate `.env` file and load it as an environment variable. For example:
->
-> ```bash
-> # ~/.qwen/.env
-> BAILIAN_CODING_PLAN_API_KEY=your-api-key-here
-> ```
->
-> Then ensure this file is added to your `.gitignore` if you're using project-level settings.
-
-### Automatic Updates
-
-Coding Plan model configurations are versioned. When Qwen Code detects a newer version of the model template, you will be prompted to update. Accepting the update will:
-
-- Replace the existing Coding Plan model configurations with the latest versions
-- Preserve any custom model configurations you've added manually
-- Automatically switch to the first model in the updated configuration
-
-The update process ensures you always have access to the latest model configurations and features without manual intervention.
-
-### Manual Configuration (Advanced)
-
-If you prefer to manually configure Coding Plan models, you can add them to your `settings.json` like any OpenAI-compatible provider:
-
-```json
-{
-  "modelProviders": {
-    "openai": [
-      {
-        "id": "qwen3-coder-plus",
-        "name": "qwen3-coder-plus",
-        "description": "Qwen3-Coder via Alibaba Cloud Coding Plan",
-        "envKey": "YOUR_CUSTOM_ENV_KEY",
-        "baseUrl": "https://coding.dashscope.aliyuncs.com/v1"
-      }
-    ]
-  }
-}
-```
-
-> [!note]
->
-> When using manual configuration:
->
-> - You can use any environment variable name for `envKey`
-> - You do not need to configure `codingPlan.*`
-> - **Automatic updates will not apply** to manually configured Coding Plan models
-
-> [!warning]
->
-> If you also use automatic Coding Plan configuration, automatic updates may overwrite your manual configurations if they use the same `envKey` and `baseUrl` as the automatic configuration. To avoid this, ensure your manual configuration uses a different `envKey` if possible.
-
 ## Resolution Layers and Atomicity
 
 The effective auth/model/credential values are chosen per field using the following precedence (first present wins). You can combine `--auth-type` with `--model` to point directly at a provider entry; these CLI flags run before other layers.
 
-| Layer (highest → lowest)   | authType                            | model                                           | apiKey                                              | baseUrl                                              | apiKeyEnvKey           | proxy                             |
-| -------------------------- | ----------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- | ---------------------- | --------------------------------- |
-| Programmatic overrides     | `/auth`                             | `/auth` input                                   | `/auth` input                                       | `/auth` input                                        | —                      | —                                 |
-| Model provider selection   | —                                   | `modelProvider.id`                              | `env[modelProvider.envKey]`                         | `modelProvider.baseUrl`                              | `modelProvider.envKey` | —                                 |
-| CLI arguments              | `--auth-type`                       | `--model`                                       | `--openaiApiKey` (or provider-specific equivalents) | `--openaiBaseUrl` (or provider-specific equivalents) | —                      | —                                 |
-| Environment variables      | —                                   | Provider-specific mapping (e.g. `OPENAI_MODEL`) | Provider-specific mapping (e.g. `OPENAI_API_KEY`)   | Provider-specific mapping (e.g. `OPENAI_BASE_URL`)   | —                      | —                                 |
-| Settings (`settings.json`) | `security.auth.selectedType`        | `model.name`                                    | `security.auth.apiKey`                              | `security.auth.baseUrl`                              | —                      | —                                 |
-| Default / computed         | Falls back to `AuthType.QWEN_OAUTH` | Built-in default (OpenAI ⇒ `qwen3-coder-plus`)  | —                                                   | —                                                    | —                      | `Config.getProxy()` if configured |
+| Layer (highest → lowest)   | authType                        | model                                           | apiKey                                              | baseUrl                                              | apiKeyEnvKey           | proxy                             |
+| -------------------------- | ------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- | ---------------------- | --------------------------------- |
+| Programmatic overrides     | `/auth`                         | `/auth` input                                   | `/auth` input                                       | `/auth` input                                        | —                      | —                                 |
+| Model provider selection   | —                               | `modelProvider.id`                              | `env[modelProvider.envKey]`                         | `modelProvider.baseUrl`                              | `modelProvider.envKey` | —                                 |
+| CLI arguments              | `--auth-type`                   | `--model`                                       | `--openaiApiKey` (or provider-specific equivalents) | `--openaiBaseUrl` (or provider-specific equivalents) | —                      | —                                 |
+| Environment variables      | —                               | Provider-specific mapping (e.g. `OPENAI_MODEL`) | Provider-specific mapping (e.g. `OPENAI_API_KEY`)   | Provider-specific mapping (e.g. `OPENAI_BASE_URL`)   | —                      | —                                 |
+| Settings (`settings.json`) | `security.auth.selectedType`    | `model.name`                                    | `security.auth.apiKey`                              | `security.auth.baseUrl`                              | —                      | —                                 |
+| Default / computed         | Falls back to `AuthType.OPENAI` | Built-in default (OpenAI ⇒ `qwen3-coder-plus`)  | —                                                   | —                                                    | —                      | `Config.getProxy()` if configured |
 
-\*When present, CLI auth flags override settings. Otherwise, `security.auth.selectedType` or the implicit default determine the auth type. Qwen OAuth and OpenAI are the only auth types surfaced without extra configuration.
+\*When present, CLI auth flags override settings. Otherwise, `security.auth.selectedType` or the implicit default determine the auth type. OpenAI is the only auth type surfaced without extra configuration.
 
 > [!warning]
 >
@@ -442,7 +346,7 @@ The following fields are treated as atomic objects - provider values completely 
 ### Example
 
 ```json
-// User settings (~/.qwen/settings.json)
+// User settings (~/.apex/settings.json)
 {
   "model": {
     "generationConfig": {
@@ -483,7 +387,7 @@ The merge strategy for `modelProviders` itself is REPLACE: the entire `modelProv
 
 ## Provider Models vs Runtime Models
 
-Qwen Code distinguishes between two types of model configurations:
+APEX distinguishes between two types of model configurations:
 
 ### Provider Model
 
@@ -503,11 +407,11 @@ Qwen Code distinguishes between two types of model configurations:
 
 ### RuntimeModelSnapshot lifecycle
 
-When you configure a model without using `modelProviders`, Qwen Code automatically creates a RuntimeModelSnapshot to preserve your configuration:
+When you configure a model without using `modelProviders`, APEX automatically creates a RuntimeModelSnapshot to preserve your configuration:
 
 ```bash
 # This creates a RuntimeModelSnapshot with ID: $runtime|openai|my-custom-model
-qwen --auth-type openai --model my-custom-model --openaiApiKey $KEY --openaiBaseUrl https://api.example.com/v1
+apex --auth-type openai --model my-custom-model --openaiApiKey $KEY --openaiBaseUrl https://api.example.com/v1
 ```
 
 The snapshot:
@@ -536,7 +440,7 @@ The snapshot:
 
 > [!important]
 >
-> Define `modelProviders` in the user-scope `~/.qwen/settings.json` whenever possible and avoid persisting credential overrides in any scope. Keeping the provider catalog in user settings prevents merge/override conflicts between project and user scopes and ensures `/auth` and `/model` updates always write back to a consistent scope.
+> Define `modelProviders` in the user-scope `~/.apex/settings.json` whenever possible and avoid persisting credential overrides in any scope. Keeping the provider catalog in user settings prevents merge/override conflicts between project and user scopes and ensures `/auth` and `/model` updates always write back to a consistent scope.
 
 - `/model` and `/auth` persist `model.name` (where applicable) and `security.auth.selectedType` to the closest writable scope that already defines `modelProviders`; otherwise they fall back to the user scope. This keeps workspace/user files in sync with the active provider catalog.
 - Without `modelProviders`, the resolver mixes CLI/env/settings layers, creating Runtime Models. This is fine for single-provider setups but cumbersome when frequently switching. Define provider catalogs whenever multi-model workflows are common so that switches stay atomic, source-attributed, and debuggable.

@@ -1,18 +1,18 @@
 # Commands
 
-This document details all commands supported by Qwen Code, helping you efficiently manage sessions, customize the interface, and control its behavior.
+This document details all commands supported by APEX, helping you efficiently manage sessions, customize the interface, and control its behavior.
 
-Qwen Code commands are triggered through specific prefixes and fall into three categories:
+APEX commands are triggered through specific prefixes and fall into three categories:
 
 | Prefix Type                | Function Description                                | Typical Use Case                                                 |
 | -------------------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
-| Slash Commands (`/`)       | Meta-level control of Qwen Code itself              | Managing sessions, modifying settings, getting help              |
+| Slash Commands (`/`)       | Meta-level control of APEX itself                   | Managing sessions, modifying settings, getting help              |
 | At Commands (`@`)          | Quickly inject local file content into conversation | Allowing AI to analyze specified files or code under directories |
 | Exclamation Commands (`!`) | Direct interaction with system Shell                | Executing system commands like `git status`, `ls`, etc.          |
 
 ## 1. Slash Commands (`/`)
 
-Slash commands are used to manage Qwen Code sessions, interface, and basic behavior.
+Slash commands are used to manage APEX sessions, interface, and basic behavior.
 
 ### 1.1 Session and Project Management
 
@@ -34,7 +34,7 @@ Commands for adjusting interface appearance and work environment.
 | ------------ | ---------------------------------------- | ----------------------------- |
 | `/clear`     | Clear terminal screen content            | `/clear` (shortcut: `Ctrl+L`) |
 | `/context`   | Show context window usage breakdown      | `/context`                    |
-| `/theme`     | Change Qwen Code visual theme            | `/theme`                      |
+| `/theme`     | Change APEX visual theme                 | `/theme`                      |
 | `/vim`       | Turn input area Vim editing mode on/off  | `/vim`                        |
 | `/directory` | Manage multi-directory support workspace | `/dir add ./src,./tests`      |
 | `/editor`    | Open dialog to select supported editor   | `/editor`                     |
@@ -81,9 +81,9 @@ Commands for obtaining information and performing system settings.
 | `/stats`    | Display detailed statistics for current session | `/stats`                         |
 | `/settings` | Open settings editor                            | `/settings`                      |
 | `/auth`     | Change authentication method                    | `/auth`                          |
-| `/bug`      | Submit issue about Qwen Code                    | `/bug Button click unresponsive` |
+| `/bug`      | Submit issue about APEX                         | `/bug Button click unresponsive` |
 | `/copy`     | Copy last output content to clipboard           | `/copy`                          |
-| `/quit`     | Exit Qwen Code immediately                      | `/quit` or `/exit`               |
+| `/quit`     | Exit APEX immediately                           | `/quit` or `/exit`               |
 
 ### 1.6 Common Shortcuts
 
@@ -97,19 +97,19 @@ Commands for obtaining information and performing system settings.
 
 ### 1.7 CLI Auth Subcommands
 
-In addition to the in-session `/auth` slash command, Qwen Code provides standalone CLI subcommands for managing authentication directly from the terminal:
+In addition to the in-session `/auth` slash command, APEX provides standalone CLI subcommands for managing authentication directly from the terminal:
 
 | Command                                              | Description                                       |
 | ---------------------------------------------------- | ------------------------------------------------- |
 | `qwen auth`                                          | Interactive authentication setup                  |
-| `qwen auth qwen-oauth`                               | Authenticate with Qwen OAuth                      |
+| `qwen auth openai`                                   | Authenticate with OpenAI-compatible API           |
 | `qwen auth coding-plan`                              | Authenticate with Alibaba Cloud Coding Plan       |
 | `qwen auth coding-plan --region china --key sk-sp-…` | Non-interactive Coding Plan setup (for scripting) |
 | `qwen auth status`                                   | Show current authentication status                |
 
 > [!tip]
 >
-> These commands run outside of a Qwen Code session. Use them to configure authentication before starting a session, or in scripts and CI environments. See the [Authentication](../configuration/auth) page for full details.
+> These commands run outside of a APEX session. Use them to configure authentication before starting a session, or in scripts and CI environments. See the [Authentication](../configuration/auth) page for full details.
 
 ## 2. @ Commands (Introducing Files)
 
@@ -125,14 +125,14 @@ Note: Spaces in paths need to be escaped with backslash (e.g., `@My\ Documents/f
 
 ## 3. Exclamation Commands (`!`) - Shell Command Execution
 
-Exclamation commands allow you to execute system commands directly within Qwen Code.
+Exclamation commands allow you to execute system commands directly within APEX.
 
 | Command Format     | Description                                                        | Examples                               |
 | ------------------ | ------------------------------------------------------------------ | -------------------------------------- |
 | `!<shell command>` | Execute command in sub-Shell                                       | `!ls -la`, `!git status`               |
 | Standalone `!`     | Switch Shell mode, any input is executed directly as Shell command | `!`(enter) → Input command → `!`(exit) |
 
-Environment Variables: Commands executed via `!` will set the `QWEN_CODE=1` environment variable.
+Environment Variables: Commands executed via `!` will set the `APEX_CODE=1` environment variable.
 
 ## 4. Custom Commands
 
@@ -147,8 +147,8 @@ Save frequently used prompts as shortcut commands to improve work efficiency and
 | Function         | Description                                | Advantages                             | Priority | Applicable Scenarios                                 |
 | ---------------- | ------------------------------------------ | -------------------------------------- | -------- | ---------------------------------------------------- |
 | Namespace        | Subdirectory creates colon-named commands  | Better command organization            |          |                                                      |
-| Global Commands  | `~/.qwen/commands/`                        | Available in all projects              | Low      | Personal frequently used commands, cross-project use |
-| Project Commands | `<project root directory>/.qwen/commands/` | Project-specific, version-controllable | High     | Team sharing, project-specific commands              |
+| Global Commands  | `~/.apex/commands/`                        | Available in all projects              | Low      | Personal frequently used commands, cross-project use |
+| Project Commands | `<project root directory>/.apex/commands/` | Project-specific, version-controllable | High     | Team sharing, project-specific commands              |
 
 Priority Rules: Project commands > User commands (project command used when names are same)
 
@@ -158,8 +158,8 @@ Priority Rules: Project commands > User commands (project command used when name
 
 | File Location                            | Generated Command | Example Call          |
 | ---------------------------------------- | ----------------- | --------------------- |
-| `~/.qwen/commands/test.md`               | `/test`           | `/test Parameter`     |
-| `<project>/.qwen/commands/git/commit.md` | `/git:commit`     | `/git:commit Message` |
+| `~/.apex/commands/test.md`               | `/test`           | `/test Parameter`     |
+| `<project>/.apex/commands/git/commit.md` | `/git:commit`     | `/git:commit Message` |
 
 Naming Rules: Path separator (`/` or `\`) converted to colon (`:`)
 
@@ -273,8 +273,8 @@ Review {{args}}, reference standards:
 
 | Operation                     | Command/Code                              |
 | ----------------------------- | ----------------------------------------- |
-| 1. Create directory structure | `mkdir -p ~/.qwen/commands/refactor`      |
-| 2. Create command file        | `touch ~/.qwen/commands/refactor/pure.md` |
+| 1. Create directory structure | `mkdir -p ~/.apex/commands/refactor`      |
+| 2. Create command file        | `touch ~/.apex/commands/refactor/pure.md` |
 | 3. Edit command content       | Refer to the complete code below.         |
 | 4. Test command               | `@file.js` → `/refactor:pure`             |
 

@@ -1,6 +1,6 @@
-# MCP servers with Qwen Code
+# MCP servers with APEX
 
-This document provides a guide to configuring and using Model Context Protocol (MCP) servers with Qwen Code.
+This document provides a guide to configuring and using Model Context Protocol (MCP) servers with APEX.
 
 ## What is an MCP server?
 
@@ -16,7 +16,7 @@ With an MCP server, you can extend the CLI's capabilities to perform actions bey
 
 ## Core Integration Architecture
 
-Qwen Code integrates with MCP servers through a sophisticated discovery and execution system built into the core package (`packages/core/src/tools/`):
+APEX integrates with MCP servers through a sophisticated discovery and execution system built into the core package (`packages/core/src/tools/`):
 
 ### Discovery Layer (`mcp-client.ts`)
 
@@ -47,7 +47,7 @@ The CLI supports three MCP transport types:
 
 ## How to set up your MCP server
 
-Qwen Code uses the `mcpServers` configuration in your `settings.json` file to locate and connect to MCP servers. This configuration supports multiple servers with different transport mechanisms.
+APEX uses the `mcpServers` configuration in your `settings.json` file to locate and connect to MCP servers. This configuration supports multiple servers with different transport mechanisms.
 
 ### Configure the MCP server in settings.json
 
@@ -122,7 +122,7 @@ Each server configuration supports the following properties:
 
 ### OAuth Support for Remote MCP Servers
 
-Qwen Code supports OAuth 2.0 authentication for remote MCP servers using SSE or HTTP transports. This enables secure access to MCP servers that require authentication.
+APEX supports OAuth 2.0 authentication for remote MCP servers using SSE or HTTP transports. This enables secure access to MCP servers that require authentication.
 
 #### Automatic OAuth Discovery
 
@@ -200,7 +200,7 @@ Use the `/mcp auth` command to manage OAuth authentication:
 
 OAuth tokens are automatically:
 
-- **Stored securely** in `~/.qwen/mcp-oauth-tokens.json`
+- **Stored securely** in `~/.apex/mcp-oauth-tokens.json`
 - **Refreshed** when expired (if refresh tokens are available)
 - **Validated** before each connection attempt
 - **Cleaned up** when invalid or expired
@@ -373,7 +373,7 @@ The CLI will use your local Application Default Credentials (ADC) to generate an
 
 ## Discovery Process Deep Dive
 
-When Qwen Code starts, it performs MCP server discovery through the following detailed process:
+When APEX starts, it performs MCP server discovery through the following detailed process:
 
 ### 1. Server Iteration and Connection
 
@@ -680,7 +680,7 @@ Here is an example of a valid JSON response from an MCP tool that returns both a
 }
 ```
 
-When Qwen Code receives this response, it will:
+When APEX receives this response, it will:
 
 1.  Extract all the text and combine it into a single `functionResponse` part for the model.
 2.  Present the image data as a separate `inlineData` part.
@@ -690,7 +690,7 @@ This enables you to build sophisticated tools that can provide rich, multi-modal
 
 ## MCP Prompts as Slash Commands
 
-In addition to tools, MCP servers can expose predefined prompts that can be executed as slash commands within Qwen Code. This allows you to create shortcuts for common or complex queries that can be easily invoked by name.
+In addition to tools, MCP servers can expose predefined prompts that can be executed as slash commands within APEX. This allows you to create shortcuts for common or complex queries that can be easily invoked by name.
 
 ### Defining Prompts on the Server
 
@@ -748,13 +748,13 @@ This can be included in `settings.json` under `mcpServers` with:
 Once a prompt is discovered, you can invoke it using its name as a slash command. The CLI will automatically handle parsing arguments.
 
 ```bash
-/poem-writer --title="Qwen Code" --mood="reverent"
+/poem-writer --title="APEX" --mood="reverent"
 ```
 
 or, using positional arguments:
 
 ```bash
-/poem-writer "Qwen Code" reverent
+/poem-writer "APEX" reverent
 ```
 
 When you run this command, the CLI executes the `prompts/get` method on the MCP server with the provided arguments. The server is responsible for substituting the arguments into the prompt template and returning the final prompt text. The CLI then sends this prompt to the model for execution. This provides a convenient way to automate and share common workflows.
@@ -765,7 +765,7 @@ While you can always configure MCP servers by manually editing your `settings.js
 
 ### Adding a Server (`qwen mcp add`)
 
-The `add` command configures a new MCP server in your `settings.json`. Based on the scope (`-s, --scope`), it will be added to either the user config `~/.qwen/settings.json` or the project config `.qwen/settings.json` file.
+The `add` command configures a new MCP server in your `settings.json`. Based on the scope (`-s, --scope`), it will be added to either the user config `~/.apex/settings.json` or the project config `.qwen/settings.json` file.
 
 **Command:**
 

@@ -1,10 +1,10 @@
 # Language Server Protocol (LSP) Support
 
-Qwen Code provides native Language Server Protocol (LSP) support, enabling advanced code intelligence features like go-to-definition, find references, diagnostics, and code actions. This integration allows the AI agent to understand your code more deeply and provide more accurate assistance.
+APEX provides native Language Server Protocol (LSP) support, enabling advanced code intelligence features like go-to-definition, find references, diagnostics, and code actions. This integration allows the AI agent to understand your code more deeply and provide more accurate assistance.
 
 ## Overview
 
-LSP support in Qwen Code works by connecting to language servers that understand your code. Once you configure servers via `.lsp.json` (or extensions), Qwen Code can start them and use them to:
+LSP support in APEX works by connecting to language servers that understand your code. Once you configure servers via `.lsp.json` (or extensions), APEX can start them and use them to:
 
 - Navigate to symbol definitions
 - Find all references to a symbol
@@ -15,13 +15,13 @@ LSP support in Qwen Code works by connecting to language servers that understand
 
 ## Quick Start
 
-LSP is an experimental feature in Qwen Code. To enable it, use the `--experimental-lsp` command line flag:
+LSP is an experimental feature in APEX. To enable it, use the `--experimental-lsp` command line flag:
 
 ```bash
-qwen --experimental-lsp
+apex --experimental-lsp
 ```
 
-LSP servers are configuration-driven. You must define them in `.lsp.json` (or via extensions) for Qwen Code to start them.
+LSP servers are configuration-driven. You must define them in `.lsp.json` (or via extensions) for APEX to start them.
 
 ### Prerequisites
 
@@ -146,7 +146,7 @@ For servers that use TCP or Unix socket transport:
 
 ## Available LSP Operations
 
-Qwen Code exposes LSP functionality through the unified `lsp` tool. Here are the available operations:
+APEX exposes LSP functionality through the unified `lsp` tool. Here are the available operations:
 
 ### Code Navigation
 
@@ -342,7 +342,7 @@ You can override trust requirements for specific servers in their configuration:
 2. **Check the PATH**: Ensure the server binary is in your system PATH
 3. **Check workspace trust**: The workspace must be trusted for LSP
 4. **Check logs**: Look for error messages in the console output
-5. **Verify --experimental-lsp flag**: Make sure you're using the flag when starting Qwen Code
+5. **Verify --experimental-lsp flag**: Make sure you're using the flag when starting APEX
 
 ### Slow Performance
 
@@ -360,14 +360,14 @@ You can override trust requirements for specific servers in their configuration:
 Enable debug logging to see LSP communication:
 
 ```bash
-DEBUG=lsp* qwen --experimental-lsp
+DEBUG=lsp* apex --experimental-lsp
 ```
 
 Or check the LSP debugging guide at `packages/cli/LSP_DEBUGGING_GUIDE.md`.
 
 ## Claude Code Compatibility
 
-Qwen Code supports Claude Code-style `.lsp.json` configuration files in the language-keyed format defined in the [Claude Code plugins reference](https://code.claude.com/docs/en/plugins-reference#lsp-servers). If you're migrating from Claude Code, use the language-as-key layout in your configuration.
+APEX supports Claude Code-style `.lsp.json` configuration files in the language-keyed format defined in the [Claude Code plugins reference](https://code.claude.com/docs/en/plugins-reference#lsp-servers). If you're migrating from Claude Code, use the language-as-key layout in your configuration.
 
 ### Configuration Format
 
@@ -385,7 +385,7 @@ The recommended format follows Claude Code's specification:
 }
 ```
 
-Claude Code LSP plugins can also supply `lspServers` in `plugin.json` (or a referenced `.lsp.json`). Qwen Code loads those configs when the extension is enabled, and they must use the same language-keyed format.
+Claude Code LSP plugins can also supply `lspServers` in `plugin.json` (or a referenced `.lsp.json`). APEX loads those configs when the extension is enabled, and they must use the same language-keyed format.
 
 ## Best Practices
 
@@ -398,10 +398,10 @@ Claude Code LSP plugins can also supply `lspServers` in `plugin.json` (or a refe
 
 ### Q: How do I enable LSP?
 
-Use the `--experimental-lsp` flag when starting Qwen Code:
+Use the `--experimental-lsp` flag when starting APEX:
 
 ```bash
-qwen --experimental-lsp
+apex --experimental-lsp
 ```
 
 ### Q: How do I know which language servers are running?

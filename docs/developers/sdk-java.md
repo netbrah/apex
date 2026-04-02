@@ -1,12 +1,12 @@
-# Qwen Code Java SDK
+# APEX Java SDK
 
-The Qwen Code Java SDK is a minimum experimental SDK for programmatic access to Qwen Code functionality. It provides a Java interface to interact with the Qwen Code CLI, allowing developers to integrate Qwen Code capabilities into their Java applications.
+The APEX Java SDK is a minimum experimental SDK for programmatic access to APEX functionality. It provides a Java interface to interact with the APEX CLI, allowing developers to integrate APEX capabilities into their Java applications.
 
 ## Requirements
 
 - Java >= 1.8
 - Maven >= 3.6.0 (for building from source)
-- qwen-code >= 0.5.0
+- apex >= 0.5.0
 
 ### Dependencies
 
@@ -131,7 +131,7 @@ other examples see src/test/java/com/alibaba/qwen/code/cli/example
 The SDK follows a layered architecture:
 
 - **API Layer**: Provides the main entry points through `QwenCodeCli` class with simple static methods for basic usage
-- **Session Layer**: Manages communication sessions with the Qwen Code CLI through the `Session` class
+- **Session Layer**: Manages communication sessions with the APEX CLI through the `Session` class
 - **Transport Layer**: Handles the communication mechanism between the SDK and CLI process (currently using process transport via `ProcessTransport`)
 - **Protocol Layer**: Defines data structures for communication based on the CLI protocol
 - **Utils**: Common utilities for concurrent execution, timeout handling, and error management
@@ -232,9 +232,9 @@ For proper operation, the following timeout relationships should be maintained:
 
 ### Transport Options
 
-The `TransportOptions` class allows configuration of how the SDK communicates with the Qwen Code CLI:
+The `TransportOptions` class allows configuration of how the SDK communicates with the APEX CLI:
 
-- `pathToQwenExecutable`: Path to the Qwen Code CLI executable
+- `pathToQwenExecutable`: Path to the APEX CLI executable
 - `cwd`: Working directory for the CLI process
 - `model`: AI model to use for the session
 - `permissionMode`: Permission mode that controls tool execution

@@ -1,28 +1,28 @@
 # Typescript SDK
 
-## @qwen-code/sdk
+## @apex/sdk
 
-A minimum experimental TypeScript SDK for programmatic access to Qwen Code.
+A minimum experimental TypeScript SDK for programmatic access to APEX.
 
 Feel free to submit a feature request/issue/PR.
 
 ## Installation
 
 ```bash
-npm install @qwen-code/sdk
+npm install @apex/sdk
 ```
 
 ## Requirements
 
 - Node.js >= 20.0.0
-- [Qwen Code](https://github.com/QwenLM/qwen-code) >= 0.4.0 (stable) installed and accessible in PATH
+- [APEX](https://github.com/netbrah/apex) >= 0.4.0 (stable) installed and accessible in PATH
 
-> **Note for nvm users**: If you use nvm to manage Node.js versions, the SDK may not be able to auto-detect the Qwen Code executable. You should explicitly set the `pathToQwenExecutable` option to the full path of the `qwen` binary.
+> **Note for nvm users**: If you use nvm to manage Node.js versions, the SDK may not be able to auto-detect the APEX executable. You should explicitly set the `pathToQwenExecutable` option to the full path of the `apex` binary.
 
 ## Quick Start
 
 ```typescript
-import { query } from '@qwen-code/sdk';
+import { query } from '@apex/sdk';
 
 // Single-turn query
 const result = query({
@@ -46,7 +46,7 @@ for await (const message of result) {
 
 ### `query(config)`
 
-Creates a new query session with the Qwen Code.
+Creates a new query session with the APEX.
 
 #### Parameters
 
@@ -55,25 +55,25 @@ Creates a new query session with the Qwen Code.
 
 #### QueryOptions
 
-| Option                   | Type                                           | Default          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------ | ---------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cwd`                    | `string`                                       | `process.cwd()`  | The working directory for the query session. Determines the context in which file operations and commands are executed.                                                                                                                                                                                                                                                                                                                                                               |
-| `model`                  | `string`                                       | -                | The AI model to use (e.g., `'qwen-max'`, `'qwen-plus'`, `'qwen-turbo'`). Takes precedence over `OPENAI_MODEL` and `QWEN_MODEL` environment variables.                                                                                                                                                                                                                                                                                                                                 |
-| `pathToQwenExecutable`   | `string`                                       | Auto-detected    | Path to the Qwen Code executable. Supports multiple formats: `'qwen'` (native binary from PATH), `'/path/to/qwen'` (explicit path), `'/path/to/cli.js'` (Node.js bundle), `'node:/path/to/cli.js'` (force Node.js runtime), `'bun:/path/to/cli.js'` (force Bun runtime). If not provided, auto-detects from: `QWEN_CODE_CLI_PATH` env var, `~/.volta/bin/qwen`, `~/.npm-global/bin/qwen`, `/usr/local/bin/qwen`, `~/.local/bin/qwen`, `~/node_modules/.bin/qwen`, `~/.yarn/bin/qwen`. |
-| `permissionMode`         | `'default' \| 'plan' \| 'auto-edit' \| 'yolo'` | `'default'`      | Permission mode controlling tool execution approval. See [Permission Modes](#permission-modes) for details.                                                                                                                                                                                                                                                                                                                                                                           |
-| `canUseTool`             | `CanUseTool`                                   | -                | Custom permission handler for tool execution approval. Invoked when a tool requires confirmation. Must respond within 60 seconds or the request will be auto-denied. See [Custom Permission Handler](#custom-permission-handler).                                                                                                                                                                                                                                                     |
-| `env`                    | `Record<string, string>`                       | -                | Environment variables to pass to the Qwen Code process. Merged with the current process environment.                                                                                                                                                                                                                                                                                                                                                                                  |
-| `systemPrompt`           | `string \| QuerySystemPromptPreset`            | -                | System prompt configuration for the main session. Use a string to fully override the built-in Qwen Code system prompt, or a preset object to keep the built-in prompt and append extra instructions.                                                                                                                                                                                                                                                                                  |
-| `mcpServers`             | `Record<string, McpServerConfig>`              | -                | MCP (Model Context Protocol) servers to connect. Supports external servers (stdio/SSE/HTTP) and SDK-embedded servers. External servers are configured with transport options like `command`, `args`, `url`, `httpUrl`, etc. SDK servers use `{ type: 'sdk', name: string, instance: Server }`.                                                                                                                                                                                        |
-| `abortController`        | `AbortController`                              | -                | Controller to cancel the query session. Call `abortController.abort()` to terminate the session and cleanup resources.                                                                                                                                                                                                                                                                                                                                                                |
-| `debug`                  | `boolean`                                      | `false`          | Enable debug mode for verbose logging from the CLI process.                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `maxSessionTurns`        | `number`                                       | `-1` (unlimited) | Maximum number of conversation turns before the session automatically terminates. A turn consists of a user message and an assistant response.                                                                                                                                                                                                                                                                                                                                        |
-| `coreTools`              | `string[]`                                     | -                | Equivalent to `tool.core` in settings.json. If specified, only these tools will be available to the AI. Example: `['read_file', 'write_file', 'run_terminal_cmd']`.                                                                                                                                                                                                                                                                                                                   |
-| `excludeTools`           | `string[]`                                     | -                | Equivalent to `tool.exclude` in settings.json. Excluded tools return a permission error immediately. Takes highest priority over all other permission settings. Supports pattern matching: tool name (`'write_file'`), tool class (`'ShellTool'`), or shell command prefix (`'ShellTool(rm )'`).                                                                                                                                                                                      |
-| `allowedTools`           | `string[]`                                     | -                | Equivalent to `tool.allowed` in settings.json. Matching tools bypass `canUseTool` callback and execute automatically. Only applies when tool requires confirmation. Supports same pattern matching as `excludeTools`.                                                                                                                                                                                                                                                                 |
-| `authType`               | `'openai' \| 'qwen-oauth'`                     | `'openai'`       | Authentication type for the AI service. Using `'qwen-oauth'` in SDK is not recommended as credentials are stored in `~/.qwen` and may need periodic refresh.                                                                                                                                                                                                                                                                                                                          |
-| `agents`                 | `SubagentConfig[]`                             | -                | Configuration for subagents that can be invoked during the session. Subagents are specialized AI agents for specific tasks or domains.                                                                                                                                                                                                                                                                                                                                                |
-| `includePartialMessages` | `boolean`                                      | `false`          | When `true`, the SDK emits incomplete messages as they are being generated, allowing real-time streaming of the AI's response.                                                                                                                                                                                                                                                                                                                                                        |
+| Option                   | Type                                           | Default          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | ---------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cwd`                    | `string`                                       | `process.cwd()`  | The working directory for the query session. Determines the context in which file operations and commands are executed.                                                                                                                                                                                                                                                                                                                                                     |
+| `model`                  | `string`                                       | -                | The AI model to use (e.g., `'qwen-max'`, `'qwen-plus'`, `'qwen-turbo'`). Takes precedence over `OPENAI_MODEL` and `APEX_MODEL` environment variables.                                                                                                                                                                                                                                                                                                                       |
+| `pathToQwenExecutable`   | `string`                                       | Auto-detected    | Path to the APEX executable. Supports multiple formats: `'apex'` (native binary from PATH), `'/path/to/qwen'` (explicit path), `'/path/to/cli.js'` (Node.js bundle), `'node:/path/to/cli.js'` (force Node.js runtime), `'bun:/path/to/cli.js'` (force Bun runtime). If not provided, auto-detects from: `APEX_CLI_PATH` env var, `~/.volta/bin/qwen`, `~/.npm-global/bin/qwen`, `/usr/local/bin/qwen`, `~/.local/bin/qwen`, `~/node_modules/.bin/qwen`, `~/.yarn/bin/qwen`. |
+| `permissionMode`         | `'default' \| 'plan' \| 'auto-edit' \| 'yolo'` | `'default'`      | Permission mode controlling tool execution approval. See [Permission Modes](#permission-modes) for details.                                                                                                                                                                                                                                                                                                                                                                 |
+| `canUseTool`             | `CanUseTool`                                   | -                | Custom permission handler for tool execution approval. Invoked when a tool requires confirmation. Must respond within 60 seconds or the request will be auto-denied. See [Custom Permission Handler](#custom-permission-handler).                                                                                                                                                                                                                                           |
+| `env`                    | `Record<string, string>`                       | -                | Environment variables to pass to the APEX process. Merged with the current process environment.                                                                                                                                                                                                                                                                                                                                                                             |
+| `systemPrompt`           | `string \| QuerySystemPromptPreset`            | -                | System prompt configuration for the main session. Use a string to fully override the built-in APEX system prompt, or a preset object to keep the built-in prompt and append extra instructions.                                                                                                                                                                                                                                                                             |
+| `mcpServers`             | `Record<string, McpServerConfig>`              | -                | MCP (Model Context Protocol) servers to connect. Supports external servers (stdio/SSE/HTTP) and SDK-embedded servers. External servers are configured with transport options like `command`, `args`, `url`, `httpUrl`, etc. SDK servers use `{ type: 'sdk', name: string, instance: Server }`.                                                                                                                                                                              |
+| `abortController`        | `AbortController`                              | -                | Controller to cancel the query session. Call `abortController.abort()` to terminate the session and cleanup resources.                                                                                                                                                                                                                                                                                                                                                      |
+| `debug`                  | `boolean`                                      | `false`          | Enable debug mode for verbose logging from the CLI process.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `maxSessionTurns`        | `number`                                       | `-1` (unlimited) | Maximum number of conversation turns before the session automatically terminates. A turn consists of a user message and an assistant response.                                                                                                                                                                                                                                                                                                                              |
+| `coreTools`              | `string[]`                                     | -                | Equivalent to `tool.core` in settings.json. If specified, only these tools will be available to the AI. Example: `['read_file', 'write_file', 'run_terminal_cmd']`.                                                                                                                                                                                                                                                                                                         |
+| `excludeTools`           | `string[]`                                     | -                | Equivalent to `tool.exclude` in settings.json. Excluded tools return a permission error immediately. Takes highest priority over all other permission settings. Supports pattern matching: tool name (`'write_file'`), tool class (`'ShellTool'`), or shell command prefix (`'ShellTool(rm )'`).                                                                                                                                                                            |
+| `allowedTools`           | `string[]`                                     | -                | Equivalent to `tool.allowed` in settings.json. Matching tools bypass `canUseTool` callback and execute automatically. Only applies when tool requires confirmation. Supports same pattern matching as `excludeTools`.                                                                                                                                                                                                                                                       |
+| `authType`               | `'openai'`                                     | `'openai'`       | Authentication type for the AI service.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `agents`                 | `SubagentConfig[]`                             | -                | Configuration for subagents that can be invoked during the session. Subagents are specialized AI agents for specific tasks or domains.                                                                                                                                                                                                                                                                                                                                      |
+| `includePartialMessages` | `boolean`                                      | `false`          | When `true`, the SDK emits incomplete messages as they are being generated, allowing real-time streaming of the AI's response.                                                                                                                                                                                                                                                                                                                                              |
 
 ### Timeouts
 
@@ -110,7 +110,7 @@ import {
   isSDKSystemMessage,
   isSDKResultMessage,
   isSDKPartialAssistantMessage,
-} from '@qwen-code/sdk';
+} from '@apex/sdk';
 
 for await (const message of result) {
   if (isSDKAssistantMessage(message)) {
@@ -170,7 +170,7 @@ The SDK supports different permission modes for controlling tool execution:
 ### Multi-turn Conversation
 
 ```typescript
-import { query, type SDKUserMessage } from '@qwen-code/sdk';
+import { query, type SDKUserMessage } from '@apex/sdk';
 
 async function* generateMessages(): AsyncIterable<SDKUserMessage> {
   yield {
@@ -204,7 +204,7 @@ for await (const message of result) {
 ### Custom Permission Handler
 
 ```typescript
-import { query, type CanUseTool } from '@qwen-code/sdk';
+import { query, type CanUseTool } from '@apex/sdk';
 
 const canUseTool: CanUseTool = async (toolName, input, { signal }) => {
   // Allow all read operations
@@ -233,7 +233,7 @@ const result = query({
 ### With External MCP Servers
 
 ```typescript
-import { query } from '@qwen-code/sdk';
+import { query } from '@apex/sdk';
 
 const result = query({
   prompt: 'Use the custom tool from my MCP server',
@@ -252,7 +252,7 @@ const result = query({
 ### Override the System Prompt
 
 ```typescript
-import { query } from '@qwen-code/sdk';
+import { query } from '@apex/sdk';
 
 const result = query({
   prompt: 'Say hello in one sentence.',
@@ -265,7 +265,7 @@ const result = query({
 ### Append to the Built-in System Prompt
 
 ```typescript
-import { query } from '@qwen-code/sdk';
+import { query } from '@apex/sdk';
 
 const result = query({
   prompt: 'Review the current directory.',
@@ -323,7 +323,7 @@ Returns a `McpSdkServerConfigWithInstance` object that can be passed directly to
 
 ```typescript
 import { z } from 'zod';
-import { query, tool, createSdkMcpServer } from '@qwen-code/sdk';
+import { query, tool, createSdkMcpServer } from '@apex/sdk';
 
 // Define a tool with Zod schema
 const calculatorTool = tool(
@@ -360,7 +360,7 @@ for await (const message of result) {
 ### Abort a Query
 
 ```typescript
-import { query, isAbortError } from '@qwen-code/sdk';
+import { query, isAbortError } from '@apex/sdk';
 
 const abortController = new AbortController();
 
@@ -392,7 +392,7 @@ try {
 The SDK provides an `AbortError` class for handling aborted queries:
 
 ```typescript
-import { AbortError, isAbortError } from '@qwen-code/sdk';
+import { AbortError, isAbortError } from '@apex/sdk';
 
 try {
   // ... query operations

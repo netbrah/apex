@@ -1,6 +1,6 @@
 # Token Caching and Cost Optimization
 
-Qwen Code automatically optimizes API costs through token caching when using API key authentication. This feature stores frequently used content like system instructions and conversation history to reduce the number of tokens processed in subsequent requests.
+APEX automatically optimizes API costs through token caching when using API key authentication. This feature stores frequently used content like system instructions and conversation history to reduce the number of tokens processed in subsequent requests.
 
 ## How It Benefits You
 
@@ -24,6 +24,6 @@ This information is only displayed when cached tokens are being used, which occu
 
 ## Example Stats Display
 
-![Qwen Code Stats Display](https://img.alicdn.com/imgextra/i3/O1CN01F1yzRs1juyZu63jdS_!!6000000004609-2-tps-1038-738.png)
+![APEX Stats Display](https://img.alicdn.com/imgextra/i3/O1CN01F1yzRs1juyZu63jdS_!!6000000004609-2-tps-1038-738.png)
 
 The above image shows an example of the `/stats` command output, highlighting the cached token savings information.

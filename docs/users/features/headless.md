@@ -1,12 +1,12 @@
 # Headless Mode
 
-Headless mode allows you to run Qwen Code programmatically from command line
+Headless mode allows you to run APEX programmatically from command line
 scripts and automation tools without any interactive UI. This is ideal for
 scripting, automation, CI/CD pipelines, and building AI-powered tools.
 
 ## Overview
 
-The headless mode provides a headless interface to Qwen Code that:
+The headless mode provides a headless interface to APEX that:
 
 - Accepts prompts via command line arguments or stdin
 - Returns structured output (text or JSON)
@@ -22,12 +22,12 @@ The headless mode provides a headless interface to Qwen Code that:
 Use the `--prompt` (or `-p`) flag to run in headless mode:
 
 ```bash
-qwen --prompt "What is machine learning?"
+apex --prompt "What is machine learning?"
 ```
 
 ### Stdin Input
 
-Pipe input to Qwen Code from your terminal:
+Pipe input to APEX from your terminal:
 
 ```bash
 echo "Explain this code" | qwen
@@ -35,10 +35,10 @@ echo "Explain this code" | qwen
 
 ### Combining with File Input
 
-Read from files and process with Qwen Code:
+Read from files and process with APEX:
 
 ```bash
-cat README.md | qwen --prompt "Summarize this documentation"
+cat README.md | apex --prompt "Summarize this documentation"
 ```
 
 ### Resume Previous Sessions (Headless)
@@ -47,15 +47,15 @@ Reuse conversation context from the current project in headless scripts:
 
 ```bash
 # Continue the most recent session for this project and run a new prompt
-qwen --continue -p "Run the tests again and summarize failures"
+apex --continue -p "Run the tests again and summarize failures"
 
 # Resume a specific session ID directly (no UI)
-qwen --resume 123e4567-e89b-12d3-a456-426614174000 -p "Apply the follow-up refactor"
+apex --resume 123e4567-e89b-12d3-a456-426614174000 -p "Apply the follow-up refactor"
 ```
 
 > [!note]
 >
-> - Session data is project-scoped JSONL under `~/.qwen/projects/<sanitized-cwd>/chats`.
+> - Session data is project-scoped JSONL under `~/.apex/projects/<sanitized-cwd>/chats`.
 > - Restores conversation history, tool outputs, and chat-compression checkpoints before sending the new prompt.
 
 ## Customize the Main Session Prompt
@@ -64,7 +64,7 @@ You can change the main session system prompt for a single CLI run without editi
 
 ### Override the Built-in System Prompt
 
-Use `--system-prompt` to replace Qwen Code's built-in main-session prompt for the current run:
+Use `--system-prompt` to replace APEX's built-in main-session prompt for the current run:
 
 ```bash
 qwen -p "Review this patch" --system-prompt "You are a terse release reviewer. Report only blocking issues."
@@ -89,12 +89,12 @@ qwen -p "Summarize this repository" \
 > [!note]
 >
 > - `--system-prompt` applies only to the current run's main session.
-> - Loaded memory and context files such as `QWEN.md` are still appended after `--system-prompt`.
+> - Loaded memory and context files such as `APEX.md` are still appended after `--system-prompt`.
 > - `--append-system-prompt` is applied after the built-in prompt and loaded memory, and can be used together with `--system-prompt`.
 
 ## Output Formats
 
-Qwen Code supports multiple output formats for different use cases:
+APEX supports multiple output formats for different use cases:
 
 ### Text Output (Default)
 
@@ -190,7 +190,7 @@ qwen -p "Write a Python script" --output-format stream-json --include-partial-me
 
 ### Input Format
 
-The `--input-format` parameter controls how Qwen Code consumes input from standard input:
+The `--input-format` parameter controls how APEX consumes input from standard input:
 
 - **`text`** (default): Standard text input from stdin or command-line arguments
 - **`stream-json`**: JSON message protocol via stdin for bidirectional communication
@@ -227,7 +227,7 @@ Key command-line options for headless usage:
 | ---------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `--prompt`, `-p`             | Run in headless mode                                                     | `qwen -p "query"`                                                        |
 | `--output-format`, `-o`      | Specify output format (text, json, stream-json)                          | `qwen -p "query" --output-format json`                                   |
-| `--input-format`             | Specify input format (text, stream-json)                                 | `qwen --input-format text --output-format stream-json`                   |
+| `--input-format`             | Specify input format (text, stream-json)                                 | `apex --input-format text --output-format stream-json`                   |
 | `--include-partial-messages` | Include partial messages in stream-json output                           | `qwen -p "query" --output-format stream-json --include-partial-messages` |
 | `--system-prompt`            | Override the main session system prompt for this run                     | `qwen -p "query" --system-prompt "You are a terse reviewer."`            |
 | `--append-system-prompt`     | Append extra instructions to the main session system prompt for this run | `qwen -p "query" --append-system-prompt "Focus on concrete findings."`   |
@@ -236,8 +236,8 @@ Key command-line options for headless usage:
 | `--include-directories`      | Include additional directories                                           | `qwen -p "query" --include-directories src,docs`                         |
 | `--yolo`, `-y`               | Auto-approve all actions                                                 | `qwen -p "query" --yolo`                                                 |
 | `--approval-mode`            | Set approval mode                                                        | `qwen -p "query" --approval-mode auto_edit`                              |
-| `--continue`                 | Resume the most recent session for this project                          | `qwen --continue -p "Pick up where we left off"`                         |
-| `--resume [sessionId]`       | Resume a specific session (or choose interactively)                      | `qwen --resume 123e... -p "Finish the refactor"`                         |
+| `--continue`                 | Resume the most recent session for this project                          | `apex --continue -p "Pick up where we left off"`                         |
+| `--resume [sessionId]`       | Resume a specific session (or choose interactively)                      | `apex --resume 123e... -p "Finish the refactor"`                         |
 
 For complete details on all available configuration options, settings files, and environment variables, see the [Configuration Guide](../configuration/settings).
 
