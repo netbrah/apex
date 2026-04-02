@@ -1499,7 +1499,7 @@ describe('Telemetry Metrics', () => {
         recordHookCallMetricsModule(
           mockConfig,
           'BeforeTool',
-          '/path/to/.gemini/hooks/check-secrets.sh --api-key=abc123',
+          '/path/to/.apex/hooks/check-secrets.sh --api-key=abc123',
           150,
           true,
         );

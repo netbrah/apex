@@ -5,18 +5,18 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { coreEvents, type Config } from '@google/gemini-cli-core';
+import { coreEvents, type Config } from '@apex-code/apex-core';
 import { handleList, listCommand } from './list.js';
 import { loadSettings, type LoadedSettings } from '../../config/settings.js';
 import { loadCliConfig } from '../../config/config.js';
 import chalk from 'chalk';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const { mockCoreDebugLogger } = await import(
     '../../test-utils/mockDebugLogger.js'
   );
   return mockCoreDebugLogger(
-    await importOriginal<typeof import('@google/gemini-cli-core')>(),
+    await importOriginal<typeof import('@apex-code/apex-core')>(),
     {
       stripAnsi: false,
     },

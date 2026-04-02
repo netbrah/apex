@@ -10,11 +10,11 @@ import { activate } from './extension.js';
 import {
   IDE_DEFINITIONS,
   detectIdeFromEnv,
-} from '@google/gemini-cli-core/src/ide/detect-ide.js';
+} from '@apex-code/apex-core/src/ide/detect-ide.js';
 
-vi.mock('@google/gemini-cli-core/src/ide/detect-ide.js', async () => {
+vi.mock('@apex-code/apex-core/src/ide/detect-ide.js', async () => {
   const actual = await vi.importActual(
-    '@google/gemini-cli-core/src/ide/detect-ide.js',
+    '@apex-code/apex-core/src/ide/detect-ide.js',
   );
   return {
     ...actual,

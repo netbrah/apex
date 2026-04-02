@@ -14,7 +14,7 @@ Learn more about [session management](./session-management.md).
 > feedback is invaluable as we refine this feature. If you have ideas,
 > suggestions, or encounter issues:
 >
-> - [Open an issue](https://github.com/google-gemini/gemini-cli/issues/new?template=bug_report.yml) on GitHub.
+> - [Open an issue](https://github.com/netbrah/apex/issues/new?template=bug_report.yml) on GitHub.
 > - Use the **/bug** command within Gemini CLI to file an issue.
 
 Learn more in the official Git worktree
@@ -44,7 +44,7 @@ Use the `--worktree` (`-w`) flag to create an isolated worktree and start Gemini
 CLI in it.
 
 - **Start with a specific name:** The value you pass becomes both the directory
-  name (within `.gemini/worktrees/`) and the branch name.
+  name (within `.apex/worktrees/`) and the branch name.
 
   ```bash
   gemini --worktree feature-search
@@ -84,7 +84,7 @@ To resume a session in a worktree, navigate to the worktree directory and start
 Gemini CLI with the `--resume` flag and the session ID:
 
 ```bash
-cd .gemini/worktrees/feature-search
+cd .apex/worktrees/feature-search
 gemini --resume <session_id>
 ```
 
@@ -95,7 +95,7 @@ a preserved worktree, you can use Git directly:
 
 - **Clean up a preserved Git worktree:**
   ```bash
-  git worktree remove .gemini/worktrees/feature-search --force
+  git worktree remove .apex/worktrees/feature-search --force
   git branch -D worktree-feature-search
   ```
 - **Create a Git worktree manually:**
@@ -104,4 +104,4 @@ a preserved worktree, you can use Git directly:
   cd ../project-feature-search && gemini
   ```
 
-[Open an issue]: https://github.com/google-gemini/gemini-cli/issues
+[Open an issue]: https://github.com/netbrah/apex/issues

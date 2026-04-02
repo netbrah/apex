@@ -7,7 +7,7 @@
 // File for 'qwen mcp remove' command
 import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 import { exitCli } from '../utils.js';
 
 async function removeMcpServer(

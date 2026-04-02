@@ -7,7 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import stripJsonComments from 'strip-json-comments';
-import { GEMINI_DIR } from '../utils/paths.js';
+import { APEX_DIR } from '../utils/paths.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { isNodeError } from '../utils/errors.js';
 
@@ -44,7 +44,7 @@ export class FolderTrustDiscoveryService {
       discoveryErrors: [],
     };
 
-    const geminiDir = path.join(workspaceDir, GEMINI_DIR);
+    const geminiDir = path.join(workspaceDir, APEX_DIR);
     if (!(await this.exists(geminiDir))) {
       return results;
     }

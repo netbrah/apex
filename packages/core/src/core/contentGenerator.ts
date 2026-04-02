@@ -86,7 +86,7 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
   }
   if (
     process.env['CLOUD_SHELL'] === 'true' ||
-    process.env['GEMINI_CLI_USE_COMPUTE_ADC'] === 'true'
+    process.env['APEX_USE_COMPUTE_ADC'] === 'true'
   ) {
     return AuthType.COMPUTE_ADC;
   }
@@ -205,7 +205,7 @@ export async function createContentGenerator(
       gcConfig,
     );
     const customHeadersEnv =
-      process.env['GEMINI_CLI_CUSTOM_HEADERS'] || undefined;
+      process.env['APEX_CUSTOM_HEADERS'] || undefined;
     const clientName = gcConfig.getClientName();
     const surface = determineSurface();
 

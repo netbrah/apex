@@ -8,12 +8,12 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { renderWithProviders } from '../test-utils/render.js';
 import { act } from 'react';
 import { IdeIntegrationNudge } from './IdeIntegrationNudge.js';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 
 // Mock debugLogger
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     debugLogger: {
@@ -49,8 +49,8 @@ describe('IdeIntegrationNudge', () => {
         return;
       }
     });
-    vi.stubEnv('GEMINI_CLI_IDE_SERVER_PORT', '');
-    vi.stubEnv('GEMINI_CLI_IDE_WORKSPACE_PATH', '');
+    vi.stubEnv('APEX_IDE_SERVER_PORT', '');
+    vi.stubEnv('APEX_IDE_WORKSPACE_PATH', '');
   });
 
   it('renders correctly with default options', async () => {
@@ -161,8 +161,8 @@ describe('IdeIntegrationNudge', () => {
   });
 
   it('displays correct text and handles selection when extension is pre-installed', async () => {
-    vi.stubEnv('GEMINI_CLI_IDE_SERVER_PORT', '1234');
-    vi.stubEnv('GEMINI_CLI_IDE_WORKSPACE_PATH', '/tmp');
+    vi.stubEnv('APEX_IDE_SERVER_PORT', '1234');
+    vi.stubEnv('APEX_IDE_WORKSPACE_PATH', '/tmp');
 
     const onComplete = vi.fn();
     const { lastFrame, stdin, waitUntilReady, unmount } =

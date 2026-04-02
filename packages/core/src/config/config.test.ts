@@ -19,7 +19,7 @@ import {
   type ConfigParameters,
   type SandboxConfig,
 } from './config.js';
-import { createMockSandboxConfig } from '@google/gemini-cli-test-utils';
+import { createMockSandboxConfig } from '@apex-code/apex-test-utils';
 import { DEFAULT_MAX_ATTEMPTS } from '../utils/retry.js';
 import { ExperimentFlags } from '../code_assist/experiments/flagNames.js';
 import { debugLogger } from '../utils/debugLogger.js';
@@ -142,9 +142,9 @@ vi.mock('../tools/read-many-files');
 vi.mock('../tools/memoryTool', () => ({
   MemoryTool: createToolMock('save_memory'),
   setGeminiMdFilename: vi.fn(),
-  getCurrentGeminiMdFilename: vi.fn(() => 'GEMINI.md'), // Mock the original filename
-  DEFAULT_CONTEXT_FILENAME: 'GEMINI.md',
-  GEMINI_DIR: '.gemini',
+  getCurrentGeminiMdFilename: vi.fn(() => 'APEX.md'), // Mock the original filename
+  DEFAULT_CONTEXT_FILENAME: 'APEX.md',
+  APEX_DIR: '.apex',
 }));
 
 vi.mock('../core/contentGenerator.js');
@@ -277,7 +277,7 @@ describe('Server Config (config.ts)', () => {
   const MODEL = DEFAULT_GEMINI_MODEL;
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'gemini-cli-sandbox',
+    image: 'apex-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -1675,7 +1675,7 @@ describe('GemmaModelRouterSettings', () => {
   const MODEL = DEFAULT_GEMINI_MODEL;
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'gemini-cli-sandbox',
+    image: 'apex-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -1943,7 +1943,7 @@ describe('BaseLlmClient Lifecycle', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = {
     command: 'docker',
-    image: 'gemini-cli-sandbox',
+    image: 'apex-sandbox',
   };
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -2476,7 +2476,7 @@ describe('BaseLlmClient Lifecycle', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'gemini-cli-sandbox',
+    image: 'apex-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -2531,7 +2531,7 @@ describe('Generation Config Merging (HACK)', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'gemini-cli-sandbox',
+    image: 'apex-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -2837,7 +2837,7 @@ describe('LocalLiteRtLmClient Lifecycle', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'gemini-cli-sandbox',
+    image: 'apex-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -3157,7 +3157,7 @@ describe('Config Quota & Preview Model Access', () => {
       allowedPaths: [],
       networkAccess: false,
       command: 'docker',
-      image: 'gemini-cli-sandbox',
+      image: 'apex-sandbox',
     },
   };
 
@@ -3464,7 +3464,7 @@ describe('Config JIT Initialization', () => {
         .fn()
         .mockReturnValue('Environment Memory\n\nMCP Instructions'),
       getUserProjectMemory: vi.fn().mockReturnValue(''),
-      getLoadedPaths: vi.fn().mockReturnValue(new Set(['/path/to/GEMINI.md'])),
+      getLoadedPaths: vi.fn().mockReturnValue(new Set(['/path/to/APEX.md'])),
     } as unknown as MemoryContextManager;
     (MemoryContextManager as unknown as Mock).mockImplementation(
       () => mockMemoryContextManager,
@@ -3511,7 +3511,7 @@ describe('Config JIT Initialization', () => {
 
     // Verify state update (delegated to MemoryContextManager)
     expect(config.getGeminiMdFileCount()).toBe(1);
-    expect(config.getGeminiMdFilePaths()).toEqual(['/path/to/GEMINI.md']);
+    expect(config.getGeminiMdFilePaths()).toEqual(['/path/to/APEX.md']);
   });
 
   it('should NOT initialize MemoryContextManager when experimentalJitContext is disabled', async () => {

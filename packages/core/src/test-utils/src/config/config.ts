@@ -14,7 +14,7 @@ import {
   FileDiscoveryService,
   ApprovalMode,
   loadServerHierarchicalMemory,
-  GEMINI_DIR,
+  APEX_DIR,
   DEFAULT_GEMINI_EMBEDDING_MODEL,
   startupProfiler,
   PREVIEW_GEMINI_MODEL,
@@ -30,7 +30,7 @@ import {
   type TelemetryTarget,
   type ConfigParameters,
   type ExtensionLoader,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 import { logger } from '../utils/logger.js';
 import type { Settings } from './settings.js';
@@ -233,8 +233,8 @@ export function loadEnvironment(): void {
 function findEnvFile(startDir: string): string | null {
   let currentDir = path.resolve(startDir);
   while (true) {
-    // prefer gemini-specific .env under GEMINI_DIR
-    const geminiEnvPath = path.join(currentDir, GEMINI_DIR, '.env');
+    // prefer gemini-specific .env under APEX_DIR
+    const geminiEnvPath = path.join(currentDir, APEX_DIR, '.env');
     if (fs.existsSync(geminiEnvPath)) {
       return geminiEnvPath;
     }
@@ -245,7 +245,7 @@ function findEnvFile(startDir: string): string | null {
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir || !parentDir) {
       // check .env under home as fallback, again preferring gemini-specific .env
-      const homeGeminiEnvPath = path.join(process.cwd(), GEMINI_DIR, '.env');
+      const homeGeminiEnvPath = path.join(process.cwd(), APEX_DIR, '.env');
       if (fs.existsSync(homeGeminiEnvPath)) {
         return homeGeminiEnvPath;
       }
@@ -278,13 +278,13 @@ async function refreshAuthentication(
       );
 
       const useComputeAdc =
-        process.env['GEMINI_CLI_USE_COMPUTE_ADC'] === 'true';
+        process.env['APEX_USE_COMPUTE_ADC'] === 'true';
       const isHeadless = isHeadlessMode();
 
       if (isHeadless || useComputeAdc) {
         const reason = isHeadless
           ? 'headless mode'
-          : 'GEMINI_CLI_USE_COMPUTE_ADC=true';
+          : 'APEX_USE_COMPUTE_ADC=true';
         throw new FatalAuthenticationError(
           `COMPUTE_ADC failed: ${adcMessage}. (LOGIN_WITH_GOOGLE fallback skipped due to ${reason}. Run in an interactive terminal to use OAuth.)`,
         );

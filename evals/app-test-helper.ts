@@ -13,7 +13,7 @@ import {
 } from './test-helper.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_GEMINI_MODEL } from '@google/gemini-cli-core';
+import { DEFAULT_GEMINI_MODEL } from '@apex-code/apex-core';
 
 /**
  * Config overrides for evals, with tool-restriction fields explicitly

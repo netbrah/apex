@@ -13,7 +13,7 @@ import {
   ApprovalMode,
   WRITE_FILE_DISPLAY_NAME,
   Kind,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import os from 'node:os';
 import { createMockSettings } from '../../../test-utils/settings.js';
 import type { IndividualToolCallDisplay } from '../../types.js';

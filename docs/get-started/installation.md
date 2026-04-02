@@ -89,7 +89,7 @@ You can also execute the CLI directly from the main branch on GitHub, which is
 helpful for testing features still in development:
 
 ```bash
-npx https://github.com/google-gemini/gemini-cli
+npx https://github.com/netbrah/apex
 ```
 
 ### Run in a sandbox (Docker/Podman)

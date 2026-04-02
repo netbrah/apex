@@ -37,7 +37,7 @@ describe('test-mcp-support', () => {
     });
 
     // Workaround for ProjectRegistry save issue
-    const userGeminiDir = join(rig.homeDir!, '.gemini');
+    const userGeminiDir = join(rig.homeDir!, '.apex');
     fs.writeFileSync(join(userGeminiDir, 'projects.json'), '{"projects":{}}');
 
     const builder = new TestMcpServerBuilder('weather-server').addTool(

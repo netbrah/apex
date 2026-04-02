@@ -134,7 +134,7 @@ These are the only allowed tools:
 - **Planning (Write):**
   [`write_file`](../tools/file-system.md#3-write_file-writefile) and
   [`replace`](../tools/file-system.md#6-replace-edit) only allowed for `.md`
-  files in the `~/.gemini/tmp/<project>/<session-id>/plans/` directory or your
+  files in the `~/.apex/tmp/<project>/<session-id>/plans/` directory or your
   [custom plans directory](#custom-plan-directory-and-policies).
 - **Memory:** [`save_memory`](../tools/memory.md)
 - **Skills:** [`activate_skill`](../cli/skills.md) (allows loading specialized
@@ -172,7 +172,7 @@ Plan Mode's default tool restrictions are managed by the
 [policy engine](../reference/policy-engine.md) and defined in the built-in
 [`plan.toml`] file. The built-in policy (Tier 1) enforces the read-only state,
 but you can customize these rules by creating your own policies in your
-`~/.gemini/policies/` directory (Tier 2).
+`~/.apex/policies/` directory (Tier 2).
 
 #### Global vs. mode-specific rules
 
@@ -208,7 +208,7 @@ By default, read-only MCP tools require user confirmation in Plan Mode. You can
 use `toolAnnotations` and the `mcpName` wildcard to customize this behavior for
 your specific environment.
 
-`~/.gemini/policies/mcp-read-only.toml`
+`~/.apex/policies/mcp-read-only.toml`
 
 ```toml
 [[rule]]
@@ -228,7 +228,7 @@ For more information on how the policy engine works, see the
 This rule lets you check the repository status and see changes while in Plan
 Mode.
 
-`~/.gemini/policies/git-research.toml`
+`~/.apex/policies/git-research.toml`
 
 ```toml
 [[rule]]
@@ -248,7 +248,7 @@ Mode. You can enable additional
 [custom subagents](../core/subagents.md#creating-custom-subagents) by adding a
 rule to your policy.
 
-`~/.gemini/policies/research-subagents.toml`
+`~/.apex/policies/research-subagents.toml`
 
 ```toml
 [[rule]]
@@ -264,16 +264,16 @@ check ongoing changes in git."_
 ### Custom plan directory and policies
 
 By default, planning artifacts are stored in a managed temporary directory
-outside your project: `~/.gemini/tmp/<project>/<session-id>/plans/`.
+outside your project: `~/.apex/tmp/<project>/<session-id>/plans/`.
 
 You can configure a custom directory for plans in your `settings.json`. For
-example, to store plans in a `.gemini/plans` directory within your project:
+example, to store plans in a `.apex/plans` directory within your project:
 
 ```json
 {
   "general": {
     "plan": {
-      "directory": ".gemini/plans"
+      "directory": ".apex/plans"
     }
   }
 }
@@ -288,8 +288,8 @@ within the project boundary.
 Using a custom directory requires updating your
 [policy engine](../reference/policy-engine.md) configurations to allow
 `write_file` and `replace` in that specific location. For example, to allow
-writing to the `.gemini/plans` directory within your project, create a policy
-file at `~/.gemini/policies/plan-custom-directory.toml`:
+writing to the `.apex/plans` directory within your project, create a policy
+file at `~/.apex/policies/plan-custom-directory.toml`:
 
 ```toml
 [[rule]]
@@ -298,7 +298,7 @@ decision = "allow"
 priority = 100
 modes = ["plan"]
 # Adjust the pattern to match your custom directory.
-# This example matches any .md file in a .gemini/plans directory within the project.
+# This example matches any .md file in a .apex/plans directory within the project.
 argsPattern = "\"file_path\":\"[^\"]+[\\\\/]+\\.gemini[\\\\/]+plans[\\\\/]+[\\w-]+\\.md\""
 ```
 
@@ -323,7 +323,7 @@ If your organizational policy requires a record of all execution plans, you can
 use an `AfterTool` hook to securely copy the plan artifact to Google Cloud
 Storage whenever Gemini CLI exits Plan Mode to start the implementation.
 
-**`.gemini/hooks/archive-plan.sh`:**
+**`.apex/hooks/archive-plan.sh`:**
 
 ```bash
 #!/usr/bin/env bash
@@ -354,7 +354,7 @@ To register this `AfterTool` hook, add it to your `settings.json`:
           {
             "name": "archive-plan",
             "type": "command",
-            "command": "./.gemini/hooks/archive-plan.sh"
+            "command": "./.apex/hooks/archive-plan.sh"
           }
         ]
       }
@@ -494,6 +494,6 @@ gemini --approval-mode plan -p "Analyze telemetry and suggest improvements"
 ```
 
 [`plan.toml`]:
-  https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/policy/policies/plan.toml
+  https://github.com/netbrah/apex/blob/main/packages/core/src/policy/policies/plan.toml
 [Conductor]: https://github.com/gemini-cli-extensions/conductor
-[open an issue]: https://github.com/google-gemini/gemini-cli/issues
+[open an issue]: https://github.com/netbrah/apex/issues

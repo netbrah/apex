@@ -19,7 +19,7 @@ import {
   getVersion,
   INITIAL_HISTORY_LENGTH,
   debugLogger,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { terminalCapabilityManager } from '../utils/terminalCapabilityManager.js';
 import { exportHistoryToFile } from '../utils/historyExportUtils.js';
 import path from 'node:path';
@@ -96,7 +96,7 @@ export const bugCommand: SlashCommand = {
     }
 
     let bugReportUrl =
-      'https://github.com/google-gemini/gemini-cli/issues/new?template=bug_report.yml&title={title}&info={info}&problem={problem}';
+      'https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title={title}&info={info}&problem={problem}';
 
     const bugCommandSettings = context.services.config?.getBugCommand();
     if (bugCommandSettings?.urlTemplate) {

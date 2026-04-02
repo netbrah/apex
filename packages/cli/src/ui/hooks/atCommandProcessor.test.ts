@@ -28,8 +28,8 @@ import {
   CoreToolCallStatus,
   type Config,
   type DiscoveredMCPResource,
-} from '@google/gemini-cli-core';
-import * as core from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
+import * as core from '@apex-code/apex-core';
 import * as os from 'node:os';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import * as fsPromises from 'node:fs/promises';
@@ -92,7 +92,7 @@ describe('handleAtCommand', () => {
         getDirectories: () => [testRootDir],
       }),
       storage: {
-        getProjectTempDir: () => path.join(os.tmpdir(), 'gemini-cli-temp'),
+        getProjectTempDir: () => path.join(os.tmpdir(), 'apex-temp'),
       },
       isPathAllowed(this: Config, absolutePath: string): boolean {
         if (this.interactive && path.isAbsolute(absolutePath)) {

@@ -71,10 +71,10 @@ import {
 } from './settings.js';
 import {
   FatalConfigError,
-  GEMINI_DIR,
+  APEX_DIR,
   Storage,
   type MCPServerConfig,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { updateSettingsFilePreservingFormat } from '../utils/commentJson.js';
 import {
   getSettingsSchema,
@@ -84,10 +84,10 @@ import {
 import { createMockSettings } from '../test-utils/settings.js';
 
 const MOCK_WORKSPACE_DIR = path.resolve(path.resolve('/mock/workspace'));
-// Use the (mocked) GEMINI_DIR for consistency
+// Use the (mocked) APEX_DIR for consistency
 const MOCK_WORKSPACE_SETTINGS_PATH = path.join(
   MOCK_WORKSPACE_DIR,
-  GEMINI_DIR,
+  APEX_DIR,
   'settings.json',
 );
 
@@ -125,9 +125,9 @@ const mockCoreEvents = vi.hoisted(() => ({
   emitSettingsChanged: vi.fn(),
 }));
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   const os = await import('node:os');
   const pathMod = await import('node:path');
   const fsMod = await import('node:fs');
@@ -1508,7 +1508,7 @@ describe('Settings Loading and Merging', () => {
       delete process.env['TEST_PORT'];
     });
 
-    describe('when GEMINI_CLI_SYSTEM_SETTINGS_PATH is set', () => {
+    describe('when APEX_SYSTEM_SETTINGS_PATH is set', () => {
       const MOCK_ENV_SYSTEM_SETTINGS_PATH = path.resolve(
         '/mock/env/system/settings.json',
       );
@@ -1557,7 +1557,7 @@ describe('Settings Loading and Merging', () => {
       const mockSymlinkDir = path.resolve('/mock/symlink/to/home');
       const mockWorkspaceSettingsPath = path.join(
         mockSymlinkDir,
-        GEMINI_DIR,
+        APEX_DIR,
         'settings.json',
       );
 
@@ -1924,7 +1924,7 @@ describe('Settings Loading and Merging', () => {
       delete process.env['GEMINI_API_KEY']; // reset
       delete process.env['TESTTEST']; // reset
       const geminiEnvPath = path.resolve(
-        path.join(MOCK_WORKSPACE_DIR, GEMINI_DIR, '.env'),
+        path.join(MOCK_WORKSPACE_DIR, APEX_DIR, '.env'),
       );
 
       vi.spyOn(trustedFolders, 'isWorkspaceTrusted').mockReturnValue({

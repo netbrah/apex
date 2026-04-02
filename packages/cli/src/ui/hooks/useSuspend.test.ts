@@ -24,7 +24,7 @@ import {
   exitAlternateScreen,
   enableLineWrapping,
   disableLineWrapping,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   cleanupTerminalOnExit,
   terminalCapabilityManager,
@@ -32,8 +32,8 @@ import {
 import { formatCommand } from '../key/keybindingUtils.js';
 import { Command } from '../key/keyBindings.js';
 
-vi.mock('@google/gemini-cli-core', async () => {
-  const actual = await vi.importActual('@google/gemini-cli-core');
+vi.mock('@apex-code/apex-core', async () => {
+  const actual = await vi.importActual('@apex-code/apex-core');
   return {
     ...actual,
     writeToStdout: vi.fn(),

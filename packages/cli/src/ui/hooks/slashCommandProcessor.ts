@@ -19,7 +19,7 @@ import type {
   ExtensionsStoppingEvent,
   ToolCallConfirmationDetails,
   AgentDefinition,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   type Logger,
   type Config,
@@ -36,7 +36,7 @@ import {
   removeMCPStatusChangeListener,
   MCPDiscoveryState,
   CoreToolCallStatus,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import type {
   Message,

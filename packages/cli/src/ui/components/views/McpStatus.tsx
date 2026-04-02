@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MCPServerStatus, type MCPServerConfig } from '@google/gemini-cli-core';
+import { MCPServerStatus, type MCPServerConfig } from '@apex-code/apex-core';
 import { Box, Text } from 'ink';
 import type React from 'react';
 import { MAX_MCP_RESOURCES_TO_SHOW } from '../../constants.js';
@@ -61,7 +61,7 @@ export const McpStatus: React.FC<McpStatusProps> = ({
         <Text>
           Please view MCP documentation in your browser:{' '}
           <Text color={theme.text.link}>
-            https://goo.gle/gemini-cli-docs-mcp
+            https://goo.gle/apex-docs-mcp
           </Text>{' '}
           or use the cli /docs command
         </Text>

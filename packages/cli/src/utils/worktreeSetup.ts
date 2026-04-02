@@ -9,19 +9,19 @@ import {
   createWorktreeService,
   writeToStderr,
   type WorktreeInfo,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 /**
  * Sets up a git worktree for parallel sessions.
  *
- * This function uses a guard (GEMINI_CLI_WORKTREE_HANDLED) to ensure that
+ * This function uses a guard (APEX_WORKTREE_HANDLED) to ensure that
  * when the CLI relaunches itself (e.g. for memory allocation), it doesn't
  * attempt to create a nested worktree.
  */
 export async function setupWorktree(
   worktreeName: string | undefined,
 ): Promise<WorktreeInfo | undefined> {
-  if (process.env['GEMINI_CLI_WORKTREE_HANDLED'] === '1') {
+  if (process.env['APEX_WORKTREE_HANDLED'] === '1') {
     return undefined;
   }
 
@@ -32,7 +32,7 @@ export async function setupWorktree(
     const worktreeInfo = await service.setup(worktreeName || undefined);
 
     process.chdir(worktreeInfo.path);
-    process.env['GEMINI_CLI_WORKTREE_HANDLED'] = '1';
+    process.env['APEX_WORKTREE_HANDLED'] = '1';
 
     return worktreeInfo;
   } catch (error) {

@@ -8,13 +8,13 @@ import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { ConfirmationRequiredError, ShellProcessor } from './shellProcessor.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import type { CommandContext } from '../../ui/commands/types.js';
-import type { Config } from '@google/gemini-cli-core';
+import type { Config } from '@apex-code/apex-core';
 import {
   ApprovalMode,
   getShellConfiguration,
   PolicyDecision,
   NoopSandboxManager,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { quote } from 'shell-quote';
 import { createPartFromText } from '@google/genai';
 import type { PromptPipelineContent } from './types.js';

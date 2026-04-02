@@ -1,10 +1,10 @@
 <div align="center">
 
-[![Gemini CLI CI](https://github.com/google-gemini/gemini-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/google-gemini/gemini-cli/actions/workflows/ci.yml)
-[![Gemini CLI E2E (Chained)](https://github.com/google-gemini/gemini-cli/actions/workflows/chained_e2e.yml/badge.svg)](https://github.com/google-gemini/gemini-cli/actions/workflows/chained_e2e.yml)
+[![Gemini CLI CI](https://github.com/netbrah/apex/actions/workflows/ci.yml/badge.svg)](https://github.com/netbrah/apex/actions/workflows/ci.yml)
+[![Gemini CLI E2E (Chained)](https://github.com/netbrah/apex/actions/workflows/chained_e2e.yml/badge.svg)](https://github.com/netbrah/apex/actions/workflows/chained_e2e.yml)
 [![Version](https://img.shields.io/npm/v/@google/gemini-cli)](https://www.npmjs.com/package/@google/gemini-cli)
-[![License](https://img.shields.io/github/license/google-gemini/gemini-cli)](https://github.com/google-gemini/gemini-cli/blob/main/LICENSE)
-[![View Code Wiki](https://assets.codewiki.google/readme-badge/static.svg)](https://codewiki.google/github.com/google-gemini/gemini-cli?utm_source=badge&utm_medium=github&utm_campaign=github.com/google-gemini/gemini-cli)
+[![License](https://img.shields.io/github/license/google-gemini/gemini-cli)](https://github.com/netbrah/apex/blob/main/LICENSE)
+[![View Code Wiki](https://assets.codewiki.google/readme-badge/static.svg)](https://codewiki.google/github.com/netbrah/apex?utm_source=badge&utm_medium=github&utm_campaign=github.com/netbrah/apex)
 
 ![Gemini CLI Screenshot](/docs/assets/gemini-screenshot.png)
 
@@ -164,7 +164,7 @@ npm install -g @google/gemini-cli@nightly
   [Google Search](https://ai.google.dev/gemini-api/docs/grounding) for real-time
   information
 - Conversation checkpointing to save and resume complex sessions
-- Custom context files (GEMINI.md) to tailor behavior for your projects
+- Custom context files (APEX.md) to tailor behavior for your projects
 
 ### GitHub Integration
 
@@ -305,7 +305,7 @@ gemini
 #### Analyze existing code
 
 ```bash
-git clone https://github.com/google-gemini/gemini-cli
+git clone https://github.com/netbrah/apex
 cd gemini-cli
 gemini
 > Give me a summary of all of the changes that went in yesterday
@@ -330,7 +330,7 @@ gemini
   All slash commands (`/help`, `/chat`, etc).
 - [**Custom Commands**](https://www.geminicli.com/docs/cli/custom-commands) -
   Create your own reusable commands.
-- [**Context Files (GEMINI.md)**](https://www.geminicli.com/docs/cli/gemini-md) -
+- [**Context Files (APEX.md)**](https://www.geminicli.com/docs/cli/gemini-md) -
   Provide persistent context to Gemini CLI.
 - [**Checkpointing**](https://www.geminicli.com/docs/cli/checkpointing) - Save
   and resume conversations.
@@ -377,7 +377,7 @@ gemini
 
 ### Using MCP Servers
 
-Configure MCP servers in `~/.gemini/settings.json` to extend Gemini CLI with
+Configure MCP servers in `~/.apex/settings.json` to extend Gemini CLI with
 custom tools:
 
 ```text
@@ -416,9 +416,9 @@ for planned features and priorities.
   notable updates.
 - **[NPM Package](https://www.npmjs.com/package/@google/gemini-cli)** - Package
   registry.
-- **[GitHub Issues](https://github.com/google-gemini/gemini-cli/issues)** -
+- **[GitHub Issues](https://github.com/netbrah/apex/issues)** -
   Report bugs or request features.
-- **[Security Advisories](https://github.com/google-gemini/gemini-cli/security/advisories)** -
+- **[Security Advisories](https://github.com/netbrah/apex/security/advisories)** -
   Security updates.
 
 - **OpenAI-compatible API (recommended & free)**: Use your OpenAI-compatible API key.
@@ -783,4 +783,4 @@ To report a bug from within the CLI, run `/bug` and include a short title and re
 
 ## Acknowledgments
 
-This project is based on [Google Gemini CLI](https://github.com/google-gemini/gemini-cli). We acknowledge and appreciate the excellent work of the Gemini CLI team. Our main contribution focuses on parser-level adaptations to better support Qwen-Coder models.
+This project is based on [Google Gemini CLI](https://github.com/netbrah/apex). We acknowledge and appreciate the excellent work of the Gemini CLI team. Our main contribution focuses on parser-level adaptations to better support Qwen-Coder models.

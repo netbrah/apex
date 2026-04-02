@@ -1,12 +1,12 @@
-# Gemini CLI Project Context
+# APEX Project Context
 
-Gemini CLI is an open-source AI agent that brings the power of Gemini directly
+APEX is an open-source AI agent that brings the power of APEX directly
 into the terminal. It is designed to be a terminal-first, extensible, and
 powerful tool for developers.
 
 ## Project Overview
 
-- **Purpose:** Provide a seamless terminal interface for Gemini models,
+- **Purpose:** Provide a seamless terminal interface for APEX models,
   supporting code understanding, generation, automation, and integration via MCP
   (Model Context Protocol).
 - **Main Technologies:**
@@ -20,10 +20,10 @@ powerful tool for developers.
 - **Architecture:** Monorepo structure using npm workspaces.
   - `packages/cli`: User-facing terminal UI, input processing, and display
     rendering.
-  - `packages/core`: Backend logic, Gemini API orchestration, prompt
+  - `packages/core`: Backend logic, APEX API orchestration, prompt
     construction, and tool execution.
   - `packages/a2a-server`: Experimental Agent-to-Agent server.
-  - `packages/sdk`: Programmatic SDK for embedding Gemini CLI capabilities.
+  - `packages/sdk`: Programmatic SDK for embedding APEX capabilities.
   - `packages/devtools`: Integrated developer tools (Network/Console inspector).
   - `packages/test-utils`: Shared test utilities and test rig.
   - `packages/vscode-ide-companion`: VS Code extension pairing with the CLI.
@@ -46,7 +46,7 @@ powerful tool for developers.
   - **Integration (E2E):** `npm run test:e2e`
   - **Workspace-Specific:** `npm test -w <pkg> -- <path>` (Note: `<path>` must
     be relative to the workspace root, e.g.,
-    `-w @google/gemini-cli-core -- src/routing/modelRouterService.test.ts`)
+    `-w @google/apex-cli-core -- src/routing/modelRouterService.test.ts`)
 - **Full Validation:** `npm run preflight` (Heaviest check; runs clean, install,
   build, lint, type check, and tests. Recommended before submitting PRs. Due to
   its long runtime, only run this at the very end of a code implementation task.

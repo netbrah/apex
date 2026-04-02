@@ -15,7 +15,7 @@ import {
   createTmpDir,
   cleanupTmpDir,
   type FileSystemStructure,
-} from '@google/gemini-cli-test-utils';
+} from '@apex-code/apex-test-utils';
 
 describe('useShellCompletion utilities', () => {
   describe('getTokenAtCursor', () => {

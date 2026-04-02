@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { checkExhaustive } from '@google/gemini-cli-core';
+import { checkExhaustive } from '@apex-code/apex-core';
 
 export type ChecklistStatus =
   | 'pending'

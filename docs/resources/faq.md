@@ -124,7 +124,7 @@ risk.
 To store your API keys securely, you can:
 
 - **Use a `.env` file:** Create a `.env` file in your project's `.gemini`
-  directory (`.gemini/.env`) and store your keys there. Gemini CLI will
+  directory (`.apex/.env`) and store your keys there. Gemini CLI will
   automatically load these variables.
 - **Use your system's keyring:** For the most secure storage, use your operating
   system's secret management tool (like macOS Keychain, Windows Credential
@@ -135,8 +135,8 @@ To store your API keys securely, you can:
 
 The Gemini CLI configuration is stored in two `settings.json` files:
 
-1.  In your home directory: `~/.gemini/settings.json`.
-2.  In your project's root directory: `./.gemini/settings.json`.
+1.  In your home directory: `~/.apex/settings.json`.
+2.  In your project's root directory: `./.apex/settings.json`.
 
 Refer to [Gemini CLI Configuration](../reference/configuration.md) for more
 details.
@@ -183,6 +183,6 @@ for more information.
 ## Not seeing your question?
 
 Search the
-[Gemini CLI Q&A discussions on GitHub](https://github.com/google-gemini/gemini-cli/discussions/categories/q-a)
+[Gemini CLI Q&A discussions on GitHub](https://github.com/netbrah/apex/discussions/categories/q-a)
 or
-[start a new discussion on GitHub](https://github.com/google-gemini/gemini-cli/discussions/new?category=q-a)
+[start a new discussion on GitHub](https://github.com/netbrah/apex/discussions/new?category=q-a)

@@ -399,7 +399,7 @@ export class WindowsSandboxManager implements SandboxManager {
       new Set([...secretsToBlock, ...forbiddenPaths]),
     );
     const tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'gemini-cli-forbidden-'),
+      path.join(os.tmpdir(), 'apex-forbidden-'),
     );
     const manifestPath = path.join(tempDir, 'manifest.txt');
     fs.writeFileSync(manifestPath, allForbidden.join('\n'));

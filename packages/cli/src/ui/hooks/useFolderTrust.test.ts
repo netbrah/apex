@@ -25,16 +25,16 @@ import {
   type LoadedTrustedFolders,
 } from '../../config/trustedFolders.js';
 import * as trustedFolders from '../../config/trustedFolders.js';
-import { coreEvents, ExitCodes, isHeadlessMode } from '@google/gemini-cli-core';
+import { coreEvents, ExitCodes, isHeadlessMode } from '@apex-code/apex-core';
 import { MessageType } from '../types.js';
 
 const mockedCwd = vi.hoisted(() => vi.fn());
 const mockedExit = vi.hoisted(() => vi.fn());
 
-vi.mock('@google/gemini-cli-core', async () => {
+vi.mock('@apex-code/apex-core', async () => {
   const actual = await vi.importActual<
-    typeof import('@google/gemini-cli-core')
-  >('@google/gemini-cli-core');
+    typeof import('@apex-code/apex-core')
+  >('@apex-code/apex-core');
   return {
     ...actual,
     isHeadlessMode: vi.fn().mockReturnValue(false),
@@ -158,7 +158,7 @@ describe('useFolderTrust', () => {
     );
     expect(addItem).toHaveBeenCalledWith(
       {
-        text: 'This folder is untrusted, project settings, hooks, MCPs, and GEMINI.md files will not be applied for this folder.\nUse the `/permissions` command to change the trust level.',
+        text: 'This folder is untrusted, project settings, hooks, MCPs, and APEX.md files will not be applied for this folder.\nUse the `/permissions` command to change the trust level.',
         type: 'info',
       },
       expect.any(Number),

@@ -47,7 +47,7 @@ import {
   type OutputFormat,
   detectIdeFromEnv,
   generalistProfile,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   type Settings,
   type MergedSettings,
@@ -68,7 +68,7 @@ import {
 } from './policy.js';
 import { ExtensionManager } from './extension-manager.js';
 import { McpServerEnablementManager } from './mcp/mcpServerEnablement.js';
-import type { ExtensionEvents } from '@google/gemini-cli-core/src/utils/extensionLoader.js';
+import type { ExtensionEvents } from '@apex-code/apex-core/src/utils/extensionLoader.js';
 import { requestConsentNonInteractive } from './extensions/consent.js';
 import { promptForSetting } from './extensions/extensionSettings.js';
 import type { EventEmitter } from 'node:stream';
@@ -608,7 +608,7 @@ export async function loadCliConfig(
   const ideMode = settings.ide?.enabled ?? false;
 
   const folderTrust =
-    process.env['GEMINI_CLI_INTEGRATION_TEST'] === 'true' ||
+    process.env['APEX_INTEGRATION_TEST'] === 'true' ||
     process.env['VITEST'] === 'true'
       ? false
       : (settings.security?.folderTrust?.enabled ?? false);
@@ -649,7 +649,7 @@ export async function loadCliConfig(
   // When running inside VSCode with multiple workspace folders,
   // automatically add the other folders as include directories
   // so Gemini has context of all open folders, not just the cwd.
-  const ideWorkspacePath = process.env['GEMINI_CLI_IDE_WORKSPACE_PATH'];
+  const ideWorkspacePath = process.env['APEX_IDE_WORKSPACE_PATH'];
   if (ideWorkspacePath) {
     const realCwd = resolveToRealPath(cwd);
     const ideFolders = ideWorkspacePath.split(path.delimiter).filter((p) => {
@@ -686,7 +686,7 @@ export async function loadCliConfig(
   const experimentalJitContext = settings.experimental.jitContext;
 
   let extensionRegistryURI =
-    process.env['GEMINI_CLI_EXTENSION_REGISTRY_URI'] ??
+    process.env['APEX_EXTENSION_REGISTRY_URI'] ??
     (trustedFolder ? settings.experimental?.extensionRegistryURI : undefined);
 
   if (extensionRegistryURI && !extensionRegistryURI.startsWith('http')) {

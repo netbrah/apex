@@ -37,10 +37,10 @@ describe('getIdeProcessInfo', () => {
     vi.unstubAllEnvs();
   });
 
-  describe('GEMINI_CLI_IDE_PID override', () => {
-    it('should use GEMINI_CLI_IDE_PID and fetch command on Unix', async () => {
+  describe('APEX_IDE_PID override', () => {
+    it('should use APEX_IDE_PID and fetch command on Unix', async () => {
       (os.platform as Mock).mockReturnValue('linux');
-      vi.stubEnv('GEMINI_CLI_IDE_PID', '12345');
+      vi.stubEnv('APEX_IDE_PID', '12345');
       mockedExec.mockResolvedValueOnce({ stdout: '0 my-ide-command' }); // getProcessInfo result
 
       const result = await getIdeProcessInfo();
@@ -51,9 +51,9 @@ describe('getIdeProcessInfo', () => {
       );
     });
 
-    it('should use GEMINI_CLI_IDE_PID and fetch command on Windows', async () => {
+    it('should use APEX_IDE_PID and fetch command on Windows', async () => {
       (os.platform as Mock).mockReturnValue('win32');
-      vi.stubEnv('GEMINI_CLI_IDE_PID', '54321');
+      vi.stubEnv('APEX_IDE_PID', '54321');
       const processes = [
         {
           ProcessId: 54321,

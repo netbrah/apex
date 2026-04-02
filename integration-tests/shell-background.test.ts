@@ -53,7 +53,7 @@ describe('shell-background-tools', () => {
                     const args = JSON.parse(input.tool_call.args);
                     
                     if (args.is_background) {
-                      const logDir = path.join(process.env.GEMINI_CLI_HOME, 'background-processes');
+                      const logDir = path.join(process.env.APEX_HOME, 'background-processes');
                       if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
                       fs.writeFileSync(path.join(logDir, 'background-12345.log'), 'hello-from-background\\n');
                       

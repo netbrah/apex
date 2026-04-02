@@ -5,7 +5,7 @@
  */
 
 import { createContext, useContext } from 'react';
-import type { StartupWarning } from '@google/gemini-cli-core';
+import type { StartupWarning } from '@apex-code/apex-core';
 
 export interface AppState {
   version: string;

@@ -23,7 +23,7 @@ import {
   type SlashCommandActionReturn,
 } from './types.js';
 import { getUrlOpenCommand } from '../../ui/utils/commandUtils.js';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 
 export const GITHUB_WORKFLOW_PATHS = [
   'gemini-dispatch/gemini-dispatch.yml',
@@ -43,7 +43,7 @@ export const GITHUB_COMMANDS_PATHS = [
 ];
 
 const REPO_DOWNLOAD_URL =
-  'https://raw.githubusercontent.com/google-github-actions/run-gemini-cli';
+  'https://raw.githubusercontent.com/google-github-actions/run-apex';
 const SOURCE_DIR = 'examples/workflows';
 // Generate OS-specific commands to open the GitHub pages needed for setup.
 function getOpenUrlsCommands(readmeUrl: string): string[] {

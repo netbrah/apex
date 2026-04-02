@@ -68,7 +68,7 @@ describe('ACP telemetry', () => {
         env: {
           ...process.env,
           GEMINI_API_KEY: 'fake-key',
-          GEMINI_CLI_HOME: rig.homeDir!,
+          APEX_HOME: rig.homeDir!,
           GEMINI_TELEMETRY_ENABLED: 'true',
           GEMINI_TELEMETRY_TARGET: 'local',
           GEMINI_TELEMETRY_OUTFILE: telemetryPath,

@@ -37,7 +37,7 @@ import { AuthType } from '../core/contentGenerator.js';
 import type { Config } from '../config/config.js';
 import readline from 'node:readline';
 import { FORCE_ENCRYPTED_FILE_ENV_VAR } from '../mcp/token-storage/index.js';
-import { GEMINI_DIR, homedir as pathsHomedir } from '../utils/paths.js';
+import { APEX_DIR, homedir as pathsHomedir } from '../utils/paths.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { writeToStdout } from '../utils/stdio.js';
 import {
@@ -136,7 +136,7 @@ describe('oauth2', () => {
     beforeEach(() => {
       process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] = 'false';
       tempHomeDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'gemini-cli-test-home-'),
+        path.join(os.tmpdir(), 'apex-test-home-'),
       );
       vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
       vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
@@ -264,7 +264,7 @@ describe('oauth2', () => {
       // Verify Google Account was cached
       const googleAccountPath = path.join(
         tempHomeDir,
-        GEMINI_DIR,
+        APEX_DIR,
         'google_accounts.json',
       );
       expect(fs.existsSync(googleAccountPath)).toBe(true);
@@ -283,7 +283,7 @@ describe('oauth2', () => {
 
     it('should clear credentials file', async () => {
       // Setup initial state with files
-      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
 
       await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
       await fs.promises.writeFile(credsPath, '{}');
@@ -295,7 +295,7 @@ describe('oauth2', () => {
 
     it('should emit post_auth event when loading cached credentials', async () => {
       const cachedCreds = { refresh_token: 'cached-token' };
-      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
       await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
       await fs.promises.writeFile(credsPath, JSON.stringify(cachedCreds));
 
@@ -473,7 +473,7 @@ describe('oauth2', () => {
       // Verify Google Account was cached
       const googleAccountPath = path.join(
         tempHomeDir,
-        GEMINI_DIR,
+        APEX_DIR,
         'google_accounts.json',
       );
 
@@ -508,7 +508,7 @@ describe('oauth2', () => {
         const cachedCreds = { refresh_token: 'cached-token' };
         const credsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
@@ -550,7 +550,7 @@ describe('oauth2', () => {
 
         const credsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         expect(fs.existsSync(credsPath)).toBe(false);
@@ -579,7 +579,7 @@ describe('oauth2', () => {
         const defaultCreds = { refresh_token: 'default-cached-token' };
         const defaultCredsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         await fs.promises.mkdir(path.dirname(defaultCredsPath), {
@@ -730,7 +730,7 @@ describe('oauth2', () => {
         // Verify Google Account was cached
         const googleAccountPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'google_accounts.json',
         );
         const cachedContent = fs.readFileSync(googleAccountPath, 'utf-8');
@@ -760,7 +760,7 @@ describe('oauth2', () => {
         const cachedCreds = { refresh_token: 'cached-token' };
         const credsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
@@ -793,7 +793,7 @@ describe('oauth2', () => {
         const cachedCreds = { refresh_token: 'cached-token' };
         const credsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
@@ -1470,7 +1470,7 @@ describe('oauth2', () => {
         const cachedCreds = { refresh_token: 'test-token' };
         const credsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
@@ -1478,7 +1478,7 @@ describe('oauth2', () => {
 
         const googleAccountPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'google_accounts.json',
         );
         const accountData = { active: 'test@example.com', old: [] };
@@ -1521,7 +1521,7 @@ describe('oauth2', () => {
         // Pre-populate credentials to make getOauthClient resolve quickly
         const credsPath = path.join(
           tempHomeDir,
-          GEMINI_DIR,
+          APEX_DIR,
           'oauth_creds.json',
         );
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
@@ -1552,7 +1552,7 @@ describe('oauth2', () => {
     beforeEach(() => {
       process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] = 'true';
       tempHomeDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'gemini-cli-test-home-'),
+        path.join(os.tmpdir(), 'apex-test-home-'),
       );
       vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
       vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
@@ -1663,7 +1663,7 @@ describe('oauth2', () => {
       expect(
         vi.mocked(OAuthCredentialStorage.saveCredentials),
       ).toHaveBeenCalledWith(mockTokens);
-      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
       expect(fs.existsSync(credsPath)).toBe(false);
     });
 
@@ -1679,7 +1679,7 @@ describe('oauth2', () => {
       // Create a dummy unencrypted credential file.
       // If the logic is correct, this file should be ignored.
       const unencryptedCreds = { refresh_token: 'unencrypted-token' };
-      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
       await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
       await fs.promises.writeFile(credsPath, JSON.stringify(unencryptedCreds));
 
@@ -1711,7 +1711,7 @@ describe('oauth2', () => {
       );
 
       // Create a dummy unencrypted credential file. It should not be deleted.
-      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
       await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
       await fs.promises.writeFile(credsPath, '{}');
 

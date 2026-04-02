@@ -38,7 +38,7 @@ describe('update_topic_behavior', () => {
         null,
         2,
       ),
-      '.gemini/settings.json': JSON.stringify({
+      '.apex/settings.json': JSON.stringify({
         experimental: {
           topicUpdateNarration: true,
         },

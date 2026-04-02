@@ -1,7 +1,7 @@
 {
-  "name": "@google/gemini-cli-core",
-  "version": "0.36.0-nightly.20260317.2f90b4653",
-  "description": "Gemini CLI Core",
+  "name": "@apex-code/apex-core",
+  "version": "1.2.0",
+  "description": "APEX Core",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -105,7 +105,7 @@
     "node-pty": "^1.0.0"
   },
   "devDependencies": {
-    "@google/gemini-cli-test-utils": "file:../test-utils",
+    "@apex-code/apex-test-utils": "file:../test-utils",
     "@types/fast-levenshtein": "^0.0.4",
     "@types/js-yaml": "^4.0.9",
     "@types/json-stable-stringify": "^1.1.0",

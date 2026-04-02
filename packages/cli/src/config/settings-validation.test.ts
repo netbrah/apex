@@ -342,10 +342,10 @@ describe('settings-validation', () => {
       if (result.error) {
         const formatted = formatValidationError(
           result.error,
-          '~/.gemini/settings.json',
+          '~/.apex/settings.json',
         );
 
-        expect(formatted).toContain('~/.gemini/settings.json');
+        expect(formatted).toContain('~/.apex/settings.json');
         expect(formatted).toContain('model.summarizeToolOutput');
       }
     });

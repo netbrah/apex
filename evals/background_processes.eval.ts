@@ -24,7 +24,7 @@ sleep 100
     setup: async (rig) => {
       // Create .gemini directory to avoid file system error in test rig
       if (rig.homeDir) {
-        const geminiDir = path.join(rig.homeDir, '.gemini');
+        const geminiDir = path.join(rig.homeDir, '.apex');
         fs.mkdirSync(geminiDir, { recursive: true });
       }
     },
@@ -56,7 +56,7 @@ sleep 100
     setup: async (rig) => {
       // Create .gemini directory to avoid file system error in test rig
       if (rig.homeDir) {
-        const geminiDir = path.join(rig.homeDir, '.gemini');
+        const geminiDir = path.join(rig.homeDir, '.apex');
         fs.mkdirSync(geminiDir, { recursive: true });
       }
     },

@@ -21,12 +21,12 @@ describe('MacOsSandboxManager', () => {
 
   beforeEach(() => {
     mockWorkspace = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-macos-test-')),
+      fs.mkdtempSync(path.join(os.tmpdir(), 'apex-macos-test-')),
     );
 
     const allowedPathTemp = path.join(
       os.tmpdir(),
-      'gemini-cli-macos-test-allowed-' + Math.random().toString(36).slice(2),
+      'apex-macos-test-allowed-' + Math.random().toString(36).slice(2),
     );
     if (!fs.existsSync(allowedPathTemp)) {
       fs.mkdirSync(allowedPathTemp);
@@ -81,7 +81,7 @@ describe('MacOsSandboxManager', () => {
 
       expect(result.program).toBe('/usr/bin/sandbox-exec');
       expect(result.args[0]).toBe('-f');
-      expect(result.args[1]).toMatch(/gemini-cli-seatbelt-.*\.sb$/);
+      expect(result.args[1]).toMatch(/apex-seatbelt-.*\.sb$/);
       expect(result.args.slice(2)).toEqual(['--', 'echo', 'hello']);
 
       // Verify temp file was written

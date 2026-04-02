@@ -19,7 +19,7 @@ import {
   EDIT_DISPLAY_NAME,
   READ_FILE_DISPLAY_NAME,
   GLOB_DISPLAY_NAME,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type {
   HistoryItem,
   HistoryItemWithoutId,

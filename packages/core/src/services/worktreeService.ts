@@ -112,7 +112,7 @@ export async function getProjectRootForWorktree(cwd: string): Promise<string> {
 }
 
 export function getWorktreePath(projectRoot: string, name: string): string {
-  return path.join(projectRoot, '.gemini', 'worktrees', name);
+  return path.join(projectRoot, '.apex', 'worktrees', name);
 }
 
 export async function createWorktree(
@@ -136,7 +136,7 @@ export function isGeminiWorktree(
   try {
     const realDirPath = realpathSync(dirPath);
     const realProjectRoot = realpathSync(projectRoot);
-    const worktreesBaseDir = path.join(realProjectRoot, '.gemini', 'worktrees');
+    const worktreesBaseDir = path.join(realProjectRoot, '.apex', 'worktrees');
     const relative = path.relative(worktreesBaseDir, realDirPath);
     return !relative.startsWith('..') && !path.isAbsolute(relative);
   } catch {

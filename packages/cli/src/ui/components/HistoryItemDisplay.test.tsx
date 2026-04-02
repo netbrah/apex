@@ -12,11 +12,11 @@ import {
   CoreToolCallStatus,
   type Config,
   type ToolExecuteConfirmationDetails,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { ToolGroupMessage } from './messages/ToolGroupMessage.js';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { createMockSettings } from '../../test-utils/settings.js';
-import { makeFakeConfig } from '@google/gemini-cli-core';
+import { makeFakeConfig } from '@apex-code/apex-core';
 
 // Mock child components
 vi.mock('./messages/ToolGroupMessage.js', () => ({

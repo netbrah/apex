@@ -217,14 +217,14 @@ Sources:
                 },
                 {
                   web: {
-                    title: 'google-gemini/gemini-cli',
-                    uri: 'https://github.com/google-gemini/gemini-cli',
+                    title: 'google-gemini/apex',
+                    uri: 'https://github.com/netbrah/apex',
                   },
                 },
                 {
                   web: {
                     title: 'Gemini CLI: your open-source AI agent',
-                    uri: 'https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/',
+                    uri: 'https://blog.google/technology/developers/introducing-apex-open-source-ai-agent/',
                   },
                 },
               ],
@@ -260,8 +260,8 @@ Sources:
 
 Sources:
 [1] Japanese Greeting (https://example.test/japanese-greeting)
-[2] google-gemini/gemini-cli (https://github.com/google-gemini/gemini-cli)
-[3] Gemini CLI: your open-source AI agent (https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/)`;
+[2] google-gemini/apex (https://github.com/netbrah/apex)
+[3] Gemini CLI: your open-source AI agent (https://blog.google/technology/developers/introducing-apex-open-source-ai-agent/)`;
 
       expect(result.llmContent).toBe(expectedLlmContent);
       expect(result.returnDisplay).toBe(

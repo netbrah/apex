@@ -13,7 +13,7 @@ vi.mock('node:os', () => ({
   homedir: vi.fn(),
 }));
 
-vi.mock('@google/gemini-cli-core', () => ({
+vi.mock('@apex-code/apex-core', () => ({
   homedir: () => os.homedir(),
 }));
 

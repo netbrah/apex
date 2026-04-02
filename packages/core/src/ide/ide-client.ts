@@ -138,11 +138,11 @@ export class IdeClient {
       ? await getConnectionConfigFromFile(this.ideProcessInfo.pid)
       : undefined;
     const authToken =
-      connectionConfig?.authToken ?? process.env['GEMINI_CLI_IDE_AUTH_TOKEN'];
+      connectionConfig?.authToken ?? process.env['APEX_IDE_AUTH_TOKEN'];
 
     const workspacePath =
       connectionConfig?.workspacePath ??
-      process.env['GEMINI_CLI_IDE_WORKSPACE_PATH'];
+      process.env['APEX_IDE_WORKSPACE_PATH'];
 
     const { isValid, error } = validateWorkspacePath(
       workspacePath,

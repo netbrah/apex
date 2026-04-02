@@ -14,7 +14,7 @@ import {
   enableBracketedPasteMode,
   disableBracketedPasteMode,
   disableMouseEvents,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { parseColor } from '../themes/color-utils.js';
 
 export type TerminalBackgroundColor = string | undefined;

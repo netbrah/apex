@@ -38,9 +38,9 @@ vi.mock('node:os', async (importOriginal) => {
   };
 });
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     tmpdir: vi.fn(() => '/tmp'),
@@ -80,7 +80,7 @@ const getPortFromMock = (
 ) => {
   const port = vi
     .mocked(replaceMock)
-    .mock.calls.find((call) => call[0] === 'GEMINI_CLI_IDE_SERVER_PORT')?.[1];
+    .mock.calls.find((call) => call[0] === 'APEX_IDE_SERVER_PORT')?.[1];
 
   if (port === undefined) {
     expect.fail('Port was not set');
@@ -122,7 +122,7 @@ describe('IDEServer', () => {
 
     expect(replaceMock).toHaveBeenNthCalledWith(
       1,
-      'GEMINI_CLI_IDE_SERVER_PORT',
+      'APEX_IDE_SERVER_PORT',
       expect.any(String), // port is a number as a string
     );
 
@@ -133,13 +133,13 @@ describe('IDEServer', () => {
 
     expect(replaceMock).toHaveBeenNthCalledWith(
       2,
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_WORKSPACE_PATH',
       expectedWorkspacePaths,
     );
 
     expect(replaceMock).toHaveBeenNthCalledWith(
       3,
-      'GEMINI_CLI_IDE_AUTH_TOKEN',
+      'APEX_IDE_AUTH_TOKEN',
       'test-auth-token',
     );
 
@@ -172,7 +172,7 @@ describe('IDEServer', () => {
     const replaceMock = mockContext.environmentVariableCollection.replace;
 
     expect(replaceMock).toHaveBeenCalledWith(
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_WORKSPACE_PATH',
       '/foo/bar',
     );
 
@@ -202,7 +202,7 @@ describe('IDEServer', () => {
     const replaceMock = mockContext.environmentVariableCollection.replace;
 
     expect(replaceMock).toHaveBeenCalledWith(
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_WORKSPACE_PATH',
       '',
     );
 
@@ -231,7 +231,7 @@ describe('IDEServer', () => {
     const replaceMock = mockContext.environmentVariableCollection.replace;
 
     expect(replaceMock).toHaveBeenCalledWith(
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_WORKSPACE_PATH',
       '/foo/bar',
     );
 
@@ -246,11 +246,11 @@ describe('IDEServer', () => {
       path.delimiter,
     );
     expect(replaceMock).toHaveBeenCalledWith(
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_WORKSPACE_PATH',
       expectedWorkspacePaths,
     );
     expect(replaceMock).toHaveBeenCalledWith(
-      'GEMINI_CLI_IDE_AUTH_TOKEN',
+      'APEX_IDE_AUTH_TOKEN',
       'test-auth-token',
     );
 
@@ -277,7 +277,7 @@ describe('IDEServer', () => {
     await ideServer.syncEnvVars();
 
     expect(replaceMock).toHaveBeenCalledWith(
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_WORKSPACE_PATH',
       '/baz/qux',
     );
     const expectedContent2 = JSON.stringify({
@@ -323,7 +323,7 @@ describe('IDEServer', () => {
       const expectedWorkspacePaths = 'c:\\foo\\bar;d:\\baz\\qux';
 
       expect(replaceMock).toHaveBeenCalledWith(
-        'GEMINI_CLI_IDE_WORKSPACE_PATH',
+        'APEX_IDE_WORKSPACE_PATH',
         expectedWorkspacePaths,
       );
 

@@ -12,7 +12,7 @@ import {
   type Config,
   UserAccountManager,
   AuthType,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import path from 'node:path';
 
 // Normalize paths to POSIX slashes for stable cross-platform snapshots.
@@ -121,7 +121,7 @@ const mockSessionStats = {
 describe('<Footer />', () => {
   beforeEach(() => {
     const root = path.parse(process.cwd()).root;
-    vi.stubEnv('GEMINI_CLI_HOME', path.join(root, 'Users', 'test'));
+    vi.stubEnv('APEX_HOME', path.join(root, 'Users', 'test'));
     vi.stubEnv('SANDBOX', '');
     vi.stubEnv('SEATBELT_PROFILE', '');
   });
@@ -351,7 +351,7 @@ describe('<Footer />', () => {
     });
 
     it('should display custom sandbox info when SANDBOX env is set', async () => {
-      vi.stubEnv('SANDBOX', 'gemini-cli-test-sandbox');
+      vi.stubEnv('SANDBOX', 'apex-test-sandbox');
       const { lastFrame, unmount } = await renderWithProviders(<Footer />, {
         config: mockConfig,
         width: 120,
@@ -392,7 +392,7 @@ describe('<Footer />', () => {
     });
 
     it('should prioritize untrusted message over sandbox info', async () => {
-      vi.stubEnv('SANDBOX', 'gemini-cli-test-sandbox');
+      vi.stubEnv('SANDBOX', 'apex-test-sandbox');
       const { lastFrame, unmount } = await renderWithProviders(<Footer />, {
         config: mockConfig,
         width: 120,

@@ -12,7 +12,7 @@ import {
   AuthType,
   type Config,
   ProjectIdRequiredError,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { AuthState } from '../types.js';
 import type { LoadedSettings } from '../../config/settings.js';
 
@@ -20,9 +20,9 @@ import type { LoadedSettings } from '../../config/settings.js';
 const mockLoadApiKey = vi.fn();
 const mockValidateAuthMethod = vi.fn();
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     loadApiKey: () => mockLoadApiKey(),
@@ -326,7 +326,7 @@ describe('useAuth', () => {
       });
 
       expect(result.current.authError).toBe(
-        'This account requires setting the GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID env var. See https://goo.gle/gemini-cli-auth-docs#workspace-gca',
+        'This account requires setting the GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID env var. See https://goo.gle/apex-auth-docs#workspace-gca',
       );
       expect(result.current.authError).not.toContain('Failed to login');
       expect(result.current.authState).toBe(AuthState.Updating);

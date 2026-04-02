@@ -523,7 +523,7 @@ describe('run_shell_command', () => {
       settings: { tools: { core: ['run_shell_command'] } },
     });
 
-    const varName = 'GEMINI_CLI_TEST_VAR';
+    const varName = 'APEX_TEST_VAR';
     const varValue = `test-value-${Math.random().toString(36).substring(7)}`;
     process.env[varName] = varValue;
 

@@ -33,7 +33,7 @@ vi.mock('../utils/paths.js', async (importOriginal) => {
 describe('Config Path Validation', () => {
   let config: Config;
   const targetDir = '/mock/workspace';
-  const globalGeminiDir = path.join(os.homedir(), '.gemini');
+  const globalGeminiDir = path.join(os.homedir(), '.apex');
 
   beforeEach(() => {
     config = new Config({
@@ -46,7 +46,7 @@ describe('Config Path Validation', () => {
   });
 
   it('should allow access to ~/.gemini if it is added to the workspace', () => {
-    const geminiMdPath = path.join(globalGeminiDir, 'GEMINI.md');
+    const geminiMdPath = path.join(globalGeminiDir, 'APEX.md');
 
     // Before adding, it should be denied
     expect(config.isPathAllowed(geminiMdPath)).toBe(false);

@@ -11,11 +11,11 @@ import {
   SessionEndReason,
   type Config,
   type HookSystem,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     writeToStdout: vi.fn(),
@@ -177,11 +177,11 @@ vi.mock('./utils/sessionCleanup.js', async (importOriginal) => {
 describe('gemini.tsx main function cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env['GEMINI_CLI_NO_RELAUNCH'] = 'true';
+    process.env['APEX_NO_RELAUNCH'] = 'true';
   });
 
   afterEach(() => {
-    delete process.env['GEMINI_CLI_NO_RELAUNCH'];
+    delete process.env['APEX_NO_RELAUNCH'];
     vi.restoreAllMocks();
   });
 

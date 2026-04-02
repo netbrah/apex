@@ -16,7 +16,7 @@ import {
   unlinkSync,
 } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { GEMINI_DIR } from '@google/gemini-cli-core';
+import { APEX_DIR } from '@apex-code/apex-core';
 import * as pty from '@lydell/node-pty';
 import { fileURLToPath } from 'node:url';
 
@@ -82,8 +82,8 @@ describe.skipIf(skipFlaky)(
           cwd: rig.testDir!,
           env: {
             ...process.env,
-            GEMINI_CLI_HOME: rig.homeDir!,
-            GEMINI_CLI_INTEGRATION_TEST: 'true',
+            APEX_HOME: rig.homeDir!,
+            APEX_INTEGRATION_TEST: 'true',
             GEMINI_PTY_INFO: 'node-pty',
           },
         });
@@ -104,7 +104,7 @@ describe.skipIf(skipFlaky)(
       // 2. Verify trustedFolders.json contains the REAL path, not the symlink path
       const trustedFoldersPath = join(
         rig.homeDir!,
-        GEMINI_DIR,
+        APEX_DIR,
         'trustedFolders.json',
       );
       // Wait for file to be written

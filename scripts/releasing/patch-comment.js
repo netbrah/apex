@@ -77,7 +77,7 @@ async function main() {
 
   const repo = {
     owner: process.env.GITHUB_REPOSITORY_OWNER || 'google-gemini',
-    repo: process.env.GITHUB_REPOSITORY_NAME || 'gemini-cli',
+    repo: process.env.GITHUB_REPOSITORY_NAME || 'apex',
   };
 
   // Get inputs from CLI args or environment
@@ -140,7 +140,7 @@ async function main() {
 
 **📝 What's Available:**
 - **GitHub Release**: [View release ${releaseTag}](https://github.com/${repo.owner}/${repo.repo}/releases/tag/${releaseTag})
-- **NPM Package**: \`npm install @google/gemini-cli@${npmTag}\`
+- **NPM Package**: \`npm install @apex-code/apex@${npmTag}\`
 
 **🔗 Links:**
 - [GitHub Release](https://github.com/${repo.owner}/${repo.repo}/releases/tag/${releaseTag})

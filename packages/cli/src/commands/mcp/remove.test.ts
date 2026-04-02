@@ -19,7 +19,7 @@ import { removeCommand } from './remove.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { GEMINI_DIR, debugLogger } from '@google/gemini-cli-core';
+import { APEX_DIR, debugLogger } from '@apex-code/apex-core';
 
 vi.mock('fs', async (importOriginal) => {
   const actualFs = await importOriginal<typeof fs>();
@@ -124,7 +124,7 @@ describe('mcp remove command', () => {
       vi.restoreAllMocks();
 
       tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-remove-test-'));
-      settingsDir = path.join(tempDir, GEMINI_DIR);
+      settingsDir = path.join(tempDir, APEX_DIR);
       settingsPath = path.join(settingsDir, 'settings.json');
       fs.mkdirSync(settingsDir, { recursive: true });
 

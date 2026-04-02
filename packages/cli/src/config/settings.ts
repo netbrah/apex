@@ -12,7 +12,7 @@ import process from 'node:process';
 import {
   CoreEvent,
   FatalConfigError,
-  GEMINI_DIR,
+  APEX_DIR,
   getErrorMessage,
   getFsErrorMessage,
   Storage,
@@ -20,7 +20,7 @@ import {
   homedir,
   type AdminControlsSettings,
   createCache,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import stripJsonComments from 'strip-json-comments';
 import { DefaultLight } from '../ui/themes/builtin/light/default-light.js';
 import { DefaultDark } from '../ui/themes/builtin/dark/default-dark.js';
@@ -590,7 +590,7 @@ export function loadEnvironment(
 
       const excludedVars =
         settings?.advanced?.excludedEnvVars || DEFAULT_EXCLUDED_ENV_VARS;
-      const isProjectEnvFile = !envFilePath.includes(GEMINI_DIR);
+      const isProjectEnvFile = !envFilePath.includes(APEX_DIR);
 
       for (const key in parsedEnv) {
         if (Object.hasOwn(parsedEnv, key)) {

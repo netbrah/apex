@@ -8,7 +8,7 @@ import { render } from '../../test-utils/render.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BackgroundTaskDisplay } from './BackgroundTaskDisplay.js';
 import { type BackgroundTask } from '../hooks/useExecutionLifecycle.js';
-import { ShellExecutionService } from '@google/gemini-cli-core';
+import { ShellExecutionService } from '@apex-code/apex-core';
 import { act } from 'react';
 import { type Key, type KeypressHandler } from '../contexts/KeypressContext.js';
 import { ScrollProvider } from '../contexts/ScrollProvider.js';
@@ -27,18 +27,18 @@ vi.mock('../contexts/UIActionsContext.js', () => ({
   }),
 }));
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     ShellExecutionService: {
       resizePty: vi.fn(),
       subscribe: vi.fn(() => vi.fn()),
       getLogFilePath: vi.fn(
-        (pid) => `~/.gemini/tmp/background-processes/background-${pid}.log`,
+        (pid) => `~/.apex/tmp/background-processes/background-${pid}.log`,
       ),
-      getLogDir: vi.fn(() => '~/.gemini/tmp/background-processes'),
+      getLogDir: vi.fn(() => '~/.apex/tmp/background-processes'),
     },
   };
 });

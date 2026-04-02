@@ -12,7 +12,7 @@ import { type UIState } from '../contexts/UIStateContext.js';
 import { type TextBuffer } from '../components/shared/text-buffer.js';
 import { type SessionStatsState } from '../contexts/SessionContext.js';
 import { type ThoughtSummary } from '../types.js';
-import { ApprovalMode } from '@google/gemini-cli-core';
+import { ApprovalMode } from '@apex-code/apex-core';
 
 vi.mock('../hooks/useComposerStatus.js', () => ({
   useComposerStatus: vi.fn(),

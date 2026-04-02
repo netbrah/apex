@@ -352,7 +352,7 @@ const targetDir = join(distDir, targetName);
 mkdirSync(targetDir, { recursive: true });
 
 const nodeBinary = process.execPath;
-const binaryName = platform === 'win32' ? 'gemini.exe' : 'gemini';
+const binaryName = platform === 'win32' ? 'gemini.exe' : 'apex';
 const targetBinaryPath = join(targetDir, binaryName);
 
 console.log(`Copying node binary from ${nodeBinary} to ${targetBinaryPath}...`);

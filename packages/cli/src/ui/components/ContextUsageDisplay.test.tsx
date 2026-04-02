@@ -8,9 +8,9 @@ import { renderWithProviders } from '../../test-utils/render.js';
 import { ContextUsageDisplay } from './ContextUsageDisplay.js';
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     tokenLimit: () => 10000,

@@ -18,11 +18,11 @@ import {
   ExtensionRegistryClient,
   type RegistryExtension,
 } from './extensionRegistryClient.js';
-import { fetchWithTimeout, resolveToRealPath } from '@google/gemini-cli-core';
+import { fetchWithTimeout, resolveToRealPath } from '@apex-code/apex-core';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     fetchWithTimeout: vi.fn(),

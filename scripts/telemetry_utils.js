@@ -13,20 +13,20 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
-import { GEMINI_DIR } from '@google/gemini-cli-core';
+import { APEX_DIR } from '@apex-code/apex-core';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const projectRoot = path.resolve(__dirname, '..');
 
-// Returns the home directory, respecting GEMINI_CLI_HOME
-const homedir = () => process.env['GEMINI_CLI_HOME'] || os.homedir();
+// Returns the home directory, respecting APEX_HOME
+const homedir = () => process.env['APEX_HOME'] || os.homedir();
 
 // User-level .gemini directory in home
-const USER_GEMINI_DIR = path.join(homedir(), GEMINI_DIR);
+const USER_APEX_DIR = path.join(homedir(), APEX_DIR);
 // Project-level .gemini directory in the workspace
-const WORKSPACE_GEMINI_DIR = path.join(projectRoot, GEMINI_DIR);
+const WORKSPACE_APEX_DIR = path.join(projectRoot, APEX_DIR);
 
 const projectHash = getProjectHash(projectRoot);
 
@@ -50,7 +50,7 @@ export function getJson(url) {
   try {
     const result = spawnSync(
       'curl',
-      ['-sL', '-H', 'User-Agent: gemini-cli-dev-script', '-o', tmpFile, url],
+      ['-sL', '-H', 'User-Agent: apex-dev-script', '-o', tmpFile, url],
       { stdio: 'pipe', encoding: 'utf-8' },
     );
     if (result.status !== 0) {

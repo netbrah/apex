@@ -389,7 +389,7 @@ ${finalExclusionPatternsForDescription
 
     // Discover JIT subdirectory context for all unique directories of processed files.
     // Run sequentially so each call sees paths marked as loaded by the previous
-    // one, preventing shared parent GEMINI.md files from being injected twice.
+    // one, preventing shared parent APEX.md files from being injected twice.
     const uniqueDirs = new Set(
       Array.from(filesToConsider).map((f) => path.dirname(f)),
     );

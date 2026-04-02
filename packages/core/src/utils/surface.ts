@@ -13,7 +13,7 @@ export const SURFACE_NOT_SET = 'terminal';
  * Determines the surface/distribution channel the CLI is running in.
  *
  * Priority:
- * 1. `GEMINI_CLI_SURFACE` env var (first-class override for enterprise customers)
+ * 1. `APEX_SURFACE` env var (first-class override for enterprise customers)
  * 2. `SURFACE` env var (legacy override, kept for backward compatibility)
  * 3. Auto-detection via environment variables (Cloud Shell, GitHub Actions, IDE, etc.)
  *
@@ -22,7 +22,7 @@ export const SURFACE_NOT_SET = 'terminal';
 export function determineSurface(): string {
   // Priority 1 & 2: Explicit overrides from environment variables.
   const customSurface =
-    process.env['GEMINI_CLI_SURFACE'] || process.env['SURFACE'];
+    process.env['APEX_SURFACE'] || process.env['SURFACE'];
   if (customSurface) {
     return customSurface;
   }

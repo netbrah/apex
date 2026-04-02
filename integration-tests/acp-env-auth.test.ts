@@ -60,7 +60,7 @@ describe.skip('ACP Environment and Auth', () => {
         stdio: ['pipe', 'pipe', 'inherit'],
         env: {
           ...process.env,
-          GEMINI_CLI_HOME: rig.homeDir!,
+          APEX_HOME: rig.homeDir!,
           GEMINI_API_KEY: undefined,
           VERBOSE: 'true',
         },
@@ -125,7 +125,7 @@ describe.skip('ACP Environment and Auth', () => {
         stdio: ['pipe', 'pipe', 'inherit'],
         env: {
           ...process.env,
-          GEMINI_CLI_HOME: rig.homeDir!,
+          APEX_HOME: rig.homeDir!,
           GEMINI_API_KEY: undefined,
           VERBOSE: 'true',
         },

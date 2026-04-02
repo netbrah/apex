@@ -35,7 +35,7 @@ import {
   debugLogger,
   CoreToolCallStatus,
   IntegrityDataStatus,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   type MockShellCommand,
   MockShellExecutionService,
@@ -88,9 +88,9 @@ vi.mock('../ui/contexts/StreamingContext.js', async (importOriginal) => {
 });
 
 // Mock core functions globally for tests using AppRig.
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   const { MockShellExecutionService: MockService } = await import(
     './MockShellExecutionService.js'
   );
@@ -183,7 +183,7 @@ export class AppRig {
     activeRigs.set(this.sessionId, this);
 
     // Pre-create the persistent state file to bypass the terminal setup prompt
-    const geminiDir = path.join(this.testDir, '.gemini');
+    const geminiDir = path.join(this.testDir, '.apex');
     if (!fs.existsSync(geminiDir)) {
       fs.mkdirSync(geminiDir, { recursive: true });
     }
@@ -244,7 +244,7 @@ export class AppRig {
 
   private setupEnvironment() {
     // Stub environment variables to avoid interference from developer's machine
-    vi.stubEnv('GEMINI_CLI_HOME', this.testDir);
+    vi.stubEnv('APEX_HOME', this.testDir);
     vi.stubEnv('TERM_PROGRAM', 'other');
     vi.stubEnv('VSCODE_GIT_IPC_HANDLE', '');
     if (this.options.fakeResponsesPath) {
@@ -265,7 +265,7 @@ export class AppRig {
   private createRigSettings(): LoadedSettings {
     return createMockSettings({
       user: {
-        path: path.join(this.testDir, '.gemini', 'user_settings.json'),
+        path: path.join(this.testDir, '.apex', 'user_settings.json'),
         settings: {
           security: {
             auth: {
@@ -324,7 +324,7 @@ export class AppRig {
       gcConfig.contentGeneratorConfig = newContentGeneratorConfig;
 
       // Initialize BaseLlmClient now that the ContentGenerator is available
-      const { BaseLlmClient } = await import('@google/gemini-cli-core');
+      const { BaseLlmClient } = await import('@apex-code/apex-core');
       gcConfig.baseLlmClient = new BaseLlmClient(
         gcConfig.contentGenerator,
         this.config!,

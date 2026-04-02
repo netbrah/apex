@@ -28,7 +28,7 @@ export interface HeadlessModeOptions {
  * @returns true if the environment is considered headless.
  */
 export function isHeadlessMode(options?: HeadlessModeOptions): boolean {
-  if (process.env['GEMINI_CLI_INTEGRATION_TEST'] !== 'true') {
+  if (process.env['APEX_INTEGRATION_TEST'] !== 'true') {
     const isCI =
       process.env['CI'] === 'true' || process.env['GITHUB_ACTIONS'] === 'true';
     if (isCI) {

@@ -26,7 +26,7 @@ import {
   type EditorType,
   hasValidEditorCommand,
   allowEditorTypeInSandbox,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 
 import { SettingPaths } from '../../config/settingPaths.js';

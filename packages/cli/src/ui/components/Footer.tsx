@@ -15,7 +15,7 @@ import {
   checkExhaustive,
   AuthType,
   UserAccountManager,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { ConsoleSummaryDisplay } from './ConsoleSummaryDisplay.js';
 import process from 'node:process';
 import { MemoryUsageDisplay } from './MemoryUsageDisplay.js';

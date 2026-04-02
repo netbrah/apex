@@ -27,7 +27,7 @@ describe('HooksDialog', () => {
       description: `Test hook: ${name}`,
       ...options?.config,
     },
-    source: options?.source ?? '/mock/path/GEMINI.md',
+    source: options?.source ?? '/mock/path/APEX.md',
     eventName,
     enabled,
     ...options,

@@ -8,8 +8,8 @@ Your Gemini CLI settings are stored in a `settings.json` file. In addition to
 using the `/settings` command, you can also edit them in one of the following
 locations:
 
-- **User settings**: `~/.gemini/settings.json`
-- **Workspace settings**: `your-project/.gemini/settings.json`
+- **User settings**: `~/.apex/settings.json`
+- **Workspace settings**: `your-project/.apex/settings.json`
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
@@ -62,7 +62,7 @@ they appear in the UI.
 | Show Shortcuts Hint                  | `ui.showShortcutsHint`                 | Show the "? for shortcuts" hint above the input.                                                                                                                  | `true`  |
 | Compact Tool Output                  | `ui.compactToolOutput`                 | Display tool outputs (like directory listings and file reads) in a compact, structured format.                                                                    | `false` |
 | Hide Banner                          | `ui.hideBanner`                        | Hide the application banner                                                                                                                                       | `false` |
-| Hide Context Summary                 | `ui.hideContextSummary`                | Hide the context summary (GEMINI.md, MCP servers) above the input.                                                                                                | `false` |
+| Hide Context Summary                 | `ui.hideContextSummary`                | Hide the context summary (APEX.md, MCP servers) above the input.                                                                                                | `false` |
 | Hide CWD                             | `ui.footer.hideCWD`                    | Hide the current working directory in the footer.                                                                                                                 | `false` |
 | Hide Sandbox Status                  | `ui.footer.hideSandboxStatus`          | Hide the sandbox status indicator in the footer.                                                                                                                  | `false` |
 | Hide Model Info                      | `ui.footer.hideModelInfo`              | Hide the model name and context usage in the footer.                                                                                                              | `false` |
@@ -115,7 +115,7 @@ they appear in the UI.
 | UI Label                             | Setting                                           | Description                                                                                                                                                                                                                                 | Default |
 | ------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | Memory Discovery Max Dirs            | `context.discoveryMaxDirs`                        | Maximum number of directories to search for memory.                                                                                                                                                                                         | `200`   |
-| Load Memory From Include Directories | `context.loadMemoryFromIncludeDirectories`        | Controls how /memory reload loads GEMINI.md files. When true, include directories are scanned; when false, only the current directory is used.                                                                                              | `false` |
+| Load Memory From Include Directories | `context.loadMemoryFromIncludeDirectories`        | Controls how /memory reload loads APEX.md files. When true, include directories are scanned; when false, only the current directory is used.                                                                                              | `false` |
 | Respect .gitignore                   | `context.fileFiltering.respectGitIgnore`          | Respect .gitignore files when searching.                                                                                                                                                                                                    | `true`  |
 | Respect .geminiignore                | `context.fileFiltering.respectGeminiIgnore`       | Respect .geminiignore files when searching.                                                                                                                                                                                                 | `true`  |
 | Enable Recursive File Search         | `context.fileFiltering.enableRecursiveFileSearch` | Enable recursive file search functionality when completing @ references in the prompt.                                                                                                                                                      | `true`  |

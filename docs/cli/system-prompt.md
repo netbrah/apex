@@ -23,12 +23,12 @@ project-specific behavior or create a customized persona.
 ## How to enable
 
 You can set the environment variable temporarily in your shell, or persist it
-via a `.gemini/.env` file. See
+via a `.apex/.env` file. See
 [Persisting Environment Variables](../get-started/authentication.md#persisting-environment-variables).
 
-- Use the project default path (`.gemini/system.md`):
+- Use the project default path (`.apex/system.md`):
   - `GEMINI_SYSTEM_MD=true` or `GEMINI_SYSTEM_MD=1`
-  - The CLI reads `./.gemini/system.md` (relative to your current project
+  - The CLI reads `./.apex/system.md` (relative to your current project
     directory).
 
 - Use a custom file path:
@@ -47,8 +47,8 @@ error with: `missing system prompt file '<path>'`.
 
 - One‑off session using a project file:
   - `GEMINI_SYSTEM_MD=1 gemini`
-- Persist for a project using `.gemini/.env`:
-  - Create `.gemini/system.md`, then add to `.gemini/.env`:
+- Persist for a project using `.apex/.env`:
+  - Create `.apex/system.md`, then add to `.apex/.env`:
     - `GEMINI_SYSTEM_MD=1`
 - Use a custom file under your home directory:
   - `GEMINI_SYSTEM_MD=~/prompts/SYSTEM.md gemini`
@@ -102,26 +102,26 @@ safety and workflow rules.
 
 This creates the file and writes the current built‑in system prompt to it.
 
-## Best practices: SYSTEM.md vs GEMINI.md
+## Best practices: SYSTEM.md vs APEX.md
 
 - SYSTEM.md (firmware):
   - Non‑negotiable operational rules: safety, tool‑use protocols, approvals, and
     mechanics that keep the CLI reliable.
   - Stable across tasks and projects (or per project when needed).
-- GEMINI.md (strategy):
+- APEX.md (strategy):
   - Persona, goals, methodologies, and project/domain context.
   - Evolves per task; relies on SYSTEM.md for safe execution.
 
 Keep SYSTEM.md minimal but complete for safety and tool operation. Keep
-GEMINI.md focused on high‑level guidance and project specifics.
+APEX.md focused on high‑level guidance and project specifics.
 
 ## Troubleshooting
 
 - Error: `missing system prompt file '…'`
   - Ensure the referenced path exists and is readable.
-  - For `GEMINI_SYSTEM_MD=1|true`, create `./.gemini/system.md` in your project.
+  - For `GEMINI_SYSTEM_MD=1|true`, create `./.apex/system.md` in your project.
 - Override not taking effect
-  - Confirm the variable is loaded (use `.gemini/.env` or export in your shell).
+  - Confirm the variable is loaded (use `.apex/.env` or export in your shell).
   - Paths are resolved from the current working directory; try an absolute path.
 - Restore defaults
   - Unset `GEMINI_SYSTEM_MD` or set it to `0`/`false`.

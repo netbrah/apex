@@ -186,7 +186,7 @@ export const getCachedStringWidth = (str: string): number => {
     width = stringWidth(str);
   } catch {
     // Fallback for characters that cause string-width to crash (e.g. U+0602)
-    // See: https://github.com/google-gemini/gemini-cli/issues/16418
+    // See: https://github.com/netbrah/apex/issues/16418
     width = toCodePoints(stripAnsi(str)).length;
   }
 

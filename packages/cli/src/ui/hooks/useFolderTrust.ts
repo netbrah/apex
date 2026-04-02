@@ -20,7 +20,7 @@ import {
   isHeadlessMode,
   FolderTrustDiscoveryService,
   type FolderDiscoveryResults,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { runExitCleanup } from '../../utils/cleanup.js';
 
 export const useFolderTrust = (
@@ -59,7 +59,7 @@ export const useFolderTrust = (
         addItem(
           {
             type: MessageType.INFO,
-            text: 'This folder is untrusted, project settings, hooks, MCPs, and GEMINI.md files will not be applied for this folder.\nUse the `/permissions` command to change the trust level.',
+            text: 'This folder is untrusted, project settings, hooks, MCPs, and APEX.md files will not be applied for this folder.\nUse the `/permissions` command to change the trust level.',
           },
           Date.now(),
         );

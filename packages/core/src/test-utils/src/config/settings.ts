@@ -10,14 +10,14 @@ import * as path from 'node:path';
 import {
   type MCPServerConfig,
   debugLogger,
-  GEMINI_DIR,
+  APEX_DIR,
   getErrorMessage,
   type TelemetrySettings,
   homedir,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import stripJsonComments from 'strip-json-comments';
 
-export const USER_SETTINGS_DIR = path.join(homedir(), GEMINI_DIR);
+export const USER_SETTINGS_DIR = path.join(homedir(), APEX_DIR);
 export const USER_SETTINGS_PATH = path.join(USER_SETTINGS_DIR, 'settings.json');
 
 // TODO: Ensure full compatibility with V2 nested settings structure (settings.schema.json).
@@ -66,7 +66,7 @@ export interface CheckpointingSettings {
  * Loads settings from user and workspace directories.
  * Project settings override user settings.
  *
- * How is it different to gemini-cli/cli: Returns already merged settings rather
+ * How is it different to apex/cli: Returns already merged settings rather
  * than `LoadedSettings` (unnecessary since we are not modifying users
  * settings.json).
  */
@@ -94,7 +94,7 @@ export function loadSettings(workspaceDir: string): Settings {
 
   const workspaceSettingsPath = path.join(
     workspaceDir,
-    GEMINI_DIR,
+    APEX_DIR,
     'settings.json',
   );
 

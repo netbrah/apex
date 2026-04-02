@@ -13,7 +13,7 @@ import {
   isSubagentProgress,
   checkExhaustive,
   type SubagentActivityItem,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   SubagentProgressDisplay,
   formatToolArgs,

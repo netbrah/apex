@@ -132,7 +132,7 @@ describe('createContentGenerator', () => {
     vi.stubEnv('TERM_PROGRAM', 'iTerm.app');
     vi.stubEnv('VSCODE_PID', '');
     vi.stubEnv('GITHUB_SHA', '');
-    vi.stubEnv('GEMINI_CLI_SURFACE', '');
+    vi.stubEnv('APEX_SURFACE', '');
 
     const mockGenerator = {
       models: {},
@@ -174,7 +174,7 @@ describe('createContentGenerator', () => {
     vi.stubEnv('TERM_PROGRAM', 'iTerm.app');
     vi.stubEnv('VSCODE_PID', '');
     vi.stubEnv('GITHUB_SHA', '');
-    vi.stubEnv('GEMINI_CLI_SURFACE', '');
+    vi.stubEnv('APEX_SURFACE', '');
 
     const mockGenerator = {
       models: {},
@@ -250,7 +250,7 @@ describe('createContentGenerator', () => {
     vi.stubEnv('TERM_PROGRAM', 'iTerm.app');
     vi.stubEnv('VSCODE_PID', '');
     vi.stubEnv('GITHUB_SHA', '');
-    vi.stubEnv('GEMINI_CLI_SURFACE', '');
+    vi.stubEnv('APEX_SURFACE', '');
 
     const mockGenerator = {
       models: {},
@@ -283,7 +283,7 @@ describe('createContentGenerator', () => {
       getClientName: vi.fn().mockReturnValue(undefined),
     } as unknown as Config;
 
-    vi.stubEnv('GEMINI_CLI_CUSTOM_HEADERS', 'User-Agent:MyCustomUA');
+    vi.stubEnv('APEX_CUSTOM_HEADERS', 'User-Agent:MyCustomUA');
 
     const mockGenerator = {
       models: {},
@@ -306,13 +306,13 @@ describe('createContentGenerator', () => {
     );
   });
 
-  it('should include custom headers from GEMINI_CLI_CUSTOM_HEADERS for Code Assist requests', async () => {
+  it('should include custom headers from APEX_CUSTOM_HEADERS for Code Assist requests', async () => {
     const mockGenerator = {} as unknown as ContentGenerator;
     vi.mocked(createCodeAssistContentGenerator).mockResolvedValue(
       mockGenerator as never,
     );
     vi.stubEnv(
-      'GEMINI_CLI_CUSTOM_HEADERS',
+      'APEX_CUSTOM_HEADERS',
       'X-Test-Header: test-value, Another-Header: another value',
     );
 
@@ -337,7 +337,7 @@ describe('createContentGenerator', () => {
     );
   });
 
-  it('should include custom headers from GEMINI_CLI_CUSTOM_HEADERS for GoogleGenAI requests without inferring auth mechanism', async () => {
+  it('should include custom headers from APEX_CUSTOM_HEADERS for GoogleGenAI requests without inferring auth mechanism', async () => {
     const mockConfig = {
       getModel: vi.fn().mockReturnValue('gemini-pro'),
       getProxy: vi.fn().mockReturnValue(undefined),
@@ -350,7 +350,7 @@ describe('createContentGenerator', () => {
     } as unknown as GoogleGenAI;
     vi.mocked(GoogleGenAI).mockImplementation(() => mockGenerator as never);
     vi.stubEnv(
-      'GEMINI_CLI_CUSTOM_HEADERS',
+      'APEX_CUSTOM_HEADERS',
       'X-Test-Header: test, Another: value',
     );
 

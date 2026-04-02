@@ -1,10 +1,10 @@
 {
-  "name": "@google/gemini-cli-a2a-server",
-  "version": "0.36.0-nightly.20260317.2f90b4653",
-  "description": "Gemini CLI A2A Server",
+  "name": "@apex-code/apex-a2a-server",
+  "version": "1.2.0",
+  "description": "APEX A2A Server",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/google-gemini/gemini-cli.git",
+    "url": "git+https://github.com/netbrah/apex.git",
     "directory": "packages/a2a-server"
   },
   "type": "module",
@@ -27,7 +27,7 @@
   "dependencies": {
     "@a2a-js/sdk": "0.3.11",
     "@google-cloud/storage": "^7.16.0",
-    "@google/gemini-cli-core": "file:../core",
+    "@apex-code/apex-core": "file:../core",
     "express": "^5.1.0",
     "fs-extra": "^11.3.0",
     "strip-json-comments": "^3.1.1",

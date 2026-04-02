@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Config, type ConfigParameters } from './config.js';
-import { createTmpDir, cleanupTmpDir } from '@google/gemini-cli-test-utils';
+import { createTmpDir, cleanupTmpDir } from '@apex-code/apex-test-utils';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { SubagentTool } from '../agents/subagent-tool.js';
@@ -35,8 +35,8 @@ describe('Config Agents Reload Integration', () => {
     // Create a temporary directory for the test
     tmpDir = await createTmpDir({});
 
-    // Create the .gemini/agents directory structure
-    await fs.mkdir(path.join(tmpDir, '.gemini', 'agents'), { recursive: true });
+    // Create the .apex/agents directory structure
+    await fs.mkdir(path.join(tmpDir, '.apex', 'agents'), { recursive: true });
   });
 
   afterEach(async () => {
@@ -46,7 +46,7 @@ describe('Config Agents Reload Integration', () => {
 
   it('should unregister subagents as tools when they are disabled after being enabled', async () => {
     const agentName = 'test-agent';
-    const agentPath = path.join(tmpDir, '.gemini', 'agents', `${agentName}.md`);
+    const agentPath = path.join(tmpDir, '.apex', 'agents', `${agentName}.md`);
 
     // Create agent definition file
     const agentContent = `---
@@ -109,7 +109,7 @@ Test System Prompt`;
 
   it('should not register subagents as tools when agents are disabled from the start', async () => {
     const agentName = 'test-agent-disabled';
-    const agentPath = path.join(tmpDir, '.gemini', 'agents', `${agentName}.md`);
+    const agentPath = path.join(tmpDir, '.apex', 'agents', `${agentName}.md`);
 
     const agentContent = `---
 name: ${agentName}
@@ -151,7 +151,7 @@ Test System Prompt`;
 
   it('should register subagents as tools even when they are not in allowedTools', async () => {
     const agentName = 'test-agent-allowed';
-    const agentPath = path.join(tmpDir, '.gemini', 'agents', `${agentName}.md`);
+    const agentPath = path.join(tmpDir, '.apex', 'agents', `${agentName}.md`);
 
     const agentContent = `---
 name: ${agentName}
@@ -193,7 +193,7 @@ Test System Prompt`;
 
   it('should register subagents as tools when they are enabled after being disabled', async () => {
     const agentName = 'test-agent-enable';
-    const agentPath = path.join(tmpDir, '.gemini', 'agents', `${agentName}.md`);
+    const agentPath = path.join(tmpDir, '.apex', 'agents', `${agentName}.md`);
 
     const agentContent = `---
 name: ${agentName}

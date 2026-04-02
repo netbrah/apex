@@ -103,7 +103,7 @@ async function main() {
     eventName: process.env.GITHUB_EVENT_NAME || 'pull_request',
     repo: {
       owner: process.env.GITHUB_REPOSITORY_OWNER || 'google-gemini',
-      repo: process.env.GITHUB_REPOSITORY_NAME || 'gemini-cli',
+      repo: process.env.GITHUB_REPOSITORY_NAME || 'apex',
     },
     payload: JSON.parse(process.env.GITHUB_EVENT_PAYLOAD || '{}'),
   };

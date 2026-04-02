@@ -27,7 +27,7 @@ import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import type { Content } from '@google/genai';
 import os from 'node:os';
-import { GEMINI_DIR } from '../utils/paths.js';
+import { APEX_DIR } from '../utils/paths.js';
 import { debugLogger } from '../utils/debugLogger.js';
 
 const PROJECT_SLUG = 'project-slug';
@@ -35,9 +35,9 @@ const TMP_DIR_NAME = 'tmp';
 const LOG_FILE_NAME = 'logs.json';
 const CHECKPOINT_FILE_NAME = 'checkpoint.json';
 
-const TEST_GEMINI_DIR = path.join(
+const TEST_APEX_DIR = path.join(
   os.homedir(),
-  GEMINI_DIR,
+  APEX_DIR,
   TMP_DIR_NAME,
   PROJECT_SLUG,
 );
@@ -48,14 +48,14 @@ let testLogFilePath: string;
 let testCheckpointFilePath: string;
 
 const setTestPaths = () => {
-  testGeminiDir = path.join(os.homedir(), GEMINI_DIR_NAME, TMP_DIR_NAME, hash);
+  testGeminiDir = path.join(os.homedir(), APEX_DIR_NAME, TMP_DIR_NAME, hash);
   testLogFilePath = path.join(testGeminiDir, LOG_FILE_NAME);
   testCheckpointFilePath = path.join(testGeminiDir, CHECKPOINT_FILE_NAME);
 };
 
 async function cleanupLogAndCheckpointFiles() {
   try {
-    await fs.rm(TEST_GEMINI_DIR, { recursive: true, force: true });
+    await fs.rm(TEST_APEX_DIR, { recursive: true, force: true });
   } catch {
     // Ignore errors, as the directory may not exist, which is fine.
   }
@@ -539,7 +539,7 @@ describe('Logger', () => {
       const tag = 'legacy-tag';
       const encodedTag = 'legacy-tag';
       const taggedFilePath = path.join(
-        TEST_GEMINI_DIR,
+        TEST_APEX_DIR,
         `checkpoint-${encodedTag}.json`,
       );
       await fs.writeFile(taggedFilePath, JSON.stringify(conversation, null, 2));

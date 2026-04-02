@@ -17,8 +17,8 @@ import {
   debugLogger,
   applyAdminAllowlist,
   getAdminBlockedMcpServersMessage,
-} from '@google/gemini-cli-core';
-import type { MCPServerConfig } from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
+import type { MCPServerConfig } from '@apex-code/apex-core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import {

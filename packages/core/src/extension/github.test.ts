@@ -28,12 +28,12 @@ import { EventEmitter } from 'node:events';
 import type {
   GeminiCLIExtension,
   ExtensionInstallMetadata,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { ExtensionConfig } from '../extension.js';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     Storage: {

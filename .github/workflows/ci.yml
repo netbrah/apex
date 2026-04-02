@@ -44,7 +44,7 @@ jobs:
       - id: 'merge-queue-ci-skipper'
         uses: 'cariad-tech/merge-queue-ci-skipper@1032489e59437862c90a08a2c92809c903883772' # ratchet:cariad-tech/merge-queue-ci-skipper@main
         with:
-          secret: '${{ secrets.GEMINI_CLI_ROBOT_GITHUB_PAT }}'
+          secret: '${{ secrets.APEX_ROBOT_GITHUB_PAT }}'
 
   lint:
     name: 'Lint'
@@ -188,10 +188,10 @@ jobs:
           NO_COLOR: true
         run: |
           if [[ "${{ matrix.shard }}" == "cli" ]]; then
-            npm run test:ci --workspace @google/gemini-cli
+            npm run test:ci --workspace @apex-code/apex
           else
             # Explicitly list non-cli packages to ensure they are sharded correctly
-            npm run test:ci --workspace @google/gemini-cli-core --workspace @google/gemini-cli-a2a-server --workspace gemini-cli-vscode-ide-companion --workspace @google/gemini-cli-test-utils --if-present -- --coverage.enabled=false
+            npm run test:ci --workspace @apex-code/apex-core --workspace @apex-code/apex-a2a-server --workspace gemini-cli-vscode-ide-companion --workspace @apex-code/apex-test-utils --if-present -- --coverage.enabled=false
             npm run test:scripts
           fi
 
@@ -276,10 +276,10 @@ jobs:
           NO_COLOR: true
         run: |
           if [[ "${{ matrix.shard }}" == "cli" ]]; then
-            npm run test:ci --workspace @google/gemini-cli -- --coverage.enabled=false
+            npm run test:ci --workspace @apex-code/apex -- --coverage.enabled=false
           else
             # Explicitly list non-cli packages to ensure they are sharded correctly
-            npm run test:ci --workspace @google/gemini-cli-core --workspace @google/gemini-cli-a2a-server --workspace gemini-cli-vscode-ide-companion --workspace @google/gemini-cli-test-utils --if-present -- --coverage.enabled=false
+            npm run test:ci --workspace @apex-code/apex-core --workspace @apex-code/apex-a2a-server --workspace gemini-cli-vscode-ide-companion --workspace @apex-code/apex-test-utils --if-present -- --coverage.enabled=false
             npm run test:scripts
           fi
 
@@ -442,10 +442,10 @@ jobs:
           NODE_ENV: 'test'
         run: |
           if ("${{ matrix.shard }}" -eq "cli") {
-            npm run test:ci --workspace @google/gemini-cli -- --coverage.enabled=false
+            npm run test:ci --workspace @apex-code/apex -- --coverage.enabled=false
           } else {
             # Explicitly list non-cli packages to ensure they are sharded correctly
-            npm run test:ci --workspace @google/gemini-cli-core --workspace @google/gemini-cli-a2a-server --workspace gemini-cli-vscode-ide-companion --workspace @google/gemini-cli-test-utils --if-present -- --coverage.enabled=false
+            npm run test:ci --workspace @apex-code/apex-core --workspace @apex-code/apex-a2a-server --workspace gemini-cli-vscode-ide-companion --workspace @apex-code/apex-test-utils --if-present -- --coverage.enabled=false
             npm run test:scripts
           }
         shell: 'pwsh'

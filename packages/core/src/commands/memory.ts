@@ -82,11 +82,11 @@ export function listMemoryFiles(config: Config): MessageActionReturn {
   let content: string;
 
   if (fileCount > 0) {
-    content = `There are ${fileCount} GEMINI.md file(s) in use:\n\n${filePaths.join(
+    content = `There are ${fileCount} APEX.md file(s) in use:\n\n${filePaths.join(
       '\n',
     )}`;
   } else {
-    content = 'No GEMINI.md files in use.';
+    content = 'No APEX.md files in use.';
   }
 
   return {

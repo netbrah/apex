@@ -11,8 +11,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { PREVIEW_GEMINI_MODEL, GEMINI_DIR } from '@google/gemini-cli-core';
-export { GEMINI_DIR };
+import { PREVIEW_GEMINI_MODEL, APEX_DIR } from '@apex-code/apex-core';
+export { APEX_DIR };
 import * as pty from '@lydell/node-pty';
 import stripAnsi from 'strip-ansi';
 import * as os from 'node:os';
@@ -420,10 +420,10 @@ export class TestRig {
   }
 
   private _createSettingsFile(overrideSettings?: Record<string, unknown>) {
-    const projectGeminiDir = join(this.testDir!, GEMINI_DIR);
+    const projectGeminiDir = join(this.testDir!, APEX_DIR);
     mkdirSync(projectGeminiDir, { recursive: true });
 
-    const userGeminiDir = join(this.homeDir!, GEMINI_DIR);
+    const userGeminiDir = join(this.homeDir!, APEX_DIR);
     mkdirSync(userGeminiDir, { recursive: true });
 
     // In sandbox mode, use an absolute path for telemetry inside the container
@@ -480,7 +480,7 @@ export class TestRig {
 
   private _createStateFile(overrideState?: Record<string, unknown>) {
     if (!this.homeDir) throw new Error('TestRig homeDir is not initialized');
-    const userGeminiDir = join(this.homeDir, GEMINI_DIR);
+    const userGeminiDir = join(this.homeDir, APEX_DIR);
     mkdirSync(userGeminiDir, { recursive: true });
 
     const state = deepMerge(
@@ -616,12 +616,12 @@ export class TestRig {
 
     // Update settings in workspace and home
     const updateSettings = (dir: string) => {
-      const settingsPath = join(dir, GEMINI_DIR, 'settings.json');
+      const settingsPath = join(dir, APEX_DIR, 'settings.json');
       let settings: any = {};
       if (fs.existsSync(settingsPath)) {
         settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
       } else {
-        fs.mkdirSync(join(dir, GEMINI_DIR), { recursive: true });
+        fs.mkdirSync(join(dir, APEX_DIR), { recursive: true });
       }
 
       if (!settings.mcpServers) {
@@ -657,9 +657,9 @@ export class TestRig {
         key !== 'GOOGLE_API_KEY' &&
         key !== 'GEMINI_MODEL' &&
         key !== 'GEMINI_DEBUG' &&
-        key !== 'GEMINI_CLI_TEST_VAR' &&
-        key !== 'GEMINI_CLI_INTEGRATION_TEST' &&
-        !key.startsWith('GEMINI_CLI_ACTIVITY_LOG')
+        key !== 'APEX_TEST_VAR' &&
+        key !== 'APEX_INTEGRATION_TEST' &&
+        !key.startsWith('APEX_ACTIVITY_LOG')
       ) {
         delete cleanEnv[key];
       }
@@ -667,7 +667,7 @@ export class TestRig {
 
     return {
       ...cleanEnv,
-      GEMINI_CLI_HOME: this.homeDir!,
+      APEX_HOME: this.homeDir!,
       GEMINI_PTY_INFO: 'child_process',
       ...extraEnv,
     };

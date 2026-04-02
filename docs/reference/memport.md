@@ -1,12 +1,12 @@
 # Memory Import Processor
 
 The Memory Import Processor is a feature that allows you to modularize your
-GEMINI.md files by importing content from other files using the `@file.md`
+APEX.md files by importing content from other files using the `@file.md`
 syntax.
 
 ## Overview
 
-This feature enables you to break down large GEMINI.md files into smaller, more
+This feature enables you to break down large APEX.md files into smaller, more
 manageable components that can be reused across different contexts. The import
 processor supports both relative and absolute paths, with built-in safety
 features to prevent circular imports and ensure file access security.
@@ -16,7 +16,7 @@ features to prevent circular imports and ensure file access security.
 Use the `@` symbol followed by the path to the file you want to import:
 
 ```markdown
-# Main GEMINI.md file
+# Main APEX.md file
 
 This is the main content.
 
@@ -44,7 +44,7 @@ More content here.
 ### Basic import
 
 ```markdown
-# My GEMINI.md
+# My APEX.md
 
 Welcome to my project!
 
@@ -125,14 +125,14 @@ structures.
 
 The processor returns an import tree that shows the hierarchy of imported files,
 similar to Claude's `/memory` feature. This helps users debug problems with
-their GEMINI.md files by showing which files were read and their import
+their APEX.md files by showing which files were read and their import
 relationships.
 
 Example tree structure:
 
 ```
 Memory Files
- L project: GEMINI.md
+ L project: APEX.md
             L a.md
               L b.md
                 L c.md
@@ -160,7 +160,7 @@ for reconstructing the hierarchy if needed.
 
 ### `processImports(content, basePath, debugMode?, importState?)`
 
-Processes import statements in GEMINI.md content.
+Processes import statements in APEX.md content.
 
 **Parameters:**
 

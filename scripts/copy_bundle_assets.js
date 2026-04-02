@@ -82,7 +82,7 @@ const devtoolsDest = join(
   bundleDir,
   'node_modules',
   '@google',
-  'gemini-cli-devtools',
+  'apex-devtools',
 );
 const devtoolsDistSrc = join(devtoolsSrc, 'dist');
 if (existsSync(devtoolsDistSrc)) {
@@ -104,7 +104,7 @@ const bundleMcpDest = join(bundleDir, 'bundled');
 if (!existsSync(bundleMcpSrc)) {
   console.error(
     `Error: chrome-devtools-mcp bundle not found at ${bundleMcpSrc}.\n` +
-      `Run "npm run bundle:browser-mcp -w @google/gemini-cli-core" first.`,
+      `Run "npm run bundle:browser-mcp -w @apex-code/apex-core" first.`,
   );
   process.exit(1);
 }

@@ -56,10 +56,10 @@ describe('sanitizeEnvironment', () => {
     });
   });
 
-  it('should allow variables prefixed with GEMINI_CLI_', () => {
+  it('should allow variables prefixed with APEX_', () => {
     const env = {
-      GEMINI_CLI_FOO: 'bar',
-      GEMINI_CLI_BAZ: 'qux',
+      APEX_FOO: 'bar',
+      APEX_BAZ: 'qux',
     };
     const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
     expect(sanitized).toEqual(env);
@@ -210,7 +210,7 @@ describe('sanitizeEnvironment', () => {
       // Allowed
       PATH: '/usr/bin',
       HOME: '/home/user',
-      GEMINI_CLI_VERSION: '1.2.3',
+      APEX_VERSION: '1.2.3',
       NODE_ENV: 'production',
       // Redacted by name
       API_KEY: 'should-be-redacted',
@@ -225,7 +225,7 @@ describe('sanitizeEnvironment', () => {
     expect(sanitized).toEqual({
       PATH: '/usr/bin',
       HOME: '/home/user',
-      GEMINI_CLI_VERSION: '1.2.3',
+      APEX_VERSION: '1.2.3',
       NODE_ENV: 'production',
     });
   });
@@ -263,9 +263,9 @@ describe('sanitizeEnvironment', () => {
       expect(sanitized).toEqual({ OTHER: 'fine' });
     });
 
-    it('should NOT redact GEMINI_CLI_ variables even if their value looks like a secret (fully trusted)', () => {
+    it('should NOT redact APEX_ variables even if their value looks like a secret (fully trusted)', () => {
       const env = {
-        GEMINI_CLI_INTERNAL: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        APEX_INTERNAL: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       };
       const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
       expect(sanitized).toEqual(env);

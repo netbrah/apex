@@ -11,9 +11,9 @@ import {
   CoreToolCallStatus,
   ApprovalMode,
   makeFakeConfig,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { type UIState } from './contexts/UIStateContext.js';
-import type { SerializableConfirmationDetails } from '@google/gemini-cli-core';
+import type { SerializableConfirmationDetails } from '@apex-code/apex-core';
 import { act } from 'react';
 import { StreamingState } from './types.js';
 

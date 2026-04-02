@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger, isGitRepository } from '@google/gemini-cli-core';
+import { debugLogger, isGitRepository } from '@apex-code/apex-core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as childProcess from 'node:child_process';
@@ -97,7 +97,7 @@ export function getInstallationInfo(
     if (process.platform === 'darwin') {
       try {
         const brewPrefix = childProcess
-          .execSync('brew --prefix gemini-cli', {
+          .execSync('brew --prefix apex', {
             encoding: 'utf8',
             stdio: ['ignore', 'pipe', 'ignore'],
           })
@@ -109,11 +109,11 @@ export function getInstallationInfo(
             packageManager: PackageManager.HOMEBREW,
             isGlobal: true,
             updateMessage:
-              'Installed via Homebrew. Please update with "brew upgrade gemini-cli".',
+              'Installed via Homebrew. Please update with "brew upgrade apex".',
           };
         }
       } catch {
-        // Brew is not installed or gemini-cli is not installed via brew.
+        // Brew is not installed or apex is not installed via brew.
         // Continue to the next check.
       }
     }
@@ -123,7 +123,7 @@ export function getInstallationInfo(
       realPath.includes('/.pnpm/global') ||
       realPath.includes('/.local/share/pnpm')
     ) {
-      const updateCommand = 'pnpm add -g @google/gemini-cli@latest';
+      const updateCommand = 'pnpm add -g @apex-code/apex@latest';
       return {
         packageManager: PackageManager.PNPM,
         isGlobal: true,
@@ -156,7 +156,7 @@ export function getInstallationInfo(
       };
     }
     if (realPath.includes('/.bun/install/global')) {
-      const updateCommand = 'bun add -g @google/gemini-cli@latest';
+      const updateCommand = 'bun add -g @apex-code/apex@latest';
       return {
         packageManager: PackageManager.BUN,
         isGlobal: true,

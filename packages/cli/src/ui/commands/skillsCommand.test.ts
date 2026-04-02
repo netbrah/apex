@@ -9,7 +9,7 @@ import { skillsCommand } from './skillsCommand.js';
 import { MessageType, type HistoryItemSkillsList } from '../types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import type { CommandContext } from './types.js';
-import type { Config, SkillDefinition } from '@google/gemini-cli-core';
+import type { Config, SkillDefinition } from '@apex-code/apex-core';
 import {
   SettingScope,
   type LoadedSettings,
@@ -468,7 +468,7 @@ describe('skillsCommand', () => {
       expect(context.ui.addItem).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.ERROR,
-          text: 'Agent skills is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
+          text: 'Agent skills is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
         }),
         expect.any(Number),
       );
@@ -487,7 +487,7 @@ describe('skillsCommand', () => {
       expect(context.ui.addItem).toHaveBeenCalledWith(
         expect.objectContaining({
           type: MessageType.ERROR,
-          text: 'Agent skills is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
+          text: 'Agent skills is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
         }),
         expect.any(Number),
       );

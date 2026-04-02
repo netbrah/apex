@@ -9,7 +9,7 @@ import {
   sessionId as globalSessionId,
   Logger,
   type Storage,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { ConfigContext } from '../contexts/ConfigContext.js';
 
 /**
@@ -25,7 +25,7 @@ export const useLogger = (storage: Storage): Logger | null => {
 
     /**
      * Start async initialization, no need to await. Using await slows down the
-     * time from launch to see the gemini-cli prompt and it's better to not save
+     * time from launch to see the apex prompt and it's better to not save
      * messages than for the cli to hanging waiting for the logger to loading.
      */
     newLogger

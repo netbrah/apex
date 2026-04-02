@@ -26,7 +26,7 @@ import {
   loadAgentsFromDirectory,
   loadSkillsFromDir,
   getRealPath,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   loadSettings,
   createTestMergedSettings,
@@ -107,9 +107,9 @@ const mockIntegrityManager = vi.hoisted(() => ({
   verify: vi.fn().mockResolvedValue('verified'),
   store: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     logExtensionEnable: mockLogExtensionEnable,
@@ -197,10 +197,10 @@ describe('extension tests', () => {
     });
     vi.mocked(loadSkillsFromDir).mockResolvedValue([]);
     tempHomeDir = getRealPath(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-test-home-')),
+      fs.mkdtempSync(path.join(os.tmpdir(), 'apex-test-home-')),
     );
     tempWorkspaceDir = getRealPath(
-      fs.mkdtempSync(path.join(tempHomeDir, 'gemini-cli-test-workspace-')),
+      fs.mkdtempSync(path.join(tempHomeDir, 'apex-test-workspace-')),
     );
     userExtensionsDir = path.join(tempHomeDir, EXTENSIONS_DIRECTORY_NAME);
     mockRequestConsent = vi.fn();
@@ -270,7 +270,7 @@ describe('extension tests', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should load context file path when GEMINI.md is present', async () => {
+    it('should load context file path when APEX.md is present', async () => {
       createExtension({
         extensionsDir: userExtensionsDir,
         name: 'ext1',
@@ -289,7 +289,7 @@ describe('extension tests', () => {
       const ext1 = extensions.find((e) => e.name === 'ext1');
       const ext2 = extensions.find((e) => e.name === 'ext2');
       expect(ext1?.contextFiles).toEqual([
-        path.join(userExtensionsDir, 'ext1', 'GEMINI.md'),
+        path.join(userExtensionsDir, 'ext1', 'APEX.md'),
       ]);
       expect(ext2?.contextFiles).toEqual([]);
     });
@@ -1417,7 +1417,7 @@ name = "yolo-checker"
     it('should add the workspace to trusted folders if user consents', async () => {
       const trustedFoldersPath = path.join(
         tempHomeDir,
-        '.gemini',
+        '.apex',
         'trustedFolders.json',
       );
       vi.mocked(isWorkspaceTrusted).mockReturnValue({

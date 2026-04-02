@@ -19,7 +19,7 @@ import {
   mergeSettings,
   type LoadedSettings,
 } from '../../config/settings.js';
-import { createTransport, debugLogger } from '@google/gemini-cli-core';
+import { createTransport, debugLogger } from '@apex-code/apex-core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { ExtensionStorage } from '../../config/extensions/storage.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
@@ -39,9 +39,9 @@ vi.mock('../../config/extensions/storage.js', () => ({
   },
 }));
 vi.mock('../../config/extension-manager.js');
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...original,
     createTransport: vi.fn(),
@@ -57,14 +57,14 @@ vi.mock('@google/gemini-cli-core', async (importOriginal) => {
       vi.fn().mockImplementation((_cwd: string) => ({
         getGlobalSettingsPath: () => '/tmp/gemini/settings.json',
         getWorkspaceSettingsPath: () => '/tmp/gemini/workspace-settings.json',
-        getProjectTempDir: () => '/test/home/.gemini/tmp/mocked_hash',
+        getProjectTempDir: () => '/test/home/.apex/tmp/mocked_hash',
       })),
       {
         getGlobalSettingsPath: () => '/tmp/gemini/settings.json',
         getGlobalGeminiDir: () => '/tmp/gemini',
       },
     ),
-    GEMINI_DIR: '.gemini',
+    APEX_DIR: '.apex',
     getErrorMessage: (e: unknown) =>
       e instanceof Error ? e.message : String(e),
   };

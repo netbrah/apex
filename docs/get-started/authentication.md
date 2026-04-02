@@ -353,10 +353,10 @@ persist them with the following methods:
 > paths in your shell configuration file, any process launched from that
 > shell can read them.
 
-2.  **Use a `.env` file:** Create a `.gemini/.env` file in your project
+2.  **Use a `.env` file:** Create a `.apex/.env` file in your project
     directory or home directory. Gemini CLI automatically loads variables from
     the first `.env` file it finds, searching up from the current directory,
-    then in your home directory's `.gemini/.env` (for example, `~/.gemini/.env`
+    then in your home directory's `.apex/.env` (for example, `~/.apex/.env`
     or `%USERPROFILE%\.gemini\.env`).
 
     Example for user-wide settings:
@@ -365,7 +365,7 @@ persist them with the following methods:
 
     ```bash
     mkdir -p ~/.gemini
-    cat >> ~/.gemini/.env <<'EOF'
+    cat >> ~/.apex/.env <<'EOF'
     GOOGLE_CLOUD_PROJECT="your-project-id"
     # Add other variables like GEMINI_API_KEY as needed
     EOF

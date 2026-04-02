@@ -486,7 +486,7 @@ describe('ReadFileTool', () => {
       expect(result.returnDisplay).toBe('');
     });
 
-    describe('with .geminiignore', () => {
+    describe('with .apexignore', () => {
       beforeEach(async () => {
         await fsp.writeFile(
           path.join(tempRootDir, GEMINI_IGNORE_FILE_NAME),

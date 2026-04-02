@@ -41,7 +41,7 @@ import {
   getTransformedImagePath,
 } from './text-buffer.js';
 import { cpLen } from '../../utils/textUtils.js';
-import { escapePath } from '@google/gemini-cli-core';
+import { escapePath } from '@apex-code/apex-core';
 
 const defaultVisualLayout: VisualLayout = {
   visualLines: [''],
@@ -1151,7 +1151,7 @@ describe('useTextBuffer', () => {
     let tempDir: string;
 
     beforeEach(() => {
-      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-test-'));
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-test-'));
     });
 
     afterEach(() => {

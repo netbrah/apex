@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import type {
   ConversationRecord,
   MessageRecord,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   calculateTurnStats,
   calculateRewindImpact,

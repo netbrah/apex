@@ -20,7 +20,7 @@ import {
   PROMPT_COMPLETION_MIN_LENGTH,
   type PromptCompletion,
 } from './usePromptCompletion.js';
-import type { Config } from '@google/gemini-cli-core';
+import type { Config } from '@apex-code/apex-core';
 import { useCompletion } from './useCompletion.js';
 
 export enum CompletionMode {

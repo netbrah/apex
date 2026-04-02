@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ChatRecordingService, type Config } from '@google/gemini-cli-core';
+import { ChatRecordingService, type Config } from '@apex-code/apex-core';
 import { listSessions, deleteSession } from './sessions.js';
 import { SessionSelector, type SessionInfo } from './sessionUtils.js';
 
@@ -20,8 +20,8 @@ vi.mock('./sessionUtils.js', () => ({
   formatRelativeTime: vi.fn(() => 'some time ago'),
 }));
 
-vi.mock('@google/gemini-cli-core', async () => {
-  const actual = await vi.importActual('@google/gemini-cli-core');
+vi.mock('@apex-code/apex-core', async () => {
+  const actual = await vi.importActual('@apex-code/apex-core');
   return {
     ...actual,
     ChatRecordingService: vi.fn(),

@@ -14,16 +14,16 @@ import {
   debugLogger,
   TOOL_OUTPUTS_DIR,
   Storage,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { Settings } from '../config/settings.js';
 import {
   cleanupExpiredSessions,
   cleanupToolOutputFiles,
 } from './sessionCleanup.js';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     debugLogger: {
@@ -44,7 +44,7 @@ describe('Session Cleanup (Refactored)', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     testTempDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'gemini-cli-cleanup-test-'),
+      path.join(os.tmpdir(), 'apex-cleanup-test-'),
     );
     chatsDir = path.join(testTempDir, 'chats');
     logsDir = path.join(testTempDir, 'logs');

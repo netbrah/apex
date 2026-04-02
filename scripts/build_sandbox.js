@@ -81,7 +81,7 @@ const dockerFile = argv.f;
 
 if (!image.length) {
   console.warn(
-    'No default image tag specified in gemini-cli/packages/cli/package.json',
+    'No default image tag specified in apex/packages/cli/package.json',
   );
 }
 

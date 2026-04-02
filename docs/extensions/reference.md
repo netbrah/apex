@@ -103,7 +103,7 @@ gemini extensions link <path>
 
 ## Extension format
 
-Gemini CLI loads extensions from `<home>/.gemini/extensions`. Each extension
+Gemini CLI loads extensions from `<home>/.apex/extensions`. Each extension
 must have a `gemini-extension.json` file in its root directory.
 
 ### `gemini-extension.json`
@@ -122,11 +122,11 @@ The manifest file defines the extension's behavior and configuration.
       "cwd": "${extensionPath}"
     }
   },
-  "contextFileName": "GEMINI.md",
+  "contextFileName": "APEX.md",
   "excludeTools": ["run_shell_command"],
   "migratedTo": "https://github.com/new-owner/new-extension-repo",
   "plan": {
-    "directory": ".gemini/plans"
+    "directory": ".apex/plans"
   }
 }
 ```
@@ -157,7 +157,7 @@ The manifest file defines the extension's behavior and configuration.
     instead of putting them both in `command`.
 - `contextFileName`: The name of the file that contains the context for the
   extension. This will be used to load the context from the extension directory.
-  If this property is not used but a `GEMINI.md` file is present in your
+  If this property is not used but a `APEX.md` file is present in your
   extension directory, then that file will be loaded.
 - `excludeTools`: An array of tool names to exclude from the model. You can also
   specify command-specific restrictions for tools that support it, like the
@@ -169,7 +169,7 @@ The manifest file defines the extension's behavior and configuration.
   - `directory`: The directory where planning artifacts are stored. This serves
     as a fallback if the user hasn't specified a plan directory in their
     settings. If not specified by either the extension or the user, the default
-    is `~/.gemini/tmp/<project>/<session-id>/plans/`.
+    is `~/.apex/tmp/<project>/<session-id>/plans/`.
 
 When Gemini CLI starts, it loads all the extensions and merges their
 configurations. If there are any conflicts, the workspace configuration takes

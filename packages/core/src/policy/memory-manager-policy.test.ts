@@ -26,10 +26,10 @@ describe('Memory Manager Policy', () => {
     });
   });
 
-  it('should allow save_memory to read ~/.gemini/GEMINI.md', async () => {
+  it('should allow save_memory to read ~/.apex/APEX.md', async () => {
     const toolCall = {
       name: 'read_file',
-      args: { file_path: '~/.gemini/GEMINI.md' },
+      args: { file_path: '~/.apex/APEX.md' },
     };
     const result = await engine.check(
       toolCall,
@@ -40,10 +40,10 @@ describe('Memory Manager Policy', () => {
     expect(result.decision).toBe(PolicyDecision.ALLOW);
   });
 
-  it('should allow save_memory to write ~/.gemini/GEMINI.md', async () => {
+  it('should allow save_memory to write ~/.apex/APEX.md', async () => {
     const toolCall = {
       name: 'write_file',
-      args: { file_path: '~/.gemini/GEMINI.md', content: 'test' },
+      args: { file_path: '~/.apex/APEX.md', content: 'test' },
     };
     const result = await engine.check(
       toolCall,
@@ -54,10 +54,10 @@ describe('Memory Manager Policy', () => {
     expect(result.decision).toBe(PolicyDecision.ALLOW);
   });
 
-  it('should allow save_memory to list ~/.gemini/', async () => {
+  it('should allow save_memory to list ~/.apex/', async () => {
     const toolCall = {
       name: 'list_directory',
-      args: { dir_path: '~/.gemini/' },
+      args: { dir_path: '~/.apex/' },
     };
     const result = await engine.check(
       toolCall,
@@ -79,7 +79,7 @@ describe('Memory Manager Policy', () => {
       undefined,
       'save_memory',
     );
-    // The memory-manager policy only matches .gemini/ paths.
+    // The memory-manager policy only matches .apex/ paths.
     // Other paths fall through to the global read_file allow rule (priority 50).
     expect(result.decision).toBe(PolicyDecision.ALLOW);
   });
@@ -87,7 +87,7 @@ describe('Memory Manager Policy', () => {
   it('should not match paths where .gemini is a substring (e.g. not.gemini)', async () => {
     const toolCall = {
       name: 'read_file',
-      args: { file_path: '/tmp/not.gemini/evil' },
+      args: { file_path: '/tmp/not.apex/evil' },
     };
     const result = await engine.check(
       toolCall,
@@ -95,16 +95,16 @@ describe('Memory Manager Policy', () => {
       undefined,
       'save_memory',
     );
-    // The tighter argsPattern requires .gemini/ to be preceded by start-of-string
-    // or a path separator, so "not.gemini/" should NOT match the memory-manager rule.
+    // The tighter argsPattern requires .apex/ to be preceded by start-of-string
+    // or a path separator, so "not.apex/" should NOT match the memory-manager rule.
     // It falls through to the global read_file allow rule instead.
     expect(result.decision).toBe(PolicyDecision.ALLOW);
   });
 
-  it('should fall through to global allow rule for other agents accessing ~/.gemini/', async () => {
+  it('should fall through to global allow rule for other agents accessing ~/.apex/', async () => {
     const toolCall = {
       name: 'read_file',
-      args: { file_path: '~/.gemini/GEMINI.md' },
+      args: { file_path: '~/.apex/APEX.md' },
     };
     const result = await engine.check(
       toolCall,

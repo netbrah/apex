@@ -13,7 +13,7 @@ import {
   spawnAsync,
   escapePath,
   Storage,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 /**
  * Supported image file extensions based on Gemini API.

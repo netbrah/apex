@@ -18,7 +18,7 @@ import { Storage } from '../config/storage.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
-import { GEMINI_DIR, homedir as pathsHomedir } from '../utils/paths.js';
+import { APEX_DIR, homedir as pathsHomedir } from '../utils/paths.js';
 import { spawnAsync } from '../utils/shell-utils.js';
 
 const PROJECT_SLUG = 'project-slug';
@@ -177,7 +177,7 @@ describe('GitService', () => {
     let gitConfigPath: string;
 
     beforeEach(async () => {
-      repoDir = path.join(homedir, GEMINI_DIR, 'history', PROJECT_SLUG);
+      repoDir = path.join(homedir, APEX_DIR, 'history', PROJECT_SLUG);
       gitConfigPath = path.join(repoDir, '.gitconfig');
     });
 

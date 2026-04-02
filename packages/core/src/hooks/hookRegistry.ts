@@ -152,7 +152,7 @@ export class HookRegistry {
 ${untrusted.map((h) => `  - ${h}`).join('\n')}
 
 These hooks will be executed. If you did not configure these hooks or do not trust this project,
-please review the project settings (.gemini/settings.json) and remove them.`;
+please review the project settings (.apex/settings.json) and remove them.`;
         coreEvents.emitFeedback('warning', message);
 
         // Trust them so we don't warn again

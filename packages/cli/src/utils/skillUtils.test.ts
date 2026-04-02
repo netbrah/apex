@@ -17,7 +17,7 @@ describe('skillUtils', () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-utils-test-'));
     vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
-    vi.stubEnv('GEMINI_CLI_HOME', tempDir);
+    vi.stubEnv('APEX_HOME', tempDir);
   });
 
   afterEach(async () => {
@@ -50,7 +50,7 @@ describe('skillUtils', () => {
         expect(skills.length).toBe(1);
         expect(skills[0].name).toBe('test-skill');
 
-        const linkedPath = path.join(tempDir, '.gemini/skills', 'test-skill');
+        const linkedPath = path.join(tempDir, '.apex/skills', 'test-skill');
         const stats = await fs.lstat(linkedPath);
         expect(stats.isSymbolicLink()).toBe(true);
 
@@ -70,7 +70,7 @@ describe('skillUtils', () => {
           '---\nname: test-skill\ndescription: test\n---\nbody',
         );
 
-        const targetDir = path.join(tempDir, '.gemini/skills');
+        const targetDir = path.join(tempDir, '.apex/skills');
         await fs.mkdir(targetDir, { recursive: true });
         const existingPath = path.join(targetDir, 'test-skill');
         await fs.mkdir(existingPath);
@@ -105,7 +105,7 @@ describe('skillUtils', () => {
       expect(requestConsent).toHaveBeenCalled();
 
       // Verify it was NOT linked
-      const linkedPath = path.join(tempDir, '.gemini/skills', 'test-skill');
+      const linkedPath = path.join(tempDir, '.apex/skills', 'test-skill');
       const exists = await fs.lstat(linkedPath).catch(() => null);
       expect(exists).toBeNull();
     });
@@ -152,7 +152,7 @@ describe('skillUtils', () => {
     expect(skills[0].name).toBe('weather-skill');
 
     // Verify it was copied to the workspace skills dir
-    const installedPath = path.join(tempDir, '.gemini/skills', 'weather-skill');
+    const installedPath = path.join(tempDir, '.apex/skills', 'weather-skill');
     const installedExists = await fs.stat(installedPath).catch(() => null);
     expect(installedExists?.isDirectory()).toBe(true);
 
@@ -181,7 +181,7 @@ describe('skillUtils', () => {
     expect(skills.length).toBe(1);
     expect(skills[0].name).toBe('test-skill');
 
-    const installedPath = path.join(tempDir, '.gemini/skills', 'test-skill');
+    const installedPath = path.join(tempDir, '.apex/skills', 'test-skill');
     const installedExists = await fs.stat(installedPath).catch(() => null);
     expect(installedExists?.isDirectory()).toBe(true);
   });
@@ -210,14 +210,14 @@ describe('skillUtils', () => {
     expect(requestConsent).toHaveBeenCalled();
 
     // Verify it was NOT copied
-    const installedPath = path.join(tempDir, '.gemini/skills', 'test-skill');
+    const installedPath = path.join(tempDir, '.apex/skills', 'test-skill');
     const installedExists = await fs.stat(installedPath).catch(() => null);
     expect(installedExists).toBeNull();
   });
 
   describe('uninstallSkill', () => {
     it('should successfully uninstall an existing skill', async () => {
-      const skillsDir = path.join(tempDir, '.gemini/skills');
+      const skillsDir = path.join(tempDir, '.apex/skills');
       const skillDir = path.join(skillsDir, 'test-skill');
       await fs.mkdir(skillDir, { recursive: true });
       await fs.writeFile(
@@ -250,7 +250,7 @@ describe('skillUtils', () => {
         );
 
         // 2. Link it
-        const skillsDir = path.join(tempDir, '.gemini/skills');
+        const skillsDir = path.join(tempDir, '.apex/skills');
         await fs.mkdir(skillsDir, { recursive: true });
         const destPath = path.join(skillsDir, 'original-name');
         await fs.symlink(sourceDir, destPath, 'dir');
@@ -272,7 +272,7 @@ describe('skillUtils', () => {
     );
 
     it('should successfully uninstall a skill by directory name if metadata is missing (fallback)', async () => {
-      const skillsDir = path.join(tempDir, '.gemini/skills');
+      const skillsDir = path.join(tempDir, '.apex/skills');
       const skillDir = path.join(skillsDir, 'test-skill-dir');
       await fs.mkdir(skillDir, { recursive: true });
       // No SKILL.md here

@@ -64,7 +64,7 @@ describe('OAuthCredentialStorage', () => {
     updatedAt: expect.any(Number),
   };
 
-  const oldFilePath = '/mock/home/.gemini/oauth.json';
+  const oldFilePath = '/mock/home/.apex/oauth.json';
 
   beforeEach(() => {
     vi.spyOn(mockHybridTokenStorage, 'getCredentials').mockResolvedValue(null);

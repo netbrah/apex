@@ -14,7 +14,7 @@ import {
   getTruncatedCheckpointNames,
   performRestore,
   type ToolCallData,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   type CommandContext,
   type SlashCommand,

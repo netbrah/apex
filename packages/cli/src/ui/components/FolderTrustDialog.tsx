@@ -23,7 +23,7 @@ import { runExitCleanup } from '../../utils/cleanup.js';
 import {
   ExitCodes,
   type FolderDiscoveryResults,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { useAlternateBuffer } from '../hooks/useAlternateBuffer.js';
 import { OverflowProvider } from '../contexts/OverflowContext.js';

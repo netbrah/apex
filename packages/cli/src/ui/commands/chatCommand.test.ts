@@ -9,7 +9,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { SlashCommand, CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import type { Content } from '@google/genai';
-import { AuthType, type GeminiClient } from '@google/gemini-cli-core';
+import { AuthType, type GeminiClient } from '@apex-code/apex-core';
 
 import * as fsPromises from 'node:fs/promises';
 import { chatCommand, debugCommand } from './chatCommand.js';
@@ -77,7 +77,7 @@ describe('chatCommand', () => {
               authType: AuthType.LOGIN_WITH_GOOGLE,
             }),
             storage: {
-              getProjectTempDir: () => '/project/root/.gemini/tmp/mockhash',
+              getProjectTempDir: () => '/project/root/.apex/tmp/mockhash',
             },
           },
           geminiClient: {
@@ -449,7 +449,7 @@ describe('chatCommand', () => {
     beforeEach(() => {
       shareCommand = getSubCommand('share');
       vi.spyOn(process, 'cwd').mockReturnValue(
-        path.resolve('/usr/local/google/home/myuser/gemini-cli'),
+        path.resolve('/usr/local/google/home/myuser/apex'),
       );
       vi.spyOn(Date, 'now').mockReturnValue(1234567890);
       mockGetHistory.mockReturnValue(mockHistory);

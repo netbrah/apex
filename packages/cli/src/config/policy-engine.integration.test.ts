@@ -9,14 +9,14 @@ import {
   ApprovalMode,
   PolicyDecision,
   PolicyEngine,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { createPolicyEngineConfig } from './policy.js';
 import type { Settings } from './settings.js';
 
 // Mock Storage to ensure tests are hermetic and don't read from user's home directory
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   const Storage = actual.Storage;
   // Monkey-patch static methods
   Storage.getUserPoliciesDir = () => '/non-existent/user/policies';
@@ -416,11 +416,11 @@ describe('Policy Engine Integration Tests', () => {
 
           // Valid plan file paths
           const validPaths = [
-            '/home/user/.gemini/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/session-1/plans/my-plan.md',
-            '/home/user/.gemini/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/session-1/plans/feature_auth.md',
-            '/home/user/.gemini/tmp/new-temp_dir_123/session-1/plans/plan.md', // new style of temp directory
+            '/home/user/.apex/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/session-1/plans/my-plan.md',
+            '/home/user/.apex/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/session-1/plans/feature_auth.md',
+            '/home/user/.apex/tmp/new-temp_dir_123/session-1/plans/plan.md', // new style of temp directory
             'C:\\Users\\user\\.gemini\\tmp\\project-id\\session-id\\plans\\plan.md',
-            'D:\\gemini-cli\\.gemini\\tmp\\project-id\\session-1\\plans\\plan.md', // no session ID
+            'D:\\apex\\.gemini\\tmp\\project-id\\session-1\\plans\\plan.md', // no session ID
           ];
 
           for (const file_path of validPaths) {
@@ -445,10 +445,10 @@ describe('Policy Engine Integration Tests', () => {
 
           const invalidPaths = [
             '/project/src/file.ts', // Workspace
-            '/home/user/.gemini/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/plans/script.js', // Wrong extension
-            '/home/user/.gemini/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/plans/../../../etc/passwd.md', // Path traversal (Unix)
+            '/home/user/.apex/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/plans/script.js', // Wrong extension
+            '/home/user/.apex/tmp/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/plans/../../../etc/passwd.md', // Path traversal (Unix)
             'C:\\Users\\user\\.gemini\\tmp\\id\\session\\plans\\..\\..\\..\\Windows\\System32\\config\\SAM', // Path traversal (Windows)
-            '/home/user/.gemini/non-tmp/new-temp_dir_123/plans/plan.md', // outside of temp dir
+            '/home/user/.apex/non-tmp/new-temp_dir_123/plans/plan.md', // outside of temp dir
           ];
 
           for (const file_path of invalidPaths) {

@@ -21,7 +21,7 @@ import {
   type AgentOverride,
   type CustomTheme,
   type SandboxConfig,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { SessionRetentionSettings } from './settings.js';
 import { DEFAULT_MIN_RETENTION } from '../utils/sessionCleanup.js';
 
@@ -751,7 +751,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: false,
         description:
-          'Hide the context summary (GEMINI.md, MCP servers) above the input.',
+          'Hide the context summary (APEX.md, MCP servers) above the input.',
         showInDialog: true,
       },
       footer: {
@@ -1605,7 +1605,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: true,
         default: ['.git'] as string[],
         description:
-          'File or directory names that mark the boundary for GEMINI.md discovery. ' +
+          'File or directory names that mark the boundary for APEX.md discovery. ' +
           'The upward traversal stops at the first directory containing any of these markers. ' +
           'An empty array disables parent traversal.',
         showInDialog: false,
@@ -1632,7 +1632,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: false,
         description: oneLine`
-          Controls how /memory reload loads GEMINI.md files.
+          Controls how /memory reload loads APEX.md files.
           When true, include directories are scanned; when false, only the current directory is used.
         `,
         showInDialog: true,
@@ -1661,7 +1661,7 @@ const SETTINGS_SCHEMA = {
             category: 'Context',
             requiresRestart: true,
             default: true,
-            description: 'Respect .geminiignore files when searching.',
+            description: 'Respect .apexignore files when searching.',
             showInDialog: true,
           },
           enableRecursiveFileSearch: {
@@ -1691,7 +1691,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: [] as string[],
             description:
-              'Additional ignore file paths to respect. These files take precedence over .geminiignore and .gitignore. Files earlier in the array take precedence over files later in the array, e.g. the first file takes precedence over the second one.',
+              'Additional ignore file paths to respect. These files take precedence over .apexignore and .gitignore. Files earlier in the array take precedence over files later in the array, e.g. the first file takes precedence over the second one.',
             showInDialog: true,
             items: { type: 'string' },
             mergeStrategy: MergeStrategy.UNION,

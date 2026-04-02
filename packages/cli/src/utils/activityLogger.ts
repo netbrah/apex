@@ -16,7 +16,7 @@ import {
   debugLogger,
   type ConsoleLogPayload,
   type Config,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import WebSocket from 'ws';
 
 const ACTIVITY_ID_HEADER = 'x-activity-request-id';

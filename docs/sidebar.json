@@ -168,7 +168,7 @@
             "slug": "docs/cli/generation-settings"
           },
           {
-            "label": "Project context (GEMINI.md)",
+            "label": "Project context (APEX.md)",
             "slug": "docs/cli/gemini-md"
           },
           { "label": "Settings", "slug": "docs/cli/settings" },

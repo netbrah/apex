@@ -9,13 +9,13 @@ import {
   listMemoryFiles,
   refreshMemory,
   showMemory,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type {
   Command,
   CommandContext,
   CommandExecutionResponse,
 } from './types.js';
-import type { AgentLoopContext } from '@google/gemini-cli-core';
+import type { AgentLoopContext } from '@apex-code/apex-core';
 
 const DEFAULT_SANITIZATION_CONFIG = {
   allowedEnvironmentVariables: [],
@@ -71,7 +71,7 @@ export class RefreshMemoryCommand implements Command {
 
 export class ListMemoryCommand implements Command {
   readonly name = 'memory list';
-  readonly description = 'Lists the paths of the GEMINI.md files in use.';
+  readonly description = 'Lists the paths of the APEX.md files in use.';
 
   async execute(
     context: CommandContext,

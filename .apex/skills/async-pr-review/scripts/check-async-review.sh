@@ -12,7 +12,7 @@ if [[ -z "${base_dir}" ]]; then
   exit 1
 fi
 
-log_dir="${base_dir}/.gemini/tmp/async-reviews/pr-${pr_number}/logs"
+log_dir="${base_dir}/.apex/tmp/async-reviews/pr-${pr_number}/logs"
 
 if [[ ! -d "${log_dir}" ]]; then
   echo "STATUS: NOT_FOUND"

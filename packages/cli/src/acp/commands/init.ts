@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { performInit } from '@google/gemini-cli-core';
+import { performInit } from '@apex-code/apex-core';
 import type {
   Command,
   CommandContext,
@@ -15,7 +15,7 @@ import type {
 
 export class InitCommand implements Command {
   name = 'init';
-  description = 'Analyzes the project and creates a tailored GEMINI.md file';
+  description = 'Analyzes the project and creates a tailored APEX.md file';
   requiresWorkspace = true;
 
   async execute(
@@ -27,7 +27,7 @@ export class InitCommand implements Command {
       throw new Error('Command requires a workspace.');
     }
 
-    const geminiMdPath = path.join(targetDir, 'GEMINI.md');
+    const geminiMdPath = path.join(targetDir, 'APEX.md');
     const result = performInit(fs.existsSync(geminiMdPath));
 
     switch (result.type) {
@@ -45,13 +45,13 @@ export class InitCommand implements Command {
 
         // Inform the user since we can't trigger the UI-based interactive agent loop here directly.
         // We output the prompt text they can use to re-trigger the generation manually,
-        // or just seed the GEMINI.md file as we've done above.
+        // or just seed the APEX.md file as we've done above.
         return {
           name: this.name,
           data: {
             type: 'message',
             messageType: 'info',
-            content: `A template GEMINI.md has been created at ${geminiMdPath}.\n\nTo populate it with project context, you can run the following prompt in a new chat:\n\n${result.content}`,
+            content: `A template APEX.md has been created at ${geminiMdPath}.\n\nTo populate it with project context, you can run the following prompt in a new chat:\n\n${result.content}`,
           },
         };
 

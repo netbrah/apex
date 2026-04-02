@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 import { execSync } from 'node:child_process';
 import { ProxyAgent } from 'undici';
 import { createDebugLogger } from '@apex-code/apex-core';
@@ -90,7 +90,7 @@ export const getLatestGitHubRelease = async (
     return releaseTag;
   } catch (error) {
     debugLogger.debug(
-      `Failed to determine latest run-gemini-cli release:`,
+      `Failed to determine latest run-apex release:`,
       error,
     );
     throw new Error(

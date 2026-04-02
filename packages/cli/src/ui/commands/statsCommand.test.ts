@@ -10,11 +10,11 @@ import { type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import { MessageType } from '../types.js';
 import { formatDuration } from '../utils/formatters.js';
-import type { Config } from '@google/gemini-cli-core';
+import type { Config } from '@apex-code/apex-core';
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     UserAccountManager: vi.fn().mockImplementation(() => ({

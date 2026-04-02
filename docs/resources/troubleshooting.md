@@ -120,7 +120,7 @@ topics on:
     debug mode for gemini-cli.
   - **Cause:** The `DEBUG` and `DEBUG_MODE` variables are automatically excluded
     from project `.env` files to prevent interference with gemini-cli behavior.
-  - **Solution:** Use a `.gemini/.env` file instead, or configure the
+  - **Solution:** Use a `.apex/.env` file instead, or configure the
     `advanced.excludedEnvVars` setting in your `settings.json` to exclude fewer
     variables.
 
@@ -183,7 +183,7 @@ This is especially useful for scripting and automation.
 
 If you encounter an issue that was not covered here in this _Troubleshooting
 guide_, consider searching the Gemini CLI
-[Issue tracker on GitHub](https://github.com/google-gemini/gemini-cli/issues).
+[Issue tracker on GitHub](https://github.com/netbrah/apex/issues).
 If you can't find an issue similar to yours, consider creating a new GitHub
 Issue with a detailed description. Pull requests are also welcome!
 

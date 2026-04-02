@@ -17,19 +17,19 @@ describe('AcknowledgedAgentsService', () => {
 
   beforeEach(async () => {
     // Create a unique temp directory for each test
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gemini-cli-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-test-'));
 
-    // Override GEMINI_CLI_HOME to point to the temp directory
-    originalGeminiCliHome = process.env['GEMINI_CLI_HOME'];
-    process.env['GEMINI_CLI_HOME'] = tempDir;
+    // Override APEX_HOME to point to the temp directory
+    originalGeminiCliHome = process.env['APEX_HOME'];
+    process.env['APEX_HOME'] = tempDir;
   });
 
   afterEach(async () => {
     // Restore environment variable
     if (originalGeminiCliHome) {
-      process.env['GEMINI_CLI_HOME'] = originalGeminiCliHome;
+      process.env['APEX_HOME'] = originalGeminiCliHome;
     } else {
-      delete process.env['GEMINI_CLI_HOME'];
+      delete process.env['APEX_HOME'];
     }
 
     // Clean up temp directory

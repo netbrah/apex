@@ -12,8 +12,8 @@ import {
   isTelemetrySdkInitialized,
   ExitCodes,
   resetBrowserSession,
-} from '@google/gemini-cli-core';
-import type { Config } from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
+import type { Config } from '@apex-code/apex-core';
 
 const cleanupFunctions: Array<(() => void) | (() => Promise<void>)> = [];
 const syncCleanupFunctions: Array<() => void> = [];
@@ -60,7 +60,7 @@ export function registerTelemetryConfig(config: Config) {
 
 export async function runExitCleanup() {
   // drain stdin to prevent printing garbage on exit
-  // https://github.com/google-gemini/gemini-cli/issues/16801
+  // https://github.com/netbrah/apex/issues/16801
   await drainStdin();
 
   runSyncCleanup();
@@ -116,7 +116,7 @@ async function drainStdin() {
  * Guards against concurrent shutdown from signals (SIGHUP, SIGTERM, SIGINT)
  * and TTY loss detection racing each other.
  *
- * @see https://github.com/google-gemini/gemini-cli/issues/15874
+ * @see https://github.com/netbrah/apex/issues/15874
  */
 async function gracefulShutdown(_reason: string) {
   if (isShuttingDown) {

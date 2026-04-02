@@ -229,7 +229,7 @@ If you are using Gemini CLI within a sandbox, please be aware of the following:
 - **Message:**
   `🔴 Disconnected: Failed to connect to IDE companion extension in [IDE Name]. Please ensure the extension is running. To install the extension, run /ide install.`
   - **Cause:** Gemini CLI could not find the necessary environment variables
-    (`GEMINI_CLI_IDE_WORKSPACE_PATH` or `GEMINI_CLI_IDE_SERVER_PORT`) to connect
+    (`APEX_IDE_WORKSPACE_PATH` or `APEX_IDE_SERVER_PORT`) to connect
     to the IDE. This usually means the IDE companion extension is not running or
     did not initialize correctly.
   - **Solution:**
@@ -248,19 +248,19 @@ If you are using Gemini CLI within a sandbox, please be aware of the following:
 
 If automatic IDE detection fails, or if you are running Gemini CLI in a
 standalone terminal and want to manually associate it with a specific IDE
-instance, you can set the `GEMINI_CLI_IDE_PID` environment variable to the
+instance, you can set the `APEX_IDE_PID` environment variable to the
 process ID (PID) of your IDE.
 
 **macOS/Linux**
 
 ```bash
-export GEMINI_CLI_IDE_PID=12345
+export APEX_IDE_PID=12345
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-$env:GEMINI_CLI_IDE_PID=12345
+$env:APEX_IDE_PID=12345
 ```
 
 When this variable is set, Gemini CLI will skip automatic detection and attempt

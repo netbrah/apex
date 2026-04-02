@@ -150,7 +150,7 @@ function shouldRedactEnvironmentVariable(
   key = key.toUpperCase();
   value = value?.toUpperCase();
 
-  if (key.startsWith('GEMINI_CLI_')) {
+  if (key.startsWith('APEX_')) {
     return false;
   }
 

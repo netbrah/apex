@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as path from 'node:path';
 import { loadCliConfig, type CliArgs } from './config.js';
 import { createTestMergedSettings } from './settings.js';
-import * as ServerConfig from '@google/gemini-cli-core';
+import * as ServerConfig from '@apex-code/apex-core';
 import { isWorkspaceTrusted } from './trustedFolders.js';
 import * as Policy from './policy.js';
 
@@ -20,9 +20,9 @@ vi.mock('./trustedFolders.js', () => ({
 const mockCheckIntegrity = vi.fn();
 const mockAcceptIntegrity = vi.fn();
 
-vi.mock('@google/gemini-cli-core', async () => {
+vi.mock('@apex-code/apex-core', async () => {
   const actual = await vi.importActual<typeof ServerConfig>(
-    '@google/gemini-cli-core',
+    '@apex-code/apex-core',
   );
   return {
     ...actual,
@@ -84,7 +84,7 @@ describe('Workspace-Level Policy CLI Integration', () => {
     expect(ServerConfig.createPolicyEngineConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         workspacePoliciesDir: expect.stringContaining(
-          path.join('.gemini', 'policies'),
+          path.join('.apex', 'policies'),
         ),
       }),
       expect.anything(),
@@ -165,7 +165,7 @@ describe('Workspace-Level Policy CLI Integration', () => {
     expect(ServerConfig.createPolicyEngineConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         workspacePoliciesDir: expect.stringContaining(
-          path.join('.gemini', 'policies'),
+          path.join('.apex', 'policies'),
         ),
       }),
       expect.anything(),
@@ -205,7 +205,7 @@ describe('Workspace-Level Policy CLI Integration', () => {
     expect(ServerConfig.createPolicyEngineConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         workspacePoliciesDir: expect.stringContaining(
-          path.join('.gemini', 'policies'),
+          path.join('.apex', 'policies'),
         ),
       }),
       expect.anything(),
@@ -243,7 +243,7 @@ describe('Workspace-Level Policy CLI Integration', () => {
     expect(ServerConfig.createPolicyEngineConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         workspacePoliciesDir: expect.stringContaining(
-          path.join('.gemini', 'policies'),
+          path.join('.apex', 'policies'),
         ),
       }),
       expect.anything(),
@@ -282,7 +282,7 @@ describe('Workspace-Level Policy CLI Integration', () => {
       expect(config.getPolicyUpdateConfirmationRequest()).toEqual({
         scope: 'workspace',
         identifier: MOCK_CWD,
-        policyDir: expect.stringContaining(path.join('.gemini', 'policies')),
+        policyDir: expect.stringContaining(path.join('.apex', 'policies')),
         newHash: 'new-hash',
       });
       expect(ServerConfig.createPolicyEngineConfig).toHaveBeenCalledWith(

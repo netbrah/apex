@@ -8,7 +8,7 @@ import {
   listExtensions,
   type Config,
   getErrorMessage,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { SettingScope } from '../../config/settings.js';
 import {
   ExtensionManager,

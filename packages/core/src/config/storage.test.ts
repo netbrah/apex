@@ -24,7 +24,7 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 import { Storage } from './storage.js';
-import { GEMINI_DIR, homedir, resolveToRealPath } from '../utils/paths.js';
+import { APEX_DIR, homedir, resolveToRealPath } from '../utils/paths.js';
 import { ProjectRegistry } from './projectRegistry.js';
 import { StorageMigration } from './storageMigration.js';
 
@@ -52,7 +52,7 @@ describe('Storage – initialize', () => {
   it('sets up the registry and performs migration if `getProjectTempDir` is called', async () => {
     await storage.initialize();
     expect(storage.getProjectTempDir()).toBe(
-      path.join(os.homedir(), GEMINI_DIR, 'tmp', PROJECT_SLUG),
+      path.join(os.homedir(), APEX_DIR, 'tmp', PROJECT_SLUG),
     );
 
     // Verify registry initialization
@@ -80,8 +80,8 @@ vi.mock('../utils/paths.js', async (importOriginal) => {
 });
 
 describe('Storage – getGlobalSettingsPath', () => {
-  it('returns path to ~/.gemini/settings.json', () => {
-    const expected = path.join(os.homedir(), GEMINI_DIR, 'settings.json');
+  it('returns path to ~/.apex/settings.json', () => {
+    const expected = path.join(os.homedir(), APEX_DIR, 'settings.json');
     expect(Storage.getGlobalSettingsPath()).toBe(expected);
   });
 });
@@ -92,7 +92,7 @@ describe('Storage - Security', () => {
 
     // .gemini falls back for backward compatibility
     expect(Storage.getGlobalGeminiDir()).toBe(
-      path.join(os.tmpdir(), GEMINI_DIR),
+      path.join(os.tmpdir(), APEX_DIR),
     );
 
     // .agents returns empty to avoid insecure fallback WITHOUT throwing error
@@ -112,46 +112,46 @@ describe('Storage – additional helpers', () => {
       .mockReturnValue(PROJECT_SLUG);
   });
 
-  it('getWorkspaceSettingsPath returns project/.gemini/settings.json', () => {
-    const expected = path.join(projectRoot, GEMINI_DIR, 'settings.json');
+  it('getWorkspaceSettingsPath returns project/.apex/settings.json', () => {
+    const expected = path.join(projectRoot, APEX_DIR, 'settings.json');
     expect(storage.getWorkspaceSettingsPath()).toBe(expected);
   });
 
-  it('getUserCommandsDir returns ~/.gemini/commands', () => {
-    const expected = path.join(os.homedir(), GEMINI_DIR, 'commands');
+  it('getUserCommandsDir returns ~/.apex/commands', () => {
+    const expected = path.join(os.homedir(), APEX_DIR, 'commands');
     expect(Storage.getUserCommandsDir()).toBe(expected);
   });
 
-  it('getProjectCommandsDir returns project/.gemini/commands', () => {
-    const expected = path.join(projectRoot, GEMINI_DIR, 'commands');
+  it('getProjectCommandsDir returns project/.apex/commands', () => {
+    const expected = path.join(projectRoot, APEX_DIR, 'commands');
     expect(storage.getProjectCommandsDir()).toBe(expected);
   });
 
-  it('getUserSkillsDir returns ~/.gemini/skills', () => {
-    const expected = path.join(os.homedir(), GEMINI_DIR, 'skills');
+  it('getUserSkillsDir returns ~/.apex/skills', () => {
+    const expected = path.join(os.homedir(), APEX_DIR, 'skills');
     expect(Storage.getUserSkillsDir()).toBe(expected);
   });
 
-  it('getProjectSkillsDir returns project/.gemini/skills', () => {
-    const expected = path.join(projectRoot, GEMINI_DIR, 'skills');
+  it('getProjectSkillsDir returns project/.apex/skills', () => {
+    const expected = path.join(projectRoot, APEX_DIR, 'skills');
     expect(storage.getProjectSkillsDir()).toBe(expected);
   });
 
-  it('getUserAgentsDir returns ~/.gemini/agents', () => {
-    const expected = path.join(os.homedir(), GEMINI_DIR, 'agents');
+  it('getUserAgentsDir returns ~/.apex/agents', () => {
+    const expected = path.join(os.homedir(), APEX_DIR, 'agents');
     expect(Storage.getUserAgentsDir()).toBe(expected);
   });
 
-  it('getProjectAgentsDir returns project/.gemini/agents', () => {
-    const expected = path.join(projectRoot, GEMINI_DIR, 'agents');
+  it('getProjectAgentsDir returns project/.apex/agents', () => {
+    const expected = path.join(projectRoot, APEX_DIR, 'agents');
     expect(storage.getProjectAgentsDir()).toBe(expected);
   });
 
-  it('getProjectMemoryDir returns ~/.gemini/tmp/<identifier>/memory', async () => {
+  it('getProjectMemoryDir returns ~/.apex/tmp/<identifier>/memory', async () => {
     await storage.initialize();
     const expected = path.join(
       os.homedir(),
-      GEMINI_DIR,
+      APEX_DIR,
       'tmp',
       PROJECT_SLUG,
       'memory',
@@ -159,28 +159,28 @@ describe('Storage – additional helpers', () => {
     expect(storage.getProjectMemoryDir()).toBe(expected);
   });
 
-  it('getMcpOAuthTokensPath returns ~/.gemini/mcp-oauth-tokens.json', () => {
+  it('getMcpOAuthTokensPath returns ~/.apex/mcp-oauth-tokens.json', () => {
     const expected = path.join(
       os.homedir(),
-      GEMINI_DIR,
+      APEX_DIR,
       'mcp-oauth-tokens.json',
     );
     expect(Storage.getMcpOAuthTokensPath()).toBe(expected);
   });
 
-  it('getGlobalBinDir returns ~/.gemini/tmp/bin', () => {
-    const expected = path.join(os.homedir(), GEMINI_DIR, 'tmp', 'bin');
+  it('getGlobalBinDir returns ~/.apex/tmp/bin', () => {
+    const expected = path.join(os.homedir(), APEX_DIR, 'tmp', 'bin');
     expect(Storage.getGlobalBinDir()).toBe(expected);
   });
 
-  it('getProjectTempPlansDir returns ~/.gemini/tmp/<identifier>/plans when no sessionId is provided', async () => {
+  it('getProjectTempPlansDir returns ~/.apex/tmp/<identifier>/plans when no sessionId is provided', async () => {
     await storage.initialize();
     const tempDir = storage.getProjectTempDir();
     const expected = path.join(tempDir, 'plans');
     expect(storage.getProjectTempPlansDir()).toBe(expected);
   });
 
-  it('getProjectTempPlansDir returns ~/.gemini/tmp/<identifier>/<sessionId>/plans when sessionId is provided', async () => {
+  it('getProjectTempPlansDir returns ~/.apex/tmp/<identifier>/<sessionId>/plans when sessionId is provided', async () => {
     const sessionId = 'test-session-id';
     const storageWithSession = new Storage(projectRoot, sessionId);
     ProjectRegistry.prototype.getShortId = vi
@@ -192,14 +192,14 @@ describe('Storage – additional helpers', () => {
     expect(storageWithSession.getProjectTempPlansDir()).toBe(expected);
   });
 
-  it('getProjectTempTrackerDir returns ~/.gemini/tmp/<identifier>/tracker when no sessionId is provided', async () => {
+  it('getProjectTempTrackerDir returns ~/.apex/tmp/<identifier>/tracker when no sessionId is provided', async () => {
     await storage.initialize();
     const tempDir = storage.getProjectTempDir();
     const expected = path.join(tempDir, 'tracker');
     expect(storage.getProjectTempTrackerDir()).toBe(expected);
   });
 
-  it('getProjectTempTrackerDir returns ~/.gemini/tmp/<identifier>/<sessionId>/tracker when sessionId is provided', async () => {
+  it('getProjectTempTrackerDir returns ~/.apex/tmp/<identifier>/<sessionId>/tracker when sessionId is provided', async () => {
     const sessionId = 'test-session-id';
     const storageWithSession = new Storage(projectRoot, sessionId);
     ProjectRegistry.prototype.getShortId = vi
@@ -386,18 +386,18 @@ describe('Storage – additional helpers', () => {
 });
 
 describe('Storage - System Paths', () => {
-  const originalEnv = process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'];
+  const originalEnv = process.env['APEX_SYSTEM_SETTINGS_PATH'];
 
   afterEach(() => {
     if (originalEnv !== undefined) {
-      process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'] = originalEnv;
+      process.env['APEX_SYSTEM_SETTINGS_PATH'] = originalEnv;
     } else {
-      delete process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'];
+      delete process.env['APEX_SYSTEM_SETTINGS_PATH'];
     }
   });
 
   it('getSystemSettingsPath returns correct path based on platform (default)', () => {
-    delete process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'];
+    delete process.env['APEX_SYSTEM_SETTINGS_PATH'];
 
     const platform = os.platform();
     const result = Storage.getSystemSettingsPath();
@@ -407,20 +407,20 @@ describe('Storage - System Paths', () => {
         '/Library/Application Support/GeminiCli/settings.json',
       );
     } else if (platform === 'win32') {
-      expect(result).toBe('C:\\ProgramData\\gemini-cli\\settings.json');
+      expect(result).toBe('C:\\ProgramData\\apex\\settings.json');
     } else {
-      expect(result).toBe('/etc/gemini-cli/settings.json');
+      expect(result).toBe('/etc/apex/settings.json');
     }
   });
 
-  it('getSystemSettingsPath follows GEMINI_CLI_SYSTEM_SETTINGS_PATH if set', () => {
+  it('getSystemSettingsPath follows APEX_SYSTEM_SETTINGS_PATH if set', () => {
     const customPath = '/custom/path/settings.json';
-    process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'] = customPath;
+    process.env['APEX_SYSTEM_SETTINGS_PATH'] = customPath;
     expect(Storage.getSystemSettingsPath()).toBe(customPath);
   });
 
   it('getSystemPoliciesDir returns correct path based on platform and ignores env var', () => {
-    process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'] =
+    process.env['APEX_SYSTEM_SETTINGS_PATH'] =
       '/custom/path/settings.json';
     const platform = os.platform();
     const result = Storage.getSystemPoliciesDir();
@@ -430,9 +430,9 @@ describe('Storage - System Paths', () => {
     if (platform === 'darwin') {
       expect(result).toBe('/Library/Application Support/GeminiCli/policies');
     } else if (platform === 'win32') {
-      expect(result).toBe('C:\\ProgramData\\gemini-cli\\policies');
+      expect(result).toBe('C:\\ProgramData\\apex\\policies');
     } else {
-      expect(result).toBe('/etc/gemini-cli/policies');
+      expect(result).toBe('/etc/apex/policies');
     }
   });
 });

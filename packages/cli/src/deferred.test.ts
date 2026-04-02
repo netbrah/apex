@@ -18,7 +18,7 @@ import {
   setDeferredCommand,
   type DeferredCommand,
 } from './deferred.js';
-import { ExitCodes } from '@google/gemini-cli-core';
+import { ExitCodes } from '@apex-code/apex-core';
 import type { ArgumentsCamelCase, CommandModule } from 'yargs';
 import { createMockSettings } from './test-utils/settings.js';
 
@@ -29,8 +29,8 @@ const { mockRunExitCleanup, mockCoreEvents } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@google/gemini-cli-core', async () => {
-  const actual = await vi.importActual('@google/gemini-cli-core');
+vi.mock('@apex-code/apex-core', async () => {
+  const actual = await vi.importActual('@apex-code/apex-core');
   return {
     ...actual,
     coreEvents: mockCoreEvents,
@@ -90,7 +90,7 @@ describe('deferred', () => {
 
       expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
         'error',
-        'MCP is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
+        'MCP is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
       );
       expect(mockRunExitCleanup).toHaveBeenCalled();
       expect(mockExit).toHaveBeenCalledWith(ExitCodes.FATAL_CONFIG_ERROR);
@@ -110,7 +110,7 @@ describe('deferred', () => {
 
       expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
         'error',
-        'Extensions is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
+        'Extensions is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
       );
       expect(mockRunExitCleanup).toHaveBeenCalled();
       expect(mockExit).toHaveBeenCalledWith(ExitCodes.FATAL_CONFIG_ERROR);
@@ -130,7 +130,7 @@ describe('deferred', () => {
 
       expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
         'error',
-        'Agent skills is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
+        'Agent skills is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
       );
       expect(mockRunExitCleanup).toHaveBeenCalled();
       expect(mockExit).toHaveBeenCalledWith(ExitCodes.FATAL_CONFIG_ERROR);
@@ -205,7 +205,7 @@ describe('deferred', () => {
 
       expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
         'error',
-        'MCP is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
+        'MCP is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
       );
     });
 

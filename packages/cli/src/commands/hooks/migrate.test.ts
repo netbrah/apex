@@ -16,7 +16,7 @@ import {
 } from 'vitest';
 import * as fs from 'node:fs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 import { handleMigrateFromClaude } from './migrate.js';
 
 vi.mock('node:fs');
@@ -133,7 +133,7 @@ describe('migrate command', () => {
       expect.stringContaining('Migrating 1 hook event'),
     );
     expect(debugLoggerLogSpy).toHaveBeenCalledWith(
-      '✓ Hooks successfully migrated to .gemini/settings.json',
+      '✓ Hooks successfully migrated to .apex/settings.json',
     );
   });
 
@@ -506,10 +506,10 @@ describe('migrate command', () => {
     await handleMigrateFromClaude();
 
     expect(debugLoggerLogSpy).toHaveBeenCalledWith(
-      '✓ Hooks successfully migrated to .gemini/settings.json',
+      '✓ Hooks successfully migrated to .apex/settings.json',
     );
     expect(debugLoggerLogSpy).toHaveBeenCalledWith(
-      '\nMigration complete! Please review the migrated hooks in .gemini/settings.json',
+      '\nMigration complete! Please review the migrated hooks in .apex/settings.json',
     );
   });
 });

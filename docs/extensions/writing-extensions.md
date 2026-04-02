@@ -19,7 +19,7 @@ which features your extension needs.
 | :------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------- |
 | **[MCP server](reference.md#mcp-servers)**                     | A standard way to expose new tools and data sources to the model.                                                  | Use this when you want the model to be able to _do_ new things, like fetching data from an internal API, querying a database, or controlling a local application. We also support MCP resources (which can replace custom commands) and system instructions (which can replace custom context) | Model                 |
 | **[Custom commands](../cli/custom-commands.md)**               | A shortcut (like `/my-cmd`) that executes a pre-defined prompt or shell command.                                   | Use this for repetitive tasks or to save long, complex prompts that you use frequently. Great for automation.                                                                                                                                                                                  | User                  |
-| **[Context file (`GEMINI.md`)](reference.md#contextfilename)** | A markdown file containing instructions that are loaded into the model's context at the start of every session.    | Use this to define the "personality" of your extension, set coding standards, or provide essential knowledge that the model should always have.                                                                                                                                                | CLI provides to model |
+| **[Context file (`APEX.md`)](reference.md#contextfilename)** | A markdown file containing instructions that are loaded into the model's context at the start of every session.    | Use this to define the "personality" of your extension, set coding standards, or provide essential knowledge that the model should always have.                                                                                                                                                | CLI provides to model |
 | **[Agent skills](../cli/skills.md)**                           | A specialized set of instructions and workflows that the model activates only when needed.                         | Use this for complex, occasional tasks (like "create a PR" or "audit security") to avoid cluttering the main context window when the skill isn't being used.                                                                                                                                   | Model                 |
 | **[Hooks](../hooks/index.md)**                                 | A way to intercept and customize the CLI's behavior at specific lifecycle events (e.g., before/after a tool call). | Use this when you want to automate actions based on what the model is doing, like validating tool arguments, logging activity, or modifying the model's input/output.                                                                                                                          | CLI                   |
 | **[Custom themes](reference.md#themes)**                       | A set of color definitions to personalize the CLI UI.                                                              | Use this to provide a unique visual identity for your extension or to offer specialized high-contrast or thematic color schemes.                                                                                                                                                               | User (via /theme)     |
@@ -218,13 +218,13 @@ Custom commands create shortcuts for complex prompts.
 After saving the file, restart Gemini CLI. Run `/fs:grep-code "some pattern"` to
 use your new command.
 
-## Step 6: Add a custom `GEMINI.md`
+## Step 6: Add a custom `APEX.md`
 
-Provide persistent context to the model by adding a `GEMINI.md` file to your
+Provide persistent context to the model by adding a `APEX.md` file to your
 extension. This is useful for setting behavior or providing essential tool
 information.
 
-1.  Create a file named `GEMINI.md` in the root of your extension directory:
+1.  Create a file named `APEX.md` in the root of your extension directory:
 
     ```markdown
     # My First Extension Instructions
@@ -239,7 +239,7 @@ information.
     {
       "name": "my-first-extension",
       "version": "1.0.0",
-      "contextFileName": "GEMINI.md",
+      "contextFileName": "APEX.md",
       "mcpServers": {
         "nodeServer": {
           "command": "node",
@@ -250,7 +250,7 @@ information.
     }
     ```
 
-Restart Gemini CLI. The model now has the context from your `GEMINI.md` file in
+Restart Gemini CLI. The model now has the context from your `APEX.md` file in
 every session where the extension is active.
 
 ## (Optional) Step 7: Add an Agent Skill

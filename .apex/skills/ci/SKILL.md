@@ -29,7 +29,7 @@ failures locally for immediate triage and fixing.
 - **Behavior**: When this workflow is triggered, the agent will monitor the CI
   and **immediately and automatically execute** all suggested test or lint
   commands (marked with 🚀) as soon as a failure is detected. 
-- **Tool**: `node .gemini/skills/ci/scripts/ci.mjs [branch]`
+- **Tool**: `node .apex/skills/ci/scripts/ci.mjs [branch]`
 - **Discovery**: The script **automatically** finds the latest active or recent
   run for the branch. Do NOT manually search for run IDs.
 - **Goal**: Reproduce the failure locally without manual intervention, then
@@ -38,7 +38,7 @@ failures locally for immediate triage and fixing.
 ### 1. CI Status (`status`)
 Use this when you have pushed changes and need to monitor the CI and reproduce
 any failures locally.
-- **Tool**: `node .gemini/skills/ci/scripts/ci.mjs [branch] [run_id]`
+- **Tool**: `node .apex/skills/ci/scripts/ci.mjs [branch] [run_id]`
 - **Discovery**: The script **automatically** finds the latest active or recent
   run for the branch. You should NOT manually search for \`run_id\` using \`gh run list\`
   unless a specific historical run is requested. Simply provide the branch name.

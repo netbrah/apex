@@ -9,12 +9,12 @@ import { render } from '../../test-utils/render.js';
 import { act } from 'react';
 import { AuthInProgress } from './AuthInProgress.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 
 // Mock dependencies
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     debugLogger: {

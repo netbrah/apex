@@ -22,7 +22,7 @@ import {
 } from '../tools/memoryTool.js';
 import { flattenMemory, type HierarchicalMemory } from '../config/memory.js';
 import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
-import { GEMINI_DIR, normalizePath, homedir as pathsHomedir } from './paths.js';
+import { APEX_DIR, normalizePath, homedir as pathsHomedir } from './paths.js';
 
 function flattenResult(result: {
   memoryContent: HierarchicalMemory;
@@ -153,7 +153,7 @@ describe('memoryDiscovery', () => {
 
       const filepathInput = path.join(
         homedir,
-        GEMINI_DIR,
+        APEX_DIR,
         DEFAULT_CONTEXT_FILENAME,
       );
       const filepath = await createTestFile(
@@ -196,7 +196,7 @@ describe('memoryDiscovery', () => {
 
   it('should load only the global context file if present and others are not (default filename)', async () => {
     const defaultContextFile = await createTestFile(
-      path.join(homedir, GEMINI_DIR, DEFAULT_CONTEXT_FILENAME),
+      path.join(homedir, APEX_DIR, DEFAULT_CONTEXT_FILENAME),
       'default context content',
     );
 
@@ -228,7 +228,7 @@ default context content
     setGeminiMdFilename(customFilename);
 
     const customContextFile = await createTestFile(
-      path.join(homedir, GEMINI_DIR, customFilename),
+      path.join(homedir, APEX_DIR, customFilename),
       'custom context content',
     );
 
@@ -398,7 +398,7 @@ Subdir memory
 
   it('should load and correctly order global and upward context files', async () => {
     const defaultContextFile = await createTestFile(
-      path.join(homedir, GEMINI_DIR, DEFAULT_CONTEXT_FILENAME),
+      path.join(homedir, APEX_DIR, DEFAULT_CONTEXT_FILENAME),
       'default context content',
     );
     const rootGeminiFile = await createTestFile(
@@ -606,7 +606,7 @@ included directory memory
   });
 
   it('should handle multiple directories and files in parallel correctly', async () => {
-    // Create multiple test directories with GEMINI.md files
+    // Create multiple test directories with APEX.md files
     const numDirs = 5;
     const createdFiles: string[] = [];
 
@@ -688,7 +688,7 @@ included directory memory
   describe('getGlobalMemoryPaths', () => {
     it('should find global memory file if it exists', async () => {
       const globalMemoryFile = await createTestFile(
-        path.join(homedir, GEMINI_DIR, DEFAULT_CONTEXT_FILENAME),
+        path.join(homedir, APEX_DIR, DEFAULT_CONTEXT_FILENAME),
         'Global memory content',
       );
 
@@ -708,7 +708,7 @@ included directory memory
   describe('getExtensionMemoryPaths', () => {
     it('should return active extension context files', async () => {
       const extFile = await createTestFile(
-        path.join(testRootDir, 'ext', 'GEMINI.md'),
+        path.join(testRootDir, 'ext', 'APEX.md'),
         'Extension content',
       );
       const loader = new SimpleExtensionLoader([
@@ -726,7 +726,7 @@ included directory memory
 
     it('should ignore inactive extensions', async () => {
       const extFile = await createTestFile(
-        path.join(testRootDir, 'ext', 'GEMINI.md'),
+        path.join(testRootDir, 'ext', 'APEX.md'),
         'Extension content',
       );
       const loader = new SimpleExtensionLoader([
@@ -787,11 +787,11 @@ included directory memory
       );
 
       // No .git, so ceiling falls back to the trusted root itself.
-      // notesDir has no GEMINI.md and won't traverse up to docsDir.
+      // notesDir has no APEX.md and won't traverse up to docsDir.
       const resultNotes = await getEnvironmentMemoryPaths([notesDir]);
       expect(resultNotes).toHaveLength(0);
 
-      // docsDir has a GEMINI.md at the trusted root itself, so it's found.
+      // docsDir has a APEX.md at the trusted root itself, so it's found.
       const resultDocs = await getEnvironmentMemoryPaths([docsDir]);
       expect(resultDocs).toHaveLength(1);
       expect(resultDocs[0]).toBe(docsFile);
@@ -878,7 +878,7 @@ included directory memory
       );
 
       // create hard link to simulate case-insensitive filesystem behavior
-      const geminiFileLink = path.join(projectRoot, 'GEMINI.md');
+      const geminiFileLink = path.join(projectRoot, 'APEX.md');
       try {
         await fsPromises.link(geminiFile, geminiFileLink);
       } catch (error) {
@@ -899,7 +899,7 @@ included directory memory
       expect(stats1.ino).toBe(stats2.ino);
       expect(stats1.dev).toBe(stats2.dev);
 
-      setGeminiMdFilename(['GEMINI.md', 'gemini.md']);
+      setGeminiMdFilename(['APEX.md', 'gemini.md']);
 
       const result = flattenResult(
         await loadServerHierarchicalMemory(
@@ -930,7 +930,7 @@ included directory memory
         'Lowercase file content',
       );
       const geminiFileUpper = await createTestFile(
-        path.join(projectRoot, 'GEMINI.md'),
+        path.join(projectRoot, 'APEX.md'),
         'Uppercase file content',
       );
 
@@ -938,7 +938,7 @@ included directory memory
       const stats2 = await fsPromises.lstat(geminiFileUpper);
 
       if (stats1.ino !== stats2.ino || stats1.dev !== stats2.dev) {
-        setGeminiMdFilename(['GEMINI.md', 'gemini.md']);
+        setGeminiMdFilename(['APEX.md', 'gemini.md']);
 
         const result = flattenResult(
           await loadServerHierarchicalMemory(
@@ -985,7 +985,7 @@ included directory memory
         'Project root memory',
       );
 
-      const link1 = path.join(projectRoot, 'GEMINI.md');
+      const link1 = path.join(projectRoot, 'APEX.md');
       const link2 = path.join(projectRoot, 'Gemini.md');
 
       try {
@@ -1010,7 +1010,7 @@ included directory memory
       expect(stats1.ino).toBe(stats2.ino);
       expect(stats1.ino).toBe(stats3.ino);
 
-      setGeminiMdFilename(['gemini.md', 'GEMINI.md', 'Gemini.md']);
+      setGeminiMdFilename(['gemini.md', 'APEX.md', 'Gemini.md']);
 
       const result = flattenResult(
         await loadServerHierarchicalMemory(
@@ -1123,7 +1123,7 @@ included directory memory
         'JIT memory content',
       );
 
-      const geminiFileLink = path.join(subDir, 'GEMINI.md');
+      const geminiFileLink = path.join(subDir, 'APEX.md');
       try {
         await fsPromises.link(geminiFile, geminiFileLink);
       } catch (error) {
@@ -1143,7 +1143,7 @@ included directory memory
       const stats2 = await fsPromises.lstat(geminiFileLink);
       expect(stats1.ino).toBe(stats2.ino);
 
-      setGeminiMdFilename(['gemini.md', 'GEMINI.md']);
+      setGeminiMdFilename(['gemini.md', 'APEX.md']);
 
       const result = await loadJitSubdirectoryMemory(
         targetFile,
@@ -1216,7 +1216,7 @@ included directory memory
         new Set(),
       );
 
-      // Should find the GEMINI.md in the same directory as the file
+      // Should find the APEX.md in the same directory as the file
       expect(result.files).toHaveLength(1);
       expect(result.files[0].path).toBe(subDirMemory);
       expect(result.files[0].content).toBe('Src context rules');
@@ -1267,7 +1267,7 @@ included directory memory
         new Set(),
       );
 
-      // subDir is within the trusted root, so its GEMINI.md is found
+      // subDir is within the trusted root, so its APEX.md is found
       expect(result.files).toHaveLength(1);
       expect(result.files[0].path).toBe(subDirMemory);
       expect(result.files[0].content).toBe('Content without git');

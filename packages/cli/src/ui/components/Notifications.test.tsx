@@ -18,7 +18,7 @@ import { useUIState, type UIState } from '../contexts/UIStateContext.js';
 import { useIsScreenReaderEnabled } from 'ink';
 import * as fs from 'node:fs/promises';
 import { act } from 'react';
-import { WarningPriority } from '@google/gemini-cli-core';
+import { WarningPriority } from '@apex-code/apex-core';
 
 // Mock dependencies
 vi.mock('../contexts/AppContext.js');
@@ -60,20 +60,20 @@ vi.mock('node:path', async () => {
   };
 });
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   const MockStorage = vi.fn().mockImplementation(() => ({
-    getExtensionsDir: () => '/mock/home/.gemini/extensions',
+    getExtensionsDir: () => '/mock/home/.apex/extensions',
   }));
   Object.assign(MockStorage, {
     getGlobalTempDir: () => '/mock/temp',
-    getGlobalSettingsPath: () => '/mock/home/.gemini/settings.json',
+    getGlobalSettingsPath: () => '/mock/home/.apex/settings.json',
     getGlobalGeminiDir: () => '/mock/home/.gemini',
   });
   return {
     ...actual,
-    GEMINI_DIR: '.gemini',
+    APEX_DIR: '.apex',
     homedir: () => '/mock/home',
     WarningPriority: {
       Low: 'low',

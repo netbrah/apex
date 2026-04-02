@@ -28,8 +28,8 @@ Settings are merged from four files. The precedence order for single-value
 settings (like `theme`) is:
 
 1. System Defaults (`system-defaults.json`)
-2. User Settings (`~/.gemini/settings.json`)
-3. Workspace Settings (`<project>/.gemini/settings.json`)
+2. User Settings (`~/.apex/settings.json`)
+3. Workspace Settings (`<project>/.apex/settings.json`)
 4. System Overrides (`settings.json`)
 
 This means the System Overrides file has the final say. For settings that are
@@ -52,7 +52,7 @@ Here is how settings from different levels are combined.
   }
   ```
 
-- **User `settings.json` (`~/.gemini/settings.json`):**
+- **User `settings.json` (`~/.apex/settings.json`):**
 
   ```json
   {
@@ -73,7 +73,7 @@ Here is how settings from different levels are combined.
   }
   ```
 
-- **Workspace `settings.json` (`<project>/.gemini/settings.json`):**
+- **Workspace `settings.json` (`<project>/.apex/settings.json`):**
 
   ```json
   {
@@ -152,7 +152,7 @@ This results in the following merged configuration:
   - **Linux**: `/etc/gemini-cli/settings.json`
   - **Windows**: `C:\ProgramData\gemini-cli\settings.json`
   - **macOS**: `/Library/Application Support/GeminiCli/settings.json`
-  - The path can be overridden using the `GEMINI_CLI_SYSTEM_SETTINGS_PATH`
+  - The path can be overridden using the `APEX_SYSTEM_SETTINGS_PATH`
     environment variable.
 - **Control**: This file should be managed by system administrators and
   protected with appropriate file permissions to prevent unauthorized
@@ -163,7 +163,7 @@ configuration patterns described below.
 
 ### Enforcing system settings with a wrapper script
 
-While the `GEMINI_CLI_SYSTEM_SETTINGS_PATH` environment variable provides
+While the `APEX_SYSTEM_SETTINGS_PATH` environment variable provides
 flexibility, a user could potentially override it to point to a different
 settings file, bypassing the centrally managed configuration. To mitigate this,
 enterprises can deploy a wrapper script or alias that ensures the environment
@@ -183,7 +183,7 @@ that appears earlier in the user's `PATH` than the actual Gemini CLI binary
 
 # Enforce the path to the corporate system settings file.
 # This ensures that the company's configuration is always applied.
-export GEMINI_CLI_SYSTEM_SETTINGS_PATH="/etc/gemini-cli/settings.json"
+export APEX_SYSTEM_SETTINGS_PATH="/etc/gemini-cli/settings.json"
 
 # Find the original gemini executable.
 # This is a simple example; a more robust solution might be needed
@@ -199,7 +199,7 @@ fi
 exec "$REAL_GEMINI_PATH" "$@"
 ```
 
-By deploying this script, the `GEMINI_CLI_SYSTEM_SETTINGS_PATH` is set within
+By deploying this script, the `APEX_SYSTEM_SETTINGS_PATH` is set within
 the script's environment, and the `exec` command replaces the script process
 with the actual Gemini CLI process, which inherits the environment variable.
 This makes it significantly more difficult for a user to bypass the enforced
@@ -211,7 +211,7 @@ On Windows, administrators can achieve similar results by adding the environment
 variable to the system-wide or user-specific PowerShell profile:
 
 ```powershell
-Add-Content -Path $PROFILE -Value '$env:GEMINI_CLI_SYSTEM_SETTINGS_PATH="C:\ProgramData\gemini-cli\settings.json"'
+Add-Content -Path $PROFILE -Value '$env:APEX_SYSTEM_SETTINGS_PATH="C:\ProgramData\gemini-cli\settings.json"'
 ```
 
 ## User isolation in shared environments
@@ -221,7 +221,7 @@ servers), you can isolate Gemini CLI state by overriding the user's home
 directory.
 
 By default, Gemini CLI stores configuration and history in `~/.gemini`. You can
-use the `GEMINI_CLI_HOME` environment variable to point to a unique directory
+use the `APEX_HOME` environment variable to point to a unique directory
 for a specific user or job. The CLI will create a `.gemini` folder inside the
 specified path.
 
@@ -229,7 +229,7 @@ specified path.
 
 ```bash
 # Isolate state for a specific job
-export GEMINI_CLI_HOME="/tmp/gemini-job-123"
+export APEX_HOME="/tmp/gemini-job-123"
 gemini
 ```
 
@@ -237,7 +237,7 @@ gemini
 
 ```powershell
 # Isolate state for a specific job
-$env:GEMINI_CLI_HOME="C:\temp\gemini-job-123"
+$env:APEX_HOME="C:\temp\gemini-job-123"
 gemini
 ```
 

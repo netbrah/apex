@@ -2332,7 +2332,7 @@ console.log(JSON.stringify({
           });
 
           // Bypass terminal setup prompt and other startup banners
-          const stateDir = join(rig.homeDir!, '.gemini');
+          const stateDir = join(rig.homeDir!, '.apex');
           if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
           writeFileSync(
             join(stateDir, 'state.json'),
@@ -2435,7 +2435,7 @@ console.log(JSON.stringify({
           });
 
           // Bypass terminal setup prompt and other startup banners
-          const stateDir = join(rig.homeDir!, '.gemini');
+          const stateDir = join(rig.homeDir!, '.apex');
           if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
           writeFileSync(
             join(stateDir, 'state.json'),

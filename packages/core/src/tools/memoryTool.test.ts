@@ -27,7 +27,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { ToolConfirmationOutcome } from './tools.js';
 import { ToolErrorType } from './tool-error.js';
-import { GEMINI_DIR } from '../utils/paths.js';
+import { APEX_DIR } from '../utils/paths.js';
 import {
   createMockMessageBus,
   getMockMessageBusInstance,
@@ -145,7 +145,7 @@ describe('MemoryTool', () => {
 
       const expectedFilePath = path.join(
         os.homedir(),
-        GEMINI_DIR,
+        APEX_DIR,
         getCurrentGeminiMdFilename(),
       );
       const expectedContent = `${MEMORY_SECTION_HEADER}\n- the sky is blue\n`;
@@ -301,13 +301,13 @@ describe('MemoryTool', () => {
       expect(result).toBeDefined();
 
       if (result && result.type === 'edit') {
-        const expectedPath = path.join('~', GEMINI_DIR, 'GEMINI.md');
+        const expectedPath = path.join('~', APEX_DIR, 'APEX.md');
         expect(result.title).toBe(`Confirm Memory Save: ${expectedPath}`);
         expect(result.fileName).toContain(
-          path.join('mock', 'home', GEMINI_DIR),
+          path.join('mock', 'home', APEX_DIR),
         );
-        expect(result.fileName).toContain('GEMINI.md');
-        expect(result.fileDiff).toContain('Index: GEMINI.md');
+        expect(result.fileName).toContain('APEX.md');
+        expect(result.fileDiff).toContain('Index: APEX.md');
         expect(result.fileDiff).toContain('+## Gemini Added Memories');
         expect(result.fileDiff).toContain('+- Test fact');
         expect(result.originalContent).toBe('');
@@ -320,7 +320,7 @@ describe('MemoryTool', () => {
       const params = { fact: 'Test fact' };
       const memoryFilePath = path.join(
         os.homedir(),
-        GEMINI_DIR,
+        APEX_DIR,
         getCurrentGeminiMdFilename(),
       );
 
@@ -337,7 +337,7 @@ describe('MemoryTool', () => {
       const params = { fact: 'Test fact' };
       const memoryFilePath = path.join(
         os.homedir(),
-        GEMINI_DIR,
+        APEX_DIR,
         getCurrentGeminiMdFilename(),
       );
 
@@ -365,7 +365,7 @@ describe('MemoryTool', () => {
       const params = { fact: 'Test fact' };
       const memoryFilePath = path.join(
         os.homedir(),
-        GEMINI_DIR,
+        APEX_DIR,
         getCurrentGeminiMdFilename(),
       );
 
@@ -402,9 +402,9 @@ describe('MemoryTool', () => {
       expect(result).toBeDefined();
 
       if (result && result.type === 'edit') {
-        const expectedPath = path.join('~', GEMINI_DIR, 'GEMINI.md');
+        const expectedPath = path.join('~', APEX_DIR, 'APEX.md');
         expect(result.title).toBe(`Confirm Memory Save: ${expectedPath}`);
-        expect(result.fileDiff).toContain('Index: GEMINI.md');
+        expect(result.fileDiff).toContain('Index: APEX.md');
         expect(result.fileDiff).toContain('+- New fact');
         expect(result.originalContent).toBe(existingContent);
         expect(result.newContent).toContain('- Old fact');
@@ -426,7 +426,7 @@ describe('MemoryTool', () => {
   describe('project-scope memory', () => {
     const mockProjectMemoryDir = path.join(
       '/mock',
-      '.gemini',
+      '.apex',
       'memory',
       'test-project',
     );
@@ -457,7 +457,7 @@ describe('MemoryTool', () => {
 
       const expectedFilePath = path.join(
         os.homedir(),
-        GEMINI_DIR,
+        APEX_DIR,
         getCurrentGeminiMdFilename(),
       );
       expect(fs.writeFile).toHaveBeenCalledWith(

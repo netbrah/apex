@@ -3,4 +3,4 @@
 ## Reporting a Vulnerability
 
 [GitHub Security Advisory]:
-  https://github.com/google-gemini/gemini-cli/security/advisories
+  https://github.com/netbrah/apex/security/advisories

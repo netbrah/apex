@@ -340,8 +340,8 @@
         },
         "hideContextSummary": {
           "title": "Hide Context Summary",
-          "description": "Hide the context summary (GEMINI.md, MCP servers) above the input.",
-          "markdownDescription": "Hide the context summary (GEMINI.md, MCP servers) above the input.\n\n- Category: `UI`\n- Requires restart: `no`\n- Default: `false`",
+          "description": "Hide the context summary (APEX.md, MCP servers) above the input.",
+          "markdownDescription": "Hide the context summary (APEX.md, MCP servers) above the input.\n\n- Category: `UI`\n- Requires restart: `no`\n- Default: `false`",
           "default": false,
           "type": "boolean"
         },
@@ -2288,8 +2288,8 @@
         },
         "memoryBoundaryMarkers": {
           "title": "Memory Boundary Markers",
-          "description": "File or directory names that mark the boundary for GEMINI.md discovery. The upward traversal stops at the first directory containing any of these markers. An empty array disables parent traversal.",
-          "markdownDescription": "File or directory names that mark the boundary for GEMINI.md discovery. The upward traversal stops at the first directory containing any of these markers. An empty array disables parent traversal.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `[\n  \".git\"\n]`",
+          "description": "File or directory names that mark the boundary for APEX.md discovery. The upward traversal stops at the first directory containing any of these markers. An empty array disables parent traversal.",
+          "markdownDescription": "File or directory names that mark the boundary for APEX.md discovery. The upward traversal stops at the first directory containing any of these markers. An empty array disables parent traversal.\n\n- Category: `Context`\n- Requires restart: `yes`\n- Default: `[\n  \".git\"\n]`",
           "default": [".git"],
           "type": "array",
           "items": {
@@ -2308,8 +2308,8 @@
         },
         "loadMemoryFromIncludeDirectories": {
           "title": "Load Memory From Include Directories",
-          "description": "Controls how /memory reload loads GEMINI.md files. When true, include directories are scanned; when false, only the current directory is used.",
-          "markdownDescription": "Controls how /memory reload loads GEMINI.md files. When true, include directories are scanned; when false, only the current directory is used.\n\n- Category: `Context`\n- Requires restart: `no`\n- Default: `false`",
+          "description": "Controls how /memory reload loads APEX.md files. When true, include directories are scanned; when false, only the current directory is used.",
+          "markdownDescription": "Controls how /memory reload loads APEX.md files. When true, include directories are scanned; when false, only the current directory is used.\n\n- Category: `Context`\n- Requires restart: `no`\n- Default: `false`",
           "default": false,
           "type": "boolean"
         },

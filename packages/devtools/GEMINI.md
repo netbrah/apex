@@ -47,7 +47,7 @@ gemini.tsx / nonInteractiveCli.ts
 
 | Variable                         | Description                                   |
 | -------------------------------- | --------------------------------------------- |
-| `GEMINI_CLI_ACTIVITY_LOG_TARGET` | File path for JSONL mode (optional, fallback) |
+| `APEX_ACTIVITY_LOG_TARGET` | File path for JSONL mode (optional, fallback) |
 
 ## API Endpoints
 

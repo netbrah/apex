@@ -65,7 +65,7 @@ export class FileDiscoveryService {
       const customPatterns = this.customIgnoreFilter
         ? this.customIgnoreFilter.getPatterns()
         : [];
-      // Create combined parser: .gitignore + .geminiignore + custom ignore
+      // Create combined parser: .gitignore + .apexignore + custom ignore
       this.combinedIgnoreFilter = new GitIgnoreParser(
         this.projectRoot,
         // customPatterns should go the last to ensure overwriting of geminiPatterns
@@ -248,7 +248,7 @@ export class FileDiscoveryService {
   }
 
   /**
-   * Returns the list of ignore files being used (e.g. .geminiignore) excluding .gitignore.
+   * Returns the list of ignore files being used (e.g. .apexignore) excluding .gitignore.
    */
   getIgnoreFilePaths(): string[] {
     const paths: string[] = [];

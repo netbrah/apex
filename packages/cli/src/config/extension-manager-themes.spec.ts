@@ -21,11 +21,11 @@ import { createExtension } from '../test-utils/createExtension.js';
 import { ExtensionManager } from './extension-manager.js';
 import { themeManager, DEFAULT_THEME } from '../ui/themes/theme-manager.js';
 import {
-  GEMINI_DIR,
+  APEX_DIR,
   type Config,
   tmpdir,
   NoopSandboxManager,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { createTestMergedSettings, SettingScope } from './settings.js';
 
 describe('ExtensionManager theme loading', () => {
@@ -35,7 +35,7 @@ describe('ExtensionManager theme loading', () => {
 
   beforeAll(async () => {
     tempHomeDir = await fs.promises.mkdtemp(
-      path.join(tmpdir(), 'gemini-cli-test-'),
+      path.join(tmpdir(), 'apex-test-'),
     );
   });
 
@@ -46,8 +46,8 @@ describe('ExtensionManager theme loading', () => {
   });
 
   beforeEach(() => {
-    process.env['GEMINI_CLI_HOME'] = tempHomeDir;
-    userExtensionsDir = path.join(tempHomeDir, GEMINI_DIR, 'extensions');
+    process.env['APEX_HOME'] = tempHomeDir;
+    userExtensionsDir = path.join(tempHomeDir, APEX_DIR, 'extensions');
     // Ensure userExtensionsDir is clean for each test
     fs.rmSync(userExtensionsDir, { recursive: true, force: true });
     fs.mkdirSync(userExtensionsDir, { recursive: true });
@@ -70,7 +70,7 @@ describe('ExtensionManager theme loading', () => {
   });
 
   afterEach(() => {
-    delete process.env['GEMINI_CLI_HOME'];
+    delete process.env['APEX_HOME'];
   });
 
   it('should register themes from an extension when started', async () => {

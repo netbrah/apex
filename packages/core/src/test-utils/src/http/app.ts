@@ -30,7 +30,7 @@ import {
   debugLogger,
   SimpleExtensionLoader,
   GitService,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { Command, CommandArgument } from '../commands/types.js';
 
 type CommandResponse = {

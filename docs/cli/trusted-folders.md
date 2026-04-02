@@ -35,7 +35,7 @@ folder, a dialog will automatically appear, prompting you to make a choice:
 - **Don't trust**: Marks the folder as untrusted. The CLI will operate in a
   restricted "safe mode."
 
-Your choice is saved in a central file (`~/.gemini/trustedFolders.json`), so you
+Your choice is saved in a central file (`~/.apex/trustedFolders.json`), so you
 will only be asked once per folder.
 
 ## Understanding folder contents: The discovery phase
@@ -75,7 +75,7 @@ When a folder is **untrusted**, the Gemini CLI runs in a restricted "safe mode"
 to protect you. In this mode, the following features are disabled:
 
 1.  **Workspace settings are ignored**: The CLI will **not** load the
-    `.gemini/settings.json` file from the project. This prevents the loading of
+    `.apex/settings.json` file from the project. This prevents the loading of
     custom tools and other potentially dangerous configurations.
 
 2.  **Environment variables are ignored**: The CLI will **not** load any `.env`
@@ -111,7 +111,7 @@ options:
 
 - **View all trust rules**: To see a complete list of all your trusted and
   untrusted folder rules, you can inspect the contents of the
-  `~/.gemini/trustedFolders.json` file in your home directory.
+  `~/.apex/trustedFolders.json` file in your home directory.
 
 ## The trust check process (advanced)
 
@@ -123,4 +123,4 @@ trust is determined:
     if the workspace is trusted. The IDE's response takes highest priority.
 
 2.  **Local trust file**: If the IDE is not connected, the CLI checks the
-    central `~/.gemini/trustedFolders.json` file.
+    central `~/.apex/trustedFolders.json` file.

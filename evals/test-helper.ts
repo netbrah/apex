@@ -9,16 +9,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
-import { TestRig } from '@google/gemini-cli-test-utils';
+import { TestRig } from '@apex-code/apex-test-utils';
 import {
   createUnauthorizedToolError,
   parseAgentMarkdown,
   Storage,
   getProjectHash,
   SESSION_FILE_PREFIX,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
-export * from '@google/gemini-cli-test-utils';
+export * from '@apex-code/apex-test-utils';
 
 // Indicates the consistency expectation for this test.
 // - ALWAYS_PASSES - Means that the test is expected to pass 100% of the time. These
@@ -78,10 +78,10 @@ export async function internalEvalTest(evalCase: EvalCase) {
           evalCase.sessionId ||
           `test-session-${crypto.randomUUID().slice(0, 8)}`;
 
-        // Temporarily set GEMINI_CLI_HOME so Storage writes to the same
+        // Temporarily set APEX_HOME so Storage writes to the same
         // directory the CLI subprocess will use (rig.homeDir).
-        const originalGeminiHome = process.env['GEMINI_CLI_HOME'];
-        process.env['GEMINI_CLI_HOME'] = rig.homeDir!;
+        const originalGeminiHome = process.env['APEX_HOME'];
+        process.env['APEX_HOME'] = rig.homeDir!;
         try {
           const storage = new Storage(fs.realpathSync(rig.testDir!));
           await storage.initialize();
@@ -109,11 +109,11 @@ export async function internalEvalTest(evalCase: EvalCase) {
           // Storage initialization may fail in some environments; log and continue.
           console.warn('Failed to write session history:', e);
         } finally {
-          // Restore original GEMINI_CLI_HOME.
+          // Restore original APEX_HOME.
           if (originalGeminiHome === undefined) {
-            delete process.env['GEMINI_CLI_HOME'];
+            delete process.env['APEX_HOME'];
           } else {
-            process.env['GEMINI_CLI_HOME'] = originalGeminiHome;
+            process.env['APEX_HOME'] = originalGeminiHome;
           }
         }
       }
@@ -125,7 +125,7 @@ export async function internalEvalTest(evalCase: EvalCase) {
         approvalMode: evalCase.approvalMode ?? 'yolo',
         timeout: evalCase.timeout,
         env: {
-          GEMINI_CLI_ACTIVITY_LOG_TARGET: activityLogFile,
+          APEX_ACTIVITY_LOG_TARGET: activityLogFile,
         },
       });
 
@@ -268,7 +268,7 @@ async function setupTestFiles(rig: TestRig, files: Record<string, string>) {
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     fs.writeFileSync(fullPath, content);
 
-    if (filePath.startsWith('.gemini/agents/') && filePath.endsWith('.md')) {
+    if (filePath.startsWith('.apex/agents/') && filePath.endsWith('.md')) {
       const hash = crypto.createHash('sha256').update(content).digest('hex');
       try {
         const agentDefs = await parseAgentMarkdown(fullPath, content);
@@ -291,7 +291,7 @@ async function setupTestFiles(rig: TestRig, files: Record<string, string>) {
   if (Object.keys(acknowledgedAgents).length > 0) {
     const ackPath = path.join(
       rig.homeDir!,
-      '.gemini',
+      '.apex',
       'acknowledgments',
       'agents.json',
     );

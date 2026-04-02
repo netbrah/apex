@@ -17,7 +17,7 @@ import { UserAccountManager } from './userAccountManager.js';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import path from 'node:path';
-import { GEMINI_DIR, homedir as pathsHomedir } from './paths.js';
+import { APEX_DIR, homedir as pathsHomedir } from './paths.js';
 import { debugLogger } from './debugLogger.js';
 
 vi.mock('./paths.js', async (importOriginal) => {
@@ -35,11 +35,11 @@ describe('UserAccountManager', () => {
 
   beforeEach(() => {
     tempHomeDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
+      path.join(os.tmpdir(), 'apex-test-home-'),
     );
     (pathsHomedir as Mock).mockReturnValue(tempHomeDir);
     accountsFile = () =>
-      path.join(tempHomeDir, GEMINI_DIR, 'google_accounts.json');
+      path.join(tempHomeDir, APEX_DIR, 'google_accounts.json');
     userAccountManager = new UserAccountManager();
   });
 

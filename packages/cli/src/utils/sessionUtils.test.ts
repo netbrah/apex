@@ -16,7 +16,7 @@ import {
   SESSION_FILE_PREFIX,
   type Config,
   type MessageRecord,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';

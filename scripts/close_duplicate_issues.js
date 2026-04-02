@@ -39,7 +39,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('repo', {
     type: 'string',
-    default: 'gemini-cli',
+    default: 'apex',
     description: 'Repository name',
   })
   .option('dry-run', {

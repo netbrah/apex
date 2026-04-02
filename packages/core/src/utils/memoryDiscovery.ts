@@ -15,7 +15,7 @@ import {
   DEFAULT_MEMORY_FILE_FILTERING_OPTIONS,
   type FileFilteringOptions,
 } from '../config/constants.js';
-import { GEMINI_DIR, homedir, normalizePath } from './paths.js';
+import { APEX_DIR, homedir, normalizePath } from './paths.js';
 import type { ExtensionLoader } from './extensionLoader.js';
 import { debugLogger } from './debugLogger.js';
 import type { Config } from '../config/config.js';
@@ -276,7 +276,7 @@ async function getGeminiMdFilePathsInternalForEachDir(
 
   for (const geminiMdFilename of geminiMdFilenames) {
     const resolvedHome = normalizePath(userHomePath);
-    const globalGeminiDir = normalizePath(path.join(resolvedHome, GEMINI_DIR));
+    const globalGeminiDir = normalizePath(path.join(resolvedHome, APEX_DIR));
     const globalMemoryPath = normalizePath(
       path.join(globalGeminiDir, geminiMdFilename),
     );
@@ -467,7 +467,7 @@ export async function getGlobalMemoryPaths(): Promise<string[]> {
   const geminiMdFilenames = getAllGeminiMdFilenames();
 
   const accessChecks = geminiMdFilenames.map(async (filename) => {
-    const globalPath = normalizePath(path.join(userHome, GEMINI_DIR, filename));
+    const globalPath = normalizePath(path.join(userHome, APEX_DIR, filename));
     try {
       await fs.access(globalPath, fsSync.constants.R_OK);
       debugLogger.debug(
@@ -574,7 +574,7 @@ export function categorizeAndConcatenate(
 }
 
 /**
- * Traverses upward from startDir to stopDir, finding all GEMINI.md variants.
+ * Traverses upward from startDir to stopDir, finding all APEX.md variants.
  *
  * Files are ordered by directory level (root to leaf), with all filename
  * variants grouped together per directory.
@@ -587,7 +587,7 @@ async function findUpwardGeminiFiles(
   let currentDir = normalizePath(startDir);
   const resolvedStopDir = normalizePath(stopDir);
   const geminiMdFilenames = getAllGeminiMdFilenames();
-  const globalGeminiDir = normalizePath(path.join(homedir(), GEMINI_DIR));
+  const globalGeminiDir = normalizePath(path.join(homedir(), APEX_DIR));
 
   debugLogger.debug(
     '[DEBUG] [MemoryDiscovery] Starting upward search from',
@@ -694,7 +694,7 @@ export async function loadServerHierarchicalMemory(
 
   if (allFilePathsStringDeduped.length === 0) {
     debugLogger.debug(
-      '[DEBUG] [MemoryDiscovery] No GEMINI.md files found in hierarchy of the workspace.',
+      '[DEBUG] [MemoryDiscovery] No APEX.md files found in hierarchy of the workspace.',
     );
     return {
       memoryContent: { global: '', extension: '', project: '' },
@@ -710,7 +710,7 @@ export async function loadServerHierarchicalMemory(
 
   if (allFilePaths.length === 0) {
     debugLogger.debug(
-      '[DEBUG] [MemoryDiscovery] No unique GEMINI.md files found after deduplication by file identity.',
+      '[DEBUG] [MemoryDiscovery] No unique APEX.md files found after deduplication by file identity.',
     );
     return {
       memoryContent: { global: '', extension: '', project: '' },
@@ -829,7 +829,7 @@ export async function loadJitSubdirectoryMemory(
   // Resolve the target to a directory before traversing upward.
   // When the target is a file (e.g. /app/src/file.ts), start from its
   // parent directory to avoid a wasted fs.access check on a nonsensical
-  // path like /app/src/file.ts/GEMINI.md.
+  // path like /app/src/file.ts/APEX.md.
   let startDir = resolvedTarget;
   try {
     const stat = await fs.stat(resolvedTarget);

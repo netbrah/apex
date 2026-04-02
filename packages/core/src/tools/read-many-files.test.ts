@@ -512,7 +512,7 @@ describe('ReadManyFilesTool', () => {
       ]);
     });
 
-    it('should return error if path is ignored by a .geminiignore pattern', async () => {
+    it('should return error if path is ignored by a .apexignore pattern', async () => {
       createFile('foo.bar', '');
       createFile('bar.ts', '');
       createFile('foo.quux', '');
@@ -875,7 +875,7 @@ Content of file[1]
     it('should discover JIT context sequentially to avoid duplicate shared parent context', async () => {
       const { discoverJitContext } = await import('./jit-context.js');
 
-      // Simulate two subdirectories sharing a parent GEMINI.md.
+      // Simulate two subdirectories sharing a parent APEX.md.
       // Sequential execution means the second call sees the parent already
       // loaded, so it only returns its own leaf context.
       const callOrder: string[] = [];

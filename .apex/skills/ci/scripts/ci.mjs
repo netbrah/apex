@@ -77,13 +77,13 @@ function generateTestCommand(failedFilesMap) {
       ['Job Error', 'Unknown File', 'Build Error', 'Lint Error'].includes(file)
     )
       continue;
-    let workspace = '@google/gemini-cli';
+    let workspace = '@apex-code/apex';
     let relPath = file;
     if (file.startsWith('packages/core/')) {
-      workspace = '@google/gemini-cli-core';
+      workspace = '@apex-code/apex-core';
       relPath = file.replace('packages/core/', '');
     } else if (file.startsWith('packages/cli/')) {
-      workspace = '@google/gemini-cli';
+      workspace = '@apex-code/apex';
       relPath = file.replace('packages/cli/', '');
     }
     relPath = relPath.replace(/^.*packages\/[^\/]+\//, '');

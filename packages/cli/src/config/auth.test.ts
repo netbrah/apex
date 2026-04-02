@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AuthType } from '@google/gemini-cli-core';
+import { AuthType } from '@apex-code/apex-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateAuthMethod } from './auth.js';
 import * as settings from './settings.js';

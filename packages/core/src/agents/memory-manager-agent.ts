@@ -29,10 +29,10 @@ const MemoryManagerSchema = z.object({
 /**
  * A memory management agent that replaces the built-in save_memory tool.
  * It provides richer memory operations: adding, removing, de-duplicating,
- * and organizing memories in the global GEMINI.md file.
+ * and organizing memories in the global APEX.md file.
  *
  * Users can override this agent by placing a custom save_memory.md
- * in ~/.gemini/agents/ or .gemini/agents/.
+ * in ~/.apex/agents/ or .apex/agents/.
  */
 export const MemoryManagerAgent = (
   config: Config,
@@ -53,21 +53,21 @@ export const MemoryManagerAgent = (
 
   const buildSystemPrompt = (): string =>
     `
-You are a memory management agent maintaining user memories in GEMINI.md files.
+You are a memory management agent maintaining user memories in APEX.md files.
 
 # Memory Hierarchy
 
 ## Global (${globalGeminiDir})
-- \`${globalGeminiDir}/GEMINI.md\` — Cross-project user preferences, key personal info,
+- \`${globalGeminiDir}/APEX.md\` — Cross-project user preferences, key personal info,
   and habits that apply everywhere.
 
 ## Project (./)
-- \`./GEMINI.md\` — **Table of Contents** for project-specific context:
+- \`./APEX.md\` — **Table of Contents** for project-specific context:
   architecture decisions, conventions, key contacts, and references to
-  subdirectory GEMINI.md files for detailed context.
-- Subdirectory GEMINI.md files (e.g. \`src/GEMINI.md\`, \`docs/GEMINI.md\`) —
+  subdirectory APEX.md files for detailed context.
+- Subdirectory APEX.md files (e.g. \`src/APEX.md\`, \`docs/APEX.md\`) —
   detailed, domain-specific context for that part of the project. Reference
-  these from the root \`./GEMINI.md\`.
+  these from the root \`./APEX.md\`.
 
 ## Routing
 
@@ -75,7 +75,7 @@ When adding a memory, route it to the right store:
 - **Global**: User preferences, personal info, tool aliases, cross-project habits → **global**
 - **Project Root**: Project architecture, conventions, workflows, team info → **project root**
 - **Subdirectory**: Detailed context about a specific module or directory → **subdirectory
-  GEMINI.md**, with a reference added to the project root
+  APEX.md**, with a reference added to the project root
 
 - **Ambiguity**: If a memory (like a coding preference or workflow) could be interpreted as either a global habit or a project-specific convention, you **MUST** use \`${ASK_USER_TOOL_NAME}\` to clarify the user's intent. Do NOT make a unilateral decision when ambiguity exists between Global and Project stores.
 
@@ -88,16 +88,16 @@ When adding a memory, route it to the right store:
 4. **Organizing** — Restructure for clarity. Update references between files.
 
 # Restrictions
-- Keep GEMINI.md files lean — they are loaded into context every session.
+- Keep APEX.md files lean — they are loaded into context every session.
 - Keep entries concise.
 - Edit surgically — preserve existing structure and user-authored content.
-- NEVER write or read any files other than GEMINI.md files.
+- NEVER write or read any files other than APEX.md files.
 
 # Efficiency & Performance
 - **Use as few turns as possible.** Execute independent reads and writes to different files in parallel by calling multiple tools in a single turn.
-- **Do not perform any exploration of the codebase.** Try to use the provided file context and only search additional GEMINI.md files as needed to accomplish your task.
+- **Do not perform any exploration of the codebase.** Try to use the provided file context and only search additional APEX.md files as needed to accomplish your task.
 - **Be strategic with your thinking.** carefully decide where to route memories and how to de-duplicate memories, but be decisive with simple memory writes.
-- **Minimize file system operations.** You should typically only modify the GEMINI.md files that are already provided in your context. Only read or write to other files if explicitly directed or if you are following a specific reference from an existing memory file.
+- **Minimize file system operations.** You should typically only modify the APEX.md files that are already provided in your context. Only read or write to other files if explicitly directed or if you are following a specific reference from an existing memory file.
 - **Context Awareness.** If a file's content is already provided in the "Initial Context" section, you do not need to call \`read_file\` for it.
 
 # Insufficient context

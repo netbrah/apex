@@ -33,7 +33,7 @@ import {
   type AdminControlsSettings,
   debugLogger,
   isHeadlessMode,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 import { loadCliConfig, parseArguments } from './config/config.js';
 import * as cliConfig from './config/config.js';
@@ -313,7 +313,7 @@ export async function main() {
   ) {
     if (
       process.env['CLOUD_SHELL'] === 'true' ||
-      process.env['GEMINI_CLI_USE_COMPUTE_ADC'] === 'true'
+      process.env['APEX_USE_COMPUTE_ADC'] === 'true'
     ) {
       settings.setValue(
         SettingScope.User,

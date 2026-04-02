@@ -68,7 +68,7 @@ function createTempFilesForModify(
   file_path: string,
 ): { oldPath: string; newPath: string; dirPath: string } {
   const diffDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'gemini-cli-tool-modify-'),
+    path.join(os.tmpdir(), 'apex-tool-modify-'),
   );
 
   try {

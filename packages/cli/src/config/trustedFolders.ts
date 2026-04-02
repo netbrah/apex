@@ -13,12 +13,12 @@ import {
   getErrorMessage,
   isWithinRoot,
   ideContextStore,
-  GEMINI_DIR,
+  APEX_DIR,
   homedir,
   isHeadlessMode,
   coreEvents,
   type HeadlessModeOptions,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { Settings } from './settings.js';
 import stripJsonComments from 'strip-json-comments';
 import { writeStderrLine } from '../utils/stdioHelpers.js';
@@ -28,12 +28,12 @@ const { promises: fsPromises } = fs;
 export const TRUSTED_FOLDERS_FILENAME = 'trustedFolders.json';
 
 export function getUserSettingsDir(): string {
-  return path.join(homedir(), GEMINI_DIR);
+  return path.join(homedir(), APEX_DIR);
 }
 
 export function getTrustedFoldersPath(): string {
-  if (process.env['GEMINI_CLI_TRUSTED_FOLDERS_PATH']) {
-    return process.env['GEMINI_CLI_TRUSTED_FOLDERS_PATH'];
+  if (process.env['APEX_TRUSTED_FOLDERS_PATH']) {
+    return process.env['APEX_TRUSTED_FOLDERS_PATH'];
   }
   return path.join(getUserSettingsDir(), TRUSTED_FOLDERS_FILENAME);
 }

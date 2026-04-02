@@ -34,7 +34,7 @@ describe('WindowsSandboxManager', () => {
     vi.spyOn(sandboxManager, 'tryRealpath').mockImplementation(async (p) =>
       p.toString(),
     );
-    testCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-test-'));
+    testCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-test-'));
     manager = new WindowsSandboxManager({
       workspace: testCwd,
       modeConfig: { readonly: false, allowOverrides: true },
@@ -227,13 +227,13 @@ describe('WindowsSandboxManager', () => {
     await manager.prepareCommand(req);
 
     expect(fs.existsSync(path.join(testCwd, '.gitignore'))).toBe(true);
-    expect(fs.existsSync(path.join(testCwd, '.geminiignore'))).toBe(true);
+    expect(fs.existsSync(path.join(testCwd, '.apexignore'))).toBe(true);
     expect(fs.existsSync(path.join(testCwd, '.git'))).toBe(true);
     expect(fs.lstatSync(path.join(testCwd, '.git')).isDirectory()).toBe(true);
   });
 
   it('should grant Low Integrity access to the workspace and allowed paths', async () => {
-    const allowedPath = path.join(os.tmpdir(), 'gemini-cli-test-allowed');
+    const allowedPath = path.join(os.tmpdir(), 'apex-test-allowed');
     if (!fs.existsSync(allowedPath)) {
       fs.mkdirSync(allowedPath);
     }
@@ -274,7 +274,7 @@ describe('WindowsSandboxManager', () => {
   it('should grant Low Integrity access to additional write paths', async () => {
     const extraWritePath = path.join(
       os.tmpdir(),
-      'gemini-cli-test-extra-write',
+      'apex-test-extra-write',
     );
     if (!fs.existsSync(extraWritePath)) {
       fs.mkdirSync(extraWritePath);
@@ -387,7 +387,7 @@ describe('WindowsSandboxManager', () => {
   it('skips denying access to non-existent forbidden paths to prevent icacls failure', async () => {
     const missingPath = path.join(
       os.tmpdir(),
-      'gemini-cli-test-missing',
+      'apex-test-missing',
       'does-not-exist.txt',
     );
 
@@ -419,7 +419,7 @@ describe('WindowsSandboxManager', () => {
   });
 
   it('should deny Low Integrity access to forbidden paths', async () => {
-    const forbiddenPath = path.join(os.tmpdir(), 'gemini-cli-test-forbidden');
+    const forbiddenPath = path.join(os.tmpdir(), 'apex-test-forbidden');
     if (!fs.existsSync(forbiddenPath)) {
       fs.mkdirSync(forbiddenPath);
     }
@@ -449,7 +449,7 @@ describe('WindowsSandboxManager', () => {
   });
 
   it('should override allowed paths if a path is also in forbidden paths', async () => {
-    const conflictPath = path.join(os.tmpdir(), 'gemini-cli-test-conflict');
+    const conflictPath = path.join(os.tmpdir(), 'apex-test-conflict');
     if (!fs.existsSync(conflictPath)) {
       fs.mkdirSync(conflictPath);
     }

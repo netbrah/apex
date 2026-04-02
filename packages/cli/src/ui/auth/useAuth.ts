@@ -13,8 +13,8 @@ import {
   debugLogger,
   isAccountSuspendedError,
   ProjectIdRequiredError,
-} from '@google/gemini-cli-core';
-import { getErrorMessage } from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
+import { getErrorMessage } from '@apex-code/apex-core';
 import { AuthState } from '../types.js';
 import { validateAuthMethod } from '../../config/auth.js';
 

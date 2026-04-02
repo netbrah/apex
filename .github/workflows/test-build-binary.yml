@@ -114,7 +114,7 @@ jobs:
         run: 'npm run build:binary'
 
       - name: 'Build Core Package'
-        run: 'npm run build -w @google/gemini-cli-core'
+        run: 'npm run build -w @apex-code/apex-core'
 
       - name: 'Verify Output Exists'
         run: |

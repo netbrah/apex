@@ -15,7 +15,7 @@ import {
   type ListDirectoryResult,
   type ReadManyFilesResult,
   makeFakeConfig,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type {
   SerializableConfirmationDetails,
   ToolResultDisplay,

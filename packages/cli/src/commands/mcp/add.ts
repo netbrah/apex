@@ -7,7 +7,7 @@
 // File for 'qwen mcp add' command
 import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { debugLogger, type MCPServerConfig } from '@google/gemini-cli-core';
+import { debugLogger, type MCPServerConfig } from '@apex-code/apex-core';
 import { exitCli } from '../utils.js';
 
 async function addMcpServer(

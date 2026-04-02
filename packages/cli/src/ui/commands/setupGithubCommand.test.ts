@@ -17,7 +17,7 @@ import {
 } from './setupGithubCommand.js';
 import type { CommandContext } from './types.js';
 import * as commandUtils from '../utils/commandUtils.js';
-import { debugLogger, type ToolActionReturn } from '@google/gemini-cli-core';
+import { debugLogger, type ToolActionReturn } from '@apex-code/apex-core';
 
 vi.mock('child_process');
 
@@ -186,7 +186,7 @@ describe('setupGithubCommand', async () => {
 
     if (gitignoreExists) {
       const gitignoreContent = await fs.readFile(gitignorePath, 'utf8');
-      expect(gitignoreContent).toContain('.gemini/');
+      expect(gitignoreContent).toContain('.apex/');
       expect(gitignoreContent).toContain('gha-creds-*.json');
     }
   });

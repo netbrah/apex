@@ -25,7 +25,7 @@ vi.mock('@apex-code/apex-core', async () => {
   };
 });
 
-import { uiTelemetryService, type GeminiClient } from '@google/gemini-cli-core';
+import { uiTelemetryService, type GeminiClient } from '@apex-code/apex-core';
 
 describe('clearCommand', () => {
   let mockContext: CommandContext;

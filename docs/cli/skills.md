@@ -8,7 +8,7 @@ discoverable capability.
 
 ## Overview
 
-Unlike general context files ([`GEMINI.md`](./gemini-md.md)), which provide
+Unlike general context files ([`APEX.md`](./gemini-md.md)), which provide
 persistent workspace-wide background, Skills represent **on-demand expertise**.
 This allows Gemini to maintain a vast library of specialized capabilities—such
 as security auditing, cloud deployments, or codebase migrations—without
@@ -35,10 +35,10 @@ the full instructions and resources required to complete the task using the
 
 Gemini CLI discovers skills from three primary locations:
 
-1.  **Workspace Skills**: Located in `.gemini/skills/` or the `.agents/skills/`
+1.  **Workspace Skills**: Located in `.apex/skills/` or the `.agents/skills/`
     alias. Workspace skills are typically committed to version control and
     shared with the team.
-2.  **User Skills**: Located in `~/.gemini/skills/` or the `~/.agents/skills/`
+2.  **User Skills**: Located in `~/.apex/skills/` or the `~/.agents/skills/`
     alias. These are personal skills available across all your workspaces.
 3.  **Extension Skills**: Skills bundled within installed
     [extensions](../extensions/index.md).
@@ -47,7 +47,7 @@ Gemini CLI discovers skills from three primary locations:
 locations override lower ones: **Workspace > User > Extension**.
 
 Within the same tier (user or workspace), the `.agents/skills/` alias takes
-precedence over the `.gemini/skills/` directory. This generic alias provides an
+precedence over the `.apex/skills/` directory. This generic alias provides an
 intuitive path for managing agent-specific expertise that remains compatible
 across different AI agent tools.
 
@@ -77,15 +77,15 @@ The `gemini skills` command provides management utilities:
 gemini skills list
 
 # Link agent skills from a local directory via symlink
-# Discovers skills (SKILL.md or */SKILL.md) and creates symlinks in ~/.gemini/skills
+# Discovers skills (SKILL.md or */SKILL.md) and creates symlinks in ~/.apex/skills
 # (or ~/.agents/skills)
 gemini skills link /path/to/my-skills-repo
 
-# Link to the workspace scope (.gemini/skills or .agents/skills)
+# Link to the workspace scope (.apex/skills or .agents/skills)
 gemini skills link /path/to/my-skills-repo --scope workspace
 
 # Install a skill from a Git repository, local directory, or zipped skill file (.skill)
-# Uses the user scope by default (~/.gemini/skills or ~/.agents/skills)
+# Uses the user scope by default (~/.apex/skills or ~/.agents/skills)
 gemini skills install https://github.com/user/repo.git
 gemini skills install /path/to/local/skill
 gemini skills install /path/to/local/my-expertise.skill
@@ -93,7 +93,7 @@ gemini skills install /path/to/local/my-expertise.skill
 # Install a specific skill from a monorepo or subdirectory using --path
 gemini skills install https://github.com/my-org/my-skills.git --path skills/frontend-design
 
-# Install to the workspace scope (.gemini/skills or .agents/skills)
+# Install to the workspace scope (.apex/skills or .agents/skills)
 gemini skills install /path/to/skill --scope workspace
 
 # Uninstall a skill by name

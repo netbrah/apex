@@ -12,12 +12,12 @@ import {
   AuthType,
   UserAccountManager,
   type ContentGeneratorConfig,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 // Mock UserAccountManager to control cached account
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...original,
     UserAccountManager: vi.fn().mockImplementation(() => ({

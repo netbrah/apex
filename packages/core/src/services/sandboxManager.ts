@@ -154,7 +154,7 @@ export interface SandboxManager {
  */
 export const GOVERNANCE_FILES = [
   { path: '.gitignore', isDirectory: false },
-  { path: '.geminiignore', isDirectory: false },
+  { path: '.apexignore', isDirectory: false },
   { path: '.git', isDirectory: true },
 ] as const;
 

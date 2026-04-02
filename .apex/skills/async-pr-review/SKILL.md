@@ -10,7 +10,7 @@ This skill provides a set of tools to asynchronously review a Pull Request. It w
 This skill is designed to showcase an advanced "Agentic Asynchronous Pattern":
 1.  **Native Background Shells vs Headless Inference**: While Gemini CLI can natively spawn and detach background shell commands (using the `run_shell_command` tool with `is_background: true`), a standard bash background job cannot perform LLM inference. To conduct AI-driven code reviews and test generation in the background, the shell script *must* invoke the `gemini` executable headlessly using `-p`. This offloads the AI tasks to independent worker agents.
 2.  **Dynamic Git Scoping**: The review scripts avoid hardcoded paths. They use `git rev-parse --show-toplevel` to automatically resolve the root of the user's current project.
-3.  **Ephemeral Worktrees**: Instead of checking out branches in the user's main workspace, the skill provisions temporary git worktrees in `.gemini/tmp/async-reviews/pr-<number>`. This prevents git lock conflicts and namespace pollution.
+3.  **Ephemeral Worktrees**: Instead of checking out branches in the user's main workspace, the skill provisions temporary git worktrees in `.apex/tmp/async-reviews/pr-<number>`. This prevents git lock conflicts and namespace pollution.
 4.  **Agentic Evaluation (`check-async-review.sh`)**: The check script outputs clean JSON/text statuses for the main agent to parse. The interactive agent itself synthesizes the final assessment dynamically from the generated log files.
 
 ## Workflow
@@ -26,7 +26,7 @@ If the user wants to start a new async PR review:
 1.  Ask the user for the PR number if they haven't provided it.
 2.  Execute the `async-review.sh` script, passing the PR number as the first argument. Be sure to run it with the `is_background` flag set to true to ensure it immediately detaches.
     ```bash
-    .gemini/skills/async-pr-review/scripts/async-review.sh <PR_NUMBER>
+    .apex/skills/async-pr-review/scripts/async-review.sh <PR_NUMBER>
     ```
 3.  Inform the user that the tasks have started successfully and they can check the status later.
 
@@ -37,7 +37,7 @@ If the user wants to check the status or view the final assessment of a previous
 1.  Ask the user for the PR number if they haven't provided it.
 2.  Execute the `check-async-review.sh` script, passing the PR number as the first argument:
     ```bash
-    .gemini/skills/async-pr-review/scripts/check-async-review.sh <PR_NUMBER>
+    .apex/skills/async-pr-review/scripts/check-async-review.sh <PR_NUMBER>
     ```
 3.  **Evaluate Output**: Read the output from the script.
     *   If the output contains `STATUS: IN_PROGRESS`, tell the user which tasks are still running.

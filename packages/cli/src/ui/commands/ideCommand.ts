@@ -11,7 +11,7 @@ import {
   logIdeConnection,
   IdeConnectionEvent,
   IdeConnectionType,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   type Config,
   IdeClient,
@@ -25,8 +25,8 @@ import {
   getIdeInstaller,
   IDEConnectionStatus,
   ideContextStore,
-  GEMINI_CLI_COMPANION_EXTENSION_NAME,
-} from '@google/gemini-cli-core';
+  APEX_COMPANION_EXTENSION_NAME,
+} from '@apex-code/apex-core';
 import path from 'node:path';
 import type {
   CommandContext,

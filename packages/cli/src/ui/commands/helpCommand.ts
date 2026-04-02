@@ -11,7 +11,7 @@ import { t } from '../../i18n/index.js';
 export const helpCommand: SlashCommand = {
   name: 'help',
   kind: CommandKind.BUILT_IN,
-  description: 'For help on gemini-cli',
+  description: 'For help on apex',
   autoExecute: true,
   action: async (context) => {
     const helpItem: Omit<HistoryItemHelp, 'id'> = {

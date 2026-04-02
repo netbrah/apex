@@ -30,7 +30,7 @@ import {
   type ModelRouterService,
   processSingleFileContent,
   InvalidStreamError,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   SettingScope,
   type LoadedSettings,
@@ -39,7 +39,7 @@ import {
 import { loadCliConfig, type CliArgs } from '../config/config.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ApprovalMode } from '@google/gemini-cli-core/src/policy/types.js';
+import { ApprovalMode } from '@apex-code/apex-core/src/policy/types.js';
 
 vi.mock('../config/config.js', () => ({
   loadCliConfig: vi.fn(),
@@ -94,9 +94,9 @@ vi.mock('../ui/commands/initCommand.js', () => ({
   },
 }));
 vi.mock(
-  '@google/gemini-cli-core',
+  '@apex-code/apex-core',
   async (
-    importOriginal: () => Promise<typeof import('@google/gemini-cli-core')>,
+    importOriginal: () => Promise<typeof import('@apex-code/apex-core')>,
   ) => {
     const actual = await importOriginal();
     return {
@@ -1490,7 +1490,7 @@ describe('Session', () => {
       .mockResolvedValueOnce(stream1)
       .mockResolvedValueOnce(stream2);
 
-    const { updatePolicy } = await import('@google/gemini-cli-core');
+    const { updatePolicy } = await import('@apex-code/apex-core');
 
     await session.prompt({
       sessionId: 'session-1',

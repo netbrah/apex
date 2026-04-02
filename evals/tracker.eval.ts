@@ -8,7 +8,7 @@ import { describe, expect } from 'vitest';
 import {
   TRACKER_CREATE_TASK_TOOL_NAME,
   TRACKER_UPDATE_TASK_TOOL_NAME,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { evalTest, assertModelHasOutput } from './test-helper.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -122,10 +122,10 @@ describe('tracker_mode', () => {
     prompt:
       'Where is my task tracker storage located? Please provide the absolute path in your response.',
     assert: async (rig, result) => {
-      // The rig sets GEMINI_CLI_HOME to rig.homeDir
+      // The rig sets APEX_HOME to rig.homeDir
       const homeDir = rig.homeDir!;
       // The response should contain the dynamic path which includes the home directory
-      // and follows the .gemini/tmp/.../tracker structure.
+      // and follows the .apex/tmp/.../tracker structure.
       expect(result).toContain(homeDir);
       expect(result).toMatch(/\.gemini\/tmp\/.*\/tracker/);
     },

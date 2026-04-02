@@ -54,7 +54,7 @@ jobs:
           printf "%s\n" "$BODY" >> "$GITHUB_OUTPUT"
           echo 'EOF' >> "$GITHUB_OUTPUT"
         env:
-          GH_TOKEN: '${{ secrets.GEMINI_CLI_ROBOT_GITHUB_PAT }}'
+          GH_TOKEN: '${{ secrets.APEX_ROBOT_GITHUB_PAT }}'
           BODY: '${{ github.event.inputs.body || github.event.release.body }}'
 
       - name: 'Validate version'
@@ -88,7 +88,7 @@ jobs:
         if: "steps.validate_version.outputs.CONTINUE == 'true'"
         uses: 'peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c' # ratchet:peter-evans/create-pull-request@v6
         with:
-          token: '${{ secrets.GEMINI_CLI_ROBOT_GITHUB_PAT }}'
+          token: '${{ secrets.APEX_ROBOT_GITHUB_PAT }}'
           commit-message: 'docs(changelog): update for ${{ steps.release_info.outputs.VERSION }}'
           title: 'Changelog for ${{ steps.release_info.outputs.VERSION }}'
           body: |

@@ -21,9 +21,9 @@ const mocks = vi.hoisted(() => ({
   writeToStderr: vi.fn(),
 }));
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     writeToStderr: mocks.writeToStderr,
@@ -126,7 +126,7 @@ describe('relaunchAppInChildProcess', () => {
     mocks.writeToStderr.mockClear();
 
     process.env = { ...originalEnv };
-    delete process.env['GEMINI_CLI_NO_RELAUNCH'];
+    delete process.env['APEX_NO_RELAUNCH'];
 
     process.execArgv = [...originalExecArgv];
     process.argv = [...originalArgv];
@@ -154,9 +154,9 @@ describe('relaunchAppInChildProcess', () => {
     stdinResumeSpy.mockRestore();
   });
 
-  describe('when GEMINI_CLI_NO_RELAUNCH is set', () => {
+  describe('when APEX_NO_RELAUNCH is set', () => {
     it('should return early without spawning a child process', async () => {
-      process.env['GEMINI_CLI_NO_RELAUNCH'] = 'true';
+      process.env['APEX_NO_RELAUNCH'] = 'true';
 
       await relaunchAppInChildProcess(['--test'], ['--verbose']);
 
@@ -165,9 +165,9 @@ describe('relaunchAppInChildProcess', () => {
     });
   });
 
-  describe('when GEMINI_CLI_NO_RELAUNCH is not set', () => {
+  describe('when APEX_NO_RELAUNCH is not set', () => {
     beforeEach(() => {
-      delete process.env['GEMINI_CLI_NO_RELAUNCH'];
+      delete process.env['APEX_NO_RELAUNCH'];
     });
 
     it('should construct correct node arguments from execArgv, additionalNodeArgs, script, additionalScriptArgs, and argv', () => {

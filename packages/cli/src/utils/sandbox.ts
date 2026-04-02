@@ -18,14 +18,14 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { quote, parse } from 'shell-quote';
 import { promisify } from 'node:util';
-import type { Config, SandboxConfig } from '@google/gemini-cli-core';
+import type { Config, SandboxConfig } from '@apex-code/apex-core';
 import {
   coreEvents,
   debugLogger,
   FatalSandboxError,
-  GEMINI_DIR,
+  APEX_DIR,
   homedir,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { ConsolePatcher } from '../ui/utils/ConsolePatcher.js';
 import { randomBytes } from 'node:crypto';
 import {
@@ -70,7 +70,7 @@ export async function start_sandbox(
       );
       // if profile name is not recognized, then look for file under project settings directory
       if (!BUILTIN_SEATBELT_PROFILES.includes(profile)) {
-        profileFile = path.join(GEMINI_DIR, `sandbox-macos-${profile}.sb`);
+        profileFile = path.join(APEX_DIR, `sandbox-macos-${profile}.sb`);
       }
       if (!fs.existsSync(profileFile)) {
         throw new FatalSandboxError(
@@ -237,11 +237,11 @@ export async function start_sandbox(
 
     debugLogger.log(`hopping into sandbox (command: ${command}) ...`);
 
-    // determine full path for gemini-cli to distinguish linked vs installed setting
+    // determine full path for apex to distinguish linked vs installed setting
     const gcPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : '';
 
     const projectSandboxDockerfile = path.join(
-      GEMINI_DIR,
+      APEX_DIR,
       'sandbox.Dockerfile',
     );
     const isCustomProjectSandbox = fs.existsSync(projectSandboxDockerfile);
@@ -253,14 +253,14 @@ export async function start_sandbox(
     const workdir = path.resolve(process.cwd());
     const containerWorkdir = getContainerPath(workdir);
 
-    // if BUILD_SANDBOX is set, then call scripts/build_sandbox.js under gemini-cli repo
+    // if BUILD_SANDBOX is set, then call scripts/build_sandbox.js under apex repo
     //
-    // note this can only be done with binary linked from gemini-cli repo
+    // note this can only be done with binary linked from apex repo
     if (process.env['BUILD_SANDBOX']) {
-      if (!gcPath.includes('gemini-cli/packages/')) {
+      if (!gcPath.includes('apex/packages/')) {
         throw new FatalSandboxError(
           'Cannot build sandbox using installed gemini binary; ' +
-            'run `npm link ./packages/cli` under gemini-cli repo to switch to linked binary.',
+            'run `npm link ./packages/cli` under apex repo to switch to linked binary.',
         );
       } else {
         debugLogger.log('building sandbox ...');
@@ -268,7 +268,7 @@ export async function start_sandbox(
         // if project folder has sandbox.Dockerfile under project settings folder, use that
         let buildArgs = '';
         const projectSandboxDockerfile = path.join(
-          GEMINI_DIR,
+          APEX_DIR,
           'sandbox.Dockerfile',
         );
         if (isCustomProjectSandbox) {
@@ -292,8 +292,8 @@ export async function start_sandbox(
     if (!(await ensureSandboxImageIsPresent(command, image, cliConfig))) {
       const remedy =
         image === LOCAL_DEV_SANDBOX_IMAGE_NAME
-          ? 'Try running `npm run build:all` or `npm run build:sandbox` under the gemini-cli repo to build it locally, or check the image name and your network connection.'
-          : 'Please check the image name, your network connection, or notify gemini-cli-dev@google.com if the issue persists.';
+          ? 'Try running `npm run build:all` or `npm run build:sandbox` under the apex repo to build it locally, or check the image name and your network connection.'
+          : 'Please check the image name, your network connection, or notify apex-dev@google.com if the issue persists.';
       throw new FatalSandboxError(
         'Cannot BUILD_SANDBOX when using macOS Seatbelt',
       );
@@ -332,12 +332,12 @@ export async function start_sandbox(
     // note user/home changes inside sandbox and we mount at BOTH paths for consistency
     const userHomeDirOnHost = homedir();
     const userSettingsDirInSandbox = getContainerPath(
-      `/home/node/${GEMINI_DIR}`,
+      `/home/node/${APEX_DIR}`,
     );
     if (!fs.existsSync(userHomeDirOnHost)) {
       fs.mkdirSync(userHomeDirOnHost, { recursive: true });
     }
-    const userSettingsDirOnHost = path.join(userHomeDirOnHost, GEMINI_DIR);
+    const userSettingsDirOnHost = path.join(userHomeDirOnHost, APEX_DIR);
     if (!fs.existsSync(userSettingsDirOnHost)) {
       fs.mkdirSync(userSettingsDirOnHost, { recursive: true });
     }
@@ -502,10 +502,10 @@ export async function start_sandbox(
     // name container after image, plus random suffix to avoid conflicts
     const imageName = parseImageName(image);
     const isIntegrationTest =
-      process.env['GEMINI_CLI_INTEGRATION_TEST'] === 'true';
+      process.env['APEX_INTEGRATION_TEST'] === 'true';
     let containerName;
     if (isIntegrationTest) {
-      containerName = `gemini-cli-integration-test-${randomBytes(4).toString(
+      containerName = `apex-integration-test-${randomBytes(4).toString(
         'hex',
       )}`;
       debugLogger.log(`ContainerName: ${containerName}`);
@@ -522,11 +522,11 @@ export async function start_sandbox(
     }
     args.push('--name', containerName, '--hostname', containerName);
 
-    // copy GEMINI_CLI_TEST_VAR for integration tests
-    if (process.env['GEMINI_CLI_TEST_VAR']) {
+    // copy APEX_TEST_VAR for integration tests
+    if (process.env['APEX_TEST_VAR']) {
       args.push(
         '--env',
-        `GEMINI_CLI_TEST_VAR=${process.env['GEMINI_CLI_TEST_VAR']}`,
+        `APEX_TEST_VAR=${process.env['APEX_TEST_VAR']}`,
       );
     }
 
@@ -599,8 +599,8 @@ export async function start_sandbox(
 
     // Pass through IDE mode environment variables
     for (const envVar of [
-      'GEMINI_CLI_IDE_SERVER_PORT',
-      'GEMINI_CLI_IDE_WORKSPACE_PATH',
+      'APEX_IDE_SERVER_PORT',
+      'APEX_IDE_WORKSPACE_PATH',
       'TERM_PROGRAM',
     ]) {
       if (process.env[envVar]) {
@@ -617,7 +617,7 @@ export async function start_sandbox(
         ?.toLowerCase()
         .startsWith(workdir.toLowerCase())
     ) {
-      const sandboxVenvPath = path.resolve(GEMINI_DIR, 'sandbox.venv');
+      const sandboxVenvPath = path.resolve(APEX_DIR, 'sandbox.venv');
       if (!fs.existsSync(sandboxVenvPath)) {
         fs.mkdirSync(sandboxVenvPath, { recursive: true });
       }
@@ -673,7 +673,7 @@ export async function start_sandbox(
     let userFlag = '';
     const finalEntrypoint = entrypoint(workdir, cliArgs);
 
-    if (process.env['GEMINI_CLI_INTEGRATION_TEST'] === 'true') {
+    if (process.env['APEX_INTEGRATION_TEST'] === 'true') {
       args.push('--user', 'root');
       userFlag = '--user root';
     } else if (await shouldUseCurrentUserInSandbox()) {
@@ -1488,9 +1488,9 @@ async function start_lxc_sandbox(
       GEMINI_MODEL: process.env['GEMINI_MODEL'],
       TERM: process.env['TERM'],
       COLORTERM: process.env['COLORTERM'],
-      GEMINI_CLI_IDE_SERVER_PORT: process.env['GEMINI_CLI_IDE_SERVER_PORT'],
-      GEMINI_CLI_IDE_WORKSPACE_PATH:
-        process.env['GEMINI_CLI_IDE_WORKSPACE_PATH'],
+      APEX_IDE_SERVER_PORT: process.env['APEX_IDE_SERVER_PORT'],
+      APEX_IDE_WORKSPACE_PATH:
+        process.env['APEX_IDE_WORKSPACE_PATH'],
       TERM_PROGRAM: process.env['TERM_PROGRAM'],
     };
     for (const [key, value] of Object.entries(envVarsToForward)) {

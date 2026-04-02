@@ -14,7 +14,7 @@ import {
 } from 'vitest';
 import { configureCommand } from './configure.js';
 import yargs from 'yargs';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 import {
   updateSetting,
   getScopedEnvContents,
@@ -84,7 +84,7 @@ describe('extensions configure command', () => {
     vi.spyOn(debugLogger, 'error');
     vi.clearAllMocks();
 
-    tempWorkspaceDir = fs.mkdtempSync('gemini-cli-test-workspace');
+    tempWorkspaceDir = fs.mkdtempSync('apex-test-workspace');
     vi.spyOn(process, 'cwd').mockReturnValue(tempWorkspaceDir);
     // Default behaviors
     mockLoadSettings.mockReturnValue({ merged: {} });

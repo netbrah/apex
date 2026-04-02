@@ -1,6 +1,6 @@
-# Provide context with GEMINI.md files
+# Provide context with APEX.md files
 
-Context files, which use the default name `GEMINI.md`, are a powerful feature
+Context files, which use the default name `APEX.md`, are a powerful feature
 for providing instructional context to the Gemini model. You can use these files
 to give project-specific instructions, define a persona, or provide coding style
 guides to make the AI's responses more accurate and tailored to your needs.
@@ -16,18 +16,18 @@ sends them to the model with every prompt. The CLI loads files in the following
 order:
 
 1.  **Global context file:**
-    - **Location:** `~/.gemini/GEMINI.md` (in your user home directory).
+    - **Location:** `~/.apex/APEX.md` (in your user home directory).
     - **Scope:** Provides default instructions for all your projects.
 
 2.  **Environment and workspace context files:**
-    - **Location:** The CLI searches for `GEMINI.md` files in your configured
+    - **Location:** The CLI searches for `APEX.md` files in your configured
       workspace directories and their parent directories.
     - **Scope:** Provides context relevant to the projects you are currently
       working on.
 
 3.  **Just-in-time (JIT) context files:**
     - **Location:** When a tool accesses a file or directory, the CLI
-      automatically scans for `GEMINI.md` files in that directory and its
+      automatically scans for `APEX.md` files in that directory and its
       ancestors up to a trusted root.
     - **Scope:** Lets the model discover highly specific instructions for
       particular components only when they are needed.
@@ -35,9 +35,9 @@ order:
 The CLI footer displays the number of loaded context files, which gives you a
 quick visual cue of the active instructional context.
 
-### Example `GEMINI.md` file
+### Example `APEX.md` file
 
-Here is an example of what you can include in a `GEMINI.md` file at the root of
+Here is an example of what you can include in a `APEX.md` file at the root of
 a TypeScript project:
 
 ```markdown
@@ -63,21 +63,21 @@ You can interact with the loaded context files by using the `/memory` command.
 - **`/memory show`**: Displays the full, concatenated content of the current
   hierarchical memory. This lets you inspect the exact instructional context
   being provided to the model.
-- **`/memory reload`**: Forces a re-scan and reload of all `GEMINI.md` files
+- **`/memory reload`**: Forces a re-scan and reload of all `APEX.md` files
   from all configured locations.
 - **`/memory add <text>`**: Appends your text to your global
-  `~/.gemini/GEMINI.md` file. This lets you add persistent memories on the fly.
+  `~/.apex/APEX.md` file. This lets you add persistent memories on the fly.
 
 ## Modularize context with imports
 
-You can break down large `GEMINI.md` files into smaller, more manageable
+You can break down large `APEX.md` files into smaller, more manageable
 components by importing content from other files using the `@file.md` syntax.
 This feature supports both relative and absolute paths.
 
-**Example `GEMINI.md` with imports:**
+**Example `APEX.md` with imports:**
 
 ```markdown
-# Main GEMINI.md file
+# Main APEX.md file
 
 This is the main content.
 
@@ -93,7 +93,7 @@ documentation.
 
 ## Customize the context file name
 
-While `GEMINI.md` is the default filename, you can configure this in your
+While `APEX.md` is the default filename, you can configure this in your
 `settings.json` file. To specify a different name or a list of names, use the
 `context.fileName` property.
 
@@ -102,7 +102,7 @@ While `GEMINI.md` is the default filename, you can configure this in your
 ```json
 {
   "context": {
-    "fileName": ["AGENTS.md", "CONTEXT.md", "GEMINI.md"]
+    "fileName": ["AGENTS.md", "CONTEXT.md", "APEX.md"]
   }
 }
 ```

@@ -7,7 +7,7 @@
 import { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { type Config } from '@google/gemini-cli-core';
+import { type Config } from '@apex-code/apex-core';
 
 type Tip = string | { text: string; weight: number };
 
@@ -40,7 +40,7 @@ export const Tips: React.FC<TipsProps> = ({ config }) => {
       <Text color={theme.text.primary}>Tips for getting started:</Text>
       {geminiMdFileCount === 0 && (
         <Text color={theme.text.primary}>
-          1. Create <Text bold>GEMINI.md</Text> files to customize your
+          1. Create <Text bold>APEX.md</Text> files to customize your
           interactions
         </Text>
       )}

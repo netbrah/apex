@@ -19,12 +19,12 @@ import {
 vi.mock('node:os');
 vi.mock('node:fs');
 vi.mock('node:fs/promises');
-vi.mock('@google/gemini-cli-core', () => ({
+vi.mock('@apex-code/apex-core', () => ({
   debugLogger: {
     log: vi.fn(),
     warn: vi.fn(),
   },
-  GEMINI_DIR: '.gemini',
+  APEX_DIR: '.apex',
 }));
 
 describe('sandboxUtils', () => {
@@ -109,7 +109,7 @@ describe('sandboxUtils', () => {
     it('should source sandbox.bashrc if exists', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       const args = entrypoint('/work', ['node', 'gemini', 'arg1']);
-      expect(args[2]).toContain('source .gemini/sandbox.bashrc');
+      expect(args[2]).toContain('source .apex/sandbox.bashrc');
     });
 
     it('should include socat commands for ports', () => {

@@ -369,7 +369,7 @@ describe('modifyWithEditor', () => {
     expect(oldFilePath).toMatch(/apex-modify-test-file-old-\d+\.txt$/);
     expect(newFilePath).toMatch(/apex-modify-test-file-new-\d+\.txt$/);
 
-    const diffDirPrefix = path.join(os.tmpdir(), 'gemini-cli-tool-modify-');
+    const diffDirPrefix = path.join(os.tmpdir(), 'apex-tool-modify-');
     expect(path.dirname(oldFilePath).startsWith(diffDirPrefix)).toBe(true);
     expect(path.dirname(newFilePath).startsWith(diffDirPrefix)).toBe(true);
   });
@@ -390,7 +390,7 @@ describe('modifyWithEditor', () => {
     expect(oldFilePath).toMatch(/apex-modify-test-file-old-\d+$/);
     expect(newFilePath).toMatch(/apex-modify-test-file-new-\d+$/);
 
-    const diffDirPrefix = path.join(os.tmpdir(), 'gemini-cli-tool-modify-');
+    const diffDirPrefix = path.join(os.tmpdir(), 'apex-tool-modify-');
     expect(path.dirname(oldFilePath).startsWith(diffDirPrefix)).toBe(true);
     expect(path.dirname(newFilePath).startsWith(diffDirPrefix)).toBe(true);
   });

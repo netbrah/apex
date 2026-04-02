@@ -12,10 +12,10 @@ import { MarkdownDisplay } from '../../utils/MarkdownDisplay.js';
 import type {
   SubagentProgress,
   SubagentActivityItem,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { TOOL_STATUS } from '../../constants.js';
 import { STATUS_INDICATOR_WIDTH } from './ToolShared.js';
-import { safeJsonToMarkdown } from '@google/gemini-cli-core';
+import { safeJsonToMarkdown } from '@apex-code/apex-core';
 
 export interface SubagentProgressDisplayProps {
   progress: SubagentProgress;

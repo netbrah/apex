@@ -166,7 +166,7 @@ export class MacOsSandboxManager implements SandboxManager {
   private writeProfileToTempFile(profile: string): string {
     const tempFile = path.join(
       os.tmpdir(),
-      `gemini-cli-seatbelt-${Date.now()}-${Math.random().toString(36).slice(2)}.sb`,
+      `apex-seatbelt-${Date.now()}-${Math.random().toString(36).slice(2)}.sb`,
     );
     fs.writeFileSync(tempFile, profile, { mode: 0o600 });
     return tempFile;

@@ -1,11 +1,11 @@
 {
-  "name": "@google/gemini-cli-sdk",
-  "version": "0.36.0-nightly.20260317.2f90b4653",
+  "name": "@apex-code/apex-sdk",
+  "version": "1.2.0",
   "description": "Gemini CLI SDK",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/google-gemini/gemini-cli.git"
+    "url": "git+https://github.com/netbrah/apex.git"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -22,7 +22,7 @@
     "dist"
   ],
   "dependencies": {
-    "@google/gemini-cli-core": "file:../core",
+    "@apex-code/apex-core": "file:../core",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.1"
   },

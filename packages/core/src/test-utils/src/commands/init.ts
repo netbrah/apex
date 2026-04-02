@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CoderAgentEvent, type AgentSettings } from '../types.js';
-import { performInit } from '@google/gemini-cli-core';
+import { performInit } from '@apex-code/apex-core';
 import type {
   Command,
   CommandContext,
@@ -24,7 +24,7 @@ import { logger } from '../utils/logger.js';
 
 export class InitCommand implements Command {
   name = 'init';
-  description = 'Analyzes the project and creates a tailored GEMINI.md file';
+  description = 'Analyzes the project and creates a tailored APEX.md file';
   requiresWorkspace = true;
   streaming = true;
 
@@ -137,7 +137,7 @@ export class InitCommand implements Command {
 
     const geminiMdPath = path.join(
       process.env['CODER_AGENT_WORKSPACE_PATH']!,
-      'GEMINI.md',
+      'APEX.md',
     );
     const result = performInit(fs.existsSync(geminiMdPath));
 

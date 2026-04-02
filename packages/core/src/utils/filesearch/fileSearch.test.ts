@@ -6,7 +6,7 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { FileSearchFactory, AbortError, filter } from './fileSearch.js';
-import { createTmpDir, cleanupTmpDir } from '@google/gemini-cli-test-utils';
+import { createTmpDir, cleanupTmpDir } from '@apex-code/apex-test-utils';
 import * as crawler from './crawler.js';
 import { GEMINI_IGNORE_FILE_NAME } from '../../config/constants.js';
 import { FileDiscoveryService } from '../../services/fileDiscoveryService.js';
@@ -50,7 +50,7 @@ describe('FileSearch', () => {
     ]);
   });
 
-  it('should combine .gitignore and .geminiignore rules', async () => {
+  it('should combine .gitignore and .apexignore rules', async () => {
     tmpDir = await createTmpDir({
       '.git': {},
       '.gitignore': 'dist/',

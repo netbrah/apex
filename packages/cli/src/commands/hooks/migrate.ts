@@ -7,7 +7,7 @@
 import type { CommandModule } from 'yargs';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debugLogger, getErrorMessage } from '@google/gemini-cli-core';
+import { debugLogger, getErrorMessage } from '@apex-code/apex-core';
 import { loadSettings, SettingScope } from '../../config/settings.js';
 import { exitCli } from '../utils.js';
 import stripJsonComments from 'strip-json-comments';
@@ -249,9 +249,9 @@ export async function handleMigrateFromClaude() {
   try {
     settings.setValue(SettingScope.Workspace, 'hooks', mergedHooks);
 
-    debugLogger.log('✓ Hooks successfully migrated to .gemini/settings.json');
+    debugLogger.log('✓ Hooks successfully migrated to .apex/settings.json');
     debugLogger.log(
-      '\nMigration complete! Please review the migrated hooks in .gemini/settings.json',
+      '\nMigration complete! Please review the migrated hooks in .apex/settings.json',
     );
   } catch (error) {
     debugLogger.error(`Error saving migrated hooks: ${getErrorMessage(error)}`);

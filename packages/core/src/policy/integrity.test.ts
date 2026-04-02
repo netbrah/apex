@@ -17,7 +17,7 @@ describe('PolicyIntegrityManager', () => {
   let integrityStoragePath: string;
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gemini-cli-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-test-'));
     integrityStoragePath = path.join(tempDir, 'policy_integrity.json');
 
     vi.spyOn(Storage, 'getPolicyIntegrityStoragePath').mockReturnValue(

@@ -17,7 +17,7 @@ responding correctly.
     **macOS/Linux**
 
     ```bash
-    mkdir -p .gemini/skills/api-auditor/scripts
+    mkdir -p .apex/skills/api-auditor/scripts
     ```
 
     **Windows (PowerShell)**
@@ -28,7 +28,7 @@ responding correctly.
 
 ### Create the definition
 
-1.  Create a file at `.gemini/skills/api-auditor/SKILL.md`. This tells the agent
+1.  Create a file at `.apex/skills/api-auditor/SKILL.md`. This tells the agent
     _when_ to use the skill and _how_ to behave.
 
     ```markdown
@@ -56,11 +56,11 @@ responding correctly.
 
 Skills can bundle resources like scripts.
 
-1.  Create a file at `.gemini/skills/api-auditor/scripts/audit.js`. This is the
+1.  Create a file at `.apex/skills/api-auditor/scripts/audit.js`. This is the
     code the agent will run.
 
     ```javascript
-    // .gemini/skills/api-auditor/scripts/audit.js
+    // .apex/skills/api-auditor/scripts/audit.js
     const url = process.argv[2];
 
     if (!url) {
@@ -76,7 +76,7 @@ Skills can bundle resources like scripts.
 
 ## How to verify discovery
 
-Gemini CLI automatically discovers skills in the `.gemini/skills` directory. You
+Gemini CLI automatically discovers skills in the `.apex/skills` directory. You
 can also use `.agents/skills` as a more generic alternative. Check that it found
 your new skill.
 
@@ -100,7 +100,7 @@ skill. I'll run the audit script now..."
 Gemini then uses the `run_shell_command` tool to execute your bundled Node
 script:
 
-`node .gemini/skills/api-auditor/scripts/audit.js http://geminili.com`
+`node .apex/skills/api-auditor/scripts/audit.js http://geminili.com`
 
 ## Next steps
 

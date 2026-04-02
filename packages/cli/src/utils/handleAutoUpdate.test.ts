@@ -104,7 +104,7 @@ describe('handleAutoUpdate', () => {
 
   it('should track update progress state', async () => {
     mockGetInstallationInfo.mockReturnValue({
-      updateCommand: 'npm i -g @google/gemini-cli@latest',
+      updateCommand: 'npm i -g @apex-code/apex@latest',
       updateMessage: 'This is an additional message.',
       isGlobal: false,
       packageManager: PackageManager.NPM,
@@ -123,7 +123,7 @@ describe('handleAutoUpdate', () => {
 
   it('should track update progress state on error', async () => {
     mockGetInstallationInfo.mockReturnValue({
-      updateCommand: 'npm i -g @google/gemini-cli@latest',
+      updateCommand: 'npm i -g @apex-code/apex@latest',
       updateMessage: 'This is an additional message.',
       isGlobal: false,
       packageManager: PackageManager.NPM,
@@ -302,7 +302,7 @@ describe('handleAutoUpdate', () => {
 
     expect(updateEventEmitter.emit).toHaveBeenCalledWith('update-failed', {
       message:
-        'Automatic update failed. Please try updating manually. (command: npm i -g @google/gemini-cli@2.0.0)',
+        'Automatic update failed. Please try updating manually. (command: npm i -g @apex-code/apex@2.0.0)',
     });
   });
 
@@ -416,7 +416,7 @@ describe('setUpdateHandler', () => {
         latest: '2.0.0',
         current: '1.0.0',
         type: 'major',
-        name: '@google/gemini-cli',
+        name: '@apex-code/apex',
       },
       message: 'Update available',
     };
@@ -471,7 +471,7 @@ describe('setUpdateHandler', () => {
         latest: '2.0.0',
         current: '1.0.0',
         type: 'major',
-        name: '@google/gemini-cli',
+        name: '@apex-code/apex',
       },
       message: 'Update available',
     };

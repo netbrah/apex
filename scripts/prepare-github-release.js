@@ -39,9 +39,9 @@ fs.writeFileSync(
 );
 console.log('Wrote .npmrc for @google-gemini scope to packages/core/');
 
-// Update @google/gemini-cli
+// Update @apex-code/apex
 updatePackageJson('packages/cli/package.json', (pkg) => {
-  pkg.name = '@google-gemini/gemini-cli';
+  pkg.name = '@google-gemini/apex';
   pkg.files = ['bundle/'];
   pkg.bin = {
     gemini: 'bundle/gemini.js',
@@ -55,14 +55,14 @@ updatePackageJson('packages/cli/package.json', (pkg) => {
   delete pkg.config; // Deletes the sandboxImageUri
 });
 
-// Update @google/gemini-cli-a2a-server
+// Update @apex-code/apex-a2a-server
 updatePackageJson('packages/a2a-server/package.json', (pkg) => {
-  pkg.name = '@google-gemini/gemini-cli-a2a-server';
+  pkg.name = '@google-gemini/apex-a2a-server';
 });
 
-// Update @google/gemini-cli-core
+// Update @apex-code/apex-core
 updatePackageJson('packages/core/package.json', (pkg) => {
-  pkg.name = '@google-gemini/gemini-cli-core';
+  pkg.name = '@google-gemini/apex-core';
 });
 
 console.log('Successfully prepared packages for GitHub release.');

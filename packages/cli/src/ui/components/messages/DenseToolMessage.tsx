@@ -17,7 +17,7 @@ import {
   isGrepResult,
   isListResult,
   isReadManyFilesResult,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   type IndividualToolCallDisplay,
   type ToolResultDisplay,

@@ -11,7 +11,7 @@ import {
   coreEvents,
   type McpClient,
   MCPServerStatus,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { GeminiSpinner } from './GeminiSpinner.js';
 import { theme } from '../semantic-colors.js';
 

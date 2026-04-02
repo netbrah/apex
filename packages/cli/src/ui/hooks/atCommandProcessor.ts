@@ -20,7 +20,7 @@ import {
   REFERENCE_CONTENT_START,
   REFERENCE_CONTENT_END,
   CoreToolCallStatus,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { Buffer } from 'node:buffer';
 import type {
   HistoryItemToolGroup,

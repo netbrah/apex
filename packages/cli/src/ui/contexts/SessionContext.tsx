@@ -18,8 +18,8 @@ import type {
   SessionMetrics,
   ModelMetrics,
   ToolCallStats,
-} from '@google/gemini-cli-core';
-import { uiTelemetryService, sessionId } from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
+import { uiTelemetryService, sessionId } from '@apex-code/apex-core';
 
 export enum ToolCallDecision {
   ACCEPT = 'accept',

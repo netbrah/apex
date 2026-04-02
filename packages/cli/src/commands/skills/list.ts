@@ -5,7 +5,7 @@
  */
 
 import type { CommandModule } from 'yargs';
-import { debugLogger } from '@google/gemini-cli-core';
+import { debugLogger } from '@apex-code/apex-core';
 import { loadSettings } from '../../config/settings.js';
 import { loadCliConfig, type CliArgs } from '../../config/config.js';
 import { exitCli } from '../utils.js';

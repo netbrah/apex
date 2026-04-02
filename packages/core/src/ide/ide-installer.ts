@@ -9,7 +9,7 @@ import * as process from 'node:process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { IDE_DEFINITIONS, type IdeInfo } from './detect-ide.js';
-import { GEMINI_CLI_COMPANION_EXTENSION_NAME } from './constants.js';
+import { APEX_COMPANION_EXTENSION_NAME } from './constants.js';
 import { homedir } from '../utils/paths.js';
 
 export interface IdeInstaller {
@@ -170,7 +170,7 @@ class VsCodeInstaller implements IdeInstaller {
         commandPath,
         [
           '--install-extension',
-          'google.gemini-cli-vscode-ide-companion',
+          'google.apex-vscode-ide-companion',
           '--force',
         ],
         { stdio: 'pipe', shell: this.platform === 'win32' },
@@ -189,7 +189,7 @@ class VsCodeInstaller implements IdeInstaller {
     } catch {
       return {
         success: false,
-        message: `Failed to install ${this.ideInfo.displayName} companion extension. Please try installing '${GEMINI_CLI_COMPANION_EXTENSION_NAME}' manually from the ${this.ideInfo.displayName} extension marketplace.`,
+        message: `Failed to install ${this.ideInfo.displayName} companion extension. Please try installing '${APEX_COMPANION_EXTENSION_NAME}' manually from the ${this.ideInfo.displayName} extension marketplace.`,
       };
     }
   }
@@ -211,7 +211,7 @@ class PositronInstaller implements IdeInstaller {
     if (!commandPath) {
       return {
         success: false,
-        message: `${this.ideInfo.displayName} CLI not found. Please ensure 'positron' is in your system's PATH. For help, see https://positron.posit.co/add-to-path.html. You can also install the '${GEMINI_CLI_COMPANION_EXTENSION_NAME}' extension manually from the VS Code marketplace / Open VSX registry.`,
+        message: `${this.ideInfo.displayName} CLI not found. Please ensure 'positron' is in your system's PATH. For help, see https://positron.posit.co/add-to-path.html. You can also install the '${APEX_COMPANION_EXTENSION_NAME}' extension manually from the VS Code marketplace / Open VSX registry.`,
       };
     }
 
@@ -220,7 +220,7 @@ class PositronInstaller implements IdeInstaller {
         commandPath,
         [
           '--install-extension',
-          'google.gemini-cli-vscode-ide-companion',
+          'google.apex-vscode-ide-companion',
           '--force',
         ],
         { stdio: 'pipe', shell: this.platform === 'win32' },
@@ -239,7 +239,7 @@ class PositronInstaller implements IdeInstaller {
     } catch {
       return {
         success: false,
-        message: `Failed to install ${this.ideInfo.displayName} companion extension. Please try installing '${GEMINI_CLI_COMPANION_EXTENSION_NAME}' manually from the ${this.ideInfo.displayName} extension marketplace.`,
+        message: `Failed to install ${this.ideInfo.displayName} companion extension. Please try installing '${APEX_COMPANION_EXTENSION_NAME}' manually from the ${this.ideInfo.displayName} extension marketplace.`,
       };
     }
   }
@@ -290,7 +290,7 @@ class AntigravityInstaller implements IdeInstaller {
         commandPath,
         [
           '--install-extension',
-          'google.gemini-cli-vscode-ide-companion',
+          'google.apex-vscode-ide-companion',
           '--force',
         ],
         { stdio: 'pipe', shell: this.platform === 'win32' },

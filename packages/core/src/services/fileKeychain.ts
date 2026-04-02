@@ -9,21 +9,21 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import type { Keychain } from './keychainTypes.js';
-import { GEMINI_DIR, homedir } from '../utils/paths.js';
+import { APEX_DIR, homedir } from '../utils/paths.js';
 
 export class FileKeychain implements Keychain {
   private readonly tokenFilePath: string;
   private readonly encryptionKey: Buffer;
 
   constructor() {
-    const configDir = path.join(homedir(), GEMINI_DIR);
+    const configDir = path.join(homedir(), APEX_DIR);
     this.tokenFilePath = path.join(configDir, 'gemini-credentials.json');
     this.encryptionKey = this.deriveEncryptionKey();
   }
 
   private deriveEncryptionKey(): Buffer {
-    const salt = `${os.hostname()}-${os.userInfo().username}-gemini-cli`;
-    return crypto.scryptSync('gemini-cli-oauth', salt, 32);
+    const salt = `${os.hostname()}-${os.userInfo().username}-apex`;
+    return crypto.scryptSync('apex-oauth', salt, 32);
   }
 
   private encrypt(text: string): string {

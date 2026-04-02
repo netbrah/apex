@@ -31,7 +31,7 @@ import {
   AuthType,
   type AgentDefinition,
   CoreToolCallStatus,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 // Mock coreEvents
 const mockCoreEvents = vi.hoisted(() => ({
@@ -60,9 +60,9 @@ const terminalNotificationsMocks = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     coreEvents: mockCoreEvents,
@@ -237,7 +237,7 @@ import {
   writeToStdout,
   enableMouseEvents,
   disableMouseEvents,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { type ExtensionManager } from '../config/extension-manager.js';
 import {
   WARNING_PROMPT_DURATION_MS,

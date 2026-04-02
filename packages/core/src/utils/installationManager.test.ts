@@ -18,7 +18,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { GEMINI_DIR, homedir as pathsHomedir } from './paths.js';
+import { APEX_DIR, homedir as pathsHomedir } from './paths.js';
 import { debugLogger } from './debugLogger.js';
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -58,11 +58,11 @@ describe('InstallationManager', () => {
   let tempHomeDir: string;
   let installationManager: InstallationManager;
   const installationIdFile = () =>
-    path.join(tempHomeDir, GEMINI_DIR, 'installation_id');
+    path.join(tempHomeDir, APEX_DIR, 'installation_id');
 
   beforeEach(() => {
     tempHomeDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
+      path.join(os.tmpdir(), 'apex-test-home-'),
     );
     (pathsHomedir as Mock).mockReturnValue(tempHomeDir);
     (os.homedir as Mock).mockReturnValue(tempHomeDir);

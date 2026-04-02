@@ -13,11 +13,11 @@ import type {
 } from './types.js';
 import { getCurrentGeminiMdFilename } from '@apex-code/apex-core';
 import { CommandKind } from './types.js';
-import { performInit } from '@google/gemini-cli-core';
+import { performInit } from '@apex-code/apex-core';
 
 export const initCommand: SlashCommand = {
   name: 'init',
-  description: 'Analyzes the project and creates a tailored GEMINI.md file',
+  description: 'Analyzes the project and creates a tailored APEX.md file',
   kind: CommandKind.BUILT_IN,
   autoExecute: true,
   action: async (
@@ -32,18 +32,18 @@ export const initCommand: SlashCommand = {
       };
     }
     const targetDir = context.services.agentContext.config.getTargetDir();
-    const geminiMdPath = path.join(targetDir, 'GEMINI.md');
+    const geminiMdPath = path.join(targetDir, 'APEX.md');
 
     const result = performInit(fs.existsSync(geminiMdPath));
 
     if (result.type === 'submit_prompt') {
-      // Create an empty GEMINI.md file
+      // Create an empty APEX.md file
       fs.writeFileSync(geminiMdPath, '', 'utf8');
 
       context.ui.addItem(
         {
           type: 'info',
-          text: 'Empty GEMINI.md created. Now analyzing the project to populate it.',
+          text: 'Empty APEX.md created. Now analyzing the project to populate it.',
         },
         Date.now(),
       );

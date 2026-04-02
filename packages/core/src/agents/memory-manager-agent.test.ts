@@ -77,9 +77,9 @@ describe('MemoryManagerAgent', () => {
   it('should inject hierarchical memory into initial context', () => {
     const config = createMockConfig({
       global:
-        '--- Context from: ../../.gemini/GEMINI.md ---\nglobal context\n--- End of Context from: ../../.gemini/GEMINI.md ---',
+        '--- Context from: ../../.apex/APEX.md ---\nglobal context\n--- End of Context from: ../../.apex/APEX.md ---',
       project:
-        '--- Context from: .gemini/GEMINI.md ---\nproject context\n--- End of Context from: .gemini/GEMINI.md ---',
+        '--- Context from: .apex/APEX.md ---\nproject context\n--- End of Context from: .apex/APEX.md ---',
     });
 
     const agent = MemoryManagerAgent(config);

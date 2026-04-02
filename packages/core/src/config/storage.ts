@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
 import {
-  GEMINI_DIR,
+  APEX_DIR,
   homedir,
   GOOGLE_ACCOUNTS_FILENAME,
   isSubpath,
@@ -44,7 +44,7 @@ export class Storage {
   static getGlobalGeminiDir(): string {
     const homeDir = homedir();
     if (!homeDir) {
-      return path.join(os.tmpdir(), GEMINI_DIR);
+      return path.join(os.tmpdir(), APEX_DIR);
     }
     return path.join(homeDir, APEX_DIR);
   }
@@ -121,15 +121,15 @@ export class Storage {
     if (os.platform() === 'darwin') {
       return '/Library/Application Support/GeminiCli';
     } else if (os.platform() === 'win32') {
-      return 'C:\\ProgramData\\gemini-cli';
+      return 'C:\\ProgramData\\apex';
     } else {
-      return '/etc/gemini-cli';
+      return '/etc/apex';
     }
   }
 
   static getSystemSettingsPath(): string {
-    if (process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH']) {
-      return process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'];
+    if (process.env['APEX_SYSTEM_SETTINGS_PATH']) {
+      return process.env['APEX_SYSTEM_SETTINGS_PATH'];
     }
     return path.join(Storage.getSystemConfigDir(), 'settings.json');
   }
@@ -147,7 +147,7 @@ export class Storage {
   }
 
   getGeminiDir(): string {
-    return path.join(this.targetDir, GEMINI_DIR);
+    return path.join(this.targetDir, APEX_DIR);
   }
 
   /**

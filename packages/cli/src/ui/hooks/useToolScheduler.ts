@@ -17,7 +17,7 @@ import {
   CoreToolCallStatus,
   type SubagentActivityItem,
   type SubagentActivityMessage,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 
 // Re-exporting types compatible with hook expectations

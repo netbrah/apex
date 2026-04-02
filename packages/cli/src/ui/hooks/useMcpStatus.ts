@@ -10,7 +10,7 @@ import {
   coreEvents,
   MCPDiscoveryState,
   CoreEvent,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 export function useMcpStatus(config: Config) {
   const [discoveryState, setDiscoveryState] = useState<MCPDiscoveryState>(

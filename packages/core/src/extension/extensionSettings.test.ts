@@ -21,7 +21,7 @@ import { ExtensionStorage } from './storage.js';
 import prompts from 'prompts';
 import * as fsPromises from 'node:fs/promises';
 import * as fs from 'node:fs';
-import { KeychainTokenStorage } from '@google/gemini-cli-core';
+import { KeychainTokenStorage } from '@apex-code/apex-core';
 import { EXTENSION_SETTINGS_FILENAME } from './variables.js';
 
 vi.mock('prompts');
@@ -33,9 +33,9 @@ vi.mock('os', async (importOriginal) => {
   };
 });
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     KeychainTokenStorage: vi.fn(),
@@ -78,12 +78,12 @@ describe('extensionSettings', () => {
         } as unknown as KeychainTokenStorage;
       },
     );
-    tempHomeDir = os.tmpdir() + path.sep + `gemini-cli-test-home-${Date.now()}`;
+    tempHomeDir = os.tmpdir() + path.sep + `apex-test-home-${Date.now()}`;
     tempWorkspaceDir = path.join(
       os.tmpdir(),
-      `gemini-cli-test-workspace-${Date.now()}`,
+      `apex-test-workspace-${Date.now()}`,
     );
-    extensionDir = path.join(tempHomeDir, '.gemini', 'extensions', 'test-ext');
+    extensionDir = path.join(tempHomeDir, '.apex', 'extensions', 'test-ext');
     // Spy and mock the method, but also create the directory so we can write to it.
     vi.spyOn(ExtensionStorage.prototype, 'getExtensionDir').mockReturnValue(
       extensionDir,

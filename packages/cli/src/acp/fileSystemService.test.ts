@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 import { AcpFileSystemService } from './fileSystemService.js';
 import type { AgentSideConnection } from '@agentclientprotocol/sdk';
-import type { FileSystemService } from '@google/gemini-cli-core';
+import type { FileSystemService } from '@apex-code/apex-core';
 import os from 'node:os';
 
 vi.mock('node:os', () => ({
@@ -94,7 +94,7 @@ describe('AcpFileSystemService', () => {
       },
       {
         capability: true,
-        path: '/home/user/.gemini/tmp/file.md',
+        path: '/home/user/.apex/tmp/file.md',
         root: '/home/user',
         desc: 'fallback if file is inside global gemini dir, even if root overlaps',
         setup: () => {
@@ -102,7 +102,7 @@ describe('AcpFileSystemService', () => {
         },
         verify: () => {
           expect(mockFallback.readTextFile).toHaveBeenCalledWith(
-            '/home/user/.gemini/tmp/file.md',
+            '/home/user/.apex/tmp/file.md',
           );
           expect(mockConnection.readTextFile).not.toHaveBeenCalled();
         },
@@ -188,12 +188,12 @@ describe('AcpFileSystemService', () => {
       },
       {
         capability: true,
-        path: '/home/user/.gemini/tmp/file.md',
+        path: '/home/user/.apex/tmp/file.md',
         root: '/home/user',
         desc: 'fallback if file is inside global gemini dir, even if root overlaps',
         verify: () => {
           expect(mockFallback.writeTextFile).toHaveBeenCalledWith(
-            '/home/user/.gemini/tmp/file.md',
+            '/home/user/.apex/tmp/file.md',
             'content',
           );
           expect(mockConnection.writeTextFile).not.toHaveBeenCalled();

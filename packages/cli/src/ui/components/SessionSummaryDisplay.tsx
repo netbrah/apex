@@ -9,7 +9,7 @@ import { Box, Text } from 'ink';
 import { StatsDisplay } from './StatsDisplay.js';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
-import { escapeShellArg, getShellConfiguration } from '@google/gemini-cli-core';
+import { escapeShellArg, getShellConfiguration } from '@apex-code/apex-core';
 
 interface SessionSummaryDisplayProps {
   duration: string;

@@ -32,9 +32,9 @@ async function main() {
     })
     .option('cli-package-name', {
       description:
-        'fully qualified package name with scope (e.g @google/gemini-cli)',
+        'fully qualified package name with scope (e.g @apex-code/apex)',
       string: true,
-      default: '@google/gemini-cli',
+      default: '@apex-code/apex',
     })
     .option('dry-run', {
       description: 'Whether to run in dry-run mode.',
@@ -136,8 +136,8 @@ async function main() {
 
   // Ensure git user is configured properly for commits
   console.log('Configuring git user for cherry-pick commits...');
-  run('git config user.name "gemini-cli-robot"', dryRun);
-  run('git config user.email "gemini-cli-robot@google.com"', dryRun);
+  run('git config user.name "apex-robot"', dryRun);
+  run('git config user.email "apex-robot@google.com"', dryRun);
 
   // Cherry-pick the commit.
   console.log(`Cherry-picking commit ${commit} into ${hotfixBranch}...`);

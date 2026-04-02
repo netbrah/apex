@@ -33,7 +33,7 @@ describe('worktree utilities', () => {
   const worktreeName = 'test-feature';
   const expectedPath = path.join(
     projectRoot,
-    '.gemini',
+    '.apex',
     'worktrees',
     worktreeName,
   );
@@ -65,7 +65,7 @@ describe('worktree utilities', () => {
       } as never);
 
       const result = await getProjectRootForWorktree(
-        '/mock/project/.gemini/worktrees/my-feature',
+        '/mock/project/.apex/worktrees/my-feature',
       );
       expect(result).toBe('/mock/project');
     });
@@ -267,7 +267,7 @@ describe('WorktreeService', () => {
   describe('maybeCleanup', () => {
     const info = {
       name: 'feature-x',
-      path: '/mock/project/.gemini/worktrees/feature-x',
+      path: '/mock/project/.apex/worktrees/feature-x',
       baseSha: 'base-sha',
     };
 

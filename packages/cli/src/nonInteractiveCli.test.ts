@@ -12,7 +12,7 @@ import type {
   AnyDeclarativeTool,
   AnyToolInvocation,
   UserFeedbackPayload,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import {
   ToolErrorType,
   GeminiEventType,
@@ -21,7 +21,7 @@ import {
   FatalInputError,
   CoreEvent,
   CoreToolCallStatus,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import type { Part } from '@google/genai';
 import { runNonInteractive } from './nonInteractiveCli.js';
 import {
@@ -55,9 +55,9 @@ const mockCoreEvents = vi.hoisted(() => ({
 
 const mockSchedulerSchedule = vi.hoisted(() => vi.fn());
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
 
   class MockChatRecordingService {
     initialize = vi.fn();
@@ -183,7 +183,7 @@ describe('runNonInteractive', () => {
       getSessionId: vi.fn().mockReturnValue('test-session-id'),
       getProjectRoot: vi.fn().mockReturnValue('/test/project'),
       storage: {
-        getProjectTempDir: vi.fn().mockReturnValue('/test/project/.gemini/tmp'),
+        getProjectTempDir: vi.fn().mockReturnValue('/test/project/.apex/tmp'),
       },
       getIdeMode: vi.fn().mockReturnValue(false),
 
@@ -314,8 +314,8 @@ describe('runNonInteractive', () => {
     // so we no longer expect shutdownTelemetry to be called directly here
   });
 
-  it('should register activity logger when GEMINI_CLI_ACTIVITY_LOG_TARGET is set', async () => {
-    vi.stubEnv('GEMINI_CLI_ACTIVITY_LOG_TARGET', '/tmp/test.jsonl');
+  it('should register activity logger when APEX_ACTIVITY_LOG_TARGET is set', async () => {
+    vi.stubEnv('APEX_ACTIVITY_LOG_TARGET', '/tmp/test.jsonl');
     const events: ServerGeminiStreamEvent[] = [
       {
         type: GeminiEventType.Finished,
@@ -337,8 +337,8 @@ describe('runNonInteractive', () => {
     vi.unstubAllEnvs();
   });
 
-  it('should not register activity logger when GEMINI_CLI_ACTIVITY_LOG_TARGET is not set', async () => {
-    vi.stubEnv('GEMINI_CLI_ACTIVITY_LOG_TARGET', '');
+  it('should not register activity logger when APEX_ACTIVITY_LOG_TARGET is not set', async () => {
+    vi.stubEnv('APEX_ACTIVITY_LOG_TARGET', '');
     const events: ServerGeminiStreamEvent[] = [
       {
         type: GeminiEventType.Finished,
@@ -1849,7 +1849,7 @@ describe('runNonInteractive', () => {
       .mockReturnValue('model-1');
 
     // Mock debugLogger.error
-    const { debugLogger } = await import('@google/gemini-cli-core');
+    const { debugLogger } = await import('@apex-code/apex-core');
     const debugLoggerErrorSpy = vi
       .spyOn(debugLogger, 'error')
       .mockImplementation(() => {});

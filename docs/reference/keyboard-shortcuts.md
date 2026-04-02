@@ -140,7 +140,7 @@ available combinations.
 
 You can add alternative keybindings or remove default keybindings by creating a
 `keybindings.json` file in your home gemini directory (typically
-`~/.gemini/keybindings.json`).
+`~/.apex/keybindings.json`).
 
 ### Configuration Format
 
@@ -248,7 +248,7 @@ a `key` combination.
 - On [Windows Terminal](https://en.wikipedia.org/wiki/Windows_Terminal):
   - `shift+enter` is only supported in version 1.25 and higher.
   - `shift+tab`
-    [is not supported](https://github.com/google-gemini/gemini-cli/issues/20314)
+    [is not supported](https://github.com/netbrah/apex/issues/20314)
     on Node 20 and earlier versions of Node 22.
 - On macOS's [Terminal](<https://en.wikipedia.org/wiki/Terminal_(macOS)>):
   - `shift+enter` is not supported.

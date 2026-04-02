@@ -9,7 +9,7 @@ import type {
   ToolCallRequestInfo,
   ResumedSessionData,
   UserFeedbackPayload,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { isSlashCommand } from './ui/utils/commandUtils.js';
 import type { LoadedSettings } from './config/settings.js';
 import {
@@ -30,7 +30,7 @@ import {
   ToolErrorType,
   Scheduler,
   ROOT_SCHEDULER_ID,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 
 import type { Content, Part } from '@google/genai';
 import readline from 'node:readline';
@@ -146,7 +146,7 @@ export async function runNonInteractive(
       },
     });
 
-    if (process.env['GEMINI_CLI_ACTIVITY_LOG_TARGET']) {
+    if (process.env['APEX_ACTIVITY_LOG_TARGET']) {
       const { setupInitialActivityLogger } = await import(
         './utils/devtoolsService.js'
       );

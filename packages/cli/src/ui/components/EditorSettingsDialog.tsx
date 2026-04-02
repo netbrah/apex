@@ -23,7 +23,7 @@ import {
   isEditorAvailable,
   EDITOR_DISPLAY_NAMES,
   coreEvents,
-} from '@google/gemini-cli-core';
+} from '@apex-code/apex-core';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { t } from '../../i18n/index.js';
 

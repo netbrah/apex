@@ -13,7 +13,7 @@ import {
   EXTENSION_SETTINGS_FILENAME,
   EXTENSIONS_CONFIG_FILENAME,
 } from './variables.js';
-import { Storage } from '@google/gemini-cli-core';
+import { Storage } from '@apex-code/apex-core';
 
 vi.mock('node:os');
 vi.mock('node:fs', async (importOriginal) => {
@@ -26,7 +26,7 @@ vi.mock('node:fs', async (importOriginal) => {
     },
   };
 });
-vi.mock('@google/gemini-cli-core');
+vi.mock('@apex-code/apex-core');
 
 describe('ExtensionStorage', () => {
   const mockHomeDir = '/mock/home';
@@ -39,7 +39,7 @@ describe('ExtensionStorage', () => {
       () =>
         ({
           getExtensionsDir: () =>
-            path.join(mockHomeDir, '.gemini', 'extensions'),
+            path.join(mockHomeDir, '.apex', 'extensions'),
         }) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     );
     storage = new ExtensionStorage(extensionName);
@@ -52,7 +52,7 @@ describe('ExtensionStorage', () => {
   it('should return the correct extension directory', () => {
     const expectedDir = path.join(
       mockHomeDir,
-      '.gemini',
+      '.apex',
       'extensions',
       extensionName,
     );
@@ -62,7 +62,7 @@ describe('ExtensionStorage', () => {
   it('should return the correct config path', () => {
     const expectedPath = path.join(
       mockHomeDir,
-      '.gemini',
+      '.apex',
       'extensions',
       extensionName,
       EXTENSIONS_CONFIG_FILENAME, // EXTENSIONS_CONFIG_FILENAME
@@ -73,7 +73,7 @@ describe('ExtensionStorage', () => {
   it('should return the correct env file path', () => {
     const expectedPath = path.join(
       mockHomeDir,
-      '.gemini',
+      '.apex',
       'extensions',
       extensionName,
       EXTENSION_SETTINGS_FILENAME, // EXTENSION_SETTINGS_FILENAME
@@ -82,7 +82,7 @@ describe('ExtensionStorage', () => {
   });
 
   it('should return the correct user extensions directory', () => {
-    const expectedDir = path.join(mockHomeDir, '.gemini', 'extensions');
+    const expectedDir = path.join(mockHomeDir, '.apex', 'extensions');
     expect(ExtensionStorage.getUserExtensionsDir()).toBe(expectedDir);
   });
 

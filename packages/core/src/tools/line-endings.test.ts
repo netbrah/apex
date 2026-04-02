@@ -33,7 +33,7 @@ import {
   getMockMessageBusInstance,
 } from '../test-utils/mock-message-bus.js';
 
-const rootDir = path.resolve(os.tmpdir(), 'gemini-cli-line-ending-test-root');
+const rootDir = path.resolve(os.tmpdir(), 'apex-line-ending-test-root');
 
 // --- MOCKS ---
 vi.mock('../core/client.js');

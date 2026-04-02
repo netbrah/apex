@@ -8,7 +8,7 @@ import { renderHook } from '../../test-utils/render.js';
 import { vi, type Mock } from 'vitest';
 import { useFlickerDetector } from './useFlickerDetector.js';
 import { useConfig } from '../contexts/ConfigContext.js';
-import { recordFlickerFrame, type Config } from '@google/gemini-cli-core';
+import { recordFlickerFrame, type Config } from '@apex-code/apex-core';
 import { type DOMElement, measureElement } from 'ink';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { appEvents, AppEvent } from '../../utils/events.js';
@@ -16,13 +16,13 @@ import { appEvents, AppEvent } from '../../utils/events.js';
 // Mock dependencies
 vi.mock('../contexts/ConfigContext.js');
 vi.mock('../contexts/UIStateContext.js');
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     recordFlickerFrame: vi.fn(),
-    GEMINI_DIR: '.gemini',
+    APEX_DIR: '.apex',
   };
 });
 vi.mock('ink', async (importOriginal) => {

@@ -12,7 +12,7 @@ import { useShellHistory } from './useShellHistory.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import { GEMINI_DIR } from '@google/gemini-cli-core';
+import { APEX_DIR } from '@apex-code/apex-core';
 
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
@@ -35,21 +35,21 @@ vi.mock('node:fs', async (importOriginal) => {
     mkdirSync: vi.fn(),
   };
 });
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@google/gemini-cli-core')>();
+    await importOriginal<typeof import('@apex-code/apex-core')>();
   const path = await import('node:path');
   class Storage {
     static getGlobalSettingsPath(): string {
-      return '/test/home/.gemini/settings.json';
+      return '/test/home/.apex/settings.json';
     }
     getProjectTempDir(): string {
-      return path.join('/test/home/', actual.GEMINI_DIR, 'tmp', 'mocked_hash');
+      return path.join('/test/home/', actual.APEX_DIR, 'tmp', 'mocked_hash');
     }
     getHistoryFilePath(): string {
       return path.join(
         '/test/home/',
-        actual.GEMINI_DIR,
+        actual.APEX_DIR,
         'tmp',
         'mocked_hash',
         'shell_history',
@@ -79,7 +79,7 @@ const MOCKED_PROJECT_HASH = 'mocked_hash';
 
 const MOCKED_HISTORY_DIR = path.join(
   MOCKED_HOME_DIR,
-  GEMINI_DIR,
+  APEX_DIR,
   'tmp',
   MOCKED_PROJECT_HASH,
 );

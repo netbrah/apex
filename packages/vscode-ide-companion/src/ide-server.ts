@@ -9,7 +9,7 @@ import {
   CloseDiffRequestSchema,
   IdeContextNotificationSchema,
   OpenDiffRequestSchema,
-} from '@google/gemini-cli-core/src/ide/types.js';
+} from '@apex-code/apex-core/src/ide/types.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -23,7 +23,7 @@ import { randomUUID } from 'node:crypto';
 import { type Server as HTTPServer } from 'node:http';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import { tmpdir } from '@google/gemini-cli-core';
+import { tmpdir } from '@apex-code/apex-core';
 import type { z } from 'zod';
 import type { DiffManager } from './diff-manager.js';
 import { OpenFilesManager } from './open-files-manager.js';
@@ -36,9 +36,9 @@ class CORSError extends Error {
 }
 
 const MCP_SESSION_ID_HEADER = 'mcp-session-id';
-const IDE_SERVER_PORT_ENV_VAR = 'GEMINI_CLI_IDE_SERVER_PORT';
-const IDE_WORKSPACE_PATH_ENV_VAR = 'GEMINI_CLI_IDE_WORKSPACE_PATH';
-const IDE_AUTH_TOKEN_ENV_VAR = 'GEMINI_CLI_IDE_AUTH_TOKEN';
+const IDE_SERVER_PORT_ENV_VAR = 'APEX_IDE_SERVER_PORT';
+const IDE_WORKSPACE_PATH_ENV_VAR = 'APEX_IDE_WORKSPACE_PATH';
+const IDE_AUTH_TOKEN_ENV_VAR = 'APEX_IDE_AUTH_TOKEN';
 
 interface WritePortAndWorkspaceArgs {
   context: vscode.ExtensionContext;

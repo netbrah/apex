@@ -96,9 +96,9 @@ each tool.
 
 | Tool                                             | Kind    | Description                                                                          |
 | :----------------------------------------------- | :------ | :----------------------------------------------------------------------------------- |
-| [`activate_skill`](../tools/activate-skill.md)   | `Other` | Loads specialized procedural expertise from the `.gemini/skills` directory.          |
+| [`activate_skill`](../tools/activate-skill.md)   | `Other` | Loads specialized procedural expertise from the `.apex/skills` directory.          |
 | [`get_internal_docs`](../tools/internal-docs.md) | `Think` | Accesses Gemini CLI's own documentation for accurate answers about its capabilities. |
-| [`save_memory`](../tools/memory.md)              | `Think` | Persists specific facts and project details to your `GEMINI.md` file.                |
+| [`save_memory`](../tools/memory.md)              | `Think` | Persists specific facts and project details to your `APEX.md` file.                |
 
 ### Planning
 

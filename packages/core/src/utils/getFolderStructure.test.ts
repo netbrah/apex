@@ -10,7 +10,7 @@ import * as os from 'node:os';
 import { getFolderStructure } from './getFolderStructure.js';
 import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 import * as path from 'node:path';
-import { GEMINI_DIR } from './paths.js';
+import { APEX_DIR } from './paths.js';
 import { GEMINI_IGNORE_FILE_NAME } from 'src/config/constants.js';
 
 describe('getFolderStructure', () => {
@@ -251,13 +251,13 @@ ${testRootDir}${path.sep}
     it('should ignore files and folders specified in .gitignore', async () => {
       await fsPromises.writeFile(
         path.join(testRootDir, '.gitignore'),
-        'ignored.txt\nnode_modules/\n.gemini/*\n!/.gemini/config.yaml',
+        'ignored.txt\nnode_modules/\n.apex/*\n!/.apex/config.yaml',
       );
       await createTestFile('file1.txt');
       await createTestFile('node_modules', 'some-package', 'index.js');
       await createTestFile('ignored.txt');
-      await createTestFile(GEMINI_DIR, 'config.yaml');
-      await createTestFile(GEMINI_DIR, 'logs.json');
+      await createTestFile(APEX_DIR, 'config.yaml');
+      await createTestFile(APEX_DIR, 'logs.json');
 
       const fileService = new FileDiscoveryService(testRootDir);
       const structure = await getFolderStructure(testRootDir, {
@@ -298,13 +298,13 @@ ${testRootDir}${path.sep}
     it('should ignore apexignore files by default', async () => {
       await fsPromises.writeFile(
         path.join(testRootDir, GEMINI_IGNORE_FILE_NAME),
-        'ignored.txt\nnode_modules/\n.gemini/\n!/.gemini/config.yaml',
+        'ignored.txt\nnode_modules/\n.apex/\n!/.apex/config.yaml',
       );
       await createTestFile('file1.txt');
       await createTestFile('node_modules', 'some-package', 'index.js');
       await createTestFile('ignored.txt');
-      await createTestFile(GEMINI_DIR, 'config.yaml');
-      await createTestFile(GEMINI_DIR, 'logs.json');
+      await createTestFile(APEX_DIR, 'config.yaml');
+      await createTestFile(APEX_DIR, 'logs.json');
 
       const fileService = new FileDiscoveryService(testRootDir);
       const structure = await getFolderStructure(testRootDir, {
@@ -318,13 +318,13 @@ ${testRootDir}${path.sep}
     it('should not ignore files if respectApexIgnore is false', async () => {
       await fsPromises.writeFile(
         path.join(testRootDir, GEMINI_IGNORE_FILE_NAME),
-        'ignored.txt\nnode_modules/\n.gemini/\n!/.gemini/config.yaml',
+        'ignored.txt\nnode_modules/\n.apex/\n!/.apex/config.yaml',
       );
       await createTestFile('file1.txt');
       await createTestFile('node_modules', 'some-package', 'index.js');
       await createTestFile('ignored.txt');
-      await createTestFile(GEMINI_DIR, 'config.yaml');
-      await createTestFile(GEMINI_DIR, 'logs.json');
+      await createTestFile(APEX_DIR, 'config.yaml');
+      await createTestFile(APEX_DIR, 'logs.json');
 
       const fileService = new FileDiscoveryService(testRootDir);
       const structure = await getFolderStructure(testRootDir, {

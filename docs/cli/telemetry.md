@@ -32,7 +32,7 @@ The observability system provides:
 
 ## Configuration
 
-You control telemetry behavior through the `.gemini/settings.json` file.
+You control telemetry behavior through the `.apex/settings.json` file.
 Environment variables can override these settings.
 
 | Setting        | Environment Variable             | Description                                         | Values            | Default                 |
@@ -45,7 +45,7 @@ Environment variables can override these settings.
 | `logPrompts`   | `GEMINI_TELEMETRY_LOG_PROMPTS`   | Include prompts in telemetry logs                   | `true`/`false`    | `true`                  |
 | `useCollector` | `GEMINI_TELEMETRY_USE_COLLECTOR` | Use external OTLP collector (advanced)              | `true`/`false`    | `false`                 |
 | `useCliAuth`   | `GEMINI_TELEMETRY_USE_CLI_AUTH`  | Use CLI credentials for telemetry (GCP target only) | `true`/`false`    | `false`                 |
-| -              | `GEMINI_CLI_SURFACE`             | Optional custom label for traffic reporting         | string            | -                       |
+| -              | `APEX_SURFACE`             | Optional custom label for traffic reporting         | string            | -                       |
 
 **Note on boolean environment variables:** For boolean settings like `enabled`,
 setting the environment variable to `true` or `1` enables the feature.
@@ -113,7 +113,7 @@ You must complete several setup steps before enabling Google Cloud telemetry.
         ```
     * **Method B: CLI Auth** (Direct export only): Simplest method for local
       users. Gemini CLI uses the same OAuth credentials you used for login. To
-      enable this, set `useCliAuth: true` in your `.gemini/settings.json`:
+      enable this, set `useCliAuth: true` in your `.apex/settings.json`:
 
       ```json
       {
@@ -150,7 +150,7 @@ You must complete several setup steps before enabling Google Cloud telemetry.
 We recommend using direct export to send telemetry directly to Google Cloud
 services.
 
-1.  Enable telemetry in `.gemini/settings.json`:
+1.  Enable telemetry in `.apex/settings.json`:
     ```json
     {
       "telemetry": {
@@ -203,18 +203,18 @@ To learn more, see
 You can capture telemetry data locally for development and debugging. We
 recommend using file-based output for local development.
 
-1.  Enable telemetry in `.gemini/settings.json`:
+1.  Enable telemetry in `.apex/settings.json`:
     ```json
     {
       "telemetry": {
         "enabled": true,
         "target": "local",
-        "outfile": ".gemini/telemetry.log"
+        "outfile": ".apex/telemetry.log"
       }
     }
     ```
 2.  Run Gemini CLI and send prompts.
-3.  View logs and metrics in `.gemini/telemetry.log`.
+3.  View logs and metrics in `.apex/telemetry.log`.
 
 For advanced local telemetry setups (such as Jaeger or Genkit), see the
 [Local development guide](../local-development.md#viewing-traces).
@@ -245,19 +245,19 @@ a "surface" tag in the parenthetical metadata.
 ### Custom identification
 
 You can provide a custom identifier for your own scripts or automation by
-setting the `GEMINI_CLI_SURFACE` environment variable. This is useful for
+setting the `APEX_SURFACE` environment variable. This is useful for
 tracking specific internal tools or distribution channels in your GCP logs.
 
 **macOS/Linux**
 
 ```bash
-export GEMINI_CLI_SURFACE="my-custom-tool"
+export APEX_SURFACE="my-custom-tool"
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-$env:GEMINI_CLI_SURFACE="my-custom-tool"
+$env:APEX_SURFACE="my-custom-tool"
 ```
 
 When set, the value appears at the end of the `User-Agent` parenthetical:
