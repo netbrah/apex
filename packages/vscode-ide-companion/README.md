@@ -1,21 +1,25 @@
 # Apex Companion
 
-Seamlessly integrate Apex into Visual Studio Code with native IDE features and an intuitive chat interface. This extension bundles everything you need -- no additional installation required.
+The Gemini CLI Companion extension pairs with
+[Gemini CLI](https://github.com/google-gemini/gemini-cli). This extension is
+compatible with both VS Code and VS Code forks.
 
 ## Features
 
-- **Native IDE experience**: Dedicated Apex Chat panel accessed via the Apex icon in the editor title bar
-- **Native diffing**: Review, edit, and accept changes in VS Code's diff view
-- **Auto-accept edits mode**: Automatically apply changes as they're made
-- **File management**: @-mention files or attach files and images using the system file picker
-- **Conversation history & multiple sessions**: Access past conversations and run multiple sessions simultaneously
-- **Open file & selection context**: Share active files, cursor position, and selections for more precise help
+- Open Editor File Context: Gemini CLI gains awareness of the files you have
+  open in your editor, providing it with a richer understanding of your
+  project's structure and content.
 
-## Requirements
+- Selection Context: Gemini CLI can easily access your cursor's position and
+  selected text within the editor, giving it valuable context directly from your
+  current work.
 
-- Visual Studio Code 1.85.0 or newer (also works with Cursor, Windsurf, and other VS Code-based editors)
+- Native Diffing: Seamlessly view, modify, and accept code changes suggested by
+  Gemini CLI directly within the editor.
 
-## Quick Start
+- Launch Gemini CLI: Quickly start a new Gemini CLI session from the Command
+  Palette (Cmd+Shift+P or Ctrl+Shift+P) by running the "Gemini CLI: Run"
+  command.
 
 1. **Install** from a `.vsix` package or the extension marketplace
 
@@ -27,17 +31,5 @@ Seamlessly integrate Apex into Visual Studio Code with native IDE features and a
 
 ## Commands
 
-| Command                     | Description                                            |
-| --------------------------- | ------------------------------------------------------ |
-| `Apex: Open`                | Open the Apex Chat panel                               |
-| `Apex: Run`                 | Launch a classic terminal session with the bundled CLI |
-| `Apex: Accept Current Diff` | Accept the currently displayed diff                    |
-| `Apex: Close Diff Editor`   | Close/reject the current diff                          |
-
-## Author
-
-Dinesh Palanisamy (palanisd@netapp.com)
-
-## License
-
-Apache-2.0
+By installing this extension, you agree to the
+[Terms of Service](https://geminicli.com/docs/resources/tos-privacy/).

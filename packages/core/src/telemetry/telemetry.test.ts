@@ -12,16 +12,26 @@ import {
 } from './sdk.js';
 import { Config } from '../config/config.js';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { GoogleAuth } from 'google-auth-library';
 
 vi.mock('@opentelemetry/sdk-node');
 vi.mock('../config/config.js');
+vi.mock('google-auth-library');
 
 describe('telemetry', () => {
   let mockConfig: Config;
   let mockNodeSdk: NodeSDK;
+  const mockGetApplicationDefault = vi.fn();
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(GoogleAuth).mockImplementation(
+      () =>
+        ({
+          getApplicationDefault: mockGetApplicationDefault,
+        }) as unknown as GoogleAuth,
+    );
+    mockGetApplicationDefault.mockResolvedValue(undefined); // Simulate ADC available
 
     mockConfig = new Config({
       model: 'test-model',
@@ -48,15 +58,15 @@ describe('telemetry', () => {
     }
   });
 
-  it('should initialize the telemetry service', () => {
-    initializeTelemetry(mockConfig);
+  it('should initialize the telemetry service', async () => {
+    await initializeTelemetry(mockConfig);
     expect(NodeSDK).toHaveBeenCalled();
     expect(mockNodeSdk.start).toHaveBeenCalled();
   });
 
   it('should shutdown the telemetry service', async () => {
-    initializeTelemetry(mockConfig);
-    await shutdownTelemetry();
+    await initializeTelemetry(mockConfig);
+    await shutdownTelemetry(mockConfig);
 
     expect(mockNodeSdk.shutdown).toHaveBeenCalled();
   });

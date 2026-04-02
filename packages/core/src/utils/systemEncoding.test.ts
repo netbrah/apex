@@ -8,6 +8,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import * as os from 'node:os';
 import { detect as chardetDetect } from 'chardet';
+import { debugLogger } from './debugLogger.js';
 
 // Mock dependencies
 vi.mock('child_process');
@@ -29,6 +30,7 @@ describe('Shell Command Processor - Encoding Functions', () => {
   let mockedChardetDetect: ReturnType<typeof vi.mocked<typeof chardetDetect>>;
 
   beforeEach(() => {
+    consoleWarnSpy = vi.spyOn(debugLogger, 'warn').mockImplementation(() => {});
     mockedExecSync = vi.mocked(execSync);
     mockedOsPlatform = vi.mocked(os.platform);
     mockedChardetDetect = vi.mocked(chardetDetect);

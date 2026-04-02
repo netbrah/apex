@@ -1,9 +1,7 @@
 /**
- * SEA (Single Executable Application) launcher for APEX.
- *
- * Extracts the embedded ESM bundle to a versioned temp directory and
- * dynamically imports it.  Based on the gemini-cli launcher but
- * simplified for APEX single-file bundle (no code-splitting).
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
 const { getAsset } = require('node:sea');
 const process = require('node:process');
@@ -14,10 +12,20 @@ const fs = require('node:fs');
 const os = require('node:os');
 const crypto = require('node:crypto');
 
+// --- Helper Functions ---
+
+/**
+ * Strips the "ghost" argument that Node SEA sometimes injects (argv[2] == argv[0]).
+ * @param {string[]} argv
+ * @param {string} execPath
+ * @param {function} resolveFn
+ * @returns {boolean} True if an argument was removed.
+ */
 function sanitizeArgv(argv, execPath, resolveFn = path.resolve) {
   if (argv.length > 2) {
+    const binaryAbs = execPath;
     const arg2Abs = resolveFn(argv[2]);
-    if (execPath === arg2Abs) {
+    if (binaryAbs === arg2Abs) {
       argv.splice(2, 1);
       return true;
     }
@@ -25,16 +33,29 @@ function sanitizeArgv(argv, execPath, resolveFn = path.resolve) {
   return false;
 }
 
+/**
+ * Sanitizes a string for use in file paths.
+ * @param {string} name
+ * @returns {string}
+ */
 function getSafeName(name) {
   return (name || 'unknown').toString().replace(/[^a-zA-Z0-9.-]/g, '_');
 }
 
+/**
+ * Verifies the integrity of the runtime directory against the manifest.
+ * @param {string} dir
+ * @param {object} manifest
+ * @param {object} fsMod
+ * @param {object} cryptoMod
+ * @returns {boolean}
+ */
 function verifyIntegrity(dir, manifest, fsMod = fs, cryptoMod = crypto) {
   try {
     const calculateHash = (filePath) => {
       const hash = cryptoMod.createHash('sha256');
       const fd = fsMod.openSync(filePath, 'r');
-      const buffer = new Uint8Array(65536);
+      const buffer = new Uint8Array(65536); // 64KB
       try {
         let bytesRead = 0;
         while (
@@ -48,7 +69,7 @@ function verifyIntegrity(dir, manifest, fsMod = fs, cryptoMod = crypto) {
       return hash.digest('hex');
     };
 
-    if (calculateHash(path.join(dir, 'cli.mjs')) !== manifest.mainHash)
+    if (calculateHash(path.join(dir, 'gemini.mjs')) !== manifest.mainHash)
       return false;
     if (manifest.files) {
       for (const file of manifest.files) {
@@ -57,11 +78,18 @@ function verifyIntegrity(dir, manifest, fsMod = fs, cryptoMod = crypto) {
       }
     }
     return true;
-  } catch (_e) {
+  } catch {
     return false;
   }
 }
 
+/**
+ * Prepares the runtime directory, extracting assets if necessary.
+ * @param {object} manifest
+ * @param {function} getAssetFn
+ * @param {object} deps Dependencies (fs, os, path, processEnv)
+ * @returns {string} The path to the prepared runtime directory.
+ */
 function prepareRuntime(manifest, getAssetFn, deps = {}) {
   const fsMod = deps.fs || fs;
   const osMod = deps.os || os;
@@ -73,19 +101,28 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
 
   const version = manifest.version || '0.0.0';
   const safeVersion = getSafeName(version);
-  let username;
-  try {
-    username = osMod.userInfo().username;
-  } catch {
-    username = undefined;
-  }
-  username = username || processEnv.USER || processUid || 'unknown';
+  const userInfo = osMod.userInfo();
+  const username =
+    userInfo.username || processEnv.USER || processUid || 'unknown';
   const safeUsername = getSafeName(username);
 
-  const tempBase = osMod.tmpdir();
+  let tempBase = osMod.tmpdir();
+
+  if (process.platform === 'win32' && processEnv.LOCALAPPDATA) {
+    const appDir = pathMod.join(processEnv.LOCALAPPDATA, 'Google', 'GeminiCLI');
+    try {
+      if (!fsMod.existsSync(appDir)) {
+        fsMod.mkdirSync(appDir, { recursive: true, mode: 0o700 });
+      }
+      tempBase = appDir;
+    } catch {
+      // Fallback to tmpdir
+    }
+  }
+
   const finalRuntimeDir = pathMod.join(
     tempBase,
-    `apex-runtime-${safeVersion}-${safeUsername}`,
+    `gemini-runtime-${safeVersion}-${safeUsername}`,
   );
 
   let runtimeDir;
@@ -96,14 +133,14 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
       const stat = fsMod.lstatSync(dir);
       if (!stat.isDirectory()) return false;
       if (processUid !== 'unknown' && stat.uid !== processUid) return false;
+      // Skip strict permission check on Windows as it's unreliable with standard fs.stat
       if (process.platform !== 'win32' && (stat.mode & 0o777) !== 0o700)
         return false;
       return true;
-    } catch (_) {
+    } catch {
       return false;
     }
   };
-
   if (fsMod.existsSync(finalRuntimeDir)) {
     if (isSecure(finalRuntimeDir)) {
       if (
@@ -114,19 +151,19 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
       } else {
         try {
           fsMod.rmSync(finalRuntimeDir, { recursive: true, force: true });
-        } catch (_) {}
+        } catch {}
       }
     } else {
       try {
         fsMod.rmSync(finalRuntimeDir, { recursive: true, force: true });
-      } catch (_) {}
+      } catch {}
     }
   }
 
   if (!useExisting) {
     const setupDir = pathMod.join(
       tempBase,
-      `apex-setup-${processPid}-${Date.now()}`,
+      `gemini-setup-${processPid}-${Date.now()}`,
     );
 
     try {
@@ -142,7 +179,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
           mode: 0o755,
         });
       };
-      writeToSetup('cli.mjs', 'cli.mjs');
+      writeToSetup('gemini.mjs', 'gemini.mjs');
       if (manifest.files) {
         for (const file of manifest.files) {
           writeToSetup(file.key, file.path);
@@ -165,7 +202,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
           runtimeDir = finalRuntimeDir;
           try {
             fsMod.rmSync(setupDir, { recursive: true, force: true });
-          } catch (_) {}
+          } catch {}
         } else {
           throw renameErr;
         }
@@ -177,7 +214,7 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
       );
       try {
         fsMod.rmSync(setupDir, { recursive: true, force: true });
-      } catch (_) {}
+      } catch {}
       process.exit(1);
     }
   }
@@ -185,48 +222,10 @@ function prepareRuntime(manifest, getAssetFn, deps = {}) {
   return runtimeDir;
 }
 
-function resolveEnvVars(obj) {
-  if (typeof obj === 'string' && obj.startsWith('$')) {
-    return process.env[obj.slice(1)] || '';
-  }
-  if (Array.isArray(obj)) return obj.map(resolveEnvVars);
-  if (obj !== null && typeof obj === 'object') {
-    for (const k of Object.keys(obj)) {
-      obj[k] = resolveEnvVars(obj[k]);
-    }
-  }
-  return obj;
-}
-
-function deployApexAssets(runtimeDir) {
-  const configHome =
-    process.env.APEX_HOME || process.env.QWEN_CODE_HOME || path.join(os.homedir(), '.apex');
-  if (!configHome) return;
-
-  const apexDir = path.join(runtimeDir, 'apex');
-  if (!fs.existsSync(apexDir)) return;
-
-  fs.mkdirSync(configHome, { recursive: true });
-
-  const isMac = process.platform === 'darwin';
-
-  const apexMdName = isMac ? 'APEX.mac.md' : 'APEX.md';
-  const apexMd = path.join(apexDir, apexMdName);
-  const apexMdFallback = path.join(apexDir, 'APEX.md');
-  if (fs.existsSync(apexMd)) {
-    fs.copyFileSync(apexMd, path.join(configHome, 'APEX.md'));
-  } else if (fs.existsSync(apexMdFallback)) {
-    fs.copyFileSync(apexMdFallback, path.join(configHome, 'APEX.md'));
-  }
-
-  // Settings deployment is handled by npm postinstall (postinstall-apex.js)
-  // and the npm launcher (apex-launcher.js). The SEA launcher no longer
-  // deploys settings to avoid clobbering user customizations on every launch.
-}
+// --- Main Execution ---
 
 async function main(getAssetFn = getAsset) {
   process.env.IS_BINARY = 'true';
-  process.env.QWEN_CODE_BRAND = process.env.QWEN_CODE_BRAND || 'APEX';
 
   if (nodeModule.enableCompileCache) {
     nodeModule.enableCompileCache();
@@ -252,10 +251,7 @@ async function main(getAssetFn = getAsset) {
     crypto,
   });
 
-  // Deploy embedded APEX assets to QWEN_CODE_HOME if present
-  deployApexAssets(runtimeDir);
-
-  const mainPath = path.join(runtimeDir, 'cli.mjs');
+  const mainPath = path.join(runtimeDir, 'gemini.mjs');
 
   await import(pathToFileURL(mainPath).href).catch((err) => {
     console.error('Fatal Error: Failed to launch. Please reinstall.', err);
@@ -264,6 +260,8 @@ async function main(getAssetFn = getAsset) {
   });
 }
 
+// Only execute if this is the main module (standard Node behavior)
+// or if explicitly running as the SEA entry point (heuristic).
 if (require.main === module) {
   main().catch((err) => {
     console.error('Unhandled error in sea-launch:', err);
@@ -276,7 +274,5 @@ module.exports = {
   getSafeName,
   verifyIntegrity,
   prepareRuntime,
-  resolveEnvVars,
-  deployApexAssets,
   main,
 };

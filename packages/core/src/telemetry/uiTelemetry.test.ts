@@ -7,19 +7,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UiTelemetryService } from './uiTelemetry.js';
 import { ToolCallDecision } from './tool-call-decision.js';
-import type { ApiErrorEvent, ApiResponseEvent } from './types.js';
-import { ToolCallEvent } from './types.js';
 import {
+  ToolCallEvent,
   EVENT_API_ERROR,
   EVENT_API_RESPONSE,
   EVENT_TOOL_CALL,
-} from './constants.js';
+  type ApiErrorEvent,
+  type ApiResponseEvent,
+} from './types.js';
+import { type ConversationRecord } from '../services/chatRecordingService.js';
 import type {
   CancelledToolCall,
   CompletedToolCall,
   ErroredToolCall,
   SuccessfulToolCall,
-} from '../core/coreToolScheduler.js';
+} from '../scheduler/types.js';
 import { ToolErrorType } from '../tools/tool-error.js';
 import { ToolConfirmationOutcome } from '../tools/tools.js';
 import { MockTool } from '../test-utils/mock-tool.js';
@@ -154,12 +156,14 @@ describe('UiTelemetryService', () => {
       'event.name': EVENT_API_RESPONSE,
       model: 'gemini-2.5-pro',
       duration_ms: 500,
-      input_token_count: 10,
-      output_token_count: 20,
-      total_token_count: 30,
-      cached_content_token_count: 5,
-      thoughts_token_count: 2,
-      tool_token_count: 3,
+      usage: {
+        input_token_count: 10,
+        output_token_count: 20,
+        total_token_count: 30,
+        cached_content_token_count: 5,
+        thoughts_token_count: 2,
+        tool_token_count: 3,
+      },
     } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
 
     service.addEvent(event);
@@ -176,12 +180,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 10,
-        output_token_count: 20,
-        total_token_count: 30,
-        cached_content_token_count: 5,
-        thoughts_token_count: 2,
-        tool_token_count: 3,
+        usage: {
+          input_token_count: 10,
+          output_token_count: 20,
+          total_token_count: 30,
+          cached_content_token_count: 5,
+          thoughts_token_count: 2,
+          tool_token_count: 3,
+        },
       } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
 
       service.addEvent(event);
@@ -194,6 +200,7 @@ describe('UiTelemetryService', () => {
           totalLatencyMs: 500,
         },
         tokens: {
+          input: 5,
           prompt: 10,
           candidates: 20,
           total: 30,
@@ -201,6 +208,7 @@ describe('UiTelemetryService', () => {
           thoughts: 2,
           tool: 3,
         },
+        roles: {},
       });
       expect(service.getLastPromptTokenCount()).toBe(0);
     });
@@ -210,12 +218,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 10,
-        output_token_count: 20,
-        total_token_count: 30,
-        cached_content_token_count: 5,
-        thoughts_token_count: 2,
-        tool_token_count: 3,
+        usage: {
+          input_token_count: 10,
+          output_token_count: 20,
+          total_token_count: 30,
+          cached_content_token_count: 5,
+          thoughts_token_count: 2,
+          tool_token_count: 3,
+        },
       } as ApiResponseEvent & {
         'event.name': typeof EVENT_API_RESPONSE;
       };
@@ -223,12 +233,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 600,
-        input_token_count: 15,
-        output_token_count: 25,
-        total_token_count: 40,
-        cached_content_token_count: 10,
-        thoughts_token_count: 4,
-        tool_token_count: 6,
+        usage: {
+          input_token_count: 15,
+          output_token_count: 25,
+          total_token_count: 40,
+          cached_content_token_count: 10,
+          thoughts_token_count: 4,
+          tool_token_count: 6,
+        },
       } as ApiResponseEvent & {
         'event.name': typeof EVENT_API_RESPONSE;
       };
@@ -244,6 +256,7 @@ describe('UiTelemetryService', () => {
           totalLatencyMs: 1100,
         },
         tokens: {
+          input: 10,
           prompt: 25,
           candidates: 45,
           total: 70,
@@ -251,6 +264,7 @@ describe('UiTelemetryService', () => {
           thoughts: 6,
           tool: 9,
         },
+        roles: {},
       });
       expect(service.getLastPromptTokenCount()).toBe(0);
     });
@@ -260,12 +274,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 10,
-        output_token_count: 20,
-        total_token_count: 30,
-        cached_content_token_count: 5,
-        thoughts_token_count: 2,
-        tool_token_count: 3,
+        usage: {
+          input_token_count: 10,
+          output_token_count: 20,
+          total_token_count: 30,
+          cached_content_token_count: 5,
+          thoughts_token_count: 2,
+          tool_token_count: 3,
+        },
       } as ApiResponseEvent & {
         'event.name': typeof EVENT_API_RESPONSE;
       };
@@ -273,12 +289,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-flash',
         duration_ms: 1000,
-        input_token_count: 100,
-        output_token_count: 200,
-        total_token_count: 300,
-        cached_content_token_count: 50,
-        thoughts_token_count: 20,
-        tool_token_count: 30,
+        usage: {
+          input_token_count: 100,
+          output_token_count: 200,
+          total_token_count: 300,
+          cached_content_token_count: 50,
+          thoughts_token_count: 20,
+          tool_token_count: 30,
+        },
       } as ApiResponseEvent & {
         'event.name': typeof EVENT_API_RESPONSE;
       };
@@ -314,6 +332,7 @@ describe('UiTelemetryService', () => {
           totalLatencyMs: 300,
         },
         tokens: {
+          input: 0,
           prompt: 0,
           candidates: 0,
           total: 0,
@@ -321,6 +340,7 @@ describe('UiTelemetryService', () => {
           thoughts: 0,
           tool: 0,
         },
+        roles: {},
       });
     });
 
@@ -329,12 +349,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 10,
-        output_token_count: 20,
-        total_token_count: 30,
-        cached_content_token_count: 5,
-        thoughts_token_count: 2,
-        tool_token_count: 3,
+        usage: {
+          input_token_count: 10,
+          output_token_count: 20,
+          total_token_count: 30,
+          cached_content_token_count: 5,
+          thoughts_token_count: 2,
+          tool_token_count: 3,
+        },
       } as ApiResponseEvent & {
         'event.name': typeof EVENT_API_RESPONSE;
       };
@@ -356,12 +378,42 @@ describe('UiTelemetryService', () => {
           totalLatencyMs: 800,
         },
         tokens: {
+          input: 5,
           prompt: 10,
           candidates: 20,
           total: 30,
           cached: 5,
           thoughts: 2,
           tool: 3,
+        },
+        roles: {},
+      });
+    });
+
+    it('should update role metrics when processing an ApiErrorEvent with a role', () => {
+      const event = {
+        'event.name': EVENT_API_ERROR,
+        model: 'gemini-2.5-pro',
+        duration_ms: 300,
+        error: 'Something went wrong',
+        role: 'utility_tool',
+      } as unknown as ApiErrorEvent & { 'event.name': typeof EVENT_API_ERROR };
+
+      service.addEvent(event);
+
+      const metrics = service.getMetrics();
+      expect(metrics.models['gemini-2.5-pro'].roles['utility_tool']).toEqual({
+        totalRequests: 1,
+        totalErrors: 1,
+        totalLatencyMs: 300,
+        tokens: {
+          input: 0,
+          prompt: 0,
+          candidates: 0,
+          total: 0,
+          cached: 0,
+          thoughts: 0,
+          tool: 0,
         },
       });
     });
@@ -376,6 +428,7 @@ describe('UiTelemetryService', () => {
         ToolConfirmationOutcome.ProceedOnce,
       );
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
@@ -410,6 +463,7 @@ describe('UiTelemetryService', () => {
         ToolConfirmationOutcome.Cancel,
       );
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
@@ -478,6 +532,7 @@ describe('UiTelemetryService', () => {
         ToolConfirmationOutcome.ModifyWithEditor,
       );
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
@@ -494,6 +549,7 @@ describe('UiTelemetryService', () => {
     it('should process a ToolCallEvent without a decision', () => {
       const toolCall = createFakeCompletedToolCall('test_tool', true, 100);
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
@@ -530,10 +586,12 @@ describe('UiTelemetryService', () => {
       );
 
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall1)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall2)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
@@ -565,10 +623,12 @@ describe('UiTelemetryService', () => {
       const toolCall1 = createFakeCompletedToolCall('tool_A', true, 100);
       const toolCall2 = createFakeCompletedToolCall('tool_B', false, 200);
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall1)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
       service.addEvent({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall2)),
         'event.name': EVENT_TOOL_CALL,
       } as ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
@@ -593,12 +653,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 100,
-        output_token_count: 200,
-        total_token_count: 300,
-        cached_content_token_count: 50,
-        thoughts_token_count: 20,
-        tool_token_count: 30,
+        usage: {
+          input_token_count: 100,
+          output_token_count: 200,
+          total_token_count: 300,
+          cached_content_token_count: 50,
+          thoughts_token_count: 20,
+          tool_token_count: 30,
+        },
       } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
 
       service.addEvent(event);
@@ -618,12 +680,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 100,
-        output_token_count: 200,
-        total_token_count: 300,
-        cached_content_token_count: 50,
-        thoughts_token_count: 20,
-        tool_token_count: 30,
+        usage: {
+          input_token_count: 100,
+          output_token_count: 200,
+          total_token_count: 300,
+          cached_content_token_count: 50,
+          thoughts_token_count: 20,
+          tool_token_count: 30,
+        },
       } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
 
       service.addEvent(event);
@@ -643,12 +707,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 100,
-        output_token_count: 200,
-        total_token_count: 300,
-        cached_content_token_count: 50,
-        thoughts_token_count: 20,
-        tool_token_count: 30,
+        usage: {
+          input_token_count: 100,
+          output_token_count: 200,
+          total_token_count: 300,
+          cached_content_token_count: 50,
+          thoughts_token_count: 20,
+          tool_token_count: 30,
+        },
       } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
 
       service.addEvent(event);
@@ -675,12 +741,14 @@ describe('UiTelemetryService', () => {
         'event.name': EVENT_API_RESPONSE,
         model: 'gemini-2.5-pro',
         duration_ms: 500,
-        input_token_count: 100,
-        output_token_count: 200,
-        total_token_count: 300,
-        cached_content_token_count: 50,
-        thoughts_token_count: 20,
-        tool_token_count: 30,
+        usage: {
+          input_token_count: 100,
+          output_token_count: 200,
+          total_token_count: 300,
+          cached_content_token_count: 50,
+          thoughts_token_count: 20,
+          tool_token_count: 30,
+        },
       } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
 
       service.addEvent(event);
@@ -726,10 +794,126 @@ describe('UiTelemetryService', () => {
     });
   });
 
+  describe('clear', () => {
+    it('should reset metrics and last prompt token count', () => {
+      // Set up initial state with some metrics
+      const event = {
+        'event.name': EVENT_API_RESPONSE,
+        model: 'gemini-2.5-pro',
+        duration_ms: 500,
+        usage: {
+          input_token_count: 100,
+          output_token_count: 200,
+          total_token_count: 300,
+          cached_content_token_count: 50,
+          thoughts_token_count: 20,
+          tool_token_count: 30,
+        },
+      } as ApiResponseEvent & { 'event.name': typeof EVENT_API_RESPONSE };
+
+      service.addEvent(event);
+      service.setLastPromptTokenCount(123);
+
+      expect(service.getMetrics().models['gemini-2.5-pro']).toBeDefined();
+      expect(service.getLastPromptTokenCount()).toBe(123);
+
+      service.clear();
+
+      expect(service.getMetrics().models).toEqual({});
+      expect(service.getLastPromptTokenCount()).toBe(0);
+    });
+
+    it('should emit clear and update events', () => {
+      const clearSpy = vi.fn();
+      const updateSpy = vi.fn();
+      service.on('clear', clearSpy);
+      service.on('update', updateSpy);
+
+      const newSessionId = 'new-session-id';
+      service.clear(newSessionId);
+
+      expect(clearSpy).toHaveBeenCalledWith(newSessionId);
+      expect(updateSpy).toHaveBeenCalledOnce();
+      const { metrics, lastPromptTokenCount } = updateSpy.mock.calls[0][0];
+      expect(metrics.models).toEqual({});
+      expect(lastPromptTokenCount).toBe(0);
+    });
+  });
+
+  describe('hydrate', () => {
+    it('should aggregate metrics from a ConversationRecord', () => {
+      const conversation = {
+        sessionId: 'resumed-session',
+        messages: [
+          {
+            type: 'user',
+            content: 'Hello',
+          },
+          {
+            type: 'gemini',
+            model: 'gemini-1.5-pro',
+            tokens: {
+              input: 10,
+              output: 20,
+              total: 30,
+              cached: 5,
+              thoughts: 2,
+              tool: 3,
+            },
+            toolCalls: [
+              { name: 'test_tool', status: 'success' },
+              { name: 'test_tool', status: 'error' },
+            ],
+          },
+          {
+            type: 'gemini',
+            model: 'gemini-1.5-pro',
+            tokens: {
+              input: 100,
+              output: 200,
+              total: 300,
+              cached: 50,
+              thoughts: 20,
+              tool: 30,
+            },
+          },
+        ],
+      } as unknown as ConversationRecord;
+
+      const clearSpy = vi.fn();
+      const updateSpy = vi.fn();
+      service.on('clear', clearSpy);
+      service.on('update', updateSpy);
+
+      service.hydrate(conversation);
+
+      expect(clearSpy).toHaveBeenCalledWith('resumed-session');
+      const metrics = service.getMetrics();
+      const modelMetrics = metrics.models['gemini-1.5-pro'];
+
+      expect(modelMetrics).toBeDefined();
+      expect(modelMetrics.tokens.prompt).toBe(110); // 10 + 100
+      expect(modelMetrics.tokens.candidates).toBe(220); // 20 + 200
+      expect(modelMetrics.tokens.cached).toBe(55); // 5 + 50
+      expect(modelMetrics.tokens.thoughts).toBe(22); // 2 + 20
+      expect(modelMetrics.tokens.tool).toBe(33); // 3 + 30
+      expect(modelMetrics.tokens.input).toBe(55); // 110 - 55
+
+      expect(metrics.tools.totalCalls).toBe(2);
+      expect(metrics.tools.totalSuccess).toBe(1);
+      expect(metrics.tools.totalFail).toBe(1);
+      expect(metrics.tools.byName['test_tool'].count).toBe(2);
+
+      expect(service.getLastPromptTokenCount()).toBe(300); // 100 (input) + 200 (output)
+      expect(updateSpy).toHaveBeenCalled();
+    });
+  });
+
   describe('Tool Call Event with Line Count Metadata', () => {
     it('should aggregate valid line count metadata', () => {
       const toolCall = createFakeCompletedToolCall('test_tool', true, 100);
       const event = {
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall)),
         'event.name': EVENT_TOOL_CALL,
         metadata: {
@@ -748,6 +932,7 @@ describe('UiTelemetryService', () => {
     it('should ignore null/undefined values in line count metadata', () => {
       const toolCall = createFakeCompletedToolCall('test_tool', true, 100);
       const event = {
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...structuredClone(new ToolCallEvent(toolCall)),
         'event.name': EVENT_TOOL_CALL,
         metadata: {

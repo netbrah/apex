@@ -10,14 +10,19 @@ import {
   IdeConnectionType,
   logIdeConnection,
   type Config,
-} from '@apex-code/apex-core';
+  StartSessionEvent,
+  logCliConfiguration,
+  startupProfiler,
+  debugLogger,
+} from '@google/gemini-cli-core';
 import { type LoadedSettings } from '../config/settings.js';
 import { performInitialAuth } from './auth.js';
 import { validateTheme } from './theme.js';
-import { initializeI18n, type SupportedLanguage } from '../i18n/index.js';
+import type { AccountSuspensionInfo } from '../ui/contexts/UIStateContext.js';
 
 export interface InitializationResult {
   authError: string | null;
+  accountSuspensionInfo: AccountSuspensionInfo | null;
   themeError: string | null;
   shouldOpenAuthDialog: boolean;
   geminiMdFileCount: number;
@@ -34,31 +39,40 @@ export async function initializeApp(
   config: Config,
   settings: LoadedSettings,
 ): Promise<InitializationResult> {
-  // Initialize i18n system
-  const languageSetting =
-    process.env['APEX_LANG'] ||
-    (settings.merged.general?.language as string) ||
-    'auto';
-  await initializeI18n(languageSetting as SupportedLanguage | 'auto');
-
-  // Use authType from modelsConfig which respects CLI --auth-type argument
-  // over settings.security.auth.selectedType
-  const authType = config.getModelsConfig().getCurrentAuthType();
-  const authError = await performInitialAuth(config, authType);
-
+  const authHandle = startupProfiler.start('authenticate');
+  const { authError, accountSuspensionInfo } = await performInitialAuth(
+    config,
+    settings.merged.security.auth.selectedType,
+  );
+  authHandle?.end();
   const themeError = validateTheme(settings);
 
   const shouldOpenAuthDialog =
-    !config.getModelsConfig().wasAuthTypeExplicitlyProvided() || !!authError;
+    settings.merged.security.auth.selectedType === undefined || !!authError;
+
+  logCliConfiguration(
+    config,
+    new StartSessionEvent(config, config.getToolRegistry()),
+  );
 
   if (config.getIdeMode()) {
-    const ideClient = await IdeClient.getInstance();
-    await ideClient.connect();
-    logIdeConnection(config, new IdeConnectionEvent(IdeConnectionType.START));
+    IdeClient.getInstance()
+      .then(async (ideClient) => {
+        await ideClient.connect();
+        logIdeConnection(
+          config,
+          new IdeConnectionEvent(IdeConnectionType.START),
+        );
+      })
+      .catch((e) => {
+        // We log locally if IDE connection setup fails in the background.
+        debugLogger.error('Failed to initialize IDE client:', e);
+      });
   }
 
   return {
     authError,
+    accountSuspensionInfo,
     themeError,
     shouldOpenAuthDialog,
     geminiMdFileCount: config.getGeminiMdFileCount(),

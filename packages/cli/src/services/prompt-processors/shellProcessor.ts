@@ -5,14 +5,12 @@
  */
 
 import {
-  ApprovalMode,
-  checkCommandPermissions,
   escapeShellArg,
   getShellConfiguration,
   ShellExecutionService,
   flatMapTextParts,
-  checkArgumentSafety,
-} from '@apex-code/apex-core';
+  PolicyDecision,
+} from '@google/gemini-cli-core';
 
 import type { CommandContext } from '../../ui/commands/types.js';
 import type { IPromptProcessor, PromptPipelineContent } from './types.js';
@@ -76,13 +74,12 @@ export class ShellProcessor implements IPromptProcessor {
       ];
     }
 
-    const config = context.services.config;
+    const config = context.services.agentContext?.config;
     if (!config) {
       throw new Error(
         `Security configuration not loaded. Cannot verify shell command permissions for '${this.commandName}'. Aborting.`,
       );
     }
-    const { sessionShellAllowlist } = context.session;
 
     const injections = extractInjections(
       prompt,
@@ -131,34 +128,25 @@ export class ShellProcessor implements IPromptProcessor {
 
       if (!command) continue;
 
+      if (context.session.sessionShellAllowlist?.has(command)) {
+        continue;
+      }
+
       // Security check on the final, escaped command string.
-      const { allAllowed, disallowedCommands, blockReason, isHardDenial } =
-        await checkCommandPermissions(command, config, sessionShellAllowlist);
+      const { decision } = await config.getPolicyEngine().check(
+        {
+          name: 'run_shell_command',
+          args: { command },
+        },
+        undefined,
+      );
 
-      // Determine if this command is explicitly auto-approved via PermissionManager
-      const pm = config.getPermissionManager?.();
-      const isAllowedBySettings = pm
-        ? (await pm.isCommandAllowed(command)) === 'allow'
-        : false;
-
-      if (!allAllowed) {
-        if (isHardDenial) {
-          throw new Error(
-            `${this.commandName} cannot be run. Blocked command: "${command}". Reason: ${blockReason || 'Blocked by configuration.'}`,
-          );
-        }
-
-        // If the command is allowed by settings, skip confirmation.
-        if (isAllowedBySettings) {
-          continue;
-        }
-
-        // If not a hard denial, respect YOLO mode and auto-approve.
-        if (config.getApprovalMode() === ApprovalMode.YOLO) {
-          continue;
-        }
-
-        disallowedCommands.forEach((uc) => commandsToConfirm.add(uc));
+      if (decision === PolicyDecision.DENY) {
+        throw new Error(
+          `${this.commandName} cannot be run. Blocked command: "${command}". Reason: Blocked by policy.`,
+        );
+      } else if (decision === PolicyDecision.ASK_USER) {
+        commandsToConfirm.add(command);
       }
     }
 
@@ -194,7 +182,7 @@ export class ShellProcessor implements IPromptProcessor {
           config.getTargetDir(),
           () => {},
           new AbortController().signal,
-          config.getShouldUseNodePtyShell(),
+          config.getEnableInteractiveShell(),
           shellExecutionConfig,
         );
 

@@ -1,95 +1,264 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import { ExtensionManager, type Extension } from '@apex-code/apex-core';
+import { ExtensionManager } from '../../config/extension-manager.js';
 import { loadSettings } from '../../config/settings.js';
+import { requestConsentNonInteractive } from '../../config/extensions/consent.js';
 import {
-  requestConsentOrFail,
-  requestConsentNonInteractive,
-  requestChoicePluginNonInteractive,
-} from './consent.js';
-import { isWorkspaceTrusted } from '../../config/trustedFolders.js';
-import * as os from 'node:os';
-import chalk from 'chalk';
-import { t } from '../../i18n/index.js';
+  debugLogger,
+  type ResolvedExtensionSetting,
+} from '@google/gemini-cli-core';
+import type { ExtensionConfig } from '../../config/extension.js';
+import prompts from 'prompts';
+import {
+  promptForSetting,
+  updateSetting,
+  type ExtensionSetting,
+  getScopedEnvContents,
+  ExtensionSettingScope,
+} from '../../config/extensions/extensionSettings.js';
 
-export async function getExtensionManager(): Promise<ExtensionManager> {
+export interface ConfigLogger {
+  log(message: string): void;
+  error(message: string): void;
+}
+
+export type RequestSettingCallback = (
+  setting: ExtensionSetting,
+) => Promise<string>;
+export type RequestConfirmationCallback = (message: string) => Promise<boolean>;
+
+const defaultLogger: ConfigLogger = {
+  log: (message: string) => debugLogger.log(message),
+  error: (message: string) => debugLogger.error(message),
+};
+
+const defaultRequestSetting: RequestSettingCallback = async (setting) =>
+  promptForSetting(setting);
+
+const defaultRequestConfirmation: RequestConfirmationCallback = async (
+  message,
+) => {
+  const response = await prompts({
+    type: 'confirm',
+    name: 'confirm',
+    message,
+    initial: false,
+  });
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return response.confirm;
+};
+
+export async function getExtensionManager() {
   const workspaceDir = process.cwd();
   const extensionManager = new ExtensionManager({
     workspaceDir,
-    requestConsent: requestConsentOrFail.bind(
-      null,
-      requestConsentNonInteractive,
-    ),
-    requestChoicePlugin: requestChoicePluginNonInteractive,
-    isWorkspaceTrusted: !!isWorkspaceTrusted(loadSettings(workspaceDir).merged),
+    requestConsent: requestConsentNonInteractive,
+    requestSetting: promptForSetting,
+    settings: loadSettings(workspaceDir).merged,
   });
-  await extensionManager.refreshCache();
+  await extensionManager.loadExtensions();
   return extensionManager;
 }
 
-export function extensionToOutputString(
-  extension: Extension,
+export async function getExtensionAndManager(
   extensionManager: ExtensionManager,
-  workspaceDir: string,
-  inline = false,
-): string {
-  const cwd = workspaceDir;
-  const userEnabled = extensionManager.isEnabled(
-    extension.config.name,
-    os.homedir(),
+  name: string,
+  logger: ConfigLogger = defaultLogger,
+) {
+  const extension = extensionManager
+    .getExtensions()
+    .find((ext) => ext.name === name);
+
+  if (!extension) {
+    logger.error(`Extension "${name}" is not installed.`);
+    return { extension: null };
+  }
+
+  return { extension };
+}
+
+export async function configureSpecificSetting(
+  extensionManager: ExtensionManager,
+  extensionName: string,
+  settingKey: string,
+  scope: ExtensionSettingScope,
+  logger: ConfigLogger = defaultLogger,
+  requestSetting: RequestSettingCallback = defaultRequestSetting,
+) {
+  const { extension } = await getExtensionAndManager(
+    extensionManager,
+    extensionName,
+    logger,
   );
-  const workspaceEnabled = extensionManager.isEnabled(
-    extension.config.name,
-    cwd,
+  if (!extension) {
+    return;
+  }
+  const extensionConfig = await extensionManager.loadExtensionConfig(
+    extension.path,
+  );
+  if (!extensionConfig) {
+    logger.error(
+      `Could not find configuration for extension "${extensionName}".`,
+    );
+    return;
+  }
+
+  await updateSetting(
+    extensionConfig,
+    extension.id,
+    settingKey,
+    requestSetting,
+    scope,
+    process.cwd(),
   );
 
-  const status = workspaceEnabled ? chalk.green('✓') : chalk.red('✗');
-  let output = `${inline ? '' : status} ${extension.config.name} (${extension.config.version})`;
-  output += `\n ${t('Path:')} ${extension.path}`;
-  if (extension.installMetadata) {
-    output += `\n ${t('Source:')} ${extension.installMetadata.source} (${t('Type:')} ${extension.installMetadata.type})`;
-    if (extension.installMetadata.ref) {
-      output += `\n ${t('Ref:')} ${extension.installMetadata.ref}`;
+  logger.log(`Setting "${settingKey}" updated.`);
+}
+
+export async function configureExtension(
+  extensionManager: ExtensionManager,
+  extensionName: string,
+  scope: ExtensionSettingScope,
+  logger: ConfigLogger = defaultLogger,
+  requestSetting: RequestSettingCallback = defaultRequestSetting,
+  requestConfirmation: RequestConfirmationCallback = defaultRequestConfirmation,
+) {
+  const { extension } = await getExtensionAndManager(
+    extensionManager,
+    extensionName,
+    logger,
+  );
+  if (!extension) {
+    return;
+  }
+  const extensionConfig = await extensionManager.loadExtensionConfig(
+    extension.path,
+  );
+  if (
+    !extensionConfig ||
+    !extensionConfig.settings ||
+    extensionConfig.settings.length === 0
+  ) {
+    logger.log(`Extension "${extensionName}" has no settings to configure.`);
+    return;
+  }
+
+  logger.log(`Configuring settings for "${extensionName}"...`);
+  await configureExtensionSettings(
+    extensionConfig,
+    extension.id,
+    scope,
+    logger,
+    requestSetting,
+    requestConfirmation,
+  );
+}
+
+export async function configureAllExtensions(
+  extensionManager: ExtensionManager,
+  scope: ExtensionSettingScope,
+  logger: ConfigLogger = defaultLogger,
+  requestSetting: RequestSettingCallback = defaultRequestSetting,
+  requestConfirmation: RequestConfirmationCallback = defaultRequestConfirmation,
+) {
+  const extensions = extensionManager.getExtensions();
+
+  if (extensions.length === 0) {
+    logger.log('No extensions installed.');
+    return;
+  }
+
+  for (const extension of extensions) {
+    const extensionConfig = await extensionManager.loadExtensionConfig(
+      extension.path,
+    );
+    if (
+      extensionConfig &&
+      extensionConfig.settings &&
+      extensionConfig.settings.length > 0
+    ) {
+      logger.log(`\nConfiguring settings for "${extension.name}"...`);
+      await configureExtensionSettings(
+        extensionConfig,
+        extension.id,
+        scope,
+        logger,
+        requestSetting,
+        requestConfirmation,
+      );
     }
-    if (extension.installMetadata.releaseTag) {
-      output += `\n ${t('Release tag:')} ${extension.installMetadata.releaseTag}`;
+  }
+}
+
+export async function configureExtensionSettings(
+  extensionConfig: ExtensionConfig,
+  extensionId: string,
+  scope: ExtensionSettingScope,
+  logger: ConfigLogger = defaultLogger,
+  requestSetting: RequestSettingCallback = defaultRequestSetting,
+  requestConfirmation: RequestConfirmationCallback = defaultRequestConfirmation,
+) {
+  const currentScopedSettings = await getScopedEnvContents(
+    extensionConfig,
+    extensionId,
+    scope,
+    process.cwd(),
+  );
+
+  let workspaceSettings: Record<string, string> = {};
+  if (scope === ExtensionSettingScope.USER) {
+    workspaceSettings = await getScopedEnvContents(
+      extensionConfig,
+      extensionId,
+      ExtensionSettingScope.WORKSPACE,
+      process.cwd(),
+    );
+  }
+
+  if (!extensionConfig.settings) return;
+
+  for (const setting of extensionConfig.settings) {
+    const currentValue = currentScopedSettings[setting.envVar];
+    const workspaceValue = workspaceSettings[setting.envVar];
+
+    if (workspaceValue !== undefined) {
+      logger.log(
+        `Note: Setting "${setting.name}" is already configured in the workspace scope.`,
+      );
     }
+
+    if (currentValue !== undefined) {
+      const confirmed = await requestConfirmation(
+        `Setting "${setting.name}" (${setting.envVar}) is already set. Overwrite?`,
+      );
+
+      if (!confirmed) {
+        continue;
+      }
+    }
+
+    await updateSetting(
+      extensionConfig,
+      extensionId,
+      setting.envVar,
+      requestSetting,
+      scope,
+      process.cwd(),
+    );
   }
-  output += `\n ${t('Enabled (User):')} ${userEnabled}`;
-  output += `\n ${t('Enabled (Workspace):')} ${workspaceEnabled}`;
-  if (extension.contextFiles.length > 0) {
-    output += `\n ${t('Context files:')}`;
-    extension.contextFiles.forEach((contextFile) => {
-      output += `\n  ${contextFile}`;
-    });
+}
+
+export function getFormattedSettingValue(
+  setting: ResolvedExtensionSetting,
+): string {
+  if (!setting.value) {
+    return '[not set]';
   }
-  if (extension.commands && extension.commands.length > 0) {
-    output += `\n ${t('Commands:')}`;
-    extension.commands.forEach((command) => {
-      output += `\n  /${command}`;
-    });
+  if (setting.sensitive) {
+    return '***';
   }
-  if (extension.skills && extension.skills.length > 0) {
-    output += `\n ${t('Skills:')}`;
-    extension.skills.forEach((skill) => {
-      output += `\n  ${skill.name}`;
-    });
-  }
-  if (extension.agents && extension.agents.length > 0) {
-    output += `\n ${t('Agents:')}`;
-    extension.agents.forEach((agent) => {
-      output += `\n  ${agent.name}`;
-    });
-  }
-  if (extension.config.mcpServers) {
-    output += `\n ${t('MCP servers:')}`;
-    Object.keys(extension.config.mcpServers).forEach((key) => {
-      output += `\n  ${key}`;
-    });
-  }
-  return output;
+  return setting.value;
 }

@@ -4,10 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useMemo, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useEffect,
+  useState,
+  createElement,
+} from 'react';
 import { type PartListUnion } from '@google/genai';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
-import type { ArenaDialogType } from './useArenaCommand.js';
+import type {
+  Config,
+  ExtensionsStartingEvent,
+  ExtensionsStoppingEvent,
+  ToolCallConfirmationDetails,
+  AgentDefinition,
+} from '@google/gemini-cli-core';
 import {
   type Logger,
   type Config,
@@ -17,16 +29,22 @@ import {
   makeSlashCommandEvent,
   SlashCommandStatus,
   ToolConfirmationOutcome,
+  Storage,
   IdeClient,
-} from '@apex-code/apex-core';
+  coreEvents,
+  addMCPStatusChangeListener,
+  removeMCPStatusChangeListener,
+  MCPDiscoveryState,
+  CoreToolCallStatus,
+} from '@google/gemini-cli-core';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import type {
   Message,
   HistoryItemWithoutId,
-  HistoryItemBtw,
   SlashCommandProcessorResult,
   HistoryItem,
   ConfirmationRequest,
+  IndividualToolCallDisplay,
 } from '../types.js';
 import { MessageType } from '../types.js';
 import type { LoadedSettings } from '../../config/settings.js';
@@ -36,58 +54,41 @@ import { BuiltinCommandLoader } from '../../services/BuiltinCommandLoader.js';
 import { BundledSkillLoader } from '../../services/BundledSkillLoader.js';
 import { FileCommandLoader } from '../../services/FileCommandLoader.js';
 import { McpPromptLoader } from '../../services/McpPromptLoader.js';
+import { SkillCommandLoader } from '../../services/SkillCommandLoader.js';
 import { parseSlashCommand } from '../../utils/commands.js';
-import { isBtwCommand } from '../utils/commandUtils.js';
-import { clearScreen } from '../../utils/stdioHelpers.js';
-import { useKeypress } from './useKeypress.js';
 import {
   type ExtensionUpdateAction,
   type ExtensionUpdateStatus,
 } from '../state/extensions.js';
-
-type SerializableHistoryItem = Record<string, unknown>;
-const debugLogger = createDebugLogger('SLASH_COMMAND_PROCESSOR');
-
-function serializeHistoryItemForRecording(
-  item: Omit<HistoryItem, 'id'>,
-): SerializableHistoryItem {
-  const clone: SerializableHistoryItem = { ...item };
-  if ('timestamp' in clone && clone['timestamp'] instanceof Date) {
-    clone['timestamp'] = clone['timestamp'].toISOString();
-  }
-  return clone;
-}
-
-const SLASH_COMMANDS_SKIP_RECORDING = new Set([
-  'quit',
-  'exit',
-  'clear',
-  'reset',
-  'new',
-  'resume',
-  'btw',
-]);
+import {
+  LogoutConfirmationDialog,
+  LogoutChoice,
+} from '../components/LogoutConfirmationDialog.js';
+import { runExitCleanup } from '../../utils/cleanup.js';
 
 interface SlashCommandProcessorActions {
   openAuthDialog: () => void;
-  openArenaDialog?: (type: Exclude<ArenaDialogType, null>) => void;
   openThemeDialog: () => void;
   openEditorDialog: () => void;
+  openPrivacyNotice: () => void;
   openSettingsDialog: () => void;
+  openSessionBrowser: () => void;
   openModelDialog: () => void;
-  openTrustDialog: () => void;
-  openPermissionsDialog: () => void;
-  openApprovalModeDialog: () => void;
-  openResumeDialog: () => void;
+  openAgentConfigDialog: (
+    name: string,
+    displayName: string,
+    definition: AgentDefinition,
+  ) => void;
+  openPermissionsDialog: (props?: { targetDirectory?: string }) => void;
   quit: (messages: HistoryItem[]) => void;
   setDebugMessage: (message: string) => void;
+  toggleCorgiMode: () => void;
+  toggleDebugProfiler: () => void;
   dispatchExtensionStateUpdate: (action: ExtensionUpdateAction) => void;
   addConfirmUpdateExtensionRequest: (request: ConfirmationRequest) => void;
-  openSubagentCreateDialog: () => void;
-  openAgentsManagerDialog: () => void;
-  openExtensionsManagerDialog: () => void;
-  openMcpDialog: () => void;
-  openHooksDialog: () => void;
+  toggleBackgroundTasks: () => void;
+  toggleShortcutsHelp: () => void;
+  setText: (text: string) => void;
 }
 
 /**
@@ -103,27 +104,21 @@ export const useSlashCommandProcessor = (
   toggleVimEnabled: () => Promise<boolean>,
   isProcessing: boolean,
   setIsProcessing: (isProcessing: boolean) => void,
-  setGeminiMdFileCount: (count: number) => void,
   actions: SlashCommandProcessorActions,
   extensionsUpdateState: Map<string, ExtensionUpdateStatus>,
   isConfigInitialized: boolean,
-  logger: Logger | null,
+  setBannerVisible: (visible: boolean) => void,
+  setCustomDialog: (dialog: React.ReactNode | null) => void,
 ) => {
-  const { stats: sessionStats, startNewSession } = useSessionStats();
-  const [commands, setCommands] = useState<readonly SlashCommand[]>([]);
+  const session = useSessionStats();
+  const [commands, setCommands] = useState<readonly SlashCommand[] | undefined>(
+    undefined,
+  );
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
   const reloadCommands = useCallback(() => {
     setReloadTrigger((v) => v + 1);
   }, []);
-  const [shellConfirmationRequest, setShellConfirmationRequest] =
-    useState<null | {
-      commands: string[];
-      onConfirm: (
-        outcome: ToolConfirmationOutcome,
-        approvedCommands?: string[],
-      ) => void;
-    }>(null);
   const [confirmationRequest, setConfirmationRequest] = useState<null | {
     prompt: React.ReactNode;
     onConfirm: (confirmed: boolean) => void;
@@ -143,42 +138,8 @@ export const useSlashCommandProcessor = (
     null,
   );
 
-  const [btwItem, setBtwItem] = useState<HistoryItemBtw | null>(null);
-  const btwAbortControllerRef = useRef<AbortController | null>(null);
-
-  const cancelBtw = useCallback(() => {
-    btwAbortControllerRef.current?.abort();
-    btwAbortControllerRef.current = null;
-    setBtwItem(null);
-  }, []);
-
-  // AbortController for cancelling async slash commands via ESC
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  const cancelSlashCommand = useCallback(() => {
-    cancelBtw();
-    if (!abortControllerRef.current) {
-      return;
-    }
-    abortControllerRef.current.abort();
-    addItem(
-      {
-        type: MessageType.INFO,
-        text: 'Command cancelled.',
-      },
-      Date.now(),
-    );
-    setPendingItem(null);
-    setIsProcessing(false);
-  }, [addItem, setIsProcessing, cancelBtw]);
-
-  useKeypress(
-    (key) => {
-      if (key.name === 'escape') {
-        cancelSlashCommand();
-      }
-    },
-    { isActive: isProcessing },
+  const [pendingItem, setPendingItem] = useState<HistoryItemWithoutId | null>(
+    null,
   );
 
   const pendingHistoryItems = useMemo(() => {
@@ -249,7 +210,7 @@ export const useSlashCommandProcessor = (
   const commandContext = useMemo(
     (): CommandContext => ({
       services: {
-        config,
+        agentContext: config,
         settings,
         git: gitService,
         logger,
@@ -258,24 +219,32 @@ export const useSlashCommandProcessor = (
         addItem,
         clear: () => {
           clearItems();
-          clearScreen();
           refreshStatic();
+          setBannerVisible(false);
         },
-        loadHistory,
+        loadHistory: (history, postLoadInput) => {
+          loadHistory(history);
+          refreshStatic();
+          if (postLoadInput !== undefined) {
+            actions.setText(postLoadInput);
+          }
+        },
         setDebugMessage: actions.setDebugMessage,
         pendingItem,
         setPendingItem,
-        btwItem,
-        setBtwItem,
-        cancelBtw,
-        btwAbortControllerRef,
+        toggleCorgiMode: actions.toggleCorgiMode,
+        toggleDebugProfiler: actions.toggleDebugProfiler,
         toggleVimEnabled,
-        setGeminiMdFileCount,
         reloadCommands,
+        openAgentConfigDialog: actions.openAgentConfigDialog,
         extensionsUpdateState,
         dispatchExtensionStateUpdate: actions.dispatchExtensionStateUpdate,
         addConfirmUpdateExtensionRequest:
           actions.addConfirmUpdateExtensionRequest,
+        setConfirmationRequest,
+        removeComponent: () => setCustomDialog(null),
+        toggleBackgroundTasks: actions.toggleBackgroundTasks,
+        toggleShortcutsHelp: actions.toggleShortcutsHelp,
       },
       session: {
         stats: sessionStats,
@@ -292,19 +261,17 @@ export const useSlashCommandProcessor = (
       addItem,
       clearItems,
       refreshStatic,
-      sessionStats,
-      startNewSession,
+      session.stats,
       actions,
       pendingItem,
       setPendingItem,
-      btwItem,
-      setBtwItem,
-      cancelBtw,
+      setConfirmationRequest,
       toggleVimEnabled,
       sessionShellAllowlist,
-      setGeminiMdFileCount,
       reloadCommands,
       extensionsUpdateState,
+      setBannerVisible,
+      setCustomDialog,
     ],
   );
 
@@ -317,36 +284,63 @@ export const useSlashCommandProcessor = (
       reloadCommands();
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     (async () => {
       const ideClient = await IdeClient.getInstance();
       ideClient.addStatusChangeListener(listener);
     })();
 
+    // Listen for MCP server status changes (e.g. connection, discovery completion)
+    // to reload slash commands (since they may include MCP prompts).
+    addMCPStatusChangeListener(listener);
+
+    // TODO: Ideally this would happen more directly inside the ExtensionLoader,
+    // but the CommandService today is not conducive to that since it isn't a
+    // long lived service but instead gets fully re-created based on reload
+    // events within this hook.
+    const extensionEventListener = (
+      _event: ExtensionsStartingEvent | ExtensionsStoppingEvent,
+    ) => {
+      // We only care once at least one extension has completed
+      // starting/stopping
+      reloadCommands();
+    };
+    coreEvents.on('extensionsStarting', extensionEventListener);
+    coreEvents.on('extensionsStopping', extensionEventListener);
+
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       (async () => {
         const ideClient = await IdeClient.getInstance();
         ideClient.removeStatusChangeListener(listener);
       })();
+      removeMCPStatusChangeListener(listener);
+      coreEvents.off('extensionsStarting', extensionEventListener);
+      coreEvents.off('extensionsStopping', extensionEventListener);
     };
   }, [config, reloadCommands]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const load = async () => {
-      const loaders = [
-        new McpPromptLoader(config),
-        new BuiltinCommandLoader(config),
-        new BundledSkillLoader(config),
-        new FileCommandLoader(config),
-      ];
+
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    (async () => {
       const commandService = await CommandService.create(
-        loaders,
+        [
+          new BuiltinCommandLoader(config),
+          new SkillCommandLoader(config),
+          new McpPromptLoader(config),
+          new FileCommandLoader(config),
+        ],
         controller.signal,
       );
-      setCommands(commandService.getCommands());
-    };
 
-    load();
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setCommands(commandService.getCommands());
+    })();
 
     return () => {
       controller.abort();
@@ -358,7 +352,11 @@ export const useSlashCommandProcessor = (
       rawQuery: PartListUnion,
       oneTimeShellAllowlist?: Set<string>,
       overwriteConfirmed?: boolean,
+      addToHistory: boolean = true,
     ): Promise<SlashCommandProcessorResult | false> => {
+      if (!commands) {
+        return false;
+      }
       if (typeof rawQuery !== 'string') {
         return false;
       }
@@ -368,38 +366,47 @@ export const useSlashCommandProcessor = (
         return false;
       }
 
-      const recordedItems: Array<Omit<HistoryItem, 'id'>> = [];
-      const recordItem = (item: Omit<HistoryItem, 'id'>) => {
-        recordedItems.push(item);
-      };
-      const addItemWithRecording: UseHistoryManagerReturn['addItem'] = (
-        item,
-        timestamp,
-      ) => {
-        recordItem(item);
-        return addItem(item, timestamp);
-      };
+      const {
+        commandToExecute,
+        args,
+        canonicalPath: resolvedCommandPath,
+      } = parseSlashCommand(trimmed, commands);
+
+      // If the input doesn't match any known command, check if MCP servers
+      // are still loading (the command might come from an MCP server).
+      // Otherwise, treat it as regular text input (e.g. file paths like
+      // /home/user/file.txt) and let it be sent to the model.
+      if (!commandToExecute) {
+        const isMcpLoading =
+          config?.getMcpClientManager()?.getDiscoveryState() ===
+          MCPDiscoveryState.IN_PROGRESS;
+        if (isMcpLoading) {
+          setIsProcessing(true);
+          if (addToHistory) {
+            addItem({ type: MessageType.USER, text: trimmed }, Date.now());
+          }
+          addMessage({
+            type: MessageType.ERROR,
+            content: `Unknown command: ${trimmed}. Command might have been from an MCP server but MCP servers are not done loading.`,
+            timestamp: new Date(),
+          });
+          setIsProcessing(false);
+          return { type: 'handled' };
+        }
+        return false;
+      }
 
       setIsProcessing(true);
 
-      // Create a new AbortController for this command execution
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      const userMessageTimestamp = Date.now();
-      if (!isBtwCommand(trimmed)) {
-        addItemWithRecording(
+      if (addToHistory) {
+        const userMessageTimestamp = Date.now();
+        addItem(
           { type: MessageType.USER, text: trimmed },
           userMessageTimestamp,
         );
       }
 
       let hasError = false;
-      const {
-        commandToExecute,
-        args,
-        canonicalPath: resolvedCommandPath,
-      } = parseSlashCommand(trimmed, commands);
 
       const subcommand =
         resolvedCommandPath.length > 1
@@ -464,6 +471,7 @@ export const useSlashCommandProcessor = (
                     type: 'schedule_tool',
                     toolName: result.toolName,
                     toolArgs: result.toolArgs,
+                    postSubmitPrompt: result.postSubmitPrompt,
                   };
                 case 'message':
                   if (result.messageType === 'info') {
@@ -479,6 +487,22 @@ export const useSlashCommandProcessor = (
                       timestamp: new Date(),
                     });
                   }
+                  return { type: 'handled' };
+                case 'logout':
+                  // Show logout confirmation dialog with Login/Exit options
+                  setCustomDialog(
+                    createElement(LogoutConfirmationDialog, {
+                      onSelect: async (choice: LogoutChoice) => {
+                        setCustomDialog(null);
+                        if (choice === LogoutChoice.LOGIN) {
+                          actions.openAuthDialog();
+                        } else {
+                          await runExitCleanup();
+                          process.exit(0);
+                        }
+                      },
+                    }),
+                  );
                   return { type: 'handled' };
                 case 'dialog':
                   switch (result.dialog) {
@@ -503,38 +527,47 @@ export const useSlashCommandProcessor = (
                     case 'editor':
                       actions.openEditorDialog();
                       return { type: 'handled' };
+                    case 'privacy':
+                      actions.openPrivacyNotice();
+                      return { type: 'handled' };
+                    case 'sessionBrowser':
+                      actions.openSessionBrowser();
+                      return { type: 'handled' };
                     case 'settings':
                       actions.openSettingsDialog();
                       return { type: 'handled' };
                     case 'model':
                       actions.openModelDialog();
                       return { type: 'handled' };
-                    case 'trust':
-                      actions.openTrustDialog();
+                    case 'agentConfig': {
+                      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+                      const props = result.props as Record<string, unknown>;
+                      if (
+                        !props ||
+                        // eslint-disable-next-line no-restricted-syntax
+                        typeof props['name'] !== 'string' ||
+                        // eslint-disable-next-line no-restricted-syntax
+                        typeof props['displayName'] !== 'string' ||
+                        !props['definition']
+                      ) {
+                        throw new Error(
+                          'Received invalid properties for agentConfig dialog action.',
+                        );
+                      }
+
+                      actions.openAgentConfigDialog(
+                        props['name'],
+                        props['displayName'],
+                        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+                        props['definition'] as AgentDefinition,
+                      );
                       return { type: 'handled' };
+                    }
                     case 'permissions':
-                      actions.openPermissionsDialog();
-                      return { type: 'handled' };
-                    case 'subagent_create':
-                      actions.openSubagentCreateDialog();
-                      return { type: 'handled' };
-                    case 'subagent_list':
-                      actions.openAgentsManagerDialog();
-                      return { type: 'handled' };
-                    case 'mcp':
-                      actions.openMcpDialog();
-                      return { type: 'handled' };
-                    case 'hooks':
-                      actions.openHooksDialog();
-                      return { type: 'handled' };
-                    case 'approval-mode':
-                      actions.openApprovalModeDialog();
-                      return { type: 'handled' };
-                    case 'resume':
-                      actions.openResumeDialog();
-                      return { type: 'handled' };
-                    case 'extensions_manage':
-                      actions.openExtensionsManagerDialog();
+                      actions.openPermissionsDialog(
+                        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+                        result.props as { targetDirectory?: string },
+                      );
                       return { type: 'handled' };
                     case 'help':
                       return { type: 'handled' };
@@ -547,7 +580,6 @@ export const useSlashCommandProcessor = (
                   }
                 case 'load_history': {
                   config?.getGeminiClient()?.setHistory(result.clientHistory);
-                  config?.getGeminiClient()?.stripThoughtsFromHistory();
                   fullCommandContext.ui.clear();
                   result.history.forEach((item, index) => {
                     fullCommandContext.ui.addItem(item, index);
@@ -565,30 +597,60 @@ export const useSlashCommandProcessor = (
                     content: result.content,
                   };
                 case 'confirm_shell_commands': {
+                  const callId = `expansion-${Date.now()}`;
                   const { outcome, approvedCommands } = await new Promise<{
                     outcome: ToolConfirmationOutcome;
                     approvedCommands?: string[];
                   }>((resolve) => {
-                    setShellConfirmationRequest({
+                    const confirmationDetails: ToolCallConfirmationDetails = {
+                      type: 'exec',
+                      title: `Confirm Shell Expansion`,
+                      command: result.commandsToConfirm[0] || '',
+                      rootCommand: result.commandsToConfirm[0] || '',
+                      rootCommands: result.commandsToConfirm,
                       commands: result.commandsToConfirm,
-                      onConfirm: (
-                        resolvedOutcome,
-                        resolvedApprovedCommands,
-                      ) => {
-                        setShellConfirmationRequest(null); // Close the dialog
+                      onConfirm: async (resolvedOutcome) => {
+                        // Close the pending tool display by resolving
                         resolve({
                           outcome: resolvedOutcome,
-                          approvedCommands: resolvedApprovedCommands,
+                          approvedCommands:
+                            resolvedOutcome === ToolConfirmationOutcome.Cancel
+                              ? []
+                              : result.commandsToConfirm,
                         });
                       },
+                    };
+
+                    const toolDisplay: IndividualToolCallDisplay = {
+                      callId,
+                      name: 'Expansion',
+                      description: 'Command expansion needs shell access',
+                      status: CoreToolCallStatus.AwaitingApproval,
+                      isClientInitiated: true,
+                      resultDisplay: undefined,
+                      confirmationDetails,
+                    };
+
+                    setPendingItem({
+                      type: 'tool_group',
+                      tools: [toolDisplay],
                     });
                   });
+
+                  setPendingItem(null);
 
                   if (
                     outcome === ToolConfirmationOutcome.Cancel ||
                     !approvedCommands ||
                     approvedCommands.length === 0
                   ) {
+                    addItem(
+                      {
+                        type: MessageType.INFO,
+                        text: 'Slash command shell execution declined.',
+                      },
+                      Date.now(),
+                    );
                     return { type: 'handled' };
                   }
 
@@ -602,6 +664,8 @@ export const useSlashCommandProcessor = (
                     result.originalInvocation.raw,
                     // Pass the approved commands as a one-time grant for this execution.
                     new Set(approvedCommands),
+                    undefined,
+                    false, // Do not add to history again
                   );
                 }
                 case 'confirm_action': {
@@ -634,12 +698,9 @@ export const useSlashCommandProcessor = (
                     true,
                   );
                 }
-                case 'stream_messages': {
-                  // stream_messages is only used in ACP/Zed integration mode
-                  // and should not be returned in interactive UI mode
-                  throw new Error(
-                    'stream_messages result type is not supported in interactive mode',
-                  );
+                case 'custom_dialog': {
+                  setCustomDialog(result.component);
+                  return { type: 'handled' };
                 }
                 default: {
                   const unhandled: never = result;
@@ -664,12 +725,6 @@ export const useSlashCommandProcessor = (
           }
         }
 
-        addMessage({
-          type: MessageType.ERROR,
-          content: `Unknown command: ${trimmed}`,
-          timestamp: new Date(),
-        });
-
         return { type: 'handled' };
       } catch (e: unknown) {
         // If cancelled via ESC, the cancelSlashCommand callback already handled cleanup
@@ -682,6 +737,7 @@ export const useSlashCommandProcessor = (
             command: resolvedCommandPath[0],
             subcommand,
             status: SlashCommandStatus.ERROR,
+            extension_id: commandToExecute?.extensionId,
           });
           logSlashCommand(config, event);
         }
@@ -729,6 +785,7 @@ export const useSlashCommandProcessor = (
             command: resolvedCommandPath[0],
             subcommand,
             status: SlashCommandStatus.SUCCESS,
+            extension_id: commandToExecute?.extensionId,
           });
           logSlashCommand(config, event);
         }
@@ -742,10 +799,10 @@ export const useSlashCommandProcessor = (
       commands,
       commandContext,
       addMessage,
-      setShellConfirmationRequest,
       setSessionShellAllowlist,
       setIsProcessing,
       setConfirmationRequest,
+      setCustomDialog,
     ],
   );
 
@@ -757,7 +814,6 @@ export const useSlashCommandProcessor = (
     setBtwItem,
     cancelBtw,
     commandContext,
-    shellConfirmationRequest,
     confirmationRequest,
   };
 };

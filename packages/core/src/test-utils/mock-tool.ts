@@ -8,35 +8,37 @@ import type {
   ModifiableDeclarativeTool,
   ModifyContext,
 } from '../tools/modifiable-tool.js';
-import type {
-  ToolCallConfirmationDetails,
-  ToolInvocation,
-  ToolResult,
-} from '../tools/tools.js';
-import type { PermissionDecision } from '../permissions/types.js';
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
+  type ToolCallConfirmationDetails,
+  type ToolInvocation,
+  type ToolLiveOutput,
+  type ToolResult,
+  type ExecuteOptions,
 } from '../tools/tools.js';
+import { createMockMessageBus } from './mock-message-bus.js';
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
 interface MockToolOptions {
   name: string;
-  kind?: Kind;
   displayName?: string;
   description?: string;
   canUpdateOutput?: boolean;
   isOutputMarkdown?: boolean;
-  getDefaultPermission?: () => Promise<PermissionDecision>;
-  getConfirmationDetails?: (
+  shouldConfirmExecute?: (
+    params: { [key: string]: unknown },
     signal: AbortSignal,
-  ) => Promise<ToolCallConfirmationDetails>;
+  ) => Promise<ToolCallConfirmationDetails | false>;
   execute?: (
     params: { [key: string]: unknown },
     signal?: AbortSignal,
     updateOutput?: (output: string) => void,
+    options?: ExecuteOptions,
   ) => Promise<ToolResult>;
   params?: object;
+  messageBus?: MessageBus;
 }
 
 class MockToolInvocation extends BaseToolInvocation<
@@ -46,29 +48,28 @@ class MockToolInvocation extends BaseToolInvocation<
   constructor(
     private readonly tool: MockTool,
     params: { [key: string]: unknown },
+    messageBus: MessageBus,
   ) {
-    super(params);
+    super(params, messageBus, tool.name, tool.displayName);
   }
 
   execute(
     signal: AbortSignal,
-    updateOutput?: (output: string) => void,
+    updateOutput?: (output: ToolLiveOutput) => void,
+    options?: ExecuteOptions,
   ): Promise<ToolResult> {
-    if (updateOutput) {
-      return this.tool.execute(this.params, signal, updateOutput);
-    } else {
-      return this.tool.execute(this.params);
-    }
+    return this.tool.execute(
+      this.params,
+      signal,
+      updateOutput as ((output: string) => void) | undefined,
+      options,
+    );
   }
 
-  override getDefaultPermission(): Promise<PermissionDecision> {
-    return this.tool.getDefaultPermission();
-  }
-
-  override getConfirmationDetails(
+  override shouldConfirmExecute(
     abortSignal: AbortSignal,
-  ): Promise<ToolCallConfirmationDetails> {
-    return this.tool.getConfirmationDetails(abortSignal);
+  ): Promise<ToolCallConfirmationDetails | false> {
+    return this.tool.shouldConfirmExecute(this.params, abortSignal);
   }
 
   getDescription(): string {
@@ -83,14 +84,16 @@ export class MockTool extends BaseDeclarativeTool<
   { [key: string]: unknown },
   ToolResult
 > {
-  getDefaultPermission: () => Promise<PermissionDecision>;
-  getConfirmationDetails: (
+  readonly shouldConfirmExecute: (
+    params: { [key: string]: unknown },
     signal: AbortSignal,
-  ) => Promise<ToolCallConfirmationDetails>;
-  execute: (
+  ) => Promise<ToolCallConfirmationDetails | false>;
+
+  readonly execute: (
     params: { [key: string]: unknown },
     signal?: AbortSignal,
     updateOutput?: (output: string) => void,
+    options?: ExecuteOptions,
   ) => Promise<ToolResult>;
 
   constructor(options: MockToolOptions) {
@@ -98,28 +101,17 @@ export class MockTool extends BaseDeclarativeTool<
       options.name,
       options.displayName ?? options.name,
       options.description ?? options.name,
-      options.kind ?? Kind.Other,
+      Kind.Other,
       options.params,
+      options.messageBus ?? createMockMessageBus(),
       options.isOutputMarkdown ?? false,
       options.canUpdateOutput ?? false,
     );
 
-    if (options.getDefaultPermission) {
-      this.getDefaultPermission = options.getDefaultPermission;
+    if (options.shouldConfirmExecute) {
+      this.shouldConfirmExecute = options.shouldConfirmExecute;
     } else {
-      this.getDefaultPermission = () =>
-        Promise.resolve('allow' as PermissionDecision);
-    }
-
-    if (options.getConfirmationDetails) {
-      this.getConfirmationDetails = options.getConfirmationDetails;
-    } else {
-      this.getConfirmationDetails = () => {
-        throw new Error(
-          `${this.name} returned 'ask' from getDefaultPermission() ` +
-            `but does not implement getConfirmationDetails().`,
-        );
-      };
+      this.shouldConfirmExecute = () => Promise.resolve(false);
     }
 
     if (options.execute) {
@@ -133,22 +125,23 @@ export class MockTool extends BaseDeclarativeTool<
     }
   }
 
-  protected createInvocation(params: {
-    [key: string]: unknown;
-  }): ToolInvocation<{ [key: string]: unknown }, ToolResult> {
-    return new MockToolInvocation(this, params);
+  protected createInvocation(
+    params: { [key: string]: unknown },
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
+  ): ToolInvocation<{ [key: string]: unknown }, ToolResult> {
+    return new MockToolInvocation(this, params, messageBus);
   }
 }
 
-export const MOCK_TOOL_GET_DEFAULT_PERMISSION = () =>
-  Promise.resolve('ask' as PermissionDecision);
-
-export const MOCK_TOOL_GET_CONFIRMATION_DETAILS = () =>
+export const MOCK_TOOL_SHOULD_CONFIRM_EXECUTE = () =>
   Promise.resolve({
     type: 'exec' as const,
     title: 'Confirm mockTool',
     command: 'mockTool',
     rootCommand: 'mockTool',
+    rootCommands: ['mockTool'],
     onConfirm: async () => {},
   });
 
@@ -159,11 +152,16 @@ export class MockModifiableToolInvocation extends BaseToolInvocation<
   constructor(
     private readonly tool: MockModifiableTool,
     params: Record<string, unknown>,
+    messageBus: MessageBus,
   ) {
-    super(params);
+    super(params, messageBus, tool.name, tool.displayName);
   }
 
-  async execute(_abortSignal: AbortSignal): Promise<ToolResult> {
+  async execute(
+    _signal: AbortSignal,
+    _updateOutput?: (output: ToolLiveOutput) => void,
+    _options?: ExecuteOptions,
+  ): Promise<ToolResult> {
     const result = this.tool.executeFn(this.params);
     return (
       result ?? {
@@ -173,23 +171,22 @@ export class MockModifiableToolInvocation extends BaseToolInvocation<
     );
   }
 
-  override async getDefaultPermission(): Promise<PermissionDecision> {
-    return this.tool.shouldConfirm ? 'ask' : 'allow';
-  }
-
-  override async getConfirmationDetails(
+  override async shouldConfirmExecute(
     _abortSignal: AbortSignal,
-  ): Promise<ToolCallConfirmationDetails> {
-    return {
-      type: 'edit',
-      title: 'Confirm Mock Tool',
-      fileName: 'test.txt',
-      filePath: 'test.txt',
-      fileDiff: 'diff',
-      originalContent: 'originalContent',
-      newContent: 'newContent',
-      onConfirm: async () => {},
-    };
+  ): Promise<ToolCallConfirmationDetails | false> {
+    if (this.tool.shouldConfirm) {
+      return {
+        type: 'edit',
+        title: 'Confirm Mock Tool',
+        fileName: 'test.txt',
+        filePath: 'test.txt',
+        fileDiff: 'diff',
+        originalContent: 'originalContent',
+        newContent: 'newContent',
+        onConfirm: async () => {},
+      };
+    }
+    return false;
   }
 
   getDescription(): string {
@@ -204,17 +201,26 @@ export class MockModifiableTool
   extends BaseDeclarativeTool<Record<string, unknown>, ToolResult>
   implements ModifiableDeclarativeTool<Record<string, unknown>>
 {
-  // Should be overrided in test file. Functionality will be updated in follow
+  // Should be overridden in test file. Functionality will be updated in follow
   // up PR which has MockModifiableTool expect MockTool
   executeFn: (params: Record<string, unknown>) => ToolResult | undefined = () =>
     undefined;
   shouldConfirm = true;
 
   constructor(name = 'mockModifiableTool') {
-    super(name, name, 'A mock modifiable tool for testing.', Kind.Other, {
-      type: 'object',
-      properties: { param: { type: 'string' } },
-    });
+    super(
+      name,
+      name,
+      'A mock modifiable tool for testing.',
+      Kind.Other,
+      {
+        type: 'object',
+        properties: { param: { type: 'string' } },
+      },
+      createMockMessageBus(),
+      true,
+      false,
+    );
   }
 
   getModifyContext(
@@ -234,7 +240,10 @@ export class MockModifiableTool
 
   protected createInvocation(
     params: Record<string, unknown>,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ): ToolInvocation<Record<string, unknown>, ToolResult> {
-    return new MockModifiableToolInvocation(this, params);
+    return new MockModifiableToolInvocation(this, params, messageBus);
   }
 }

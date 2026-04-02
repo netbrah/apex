@@ -8,9 +8,7 @@ import { isUtf8 } from 'node:buffer';
 import { execSync } from 'node:child_process';
 import os from 'node:os';
 import { detect as chardetDetect } from 'chardet';
-import { createDebugLogger } from './debugLogger.js';
-
-const debugLogger = createDebugLogger('ENCODING');
+import { debugLogger } from './debugLogger.js';
 
 // Cache for system encoding to avoid repeated detection
 // Use undefined to indicate "not yet checked" vs null meaning "checked but failed"
@@ -105,7 +103,7 @@ export function getSystemEncoding(): string | null {
       locale = execSync('locale charmap', { encoding: 'utf8' })
         .toString()
         .trim();
-    } catch (_e) {
+    } catch {
       debugLogger.warn('Failed to get locale charmap.');
       return null;
     }

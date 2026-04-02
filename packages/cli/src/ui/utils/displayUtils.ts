@@ -1,38 +1,10 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { theme } from '../semantic-colors.js';
-import { AgentStatus } from '@apex-code/apex-core';
-
-// --- Status Labels ---
-
-export interface StatusLabel {
-  icon: string;
-  text: string;
-  color: string;
-}
-
-export function getArenaStatusLabel(status: AgentStatus): StatusLabel {
-  switch (status) {
-    case AgentStatus.IDLE:
-      return { icon: '✓', text: 'Idle', color: theme.status.success };
-    case AgentStatus.COMPLETED:
-      return { icon: '✓', text: 'Done', color: theme.status.success };
-    case AgentStatus.CANCELLED:
-      return { icon: '⊘', text: 'Cancelled', color: theme.status.warning };
-    case AgentStatus.FAILED:
-      return { icon: '✗', text: 'Failed', color: theme.status.error };
-    case AgentStatus.RUNNING:
-      return { icon: '○', text: 'Running', color: theme.text.secondary };
-    case AgentStatus.INITIALIZING:
-      return { icon: '○', text: 'Initializing', color: theme.text.secondary };
-    default:
-      return { icon: '○', text: status, color: theme.text.secondary };
-  }
-}
 
 // --- Thresholds ---
 export const TOOL_SUCCESS_RATE_HIGH = 95;
@@ -43,6 +15,12 @@ export const USER_AGREEMENT_RATE_MEDIUM = 45;
 
 export const CACHE_EFFICIENCY_HIGH = 40;
 export const CACHE_EFFICIENCY_MEDIUM = 15;
+
+export const QUOTA_THRESHOLD_HIGH = 20;
+export const QUOTA_THRESHOLD_MEDIUM = 5;
+
+export const QUOTA_USED_WARNING_THRESHOLD = 80;
+export const QUOTA_USED_CRITICAL_THRESHOLD = 95;
 
 // --- Color Logic ---
 export const getStatusColor = (
@@ -60,4 +38,20 @@ export const getStatusColor = (
     return theme.status.error;
   }
   return options.defaultColor ?? theme.status.error;
+};
+
+/**
+ * Gets the status color based on "used" percentage (where higher is worse).
+ */
+export const getUsedStatusColor = (
+  usedPercentage: number,
+  thresholds: { warning: number; critical: number },
+) => {
+  if (usedPercentage >= thresholds.critical) {
+    return theme.status.error;
+  }
+  if (usedPercentage >= thresholds.warning) {
+    return theme.status.warning;
+  }
+  return undefined;
 };

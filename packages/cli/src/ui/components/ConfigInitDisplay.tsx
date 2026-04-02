@@ -5,43 +5,65 @@
  */
 
 import { useEffect, useState } from 'react';
-import { appEvents } from './../../utils/events.js';
 import { Box, Text } from 'ink';
-import { useConfig } from '../contexts/ConfigContext.js';
-import { type McpClient, MCPServerStatus } from '@apex-code/apex-core';
-import { GeminiSpinner } from './GeminiRespondingSpinner.js';
+import {
+  CoreEvent,
+  coreEvents,
+  type McpClient,
+  MCPServerStatus,
+} from '@google/gemini-cli-core';
+import { GeminiSpinner } from './GeminiSpinner.js';
 import { theme } from '../semantic-colors.js';
-import { t } from '../../i18n/index.js';
 
-export const ConfigInitDisplay = () => {
-  const config = useConfig();
-  const [message, setMessage] = useState(t('Initializing...'));
+export const ConfigInitDisplay = ({
+  message: initialMessage = 'Working...',
+}: {
+  message?: string;
+}) => {
+  const [message, setMessage] = useState(initialMessage);
 
   useEffect(() => {
     const onChange = (clients?: Map<string, McpClient>) => {
       if (!clients || clients.size === 0) {
-        setMessage(t('Initializing...'));
+        setMessage(initialMessage);
         return;
       }
       let connected = 0;
-      for (const client of clients.values()) {
+      const connecting: string[] = [];
+      for (const [name, client] of clients.entries()) {
         if (client.getStatus() === MCPServerStatus.CONNECTED) {
           connected++;
+        } else {
+          connecting.push(name);
         }
       }
-      setMessage(
-        t('Connecting to MCP servers... ({{connected}}/{{total}})', {
-          connected: String(connected),
-          total: String(clients.size),
-        }),
-      );
+
+      if (connecting.length > 0) {
+        const maxDisplay = 3;
+        const displayedServers = connecting.slice(0, maxDisplay).join(', ');
+        const remaining = connecting.length - maxDisplay;
+        const suffix = remaining > 0 ? `, +${remaining} more` : '';
+        const mcpMessage = `Connecting to MCP servers... (${connected}/${clients.size}) - Waiting for: ${displayedServers}${suffix}`;
+        setMessage(
+          initialMessage && initialMessage !== 'Working...'
+            ? `${initialMessage} (${mcpMessage})`
+            : mcpMessage,
+        );
+      } else {
+        const mcpMessage = `Connecting to MCP servers... (${connected}/${clients.size})`;
+        setMessage(
+          initialMessage && initialMessage !== 'Working...'
+            ? `${initialMessage} (${mcpMessage})`
+            : mcpMessage,
+        );
+      }
     };
 
-    appEvents.on('mcp-client-update', onChange);
+    coreEvents.on(CoreEvent.McpClientUpdate, onChange);
     return () => {
-      appEvents.off('mcp-client-update', onChange);
+      coreEvents.off(CoreEvent.McpClientUpdate, onChange);
     };
-  }, [config]);
+  }, [initialMessage]);
 
   return (
     <Box marginTop={1}>

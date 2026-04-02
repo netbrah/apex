@@ -5,6 +5,7 @@
  */
 
 import {
+  debugLogger,
   flatMapTextParts,
   readPathFromWorkspace,
   createDebugLogger,
@@ -27,7 +28,7 @@ export class AtFileProcessor implements IPromptProcessor {
     input: PromptPipelineContent,
     context: CommandContext,
   ): Promise<PromptPipelineContent> {
-    const config = context.services.config;
+    const config = context.services.agentContext?.config;
     if (!config) {
       return input;
     }
@@ -71,8 +72,9 @@ export class AtFileProcessor implements IPromptProcessor {
             error instanceof Error ? error.message : String(error);
           const uiMessage = `Failed to inject content for '@{${pathStr}}': ${message}`;
 
+          // `context.invocation` should always be present at this point.
           debugLogger.error(
-            `[AtFileProcessor] ${uiMessage}. Leaving placeholder in prompt.`,
+            `Error while loading custom command (${context.invocation!.name}) ${uiMessage}. Leaving placeholder in prompt.`,
           );
           context.ui.addItem(
             { type: MessageType.ERROR, text: uiMessage },

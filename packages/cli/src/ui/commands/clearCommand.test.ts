@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 import { clearCommand } from './clearCommand.js';
 import { type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
@@ -19,47 +19,46 @@ vi.mock('@apex-code/apex-core', async () => {
   return {
     ...actual,
     uiTelemetryService: {
-      reset: vi.fn(),
+      setLastPromptTokenCount: vi.fn(),
+      clear: vi.fn(),
     },
   };
 });
 
-import type { GeminiClient } from '@apex-code/apex-core';
+import { uiTelemetryService, type GeminiClient } from '@google/gemini-cli-core';
 
 describe('clearCommand', () => {
   let mockContext: CommandContext;
   let mockResetChat: ReturnType<typeof vi.fn>;
-  let mockStartNewSession: ReturnType<typeof vi.fn>;
-  let mockFireSessionEndEvent: ReturnType<typeof vi.fn>;
-  let mockFireSessionStartEvent: ReturnType<typeof vi.fn>;
-  let mockGetHookSystem: ReturnType<typeof vi.fn>;
+  let mockHintClear: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockResetChat = vi.fn().mockResolvedValue(undefined);
-    mockStartNewSession = vi.fn().mockReturnValue('new-session-id');
-    mockFireSessionEndEvent = vi.fn().mockResolvedValue(undefined);
-    mockFireSessionStartEvent = vi.fn().mockResolvedValue(undefined);
-    mockGetHookSystem = vi.fn().mockReturnValue({
-      fireSessionEndEvent: mockFireSessionEndEvent,
-      fireSessionStartEvent: mockFireSessionStartEvent,
-    });
+    mockHintClear = vi.fn();
+    const mockGetChatRecordingService = vi.fn();
     vi.clearAllMocks();
 
     mockContext = createMockCommandContext({
       services: {
-        config: {
-          getGeminiClient: () =>
-            ({
-              resetChat: mockResetChat,
-            }) as unknown as GeminiClient,
-          startNewSession: mockStartNewSession,
-          getHookSystem: mockGetHookSystem,
-          getDebugLogger: () => ({
-            warn: vi.fn(),
-          }),
-          getModel: () => 'test-model',
-          getToolRegistry: () => undefined,
-          getApprovalMode: () => 'default',
+        agentContext: {
+          config: {
+            getEnableHooks: vi.fn().mockReturnValue(false),
+            setSessionId: vi.fn(),
+            getMessageBus: vi.fn().mockReturnValue(undefined),
+            getHookSystem: vi.fn().mockReturnValue({
+              fireSessionEndEvent: vi.fn().mockResolvedValue(undefined),
+              fireSessionStartEvent: vi.fn().mockResolvedValue(undefined),
+            }),
+            injectionService: {
+              clear: mockHintClear,
+            },
+          },
+          geminiClient: {
+            resetChat: mockResetChat,
+            getChat: () => ({
+              getChatRecordingService: mockGetChatRecordingService,
+            }),
+          } as unknown as GeminiClient,
         },
       },
       session: {
@@ -68,7 +67,7 @@ describe('clearCommand', () => {
     });
   });
 
-  it('should set debug message, start a new session, reset chat, and clear UI when config is available', async () => {
+  it('should set debug message, reset chat, reset telemetry, clear hints, and clear UI when config is available', async () => {
     if (!clearCommand.action) {
       throw new Error('clearCommand must have an action.');
     }
@@ -80,20 +79,20 @@ describe('clearCommand', () => {
     );
     expect(mockContext.ui.setDebugMessage).toHaveBeenCalledTimes(1);
 
-    expect(mockStartNewSession).toHaveBeenCalledTimes(1);
-    expect(mockContext.session.startNewSession).toHaveBeenCalledWith(
-      'new-session-id',
-    );
     expect(mockResetChat).toHaveBeenCalledTimes(1);
+    expect(mockHintClear).toHaveBeenCalledTimes(1);
+    expect(uiTelemetryService.clear).toHaveBeenCalled();
+    expect(uiTelemetryService.clear).toHaveBeenCalledTimes(1);
     expect(mockContext.ui.clear).toHaveBeenCalledTimes(1);
 
-    // Check that all expected operations were called
-    expect(mockContext.ui.setDebugMessage).toHaveBeenCalled();
-    expect(mockStartNewSession).toHaveBeenCalled();
-    expect(mockContext.session.startNewSession).toHaveBeenCalled();
-    expect(mockResetChat).toHaveBeenCalled();
-    expect(mockContext.ui.clear).toHaveBeenCalled();
-  });
+    // Check the order of operations.
+    const setDebugMessageOrder = (mockContext.ui.setDebugMessage as Mock).mock
+      .invocationCallOrder[0];
+    const resetChatOrder = mockResetChat.mock.invocationCallOrder[0];
+    const resetTelemetryOrder = (uiTelemetryService.clear as Mock).mock
+      .invocationCallOrder[0];
+    const clearOrder = (mockContext.ui.clear as Mock).mock
+      .invocationCallOrder[0];
 
   it('should fire SessionEnd event before clearing and SessionStart event after clearing', async () => {
     if (!clearCommand.action) {
@@ -212,7 +211,7 @@ describe('clearCommand', () => {
 
     const nullConfigContext = createMockCommandContext({
       services: {
-        config: null,
+        agentContext: null,
       },
       session: {
         startNewSession: vi.fn(),
@@ -225,6 +224,8 @@ describe('clearCommand', () => {
       'Starting a new session and clearing.',
     );
     expect(mockResetChat).not.toHaveBeenCalled();
+    expect(uiTelemetryService.clear).toHaveBeenCalled();
+    expect(uiTelemetryService.clear).toHaveBeenCalledTimes(1);
     expect(nullConfigContext.ui.clear).toHaveBeenCalledTimes(1);
   });
 });

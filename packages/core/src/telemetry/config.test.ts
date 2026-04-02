@@ -79,13 +79,13 @@ describe('telemetry/config helpers', () => {
         useCollector: false,
       };
       const env = {
-        APEX_TELEMETRY_ENABLED: '1',
-        APEX_TELEMETRY_TARGET: 'gcp',
-        APEX_TELEMETRY_OTLP_ENDPOINT: 'http://env:4317',
-        APEX_TELEMETRY_OTLP_PROTOCOL: 'http',
-        APEX_TELEMETRY_LOG_PROMPTS: 'true',
-        APEX_TELEMETRY_OUTFILE: 'env.log',
-        APEX_TELEMETRY_USE_COLLECTOR: 'true',
+        GEMINI_TELEMETRY_ENABLED: '1',
+        GEMINI_TELEMETRY_TARGET: 'gcp',
+        GEMINI_TELEMETRY_OTLP_ENDPOINT: 'http://env:4317',
+        GEMINI_TELEMETRY_OTLP_PROTOCOL: 'http',
+        GEMINI_TELEMETRY_LOG_PROMPTS: 'true',
+        GEMINI_TELEMETRY_OUTFILE: 'env.log',
+        GEMINI_TELEMETRY_USE_COLLECTOR: 'true',
       } as Record<string, string>;
       const argv = {
         telemetry: false,
@@ -120,7 +120,35 @@ describe('telemetry/config helpers', () => {
         logPrompts: false,
         outfile: 'argv.log',
         useCollector: true, // from env as no argv option
+        useCliAuth: undefined,
       });
+    });
+
+    it('resolves useCliAuth from settings', async () => {
+      const settings = {
+        useCliAuth: true,
+      };
+      const resolved = await resolveTelemetrySettings({ settings });
+      expect(resolved.useCliAuth).toBe(true);
+    });
+
+    it('resolves useCliAuth from env', async () => {
+      const env = {
+        GEMINI_TELEMETRY_USE_CLI_AUTH: 'true',
+      };
+      const resolved = await resolveTelemetrySettings({ env });
+      expect(resolved.useCliAuth).toBe(true);
+    });
+
+    it('env overrides settings for useCliAuth', async () => {
+      const settings = {
+        useCliAuth: false,
+      };
+      const env = {
+        GEMINI_TELEMETRY_USE_CLI_AUTH: 'true',
+      };
+      const resolved = await resolveTelemetrySettings({ env, settings });
+      expect(resolved.useCliAuth).toBe(true);
     });
 
     it('falls back to OTEL_EXPORTER_OTLP_ENDPOINT when GEMINI var is missing', async () => {
@@ -133,7 +161,7 @@ describe('telemetry/config helpers', () => {
     });
 
     it('throws on unknown protocol values', async () => {
-      const env = { APEX_TELEMETRY_OTLP_PROTOCOL: 'unknown' } as Record<
+      const env = { GEMINI_TELEMETRY_OTLP_PROTOCOL: 'unknown' } as Record<
         string,
         string
       >;
@@ -143,7 +171,7 @@ describe('telemetry/config helpers', () => {
     });
 
     it('throws on unknown target values', async () => {
-      const env = { APEX_TELEMETRY_TARGET: 'unknown' } as Record<
+      const env = { GEMINI_TELEMETRY_TARGET: 'unknown' } as Record<
         string,
         string
       >;

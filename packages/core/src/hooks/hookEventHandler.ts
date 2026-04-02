@@ -1,396 +1,278 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '../config/config.js';
 import type { HookPlanner, HookEventContext } from './hookPlanner.js';
 import type { HookRunner } from './hookRunner.js';
 import type { HookAggregator, AggregatedHookResult } from './hookAggregator.js';
-import { HookEventName } from './types.js';
-import type {
-  HookConfig,
-  HookInput,
-  HookExecutionResult,
-  UserPromptSubmitInput,
-  StopInput,
-  SessionStartInput,
-  SessionEndInput,
-  SessionStartSource,
-  SessionEndReason,
-  AgentType,
-  PreToolUseInput,
-  PostToolUseInput,
-  PostToolUseFailureInput,
-  PreCompactInput,
-  PreCompactTrigger,
-  NotificationInput,
-  NotificationType,
-  PermissionRequestInput,
-  PermissionSuggestion,
-  SubagentStartInput,
-  SubagentStopInput,
+import {
+  HookEventName,
+  HookType,
+  type HookConfig,
+  type HookInput,
+  type BeforeToolInput,
+  type AfterToolInput,
+  type BeforeAgentInput,
+  type NotificationInput,
+  type AfterAgentInput,
+  type SessionStartInput,
+  type SessionEndInput,
+  type PreCompressInput,
+  type BeforeModelInput,
+  type AfterModelInput,
+  type BeforeToolSelectionInput,
+  type NotificationType,
+  type SessionStartSource,
+  type SessionEndReason,
+  type PreCompressTrigger,
+  type HookExecutionResult,
+  type McpToolContext,
 } from './types.js';
-import { PermissionMode } from './types.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
+import { defaultHookTranslator } from './hookTranslator.js';
+import type {
+  GenerateContentParameters,
+  GenerateContentResponse,
+} from '@google/genai';
 import { logHookCall } from '../telemetry/loggers.js';
 import { HookCallEvent } from '../telemetry/types.js';
-
-const debugLogger = createDebugLogger('TRUSTED_HOOKS');
+import { debugLogger } from '../utils/debugLogger.js';
+import { coreEvents } from '../utils/events.js';
+import type { AgentLoopContext } from '../config/agent-loop-context.js';
 
 /**
  * Hook event bus that coordinates hook execution across the system
  */
 export class HookEventHandler {
-  private readonly config: Config;
+  private readonly context: AgentLoopContext;
   private readonly hookPlanner: HookPlanner;
   private readonly hookRunner: HookRunner;
   private readonly hookAggregator: HookAggregator;
 
+  /**
+   * Track reported failures to suppress duplicate warnings during streaming.
+   * Uses a WeakMap with the original request object as a key to ensure
+   * failures are only reported once per logical model interaction.
+   */
+  private readonly reportedFailures = new WeakMap<object, Set<string>>();
+
   constructor(
-    config: Config,
+    context: AgentLoopContext,
     hookPlanner: HookPlanner,
     hookRunner: HookRunner,
     hookAggregator: HookAggregator,
   ) {
-    this.config = config;
+    this.context = context;
     this.hookPlanner = hookPlanner;
     this.hookRunner = hookRunner;
     this.hookAggregator = hookAggregator;
   }
 
   /**
-   * Fire a UserPromptSubmit event
+   * Fire a BeforeTool event
    * Called by handleHookExecutionRequest - executes hooks directly
    */
-  async fireUserPromptSubmitEvent(
-    prompt: string,
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: UserPromptSubmitInput = {
-      ...this.createBaseInput(HookEventName.UserPromptSubmit),
-      prompt,
-    };
-
-    return this.executeHooks(
-      HookEventName.UserPromptSubmit,
-      input,
-      undefined,
-      signal,
-    );
-  }
-
-  /**
-   * Fire a Stop event
-   * Called by handleHookExecutionRequest - executes hooks directly
-   */
-  async fireStopEvent(
-    stopHookActive: boolean = false,
-    lastAssistantMessage: string = '',
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: StopInput = {
-      ...this.createBaseInput(HookEventName.Stop),
-      stop_hook_active: stopHookActive,
-      last_assistant_message: lastAssistantMessage,
-    };
-
-    return this.executeHooks(HookEventName.Stop, input, undefined, signal);
-  }
-
-  /**
-   * Fire a SessionStart event
-   * Called when a new session starts or resumes
-   */
-  async fireSessionStartEvent(
-    source: SessionStartSource,
-    model: string,
-    permissionMode?: PermissionMode,
-    agentType?: AgentType,
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: SessionStartInput = {
-      ...this.createBaseInput(HookEventName.SessionStart),
-      permission_mode: permissionMode ?? PermissionMode.Default,
-      source,
-      model,
-      agent_type: agentType,
-    };
-
-    // Pass source as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.SessionStart,
-      input,
-      {
-        trigger: source,
-      },
-      signal,
-    );
-  }
-
-  /**
-   * Fire a SessionEnd event
-   * Called when a session ends
-   */
-  async fireSessionEndEvent(
-    reason: SessionEndReason,
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: SessionEndInput = {
-      ...this.createBaseInput(HookEventName.SessionEnd),
-      reason,
-    };
-
-    // Pass reason as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.SessionEnd,
-      input,
-      {
-        trigger: reason,
-      },
-      signal,
-    );
-  }
-
-  /**
-   * Fire a PreToolUse event
-   * Called before tool execution begins
-   */
-  async firePreToolUseEvent(
+  async fireBeforeToolEvent(
     toolName: string,
     toolInput: Record<string, unknown>,
-    toolUseId: string,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
+    mcpContext?: McpToolContext,
+    originalRequestName?: string,
   ): Promise<AggregatedHookResult> {
-    const input: PreToolUseInput = {
-      ...this.createBaseInput(HookEventName.PreToolUse),
-      permission_mode: permissionMode,
+    const input: BeforeToolInput = {
+      ...this.createBaseInput(HookEventName.BeforeTool),
       tool_name: toolName,
       tool_input: toolInput,
-      tool_use_id: toolUseId,
+      ...(mcpContext && { mcp_context: mcpContext }),
+      ...(originalRequestName && {
+        original_request_name: originalRequestName,
+      }),
     };
 
-    // Pass tool name as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.PreToolUse,
-      input,
-      {
-        toolName,
-      },
-      signal,
-    );
+    const context: HookEventContext = { toolName };
+    return this.executeHooks(HookEventName.BeforeTool, input, context);
   }
 
   /**
-   * Fire a PostToolUse event
-   * Called after successful tool execution
+   * Fire an AfterTool event
+   * Called by handleHookExecutionRequest - executes hooks directly
    */
-  async firePostToolUseEvent(
+  async fireAfterToolEvent(
     toolName: string,
     toolInput: Record<string, unknown>,
     toolResponse: Record<string, unknown>,
-    toolUseId: string,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
+    mcpContext?: McpToolContext,
+    originalRequestName?: string,
   ): Promise<AggregatedHookResult> {
-    const input: PostToolUseInput = {
-      ...this.createBaseInput(HookEventName.PostToolUse),
-      permission_mode: permissionMode,
+    const input: AfterToolInput = {
+      ...this.createBaseInput(HookEventName.AfterTool),
       tool_name: toolName,
       tool_input: toolInput,
       tool_response: toolResponse,
-      tool_use_id: toolUseId,
+      ...(mcpContext && { mcp_context: mcpContext }),
+      ...(originalRequestName && {
+        original_request_name: originalRequestName,
+      }),
     };
 
-    // Pass tool name as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.PostToolUse,
-      input,
-      {
-        toolName,
-      },
-      signal,
-    );
+    const context: HookEventContext = { toolName };
+    return this.executeHooks(HookEventName.AfterTool, input, context);
   }
 
   /**
-   * Fire a PostToolUseFailure event
-   * Called when tool execution fails
+   * Fire a BeforeAgent event
+   * Called by handleHookExecutionRequest - executes hooks directly
    */
-  async firePostToolUseFailureEvent(
-    toolUseId: string,
-    toolName: string,
-    toolInput: Record<string, unknown>,
-    errorMessage: string,
-    isInterrupt?: boolean,
-    permissionMode?: PermissionMode,
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: PostToolUseFailureInput = {
-      ...this.createBaseInput(HookEventName.PostToolUseFailure),
-      permission_mode: permissionMode ?? PermissionMode.Default,
-      tool_use_id: toolUseId,
-      tool_name: toolName,
-      tool_input: toolInput,
-      error: errorMessage,
-      is_interrupt: isInterrupt,
+  async fireBeforeAgentEvent(prompt: string): Promise<AggregatedHookResult> {
+    const input: BeforeAgentInput = {
+      ...this.createBaseInput(HookEventName.BeforeAgent),
+      prompt,
     };
 
-    // Pass tool name as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.PostToolUseFailure,
-      input,
-      {
-        toolName,
-      },
-      signal,
-    );
-  }
-
-  /**
-   * Fire a PreCompact event
-   * Called before conversation compaction begins
-   */
-  async firePreCompactEvent(
-    trigger: PreCompactTrigger,
-    customInstructions: string = '',
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: PreCompactInput = {
-      ...this.createBaseInput(HookEventName.PreCompact),
-      trigger,
-      custom_instructions: customInstructions,
-    };
-
-    // Pass trigger as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.PreCompact,
-      input,
-      {
-        trigger,
-      },
-      signal,
-    );
+    return this.executeHooks(HookEventName.BeforeAgent, input);
   }
 
   /**
    * Fire a Notification event
    */
   async fireNotificationEvent(
+    type: NotificationType,
     message: string,
-    notificationType: NotificationType,
-    title?: string,
-    signal?: AbortSignal,
+    details: Record<string, unknown>,
   ): Promise<AggregatedHookResult> {
     const input: NotificationInput = {
       ...this.createBaseInput(HookEventName.Notification),
+      notification_type: type,
       message,
-      notification_type: notificationType,
-      title,
+      details,
     };
 
-    // Pass notification_type as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.Notification,
-      input,
-      {
-        notificationType,
-      },
-      signal,
-    );
+    return this.executeHooks(HookEventName.Notification, input);
   }
 
   /**
-   * Fire a PermissionRequest event
-   * Called when a permission dialog is about to be shown to the user
+   * Fire an AfterAgent event
+   * Called by handleHookExecutionRequest - executes hooks directly
    */
-  async firePermissionRequestEvent(
-    toolName: string,
-    toolInput: Record<string, unknown>,
-    permissionMode: PermissionMode,
-    permissionSuggestions?: PermissionSuggestion[],
-    signal?: AbortSignal,
+  async fireAfterAgentEvent(
+    prompt: string,
+    promptResponse: string,
+    stopHookActive: boolean = false,
   ): Promise<AggregatedHookResult> {
-    const input: PermissionRequestInput = {
-      ...this.createBaseInput(HookEventName.PermissionRequest),
-      permission_mode: permissionMode,
-      tool_name: toolName,
-      tool_input: toolInput,
-      permission_suggestions: permissionSuggestions,
-    };
-
-    // Pass tool name as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.PermissionRequest,
-      input,
-      {
-        toolName,
-      },
-      signal,
-    );
-  }
-
-  /**
-   * Fire a SubagentStart event
-   * Called when a subagent is spawned via the Agent tool
-   */
-  async fireSubagentStartEvent(
-    agentId: string,
-    agentType: AgentType | string,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: SubagentStartInput = {
-      ...this.createBaseInput(HookEventName.SubagentStart),
-      permission_mode: permissionMode,
-      agent_id: agentId,
-      agent_type: agentType,
-    };
-
-    // Pass agentType as context for matcher filtering
-    return this.executeHooks(
-      HookEventName.SubagentStart,
-      input,
-      {
-        agentType: String(agentType),
-      },
-      signal,
-    );
-  }
-
-  /**
-   * Fire a SubagentStop event
-   * Called when a subagent has finished responding
-   */
-  async fireSubagentStopEvent(
-    agentId: string,
-    agentType: AgentType | string,
-    agentTranscriptPath: string,
-    lastAssistantMessage: string,
-    stopHookActive: boolean,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
-  ): Promise<AggregatedHookResult> {
-    const input: SubagentStopInput = {
-      ...this.createBaseInput(HookEventName.SubagentStop),
-      permission_mode: permissionMode,
+    const input: AfterAgentInput = {
+      ...this.createBaseInput(HookEventName.AfterAgent),
+      prompt,
+      prompt_response: promptResponse,
       stop_hook_active: stopHookActive,
-      agent_id: agentId,
-      agent_type: agentType,
-      agent_transcript_path: agentTranscriptPath,
-      last_assistant_message: lastAssistantMessage,
     };
 
-    // Pass agentType as context for matcher filtering
+    return this.executeHooks(HookEventName.AfterAgent, input);
+  }
+
+  /**
+   * Fire a SessionStart event
+   */
+  async fireSessionStartEvent(
+    source: SessionStartSource,
+  ): Promise<AggregatedHookResult> {
+    const input: SessionStartInput = {
+      ...this.createBaseInput(HookEventName.SessionStart),
+      source,
+    };
+
+    const context: HookEventContext = { trigger: source };
+    return this.executeHooks(HookEventName.SessionStart, input, context);
+  }
+
+  /**
+   * Fire a SessionEnd event
+   */
+  async fireSessionEndEvent(
+    reason: SessionEndReason,
+  ): Promise<AggregatedHookResult> {
+    const input: SessionEndInput = {
+      ...this.createBaseInput(HookEventName.SessionEnd),
+      reason,
+    };
+
+    const context: HookEventContext = { trigger: reason };
+    return this.executeHooks(HookEventName.SessionEnd, input, context);
+  }
+
+  /**
+   * Fire a PreCompress event
+   */
+  async firePreCompressEvent(
+    trigger: PreCompressTrigger,
+  ): Promise<AggregatedHookResult> {
+    const input: PreCompressInput = {
+      ...this.createBaseInput(HookEventName.PreCompress),
+      trigger,
+    };
+
+    const context: HookEventContext = { trigger };
+    return this.executeHooks(HookEventName.PreCompress, input, context);
+  }
+
+  /**
+   * Fire a BeforeModel event
+   * Called by handleHookExecutionRequest - executes hooks directly
+   */
+  async fireBeforeModelEvent(
+    llmRequest: GenerateContentParameters,
+  ): Promise<AggregatedHookResult> {
+    const input: BeforeModelInput = {
+      ...this.createBaseInput(HookEventName.BeforeModel),
+      llm_request: defaultHookTranslator.toHookLLMRequest(llmRequest),
+    };
+
     return this.executeHooks(
-      HookEventName.SubagentStop,
+      HookEventName.BeforeModel,
       input,
-      {
-        agentType: String(agentType),
-      },
-      signal,
+      undefined,
+      llmRequest,
+    );
+  }
+
+  /**
+   * Fire an AfterModel event
+   * Called by handleHookExecutionRequest - executes hooks directly
+   */
+  async fireAfterModelEvent(
+    llmRequest: GenerateContentParameters,
+    llmResponse: GenerateContentResponse,
+  ): Promise<AggregatedHookResult> {
+    const input: AfterModelInput = {
+      ...this.createBaseInput(HookEventName.AfterModel),
+      llm_request: defaultHookTranslator.toHookLLMRequest(llmRequest),
+      llm_response: defaultHookTranslator.toHookLLMResponse(llmResponse),
+    };
+
+    return this.executeHooks(
+      HookEventName.AfterModel,
+      input,
+      undefined,
+      llmRequest,
+    );
+  }
+
+  /**
+   * Fire a BeforeToolSelection event
+   * Called by handleHookExecutionRequest - executes hooks directly
+   */
+  async fireBeforeToolSelectionEvent(
+    llmRequest: GenerateContentParameters,
+  ): Promise<AggregatedHookResult> {
+    const input: BeforeToolSelectionInput = {
+      ...this.createBaseInput(HookEventName.BeforeToolSelection),
+      llm_request: defaultHookTranslator.toHookLLMRequest(llmRequest),
+    };
+
+    return this.executeHooks(
+      HookEventName.BeforeToolSelection,
+      input,
+      undefined,
+      llmRequest,
     );
   }
 
@@ -402,7 +284,7 @@ export class HookEventHandler {
     eventName: HookEventName,
     input: HookInput,
     context?: HookEventContext,
-    signal?: AbortSignal,
+    requestContext?: object,
   ): Promise<AggregatedHookResult> {
     try {
       // Create execution plan
@@ -418,17 +300,21 @@ export class HookEventHandler {
       }
 
       const onHookStart = (config: HookConfig, index: number) => {
-        const hookName = this.getHookName(config);
-        debugLogger.debug(
-          `Hook ${hookName} started for event ${eventName} (${index + 1}/${plan.hookConfigs.length})`,
-        );
+        coreEvents.emitHookStart({
+          hookName: this.getHookName(config),
+          eventName,
+          source: config.source,
+          hookIndex: index + 1,
+          totalHooks: plan.hookConfigs.length,
+        });
       };
 
       const onHookEnd = (config: HookConfig, result: HookExecutionResult) => {
-        const hookName = this.getHookName(config);
-        debugLogger.debug(
-          `Hook ${hookName} ended for event ${eventName}: ${result.success ? 'success' : 'failed'}`,
-        );
+        coreEvents.emitHookEnd({
+          hookName: this.getHookName(config),
+          eventName,
+          success: result.success,
+        });
       };
 
       // Execute hooks according to the plan's strategy
@@ -439,7 +325,6 @@ export class HookEventHandler {
             input,
             onHookStart,
             onHookEnd,
-            signal,
           )
         : await this.hookRunner.executeHooksParallel(
             plan.hookConfigs,
@@ -447,7 +332,6 @@ export class HookEventHandler {
             input,
             onHookStart,
             onHookEnd,
-            signal,
           );
 
       // Aggregate results
@@ -459,8 +343,14 @@ export class HookEventHandler {
       // Process common hook output fields centrally
       this.processCommonHookOutputFields(aggregated);
 
-      // Log hook execution for telemetry
-      this.logHookExecution(eventName, input, results, aggregated);
+      // Log hook execution
+      this.logHookExecution(
+        eventName,
+        input,
+        results,
+        aggregated,
+        requestContext,
+      );
 
       return aggregated;
     } catch (error) {
@@ -479,16 +369,101 @@ export class HookEventHandler {
    * Create base hook input with common fields
    */
   private createBaseInput(eventName: HookEventName): HookInput {
-    // Get the transcript path from the Config
-    const transcriptPath = this.config.getTranscriptPath();
+    // Get the transcript path from the ChatRecordingService if available
+    const transcriptPath =
+      this.context.geminiClient
+        ?.getChatRecordingService()
+        ?.getConversationFilePath() ?? '';
 
     return {
-      session_id: this.config.getSessionId(),
+      session_id: this.context.config.getSessionId(),
       transcript_path: transcriptPath,
-      cwd: this.config.getWorkingDir(),
+      cwd: this.context.config.getWorkingDir(),
       hook_event_name: eventName,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Log hook execution for observability
+   */
+  private logHookExecution(
+    eventName: HookEventName,
+    input: HookInput,
+    results: HookExecutionResult[],
+    aggregated: AggregatedHookResult,
+    requestContext?: object,
+  ): void {
+    const failedHooks = results.filter((r) => !r.success);
+    const successCount = results.length - failedHooks.length;
+    const errorCount = failedHooks.length;
+
+    if (errorCount > 0) {
+      const failedNames = failedHooks
+        .map((r) => this.getHookNameFromResult(r))
+        .join(', ');
+
+      let shouldEmit = true;
+      if (requestContext) {
+        let reportedSet = this.reportedFailures.get(requestContext);
+        if (!reportedSet) {
+          reportedSet = new Set<string>();
+          this.reportedFailures.set(requestContext, reportedSet);
+        }
+
+        const failureKey = `${eventName}:${failedNames}`;
+        if (reportedSet.has(failureKey)) {
+          shouldEmit = false;
+        } else {
+          reportedSet.add(failureKey);
+        }
+      }
+
+      debugLogger.warn(
+        `Hook execution for ${eventName}: ${successCount} succeeded, ${errorCount} failed (${failedNames}), ` +
+          `total duration: ${aggregated.totalDuration}ms`,
+      );
+
+      if (shouldEmit) {
+        coreEvents.emitFeedback(
+          'warning',
+          `Hook(s) [${failedNames}] failed for event ${eventName}. Press F12 to see the debug drawer for more details.\n`,
+        );
+      }
+    } else {
+      debugLogger.debug(
+        `Hook execution for ${eventName}: ${successCount} hooks executed successfully, ` +
+          `total duration: ${aggregated.totalDuration}ms`,
+      );
+    }
+
+    // Log individual hook calls to telemetry
+    for (const result of results) {
+      // Determine hook name and type for telemetry
+      const hookName = this.getHookNameFromResult(result);
+      const hookType = this.getHookTypeFromResult(result);
+
+      const hookCallEvent = new HookCallEvent(
+        eventName,
+        hookType,
+        hookName,
+        { ...input },
+        result.duration,
+        result.success,
+        result.output ? { ...result.output } : undefined,
+        result.exitCode,
+        result.stdout,
+        result.stderr,
+        result.error?.message,
+      );
+
+      logHookCall(this.context.config, hookCallEvent);
+    }
+
+    // Log individual errors
+    for (const error of aggregated.errors) {
+      debugLogger.warn(`Hook execution error: ${error.message}`);
+    }
   }
 
   /**
@@ -507,75 +482,26 @@ export class HookEventHandler {
       debugLogger.warn(`Hook system message: ${systemMessage}`);
     }
 
+    // Handle suppressOutput - already handled by not logging above when true
+
     // Handle continue=false - this should stop the entire agent execution
-    if (aggregated.finalOutput.continue === false) {
-      const stopReason =
-        aggregated.finalOutput.stopReason ||
-        aggregated.finalOutput.reason ||
-        'No reason provided';
-      debugLogger.debug(`Hook requested to stop execution: ${stopReason}`);
-    }
-  }
+    if (aggregated.finalOutput.shouldStopExecution()) {
+      const stopReason = aggregated.finalOutput.getEffectiveReason();
+      debugLogger.log(`Hook requested to stop execution: ${stopReason}`);
 
-  /**
-   * Log hook execution for observability
-   */
-  private logHookExecution(
-    eventName: HookEventName,
-    input: HookInput,
-    results: HookExecutionResult[],
-    aggregated: AggregatedHookResult,
-  ): void {
-    const failedHooks = results.filter((r) => !r.success);
-    const successCount = results.length - failedHooks.length;
-    const errorCount = failedHooks.length;
-
-    if (errorCount > 0) {
-      const failedNames = failedHooks
-        .map((r) => this.getHookNameFromResult(r))
-        .join(', ');
-
-      debugLogger.warn(
-        `Hook(s) [${failedNames}] failed for event ${eventName}. Check debug logs for more details.`,
-      );
-    } else {
-      debugLogger.debug(
-        `Hook execution for ${eventName}: ${successCount} hooks executed successfully, ` +
-          `total duration: ${aggregated.totalDuration}ms`,
-      );
+      // Note: The actual stopping of execution must be handled by integration points
+      // as they need to interpret this signal in the context of their specific workflow
+      // This is just logging the request centrally
     }
 
-    for (const result of results) {
-      const hookName = this.getHookNameFromResult(result);
-      const hookType = this.getHookTypeFromResult(result);
-
-      const hookCallEvent = new HookCallEvent(
-        eventName,
-        hookType,
-        hookName,
-        { ...input },
-        result.duration,
-        result.success,
-        result.output ? { ...result.output } : undefined,
-        result.exitCode,
-        result.stdout,
-        result.stderr,
-        result.error?.message,
-      );
-
-      logHookCall(this.config, hookCallEvent);
-    }
-
-    for (const error of aggregated.errors) {
-      debugLogger.warn(`Hook execution error: ${error.message}`);
-    }
+    // Other common fields like decision/reason are handled by specific hook output classes
   }
 
   /**
    * Get hook name from config for display or telemetry
    */
   private getHookName(config: HookConfig): string {
-    if (config.type === 'command') {
+    if (config.type === HookType.Command) {
       return config.name || config.command || 'unknown-command';
     }
     return config.name || 'unknown-hook';
@@ -591,7 +517,7 @@ export class HookEventHandler {
   /**
    * Get hook type from execution result for telemetry
    */
-  private getHookTypeFromResult(result: HookExecutionResult): 'command' {
-    return result.hookConfig.type as 'command';
+  private getHookTypeFromResult(result: HookExecutionResult): HookType {
+    return result.hookConfig.type;
   }
 }

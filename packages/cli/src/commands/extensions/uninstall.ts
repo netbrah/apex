@@ -5,19 +5,16 @@
  */
 
 import type { CommandModule } from 'yargs';
-import { getErrorMessage } from '../../utils/errors.js';
-import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
-import { ExtensionManager } from '@apex-code/apex-core';
-import {
-  requestConsentNonInteractive,
-  requestConsentOrFail,
-} from './consent.js';
-import { isWorkspaceTrusted } from '../../config/trustedFolders.js';
+import { debugLogger, getErrorMessage } from '@google/gemini-cli-core';
+import { requestConsentNonInteractive } from '../../config/extensions/consent.js';
+import { ExtensionManager } from '../../config/extension-manager.js';
 import { loadSettings } from '../../config/settings.js';
-import { t } from '../../i18n/index.js';
+import { promptForSetting } from '../../config/extensions/extensionSettings.js';
+import { exitCli } from '../utils.js';
 
 interface UninstallArgs {
-  name: string; // can be extension name or source URL.
+  names?: string[]; // can be extension names or source URLs.
+  all?: boolean;
 }
 
 export async function handleUninstall(args: UninstallArgs) {
@@ -25,47 +22,81 @@ export async function handleUninstall(args: UninstallArgs) {
     const workspaceDir = process.cwd();
     const extensionManager = new ExtensionManager({
       workspaceDir,
-      requestConsent: requestConsentOrFail.bind(
-        null,
-        requestConsentNonInteractive,
-      ),
-      isWorkspaceTrusted: !!isWorkspaceTrusted(
-        loadSettings(workspaceDir).merged,
-      ),
+      requestConsent: requestConsentNonInteractive,
+      requestSetting: promptForSetting,
+      settings: loadSettings(workspaceDir).merged,
     });
-    await extensionManager.refreshCache();
-    await extensionManager.uninstallExtension(args.name, false);
-    writeStdoutLine(
-      t('Extension "{{name}}" successfully uninstalled.', { name: args.name }),
-    );
+    await extensionManager.loadExtensions();
+
+    let namesToUninstall: string[] = [];
+    if (args.all) {
+      namesToUninstall = extensionManager
+        .getExtensions()
+        .map((ext) => ext.name);
+    } else if (args.names) {
+      namesToUninstall = [...new Set(args.names)];
+    }
+
+    if (namesToUninstall.length === 0) {
+      if (args.all) {
+        debugLogger.log('No extensions currently installed.');
+      }
+      return;
+    }
+
+    const errors: Array<{ name: string; error: string }> = [];
+    for (const name of namesToUninstall) {
+      try {
+        await extensionManager.uninstallExtension(name, false);
+        debugLogger.log(`Extension "${name}" successfully uninstalled.`);
+      } catch (error) {
+        errors.push({ name, error: getErrorMessage(error) });
+      }
+    }
+
+    if (errors.length > 0) {
+      for (const { name, error } of errors) {
+        debugLogger.error(`Failed to uninstall "${name}": ${error}`);
+      }
+      process.exit(1);
+    }
   } catch (error) {
-    writeStderrLine(getErrorMessage(error));
+    debugLogger.error(getErrorMessage(error));
     process.exit(1);
   }
 }
 
 export const uninstallCommand: CommandModule = {
-  command: 'uninstall <name>',
-  describe: t('Uninstalls an extension.'),
+  command: 'uninstall [names..]',
+  describe: 'Uninstalls one or more extensions.',
   builder: (yargs) =>
     yargs
-      .positional('name', {
-        describe: t('The name or source path of the extension to uninstall.'),
+      .positional('names', {
+        describe:
+          'The name(s) or source path(s) of the extension(s) to uninstall.',
         type: 'string',
+        array: true,
+      })
+      .option('all', {
+        type: 'boolean',
+        describe: 'Uninstall all installed extensions.',
+        default: false,
       })
       .check((argv) => {
-        if (!argv.name) {
+        if (!argv.all && (!argv.names || argv.names.length === 0)) {
           throw new Error(
-            t(
-              'Please include the name of the extension to uninstall as a positional argument.',
-            ),
+            'Please include at least one extension name to uninstall as a positional argument, or use the --all flag.',
           );
         }
         return true;
       }),
   handler: async (argv) => {
     await handleUninstall({
-      name: argv['name'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      names: argv['names'] as string[] | undefined,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      all: argv['all'] as boolean,
     });
+    await exitCli();
   },
 };

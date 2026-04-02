@@ -1,6 +1,5 @@
 name: 'Bug Report'
-description: 'Report a bug to help us improve Qwen Code'
-labels: ['type/bug', 'status/needs-triage']
+description: 'Report a bug to help us improve Gemini CLI'
 body:
   - type: 'markdown'
     attributes:
@@ -29,8 +28,8 @@ body:
     id: 'info'
     attributes:
       label: 'Client information'
-      description: 'Please paste the full text from the `/about` command run from Qwen Code. Also include which platform (macOS, Windows, Linux).'
-      value: |
+      description: 'Please paste the full text from the `/about` command run from Gemini CLI. Also include which platform (macOS, Windows, Linux). Note that this output contains your email address. Consider removing it before submitting.'
+      value: |-
         <details>
         <summary>Client Information</summary>
 

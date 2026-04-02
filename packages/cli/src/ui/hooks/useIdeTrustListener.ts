@@ -16,7 +16,7 @@ import {
   IDEConnectionStatus,
   ideContextStore,
   type IDEConnectionState,
-} from '@apex-code/apex-core';
+} from '@google/gemini-cli-core';
 import { useSettings } from '../contexts/SettingsContext.js';
 import { isWorkspaceTrusted } from '../../config/trustedFolders.js';
 
@@ -49,6 +49,7 @@ export function useIdeTrustListener() {
       onStoreChange();
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     (async () => {
       const ideClient = await IdeClient.getInstance();
       ideClient.addTrustChangeListener(handleTrustChange);
@@ -56,6 +57,7 @@ export function useIdeTrustListener() {
       setConnectionStatus(ideClient.getConnectionStatus().status);
     })();
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       (async () => {
         const ideClient = await IdeClient.getInstance();
         ideClient.removeTrustChangeListener(handleTrustChange);

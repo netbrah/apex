@@ -8,8 +8,8 @@ import { access, cp, mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import type { CommandModule } from 'yargs';
 import { fileURLToPath } from 'node:url';
-import { getErrorMessage } from '../../utils/errors.js';
-import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
+import { debugLogger } from '@google/gemini-cli-core';
+import { exitCli } from '../utils.js';
 
 interface NewArgs {
   path: string;
@@ -25,7 +25,7 @@ async function pathExists(path: string) {
   try {
     await access(path);
     return true;
-  } catch (_e) {
+  } catch {
     return false;
   }
 }
@@ -50,32 +50,27 @@ async function copyDirectory(template: string, path: string) {
 }
 
 async function handleNew(args: NewArgs) {
-  try {
-    if (args.template) {
-      await copyDirectory(args.template, args.path);
-      writeStdoutLine(
-        `Successfully created new extension from template "${args.template}" at ${args.path}.`,
-      );
-    } else {
-      await createDirectory(args.path);
-      const extensionName = basename(args.path);
-      const manifest = {
-        name: extensionName,
-        version: '1.0.0',
-      };
-      await writeFile(
-        join(args.path, 'apex-extension.json'),
-        JSON.stringify(manifest, null, 2),
-      );
-      writeStdoutLine(`Successfully created new extension at ${args.path}.`);
-    }
-    writeStdoutLine(
-      `You can install this using "apex extensions link ${args.path}" to test it out.`,
+  if (args.template) {
+    await copyDirectory(args.template, args.path);
+    debugLogger.log(
+      `Successfully created new extension from template "${args.template}" at ${args.path}.`,
     );
-  } catch (error) {
-    writeStderrLine(getErrorMessage(error));
-    throw error;
+  } else {
+    await createDirectory(args.path);
+    const extensionName = basename(args.path);
+    const manifest = {
+      name: extensionName,
+      version: '1.0.0',
+    };
+    await writeFile(
+      join(args.path, 'gemini-extension.json'),
+      JSON.stringify(manifest, null, 2),
+    );
+    debugLogger.log(`Successfully created new extension at ${args.path}.`);
   }
+  debugLogger.log(
+    `You can install this using "gemini extensions link ${args.path}" to test it out.`,
+  );
 }
 
 async function getBoilerplateChoices() {
@@ -103,8 +98,11 @@ export const newCommand: CommandModule = {
   },
   handler: async (args) => {
     await handleNew({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       path: args['path'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       template: args['template'] as string | undefined,
     });
+    await exitCli();
   },
 };

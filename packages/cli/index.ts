@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --no-warnings=DEP0040
 
 /**
  * @license
@@ -6,84 +6,66 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import './src/gemini.js';
 import { main } from './src/gemini.js';
-import { FatalError } from '@apex-code/apex-core';
-import { writeStderrLine } from './src/utils/stdioHelpers.js';
+import { FatalError, writeToStderr } from '@google/gemini-cli-core';
+import { runExitCleanup } from './src/utils/cleanup.js';
 
 // --- Global Entry Point ---
 
-// Suppress known race conditions in @lydell/node-pty.
-//
-// PTY errors that are expected due to timing races between process exit
-// and I/O operations. These should not crash the app.
-//
-// References:
-// - https://github.com/microsoft/node-pty/issues/178 (EIO on macOS/Linux)
-// - https://github.com/microsoft/node-pty/issues/827 (resize on Windows)
-const getErrnoCode = (error: unknown): string | undefined => {
-  if (!error || typeof error !== 'object') {
-    return undefined;
-  }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : undefined;
-};
-
-const isExpectedPtyRaceError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message;
-  const code = getErrnoCode(error);
-
-  // EIO: PTY read race on macOS/Linux - code + PTY context required
-  // https://github.com/microsoft/node-pty/issues/178
-  if (
-    (code === 'EIO' && message.includes('read')) ||
-    message.includes('read EIO')
-  ) {
-    return true;
-  }
-
-  // PTY-specific resize/exit race errors - require PTY context in message
-  if (
-    message.includes('ioctl(2) failed, EBADF') ||
-    message.includes('Cannot resize a pty that has already exited')
-  ) {
-    return true;
-  }
-
-  return false;
-};
-
+// Suppress known race condition error in node-pty on Windows
+// Tracking bug: https://github.com/microsoft/node-pty/issues/827
 process.on('uncaughtException', (error) => {
-  if (isExpectedPtyRaceError(error)) {
+  if (
+    process.platform === 'win32' &&
+    error instanceof Error &&
+    error.message === 'Cannot resize a pty that has already exited'
+  ) {
+    // This error happens on Windows with node-pty when resizing a pty that has just exited.
+    // It is a race condition in node-pty that we cannot prevent, so we silence it.
     return;
   }
 
+  // For other errors, we rely on the default behavior, but since we attached a listener,
+  // we must manually replicate it.
   if (error instanceof Error) {
-    writeStderrLine(error.stack ?? error.message);
+    writeToStderr(error.stack + '\n');
   } else {
-    writeStderrLine(String(error));
+    writeToStderr(String(error) + '\n');
   }
   process.exit(1);
 });
 
-main().catch((error) => {
+main().catch(async (error) => {
+  // Set a timeout to force exit if cleanup hangs
+  const cleanupTimeout = setTimeout(() => {
+    writeToStderr('Cleanup timed out, forcing exit...\n');
+    process.exit(1);
+  }, 5000);
+
+  try {
+    await runExitCleanup();
+  } catch (cleanupError) {
+    writeToStderr(
+      `Error during final cleanup: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}\n`,
+    );
+  } finally {
+    clearTimeout(cleanupTimeout);
+  }
+
   if (error instanceof FatalError) {
     let errorMessage = error.message;
     if (!process.env['NO_COLOR']) {
       errorMessage = `\x1b[31m${errorMessage}\x1b[0m`;
     }
-    console.error(errorMessage);
+    writeToStderr(errorMessage + '\n');
     process.exit(error.exitCode);
   }
-  console.error('An unexpected critical error occurred:');
+
+  writeToStderr('An unexpected critical error occurred:');
   if (error instanceof Error) {
-    console.error(error.stack);
+    writeToStderr(error.stack + '\n');
   } else {
-    console.error(String(error));
+    writeToStderr(String(error) + '\n');
   }
   process.exit(1);
 });

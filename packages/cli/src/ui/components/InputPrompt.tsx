@@ -5,50 +5,94 @@
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Box, Text } from 'ink';
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import clipboardy from 'clipboardy';
+import { Box, Text, useStdout, type DOMElement } from 'ink';
 import { SuggestionsDisplay, MAX_WIDTH } from './SuggestionsDisplay.js';
 import { theme } from '../semantic-colors.js';
 import { useInputHistory } from '../hooks/useInputHistory.js';
-import type { TextBuffer } from './shared/text-buffer.js';
-import { logicalPosToOffset } from './shared/text-buffer.js';
-import { cpSlice, cpLen } from '../utils/textUtils.js';
+import { escapeAtSymbols } from '../hooks/atCommandProcessor.js';
+import { HalfLinePaddedBox } from './shared/HalfLinePaddedBox.js';
+import {
+  type TextBuffer,
+  logicalPosToOffset,
+  expandPastePlaceholders,
+  getTransformUnderCursor,
+  LARGE_PASTE_LINE_THRESHOLD,
+  LARGE_PASTE_CHAR_THRESHOLD,
+} from './shared/text-buffer.js';
+import {
+  cpSlice,
+  cpLen,
+  toCodePoints,
+  cpIndexToOffset,
+} from '../utils/textUtils.js';
 import chalk from 'chalk';
 import { useShellHistory } from '../hooks/useShellHistory.js';
 import { useReverseSearchCompletion } from '../hooks/useReverseSearchCompletion.js';
-import { useCommandCompletion } from '../hooks/useCommandCompletion.js';
-import type { Key } from '../hooks/useKeypress.js';
-import { keyMatchers, Command } from '../keyMatchers.js';
+import {
+  useCommandCompletion,
+  CompletionMode,
+} from '../hooks/useCommandCompletion.js';
+import { useKeypress, type Key } from '../hooks/useKeypress.js';
+import { Command } from '../key/keyMatchers.js';
+import { formatCommand } from '../key/keybindingUtils.js';
 import type { CommandContext, SlashCommand } from '../commands/types.js';
-import type { Config } from '@apex-code/apex-core';
 import {
   ApprovalMode,
-  Storage,
-  createDebugLogger,
-} from '@apex-code/apex-core';
+  coreEvents,
+  debugLogger,
+  type Config,
+} from '@google/gemini-cli-core';
 import {
   parseInputForHighlighting,
-  buildSegmentsForVisualSlice,
+  parseSegmentsFromTokens,
 } from '../utils/highlight.js';
-import { t } from '../../i18n/index.js';
+import { useKittyKeyboardProtocol } from '../hooks/useKittyKeyboardProtocol.js';
 import {
   clipboardHasImage,
   saveClipboardImage,
   cleanupOldClipboardImages,
 } from '../utils/clipboardUtils.js';
+import {
+  isAutoExecutableCommand,
+  isSlashCommand,
+} from '../utils/commandUtils.js';
+import { parseSlashCommand } from '../../utils/commands.js';
 import * as path from 'node:path';
 import { SCREEN_READER_USER_PREFIX } from '../textConstants.js';
+import { getSafeLowColorBackground } from '../themes/color-utils.js';
+import { isLowColorDepth } from '../utils/terminalUtils.js';
 import { useShellFocusState } from '../contexts/ShellFocusContext.js';
 import { useUIState } from '../contexts/UIStateContext.js';
-import { useUIActions } from '../contexts/UIActionsContext.js';
-import { useKeypressContext } from '../contexts/KeypressContext.js';
 import {
-  useAgentViewState,
-  useAgentViewActions,
-} from '../contexts/AgentViewContext.js';
-import { FEEDBACK_DIALOG_KEYS } from '../FeedbackDialog.js';
-import { BaseTextInput } from './BaseTextInput.js';
-import type { RenderLineOptions } from './BaseTextInput.js';
+  appEvents,
+  AppEvent,
+  TransientMessageType,
+} from '../../utils/events.js';
+import { useSettings } from '../contexts/SettingsContext.js';
+import { StreamingState } from '../types.js';
+import { useMouseClick } from '../hooks/useMouseClick.js';
+import { useMouse, type MouseEvent } from '../contexts/MouseContext.js';
+import { useUIActions } from '../contexts/UIActionsContext.js';
+import { useAlternateBuffer } from '../hooks/useAlternateBuffer.js';
+import { useIsHelpDismissKey } from '../utils/shortcutsHelp.js';
+import { useRepeatedKeyPress } from '../hooks/useRepeatedKeyPress.js';
+import { useKeyMatchers } from '../hooks/useKeyMatchers.js';
+
+/**
+ * Returns if the terminal can be trusted to handle paste events atomically
+ * rather than potentially sending multiple paste events separated by line
+ * breaks which could trigger unintended command execution.
+ */
+export function isTerminalPasteTrusted(
+  kittyProtocolSupported: boolean,
+): boolean {
+  // Ideally we could trust all VSCode family terminals as well but it appears
+  // we cannot as Cursor users on windows reported being impacted by this
+  // issue (https://github.com/google-gemini/gemini-cli/issues/3763).
+  return kittyProtocolSupported;
+}
 
 /**
  * Represents an attachment (e.g., pasted image) displayed above the input prompt
@@ -76,11 +120,83 @@ export interface InputPromptProps {
   setShellModeActive: (value: boolean) => void;
   approvalMode: ApprovalMode;
   onEscapePromptChange?: (showPrompt: boolean) => void;
-  onToggleShortcuts?: () => void;
-  showShortcuts?: boolean;
   onSuggestionsVisibilityChange?: (visible: boolean) => void;
   vimHandleInput?: (key: Key) => boolean;
   isEmbeddedShellFocused?: boolean;
+  setQueueErrorMessage: (message: string | null) => void;
+  streamingState: StreamingState;
+  popAllMessages?: () => string | undefined;
+  onQueueMessage?: (message: string) => void;
+  suggestionsPosition?: 'above' | 'below';
+  setBannerVisible: (visible: boolean) => void;
+  copyModeEnabled?: boolean;
+}
+
+// The input content, input container, and input suggestions list may have different widths
+export const calculatePromptWidths = (mainContentWidth: number) => {
+  const FRAME_PADDING_AND_BORDER = 4; // Border (2) + padding (2)
+  const PROMPT_PREFIX_WIDTH = 2; // '> ' or '! '
+
+  const FRAME_OVERHEAD = FRAME_PADDING_AND_BORDER + PROMPT_PREFIX_WIDTH;
+  const suggestionsWidth = Math.max(20, mainContentWidth);
+
+  return {
+    inputWidth: Math.max(mainContentWidth - FRAME_OVERHEAD, 1),
+    containerWidth: mainContentWidth,
+    suggestionsWidth,
+    frameOverhead: FRAME_OVERHEAD,
+  } as const;
+};
+
+/**
+ * Returns true if the given text exceeds the thresholds for being considered a "large paste".
+ */
+export function isLargePaste(text: string): boolean {
+  const pasteLineCount = text.split('\n').length;
+  return (
+    pasteLineCount > LARGE_PASTE_LINE_THRESHOLD ||
+    text.length > LARGE_PASTE_CHAR_THRESHOLD
+  );
+}
+
+const DOUBLE_TAB_CLEAN_UI_TOGGLE_WINDOW_MS = 350;
+
+/**
+ * Attempt to toggle expansion of a paste placeholder in the buffer.
+ * Returns true if a toggle action was performed or hint was shown, false otherwise.
+ */
+export function tryTogglePasteExpansion(buffer: TextBuffer): boolean {
+  if (!buffer.pastedContent || Object.keys(buffer.pastedContent).length === 0) {
+    return false;
+  }
+
+  const [row, col] = buffer.cursor;
+
+  // 1. Check if cursor is on or immediately after a collapsed placeholder
+  const transform = getTransformUnderCursor(
+    row,
+    col,
+    buffer.transformationsByLine,
+    { includeEdge: true },
+  );
+  if (transform?.type === 'paste' && transform.id) {
+    buffer.togglePasteExpansion(transform.id, row, col);
+    return true;
+  }
+
+  // 2. Check if cursor is inside an expanded paste region — collapse it
+  const expandedId = buffer.getExpandedPasteAtLine(row);
+  if (expandedId) {
+    buffer.togglePasteExpansion(expandedId, row, col);
+    return true;
+  }
+
+  // 3. Placeholders exist but cursor isn't on one — show hint
+  appEvents.emit(AppEvent.TransientMessage, {
+    message: 'Move cursor within placeholder to expand',
+    type: TransientMessageType.Hint,
+  });
+  return true;
 }
 
 // Re-export from shared utils for backwards compatibility
@@ -105,71 +221,69 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   setShellModeActive,
   approvalMode,
   onEscapePromptChange,
-  onToggleShortcuts,
-  showShortcuts,
   onSuggestionsVisibilityChange,
   vimHandleInput,
   isEmbeddedShellFocused,
+  setQueueErrorMessage,
+  streamingState,
+  popAllMessages,
+  onQueueMessage,
+  suggestionsPosition = 'below',
+  setBannerVisible,
+  copyModeEnabled = false,
 }) => {
+  const isHelpDismissKey = useIsHelpDismissKey();
+  const keyMatchers = useKeyMatchers();
+  const { stdout } = useStdout();
+  const { merged: settings } = useSettings();
+  const kittyProtocol = useKittyKeyboardProtocol();
   const isShellFocused = useShellFocusState();
-  const uiState = useUIState();
-  const uiActions = useUIActions();
-  const { pasteWorkaround } = useKeypressContext();
-  const { agents, agentTabBarFocused } = useAgentViewState();
-  const { setAgentTabBarFocused } = useAgentViewActions();
-  const hasAgents = agents.size > 0;
-  const [justNavigatedHistory, setJustNavigatedHistory] = useState(false);
-  const [escPressCount, setEscPressCount] = useState(0);
+  const {
+    setEmbeddedShellFocused,
+    setShortcutsHelpVisible,
+    toggleCleanUiDetailsVisible,
+  } = useUIActions();
+  const {
+    terminalWidth,
+    activePtyId,
+    history,
+    backgroundTasks,
+    backgroundTaskHeight,
+    shortcutsHelpVisible,
+  } = useUIState();
+  const [suppressCompletion, setSuppressCompletion] = useState(false);
+  const { handlePress: registerPlainTabPress, resetCount: resetPlainTabPress } =
+    useRepeatedKeyPress({
+      windowMs: DOUBLE_TAB_CLEAN_UI_TOGGLE_WINDOW_MS,
+    });
   const [showEscapePrompt, setShowEscapePrompt] = useState(false);
-  const escapeTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [recentPasteTime, setRecentPasteTime] = useState<number | null>(null);
+  const { handlePress: handleEscPress, resetCount: resetEscapeState } =
+    useRepeatedKeyPress({
+      windowMs: 500,
+      onRepeat: (count) => {
+        if (count === 1) {
+          setShowEscapePrompt(true);
+        } else if (count === 2) {
+          resetEscapeState();
+          if (buffer.text.length > 0) {
+            buffer.setText('');
+            resetCompletionState();
+          } else if (history.length > 0) {
+            onSubmit('/rewind');
+          } else {
+            coreEvents.emitFeedback('info', 'Nothing to rewind to');
+          }
+        }
+      },
+      onReset: () => setShowEscapePrompt(false),
+    });
+  const [recentUnsafePasteTime, setRecentUnsafePasteTime] = useState<
+    number | null
+  >(null);
   const pasteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const innerBoxRef = useRef<DOMElement>(null);
+  const hasUserNavigatedSuggestions = useRef(false);
 
-  // Attachment state for clipboard images
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isAttachmentMode, setIsAttachmentMode] = useState(false);
-  const [selectedAttachmentIndex, setSelectedAttachmentIndex] = useState(-1);
-  // Large paste placeholder handling
-  const [pendingPastes, setPendingPastes] = useState<Map<string, string>>(
-    new Map(),
-  );
-  // Track active placeholder IDs for each charCount to enable reuse
-  const activePlaceholderIds = useRef<Map<number, Set<number>>>(new Map());
-
-  // Parse placeholder to extract charCount and ID
-  const parsePlaceholder = useCallback(
-    (placeholder: string): { charCount: number; id: number } | null => {
-      const match = placeholder.match(
-        /^\[Pasted Content (\d+) chars\](?: #(\d+))?$/,
-      );
-      if (!match) return null;
-      const charCount = parseInt(match[1], 10);
-      const id = match[2] ? parseInt(match[2], 10) : 1;
-      return { charCount, id };
-    },
-    [],
-  );
-
-  // Free a placeholder ID when deleted so it can be reused
-  const freePlaceholderId = useCallback((charCount: number, id: number) => {
-    const activeIds = activePlaceholderIds.current.get(charCount);
-    if (activeIds) {
-      activeIds.delete(id);
-      if (activeIds.size === 0) {
-        activePlaceholderIds.current.delete(charCount);
-      }
-    }
-  }, []);
-
-  const [dirs, setDirs] = useState<readonly string[]>(
-    config.getWorkspaceContext().getDirectories(),
-  );
-  const dirsChanged = config.getWorkspaceContext().getDirectories();
-  useEffect(() => {
-    if (dirs.length !== dirsChanged.length) {
-      setDirs(dirsChanged);
-    }
-  }, [dirs.length, dirsChanged]);
   const [reverseSearchActive, setReverseSearchActive] = useState(false);
   const [commandSearchActive, setCommandSearchActive] = useState(false);
   const [textBeforeReverseSearch, setTextBeforeReverseSearch] = useState('');
@@ -178,20 +292,19 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   ]);
   const [expandedSuggestionIndex, setExpandedSuggestionIndex] =
     useState<number>(-1);
-  const shellHistory = useShellHistory(config.getProjectRoot());
+  const shellHistory = useShellHistory(config.getProjectRoot(), config.storage);
   const shellHistoryData = shellHistory.history;
 
-  const completion = useCommandCompletion(
+  const completion = useCommandCompletion({
     buffer,
-    dirs,
-    config.getTargetDir(),
+    cwd: config.getTargetDir(),
     slashCommands,
     commandContext,
     reverseSearchActive,
+    shellModeActive,
     config,
-    // Suppress completion when history navigation just occurred
-    !justNavigatedHistory,
-  );
+    active: !suppressCompletion,
+  });
 
   const reverseSearchCompletion = useReverseSearchCompletion(
     buffer,
@@ -199,14 +312,14 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     reverseSearchActive,
   );
 
-  const commandSearchHistory = useMemo(
+  const reversedUserMessages = useMemo(
     () => [...userMessages].reverse(),
     [userMessages],
   );
 
   const commandSearchCompletion = useReverseSearchCompletion(
     buffer,
-    commandSearchHistory,
+    reversedUserMessages,
     commandSearchActive,
   );
 
@@ -216,17 +329,29 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const resetCommandSearchCompletionState =
     commandSearchCompletion.resetCompletionState;
 
-  const showCursor =
-    focus && isShellFocused && !isEmbeddedShellFocused && !agentTabBarFocused;
+  const getActiveCompletion = useCallback(() => {
+    if (commandSearchActive) return commandSearchCompletion;
+    if (reverseSearchActive) return reverseSearchCompletion;
+    return completion;
+  }, [
+    commandSearchActive,
+    commandSearchCompletion,
+    reverseSearchActive,
+    reverseSearchCompletion,
+    completion,
+  ]);
 
-  const resetEscapeState = useCallback(() => {
-    if (escapeTimerRef.current) {
-      clearTimeout(escapeTimerRef.current);
-      escapeTimerRef.current = null;
-    }
-    setEscPressCount(0);
-    setShowEscapePrompt(false);
-  }, []);
+  const activeCompletion = getActiveCompletion();
+  const shouldShowSuggestions = activeCompletion.showSuggestions;
+
+  const {
+    forceShowShellSuggestions,
+    setForceShowShellSuggestions,
+    isShellSuggestionsVisible,
+  } = completion;
+
+  const showCursor =
+    focus && isShellFocused && !isEmbeddedShellFocused && !copyModeEnabled;
 
   // Notify parent component about escape prompt state changes
   useEffect(() => {
@@ -235,30 +360,11 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     }
   }, [showEscapePrompt, onEscapePromptChange]);
 
-  // Helper to generate unique placeholder for large pastes
-  // Reuses IDs that have been freed up from deleted placeholders
-  const nextLargePastePlaceholder = useCallback((charCount: number): string => {
-    const activeIds = activePlaceholderIds.current.get(charCount) || new Set();
-
-    // Find smallest available ID (starting from 1)
-    let id = 1;
-    while (activeIds.has(id)) {
-      id++;
-    }
-
-    // Mark as active
-    activeIds.add(id);
-    activePlaceholderIds.current.set(charCount, activeIds);
-
-    const base = `[Pasted Content ${charCount} chars]`;
-    return id === 1 ? base : `${base} #${id}`;
-  }, []);
-
-  // Clear escape prompt timer on unmount
+  // Clear paste timeout on unmount
   useEffect(
     () => () => {
-      if (escapeTimerRef.current) {
-        clearTimeout(escapeTimerRef.current);
+      if (pasteTimeoutRef.current) {
+        clearTimeout(pasteTimeoutRef.current);
       }
       if (pasteTimeoutRef.current) {
         clearTimeout(pasteTimeoutRef.current);
@@ -269,23 +375,16 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   const handleSubmitAndClear = useCallback(
     (submittedValue: string) => {
-      // Expand any large paste placeholders to their full content before submitting
-      let finalValue = submittedValue;
-      if (pendingPastes.size > 0) {
-        const placeholders = Array.from(pendingPastes.keys()).sort(
-          (a, b) => b.length - a.length,
+      let processedValue = submittedValue;
+      if (buffer.pastedContent) {
+        processedValue = expandPastePlaceholders(
+          processedValue,
+          buffer.pastedContent,
         );
-        const escapedPlaceholders = placeholders.map((placeholderValue) =>
-          placeholderValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-        );
-        const placeholderRegex = new RegExp(escapedPlaceholders.join('|'), 'g');
-        finalValue = finalValue.replace(
-          placeholderRegex,
-          (matchedPlaceholder) =>
-            pendingPastes.get(matchedPlaceholder) ?? matchedPlaceholder,
-        );
-        setPendingPastes(new Map());
-        activePlaceholderIds.current.clear();
+      }
+
+      if (shellModeActive) {
+        shellHistory.addCommandToHistory(processedValue);
       }
       if (shellModeActive) {
         shellHistory.addCommandToHistory(finalValue);
@@ -302,19 +401,13 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       // Clear the buffer *before* calling onSubmit to prevent potential re-submission
       // if onSubmit triggers a re-render while the buffer still holds the old value.
       buffer.setText('');
-      onSubmit(finalValue);
-
-      // Clear attachments after submit
-      setAttachments([]);
-      setIsAttachmentMode(false);
-      setSelectedAttachmentIndex(-1);
-
+      onSubmit(processedValue);
       resetCompletionState();
       resetReverseSearchCompletionState();
     },
     [
-      onSubmit,
       buffer,
+      onSubmit,
       resetCompletionState,
       shellModeActive,
       shellHistory,
@@ -326,54 +419,102 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   );
 
   const customSetTextAndResetCompletionSignal = useCallback(
-    (newText: string) => {
-      buffer.setText(newText);
-      setJustNavigatedHistory(true);
+    (newText: string, cursorPosition?: 'start' | 'end' | number) => {
+      buffer.setText(newText, cursorPosition);
+      setSuppressCompletion(true);
     },
-    [buffer, setJustNavigatedHistory],
+    [buffer, setSuppressCompletion],
   );
 
   const inputHistory = useInputHistory({
     userMessages,
     onSubmit: handleSubmitAndClear,
-    // History navigation (Ctrl+P/N) now always works since completion navigation
-    // only uses arrow keys. Only disable in shell mode.
-    isActive: !shellModeActive,
+    isActive:
+      (!(completion.showSuggestions && isShellSuggestionsVisible) ||
+        completion.suggestions.length === 1) &&
+      !shellModeActive,
     currentQuery: buffer.text,
+    currentCursorOffset: buffer.getOffset(),
     onChange: customSetTextAndResetCompletionSignal,
   });
 
-  // When an arena session starts (agents appear), reset history position so
-  // that pressing down-arrow immediately focuses the agent tab bar instead
-  // of cycling through input history.
-  const prevHasAgentsRef = useRef(hasAgents);
-  useEffect(() => {
-    if (hasAgents && !prevHasAgentsRef.current) {
-      inputHistory.resetHistoryNav();
-    }
-    prevHasAgentsRef.current = hasAgents;
-  }, [hasAgents, inputHistory]);
+  const handleSubmit = useCallback(
+    (submittedValue: string) => {
+      const trimmedMessage = submittedValue.trim();
+      const isSlash = isSlashCommand(trimmedMessage);
+
+      const isShell = shellModeActive;
+      if (
+        (isSlash || isShell) &&
+        streamingState === StreamingState.Responding
+      ) {
+        if (isSlash) {
+          const { commandToExecute } = parseSlashCommand(
+            trimmedMessage,
+            slashCommands,
+          );
+          if (commandToExecute?.isSafeConcurrent) {
+            inputHistory.handleSubmit(trimmedMessage);
+            return;
+          }
+        }
+
+        setQueueErrorMessage(
+          `${isShell ? 'Shell' : 'Slash'} commands cannot be queued`,
+        );
+        return;
+      }
+      inputHistory.handleSubmit(trimmedMessage);
+    },
+    [
+      inputHistory,
+      shellModeActive,
+      streamingState,
+      setQueueErrorMessage,
+      slashCommands,
+    ],
+  );
 
   // Effect to reset completion if history navigation just occurred and set the text
   useEffect(() => {
-    if (justNavigatedHistory) {
+    if (suppressCompletion) {
       resetCompletionState();
       resetReverseSearchCompletionState();
       resetCommandSearchCompletionState();
       setExpandedSuggestionIndex(-1);
-      setJustNavigatedHistory(false);
     }
   }, [
-    justNavigatedHistory,
+    suppressCompletion,
     buffer.text,
     resetCompletionState,
-    setJustNavigatedHistory,
+    setSuppressCompletion,
     resetReverseSearchCompletionState,
     resetCommandSearchCompletionState,
+    setExpandedSuggestionIndex,
   ]);
 
+  // Helper function to handle loading queued messages into input
+  // Returns true if we should continue with input history navigation
+  const tryLoadQueuedMessages = useCallback(() => {
+    if (buffer.text.trim() === '' && popAllMessages) {
+      const allMessages = popAllMessages();
+      if (allMessages) {
+        buffer.setText(allMessages);
+        return true;
+      } else {
+        // No queued messages, proceed with input history
+        inputHistory.navigateUp();
+      }
+      return true; // We handled the up arrow key
+    }
+    return false;
+  }, [buffer, popAllMessages, inputHistory]);
+
   // Handle clipboard image pasting with Ctrl+V
-  const handleClipboardImage = useCallback(async (validated = false) => {
+  const handleClipboardPaste = useCallback(async () => {
+    if (shortcutsHelpVisible) {
+      setShortcutsHelpVisible(false);
+    }
     try {
       const hasImage = validated || (await clipboardHasImage());
       if (hasImage) {
@@ -384,101 +525,341 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             // Ignore cleanup errors
           });
 
-          // Add as attachment instead of inserting @reference into text
-          const filename = path.basename(imagePath);
-          const newAttachment: Attachment = {
-            id: String(Date.now()),
-            path: imagePath,
-            filename,
-          };
-          setAttachments((prev) => [...prev, newAttachment]);
+          // Get relative path from current directory
+          const relativePath = path.relative(config.getTargetDir(), imagePath);
+
+          // Insert @path reference at cursor position
+          const insertText = `@${relativePath}`;
+          const currentText = buffer.text;
+          const offset = buffer.getOffset();
+
+          // Add spaces around the path if needed
+          let textToInsert = insertText;
+          const charBefore = offset > 0 ? currentText[offset - 1] : '';
+          const charAfter =
+            offset < currentText.length ? currentText[offset] : '';
+
+          if (charBefore && charBefore !== ' ' && charBefore !== '\n') {
+            textToInsert = ' ' + textToInsert;
+          }
+          if (!charAfter || (charAfter !== ' ' && charAfter !== '\n')) {
+            textToInsert = textToInsert + ' ';
+          }
+
+          // Insert at cursor position
+          buffer.replaceRangeByOffset(offset, offset, textToInsert);
+        }
+      }
+
+      if (settings.experimental?.useOSC52Paste) {
+        stdout.write('\x1b]52;c;?\x07');
+      } else {
+        const textToInsert = await clipboardy.read();
+        const escapedText = settings.ui?.escapePastedAtSymbols
+          ? escapeAtSymbols(textToInsert)
+          : textToInsert;
+        buffer.insert(escapedText, { paste: true });
+
+        if (isLargePaste(textToInsert)) {
+          appEvents.emit(AppEvent.TransientMessage, {
+            message: `Press ${formatCommand(Command.EXPAND_PASTE)} to expand pasted text`,
+            type: TransientMessageType.Hint,
+          });
         }
       }
     } catch (error) {
-      debugLogger.error('Error handling clipboard image:', error);
+      debugLogger.error('Error handling paste:', error);
     }
-  }, []);
+  }, [
+    buffer,
+    config,
+    stdout,
+    settings,
+    shortcutsHelpVisible,
+    setShortcutsHelpVisible,
+  ]);
 
-  // Handle deletion of an attachment from the list
-  const handleAttachmentDelete = useCallback((index: number) => {
-    setAttachments((prev) => {
-      const newList = prev.filter((_, i) => i !== index);
-      if (newList.length === 0) {
-        setIsAttachmentMode(false);
-        setSelectedAttachmentIndex(-1);
-      } else {
-        setSelectedAttachmentIndex(Math.min(index, newList.length - 1));
+  useMouseClick(
+    innerBoxRef,
+    (_event, relX, relY) => {
+      setSuppressCompletion(true);
+      if (isEmbeddedShellFocused) {
+        setEmbeddedShellFocused(false);
       }
-      return newList;
-    });
-  }, []);
+      const visualRow = buffer.visualScrollRow + relY;
+      buffer.moveToVisualPosition(visualRow, relX);
+    },
+    { isActive: focus },
+  );
+
+  const isAlternateBuffer = useAlternateBuffer();
+
+  // Double-click to expand/collapse paste placeholders
+  useMouseClick(
+    innerBoxRef,
+    (_event, relX, relY) => {
+      if (!isAlternateBuffer) return;
+
+      const visualLine = buffer.viewportVisualLines[relY];
+      if (!visualLine) return;
+
+      // Even if we click past the end of the line, we might want to collapse an expanded paste
+      const isPastEndOfLine = relX >= stringWidth(visualLine);
+
+      const logicalPos = isPastEndOfLine
+        ? null
+        : buffer.getLogicalPositionFromVisual(
+            buffer.visualScrollRow + relY,
+            relX,
+          );
+
+      // Check for paste placeholder (collapsed state)
+      if (logicalPos) {
+        const transform = getTransformUnderCursor(
+          logicalPos.row,
+          logicalPos.col,
+          buffer.transformationsByLine,
+          { includeEdge: true },
+        );
+        if (transform?.type === 'paste' && transform.id) {
+          buffer.togglePasteExpansion(
+            transform.id,
+            logicalPos.row,
+            logicalPos.col,
+          );
+          return;
+        }
+      }
+
+      // If we didn't click a placeholder to expand, check if we are inside or after
+      // an expanded paste region and collapse it.
+      const row = buffer.visualScrollRow + relY;
+      const expandedId = buffer.getExpandedPasteAtLine(row);
+      if (expandedId) {
+        buffer.togglePasteExpansion(
+          expandedId,
+          row,
+          logicalPos?.col ?? relX, // Fallback to relX if past end of line
+        );
+      }
+    },
+    { isActive: focus, name: 'double-click' },
+  );
+
+  useMouse(
+    (event: MouseEvent) => {
+      if (event.name === 'right-release') {
+        setSuppressCompletion(false);
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        handleClipboardPaste();
+      }
+    },
+    { isActive: focus },
+  );
 
   const handleInput = useCallback(
-    (key: Key): boolean => {
-      // When the tab bar has focus, block all non-printable keys so arrow
-      // keys and shortcuts don't interfere. Printable characters fall
-      // through to BaseTextInput's default handler so the first keystroke
-      // appears in the input immediately (the tab bar handler releases
-      // focus on the same event).
-      if (agentTabBarFocused) {
-        if (
-          key.sequence &&
-          key.sequence.length === 1 &&
-          !key.ctrl &&
-          !key.meta
-        ) {
-          return false; // let BaseTextInput type the character
+    (key: Key) => {
+      // Determine if this keypress is a history navigation command
+      const isHistoryUp =
+        !shellModeActive &&
+        (keyMatchers[Command.HISTORY_UP](key) ||
+          (keyMatchers[Command.NAVIGATION_UP](key) &&
+            (buffer.allVisualLines.length === 1 ||
+              (buffer.visualCursor[0] === 0 && buffer.visualScrollRow === 0))));
+      const isHistoryDown =
+        !shellModeActive &&
+        (keyMatchers[Command.HISTORY_DOWN](key) ||
+          (keyMatchers[Command.NAVIGATION_DOWN](key) &&
+            (buffer.allVisualLines.length === 1 ||
+              buffer.visualCursor[0] === buffer.allVisualLines.length - 1)));
+
+      const isHistoryNav = isHistoryUp || isHistoryDown;
+      const isCursorMovement =
+        keyMatchers[Command.MOVE_LEFT](key) ||
+        keyMatchers[Command.MOVE_RIGHT](key) ||
+        keyMatchers[Command.MOVE_UP](key) ||
+        keyMatchers[Command.MOVE_DOWN](key) ||
+        keyMatchers[Command.MOVE_WORD_LEFT](key) ||
+        keyMatchers[Command.MOVE_WORD_RIGHT](key) ||
+        keyMatchers[Command.HOME](key) ||
+        keyMatchers[Command.END](key);
+
+      const isSuggestionsNav =
+        shouldShowSuggestions &&
+        (keyMatchers[Command.COMPLETION_UP](key) ||
+          keyMatchers[Command.COMPLETION_DOWN](key) ||
+          keyMatchers[Command.EXPAND_SUGGESTION](key) ||
+          keyMatchers[Command.COLLAPSE_SUGGESTION](key) ||
+          keyMatchers[Command.ACCEPT_SUGGESTION](key));
+
+      // Reset completion suppression if the user performs any action other than
+      // history navigation or cursor movement.
+      // We explicitly skip this if we are currently navigating suggestions.
+      if (!isSuggestionsNav) {
+        setSuppressCompletion(
+          isHistoryNav || isCursorMovement || keyMatchers[Command.ESCAPE](key),
+        );
+        hasUserNavigatedSuggestions.current = false;
+
+        if (key.name !== 'tab') {
+          setForceShowShellSuggestions(false);
         }
-        return true; // consume non-printable keys
       }
 
       // TODO(jacobr): this special case is likely not needed anymore.
       // We should probably stop supporting paste if the InputPrompt is not
       // focused.
       /// We want to handle paste even when not focused to support drag and drop.
-      if (!focus && !key.paste) {
+      if (!focus && key.name !== 'paste') {
+        return false;
+      }
+
+      // Handle escape to close shortcuts panel first, before letting it bubble
+      // up for cancellation. This ensures pressing Escape once closes the panel,
+      // and pressing again cancels the operation.
+      if (shortcutsHelpVisible && key.name === 'escape') {
+        setShortcutsHelpVisible(false);
         return true;
       }
 
-      if (key.paste) {
-        // Record paste time to prevent accidental auto-submission
-        setRecentPasteTime(Date.now());
+      const isGenerating =
+        streamingState === StreamingState.Responding ||
+        streamingState === StreamingState.WaitingForConfirmation;
 
-        // Clear any existing paste timeout
-        if (pasteTimeoutRef.current) {
-          clearTimeout(pasteTimeoutRef.current);
+      const isQueueMessageKey = keyMatchers[Command.QUEUE_MESSAGE](key);
+      const isPlainTab =
+        key.name === 'tab' && !key.shift && !key.alt && !key.ctrl && !key.cmd;
+      const hasTabCompletionInteraction =
+        (completion.showSuggestions && isShellSuggestionsVisible) ||
+        Boolean(completion.promptCompletion.text) ||
+        reverseSearchActive ||
+        commandSearchActive;
+
+      if (
+        isGenerating &&
+        isQueueMessageKey &&
+        !hasTabCompletionInteraction &&
+        buffer.text.trim().length > 0
+      ) {
+        const trimmedMessage = buffer.text.trim();
+        const isSlash = isSlashCommand(trimmedMessage);
+
+        if (isSlash || shellModeActive) {
+          setQueueErrorMessage(
+            `${shellModeActive ? 'Shell' : 'Slash'} commands cannot be queued`,
+          );
+        } else if (onQueueMessage) {
+          onQueueMessage(buffer.text);
+          buffer.setText('');
+          resetCompletionState();
+          resetReverseSearchCompletionState();
         }
+        resetPlainTabPress();
+        return true;
+      }
 
-        // Clear the paste protection after a safe delay
-        pasteTimeoutRef.current = setTimeout(() => {
-          setRecentPasteTime(null);
-          pasteTimeoutRef.current = null;
-        }, 500);
-
-        // Handle large pastes by showing a placeholder
-        const pasted = key.sequence.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        const charCount = [...pasted].length; // Proper Unicode char count
-        const lineCount = pasted.split('\n').length;
-
-        // Ensure we never accidentally interpret paste as regular input.
-        if (key.pasteImage) {
-          handleClipboardImage(true);
-        } else if (
-          charCount > LARGE_PASTE_CHAR_THRESHOLD ||
-          lineCount > LARGE_PASTE_LINE_THRESHOLD
-        ) {
-          const placeholder = nextLargePastePlaceholder(charCount);
-          setPendingPastes((prev) => {
-            const next = new Map(prev);
-            next.set(placeholder, pasted);
-            return next;
-          });
-          // Insert the placeholder as regular text
-          buffer.insert(placeholder, { paste: false });
+      if (isPlainTab && shellModeActive) {
+        resetPlainTabPress();
+        if (!shouldShowSuggestions) {
+          setSuppressCompletion(false);
+          if (completion.promptCompletion.text) {
+            completion.promptCompletion.accept();
+            return true;
+          } else if (
+            completion.suggestions.length > 0 &&
+            !forceShowShellSuggestions
+          ) {
+            setForceShowShellSuggestions(true);
+            return true;
+          }
+        }
+      } else if (isPlainTab) {
+        if (!hasTabCompletionInteraction) {
+          if (registerPlainTabPress() === 2) {
+            toggleCleanUiDetailsVisible();
+            resetPlainTabPress();
+            return true;
+          }
         } else {
-          // Normal paste handling for small content
+          resetPlainTabPress();
+        }
+      } else {
+        resetPlainTabPress();
+      }
+
+      if (key.name === 'paste') {
+        if (shortcutsHelpVisible) {
+          setShortcutsHelpVisible(false);
+        }
+        // Record paste time to prevent accidental auto-submission
+        if (!isTerminalPasteTrusted(kittyProtocol.enabled)) {
+          setRecentUnsafePasteTime(Date.now());
+
+          // Clear any existing paste timeout
+          if (pasteTimeoutRef.current) {
+            clearTimeout(pasteTimeoutRef.current);
+          }
+
+          // Clear the paste protection after a very short delay to prevent
+          // false positives.
+          // Due to how we use a reducer for text buffer state updates, it is
+          // reasonable to expect that key events that are really part of the
+          // same paste will be processed in the same event loop tick. 40ms
+          // is chosen arbitrarily as it is faster than a typical human
+          // could go from pressing paste to pressing enter. The fastest typists
+          // can type at 200 words per minute which roughly translates to 50ms
+          // per letter.
+          pasteTimeoutRef.current = setTimeout(() => {
+            setRecentUnsafePasteTime(null);
+            pasteTimeoutRef.current = null;
+          }, 40);
+        }
+        if (settings.ui?.escapePastedAtSymbols) {
+          buffer.handleInput({
+            ...key,
+            sequence: escapeAtSymbols(key.sequence || ''),
+          });
+        } else {
           buffer.handleInput(key);
         }
+
+        if (key.sequence && isLargePaste(key.sequence)) {
+          appEvents.emit(AppEvent.TransientMessage, {
+            message: `Press ${formatCommand(Command.EXPAND_PASTE)} to expand pasted text`,
+            type: TransientMessageType.Hint,
+          });
+        }
+        return true;
+      }
+
+      if (shortcutsHelpVisible && isHelpDismissKey(key)) {
+        setShortcutsHelpVisible(false);
+      }
+
+      if (shortcutsHelpVisible) {
+        if (key.sequence === '?' && key.insertable) {
+          setShortcutsHelpVisible(false);
+          buffer.handleInput(key);
+          return true;
+        }
+        // Escape is handled earlier to ensure it closes the panel before
+        // potentially cancelling an operation
+        if (key.name === 'backspace' || key.sequence === '\b') {
+          setShortcutsHelpVisible(false);
+          return true;
+        }
+        if (key.insertable) {
+          setShortcutsHelpVisible(false);
+        }
+      }
+
+      if (
+        key.sequence === '?' &&
+        key.insertable &&
+        !shortcutsHelpVisible &&
+        buffer.text.length === 0
+      ) {
+        setShortcutsHelpVisible(true);
         return true;
       }
 
@@ -486,29 +867,21 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         return true;
       }
 
-      // Handle feedback dialog keyboard interactions when dialog is open
-      if (uiState.isFeedbackDialogOpen) {
-        // If it's one of the feedback option keys (1-4), let FeedbackDialog handle it
-        if ((FEEDBACK_DIALOG_KEYS as readonly string[]).includes(key.name)) {
-          return true;
-        } else {
-          // For any other key, close feedback dialog temporarily and continue with normal processing
-          uiActions.temporaryCloseFeedbackDialog();
-          // Continue processing the key for normal input handling
-        }
-      }
-
       // Reset ESC count and hide prompt on any non-ESC key
       if (key.name !== 'escape') {
-        if (escPressCount > 0 || showEscapePrompt) {
-          resetEscapeState();
-        }
+        resetEscapeState();
+      }
+
+      // Ctrl+O to expand/collapse paste placeholders
+      if (keyMatchers[Command.EXPAND_PASTE](key)) {
+        const handled = tryTogglePasteExpansion(buffer);
+        if (handled) return true;
       }
 
       if (
         key.sequence === '!' &&
         buffer.text === '' &&
-        !completion.showSuggestions
+        !(completion.showSuggestions && isShellSuggestionsVisible)
       ) {
         // Hide shortcuts when toggling shell mode
         if (showShortcuts && onToggleShortcuts) {
@@ -517,22 +890,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         setShellModeActive(!shellModeActive);
         buffer.setText(''); // Clear the '!' from input
         return true;
-      }
-
-      // Toggle keyboard shortcuts display with "?" when buffer is empty
-      if (
-        key.sequence === '?' &&
-        buffer.text === '' &&
-        !completion.showSuggestions &&
-        onToggleShortcuts
-      ) {
-        onToggleShortcuts();
-        return true;
-      }
-
-      // Hide shortcuts on any other key press
-      if (showShortcuts && onToggleShortcuts) {
-        onToggleShortcuts();
       }
 
       if (keyMatchers[Command.ESCAPE](key)) {
@@ -567,48 +924,32 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           return true;
         }
 
-        if (shellModeActive) {
-          setShellModeActive(false);
-          resetEscapeState();
-          return true;
-        }
-
-        if (completion.showSuggestions) {
+        if (completion.showSuggestions && isShellSuggestionsVisible) {
           completion.resetCompletionState();
           setExpandedSuggestionIndex(-1);
           resetEscapeState();
           return true;
         }
 
-        // Handle double ESC for clearing input
-        if (escPressCount === 0) {
-          if (buffer.text === '') {
-            return true;
-          }
-          setEscPressCount(1);
-          setShowEscapePrompt(true);
-          if (escapeTimerRef.current) {
-            clearTimeout(escapeTimerRef.current);
-          }
-          escapeTimerRef.current = setTimeout(() => {
-            resetEscapeState();
-          }, 500);
-        } else {
-          // clear input and immediately reset state
-          buffer.setText('');
-          resetCompletionState();
+        if (shellModeActive) {
+          setShellModeActive(false);
           resetEscapeState();
+          return true;
         }
+
+        // If we're generating and no local overlay consumed Escape, let it
+        // propagate to the global cancellation handler.
+        if (isGenerating) {
+          return false;
+        }
+
+        handleEscPress();
         return true;
       }
 
-      // Ctrl+Y: Retry the last failed request.
-      // This shortcut is available when:
-      // - There is a failed request in the current session
-      // - The stream is not currently responding or waiting for confirmation
-      // If no failed request exists, a message will be shown to the user.
-      if (keyMatchers[Command.RETRY_LAST](key)) {
-        uiActions.handleRetryLastPrompt();
+      if (keyMatchers[Command.CLEAR_SCREEN](key)) {
+        setBannerVisible(false);
+        onClearScreen();
         return true;
       }
 
@@ -616,11 +957,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         setReverseSearchActive(true);
         setTextBeforeReverseSearch(buffer.text);
         setCursorPosition(buffer.cursor);
-        return true;
-      }
-
-      if (keyMatchers[Command.CLEAR_SCREEN](key)) {
-        onClearScreen();
         return true;
       }
 
@@ -677,7 +1013,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             showSuggestions && activeSuggestionIndex > -1
               ? suggestions[activeSuggestionIndex].value
               : buffer.text;
-          handleSubmitAndClear(textToSubmit);
+          handleSubmit(textToSubmit);
           resetState();
           setActive(false);
           return true;
@@ -693,20 +1029,36 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       // If the command is a perfect match, pressing enter should execute it.
-      if (completion.isPerfectMatch && keyMatchers[Command.RETURN](key)) {
-        handleSubmitAndClear(buffer.text);
+      // We prioritize execution unless the user is explicitly selecting a different suggestion.
+      if (
+        completion.isPerfectMatch &&
+        keyMatchers[Command.SUBMIT](key) &&
+        recentUnsafePasteTime === null &&
+        (!(completion.showSuggestions && isShellSuggestionsVisible) ||
+          (completion.activeSuggestionIndex <= 0 &&
+            !hasUserNavigatedSuggestions.current))
+      ) {
+        handleSubmit(buffer.text);
         return true;
       }
 
-      if (completion.showSuggestions) {
+      // Newline insertion
+      if (keyMatchers[Command.NEWLINE](key)) {
+        buffer.newline();
+        return true;
+      }
+
+      if (completion.showSuggestions && isShellSuggestionsVisible) {
         if (completion.suggestions.length > 1) {
           if (keyMatchers[Command.COMPLETION_UP](key)) {
             completion.navigateUp();
+            hasUserNavigatedSuggestions.current = true;
             setExpandedSuggestionIndex(-1); // Reset expansion when navigating
             return true;
           }
           if (keyMatchers[Command.COMPLETION_DOWN](key)) {
             completion.navigateDown();
+            hasUserNavigatedSuggestions.current = true;
             setExpandedSuggestionIndex(-1); // Reset expansion when navigating
             return true;
           }
@@ -718,7 +1070,76 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
               completion.activeSuggestionIndex === -1
                 ? 0 // Default to the first if none is active
                 : completion.activeSuggestionIndex;
+
             if (targetIndex < completion.suggestions.length) {
+              const suggestion = completion.suggestions[targetIndex];
+
+              const isEnterKey = key.name === 'enter' && !key.ctrl;
+
+              if (isEnterKey && shellModeActive) {
+                if (hasUserNavigatedSuggestions.current) {
+                  completion.handleAutocomplete(
+                    completion.activeSuggestionIndex,
+                  );
+                  setExpandedSuggestionIndex(-1);
+                  hasUserNavigatedSuggestions.current = false;
+                  return true;
+                }
+                completion.resetCompletionState();
+                setExpandedSuggestionIndex(-1);
+                hasUserNavigatedSuggestions.current = false;
+                if (buffer.text.trim()) {
+                  handleSubmit(buffer.text);
+                }
+                return true;
+              }
+
+              if (isEnterKey && buffer.text.startsWith('/')) {
+                if (suggestion.submitValue) {
+                  setExpandedSuggestionIndex(-1);
+                  handleSubmit(suggestion.submitValue.trim());
+                  return true;
+                }
+
+                const { isArgumentCompletion, leafCommand } =
+                  completion.slashCompletionRange;
+
+                if (
+                  isArgumentCompletion &&
+                  isAutoExecutableCommand(leafCommand)
+                ) {
+                  // isArgumentCompletion guarantees leafCommand exists
+                  const completedText = completion.getCompletedText(suggestion);
+                  if (completedText) {
+                    setExpandedSuggestionIndex(-1);
+                    handleSubmit(completedText.trim());
+                    return true;
+                  }
+                } else if (!isArgumentCompletion) {
+                  // Existing logic for command name completion
+                  const command =
+                    completion.getCommandFromSuggestion(suggestion);
+
+                  // Only auto-execute if the command has no completion function
+                  // (i.e., it doesn't require an argument to be selected)
+                  if (
+                    command &&
+                    isAutoExecutableCommand(command) &&
+                    !command.completion
+                  ) {
+                    const completedText =
+                      completion.getCompletedText(suggestion);
+
+                    if (completedText) {
+                      setExpandedSuggestionIndex(-1);
+                      handleSubmit(completedText.trim());
+                      return true;
+                    }
+                  }
+                }
+              }
+
+              // Default behavior: auto-complete to prompt box
               completion.handleAutocomplete(targetIndex);
               setExpandedSuggestionIndex(-1); // Reset expansion after selection
             }
@@ -762,17 +1183,12 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
       // Enter attachment mode when pressing up at the first line with attachments
       if (
-        !isAttachmentMode &&
-        attachments.length > 0 &&
-        !shellModeActive &&
-        !reverseSearchActive &&
-        !commandSearchActive &&
-        buffer.visualCursor[0] === 0 &&
-        buffer.visualScrollRow === 0 &&
-        keyMatchers[Command.NAVIGATION_UP](key)
+        key.name === 'tab' &&
+        !key.shift &&
+        !(completion.showSuggestions && isShellSuggestionsVisible) &&
+        completion.promptCompletion.text
       ) {
-        setIsAttachmentMode(true);
-        setSelectedAttachmentIndex(attachments.length - 1);
+        completion.promptCompletion.accept();
         return true;
       }
 
@@ -784,45 +1200,60 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           return true;
         }
 
-        if (keyMatchers[Command.HISTORY_UP](key)) {
+        if (isHistoryUp) {
+          if (
+            keyMatchers[Command.NAVIGATION_UP](key) &&
+            buffer.visualCursor[1] > 0
+          ) {
+            buffer.move('home');
+            return true;
+          }
+          // Check for queued messages first when input is empty
+          // If no queued messages, inputHistory.navigateUp() is called inside tryLoadQueuedMessages
+          if (tryLoadQueuedMessages()) {
+            return true;
+          }
+          // Only navigate history if popAllMessages doesn't exist
           inputHistory.navigateUp();
           return true;
         }
-        if (keyMatchers[Command.HISTORY_DOWN](key)) {
+        if (isHistoryDown) {
+          if (
+            keyMatchers[Command.NAVIGATION_DOWN](key) &&
+            buffer.visualCursor[1] <
+              cpLen(buffer.allVisualLines[buffer.visualCursor[0]] || '')
+          ) {
+            buffer.move('end');
+            return true;
+          }
           inputHistory.navigateDown();
-          return true;
-        }
-        // Handle arrow-up/down for history on single-line or at edges
-        if (
-          keyMatchers[Command.NAVIGATION_UP](key) &&
-          (buffer.allVisualLines.length === 1 ||
-            (buffer.visualCursor[0] === 0 && buffer.visualScrollRow === 0))
-        ) {
-          inputHistory.navigateUp();
-          return true;
-        }
-        if (
-          keyMatchers[Command.NAVIGATION_DOWN](key) &&
-          (buffer.allVisualLines.length === 1 ||
-            buffer.visualCursor[0] === buffer.allVisualLines.length - 1)
-        ) {
-          if (inputHistory.navigateDown()) {
-            return true;
-          }
-          if (hasAgents) {
-            setAgentTabBarFocused(true);
-            return true;
-          }
           return true;
         }
       } else {
         // Shell History Navigation
         if (keyMatchers[Command.NAVIGATION_UP](key)) {
+          if (
+            (buffer.allVisualLines.length === 1 ||
+              (buffer.visualCursor[0] === 0 && buffer.visualScrollRow === 0)) &&
+            buffer.visualCursor[1] > 0
+          ) {
+            buffer.move('home');
+            return true;
+          }
           const prevCommand = shellHistory.getPreviousCommand();
           if (prevCommand !== null) buffer.setText(prevCommand);
           return true;
         }
         if (keyMatchers[Command.NAVIGATION_DOWN](key)) {
+          if (
+            (buffer.allVisualLines.length === 1 ||
+              buffer.visualCursor[0] === buffer.allVisualLines.length - 1) &&
+            buffer.visualCursor[1] <
+              cpLen(buffer.allVisualLines[buffer.visualCursor[0]] || '')
+          ) {
+            buffer.move('end');
+            return true;
+          }
           const nextCommand = shellHistory.getNextCommand();
           if (nextCommand !== null) buffer.setText(nextCommand);
           return true;
@@ -831,11 +1262,15 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
       if (keyMatchers[Command.SUBMIT](key)) {
         if (buffer.text.trim()) {
-          // Check if a paste operation occurred recently to prevent accidental auto-submission.
-          // Only applies when pasteWorkaround is enabled (Windows or Node < 20), where bracketed
-          // paste markers may not work reliably and Enter key events can leak from pasted text.
-          if (pasteWorkaround && recentPasteTime !== null) {
-            // Paste occurred recently, ignore this submit to prevent auto-execution
+          // Check if a paste operation occurred recently to prevent accidental auto-submission
+          if (recentUnsafePasteTime !== null) {
+            // Paste occurred recently in a terminal where we don't trust pastes
+            // to be reported correctly so assume this paste was really a
+            // newline that was part of the paste.
+            // This has the added benefit that in the worst case at least users
+            // get some feedback that their keypress was handled rather than
+            // wondering why it was completely ignored.
+            buffer.newline();
             return true;
           }
 
@@ -846,127 +1281,141 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             buffer.backspace();
             buffer.newline();
           } else {
-            handleSubmitAndClear(buffer.text);
+            handleSubmit(buffer.text);
           }
         }
         return true;
       }
 
-      // Ctrl+V for clipboard image paste
-      if (keyMatchers[Command.PASTE_CLIPBOARD_IMAGE](key)) {
-        handleClipboardImage();
+      // Ctrl+A (Home) / Ctrl+E (End)
+      if (keyMatchers[Command.HOME](key)) {
+        buffer.move('home');
+        return true;
+      }
+      if (keyMatchers[Command.END](key)) {
+        buffer.move('end');
         return true;
       }
 
-      // Handle backspace with placeholder-aware deletion
-      if (
-        pendingPastes.size > 0 &&
-        (key.name === 'backspace' ||
-          key.sequence === '\x7f' ||
-          (key.ctrl && key.name === 'h'))
-      ) {
-        const text = buffer.text;
-        const [row, col] = buffer.cursor;
-
-        // Calculate the offset where the cursor is
-        let offset = 0;
-        for (let i = 0; i < row; i++) {
-          offset += buffer.lines[i].length + 1; // +1 for newline
-        }
-        offset += col;
-
-        // Check if we're at the end of any placeholder
-        for (const placeholder of pendingPastes.keys()) {
-          const placeholderStart = offset - placeholder.length;
-          if (
-            placeholderStart >= 0 &&
-            text.slice(placeholderStart, offset) === placeholder
-          ) {
-            // Delete the entire placeholder
-            buffer.replaceRangeByOffset(placeholderStart, offset, '');
-            // Remove from pendingPastes and free the ID for reuse
-            setPendingPastes((prev) => {
-              const next = new Map(prev);
-              next.delete(placeholder);
-              return next;
-            });
-            const parsed = parsePlaceholder(placeholder);
-            if (parsed) {
-              freePlaceholderId(parsed.charCount, parsed.id);
-            }
-            return true;
-          }
-        }
-        // No placeholder matched — fall through to BaseTextInput's default backspace
+      // Kill line commands
+      if (keyMatchers[Command.KILL_LINE_RIGHT](key)) {
+        buffer.killLineRight();
+        return true;
+      }
+      if (keyMatchers[Command.KILL_LINE_LEFT](key)) {
+        buffer.killLineLeft();
+        return true;
       }
 
-      // Ctrl+C with completion active — also reset completion state
-      if (keyMatchers[Command.CLEAR_INPUT](key)) {
-        if (buffer.text.length > 0) {
+      if (keyMatchers[Command.DELETE_WORD_BACKWARD](key)) {
+        buffer.deleteWordLeft();
+        return true;
+      }
+
+      // External editor
+      if (keyMatchers[Command.OPEN_EXTERNAL_EDITOR](key)) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        buffer.openInExternalEditor();
+        return true;
+      }
+
+      // Ctrl+V for clipboard paste
+      if (keyMatchers[Command.PASTE_CLIPBOARD](key)) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        handleClipboardPaste();
+        return true;
+      }
+
+      if (keyMatchers[Command.TOGGLE_BACKGROUND_SHELL](key)) {
+        return false;
+      }
+
+      if (keyMatchers[Command.FOCUS_SHELL_INPUT](key)) {
+        if (
+          activePtyId ||
+          (backgroundTasks.size > 0 && backgroundTaskHeight > 0)
+        ) {
+          setEmbeddedShellFocused(true);
+          return true;
+        }
+        return false;
+      }
+
+      // Fall back to the text buffer's default input handling for all other keys
+      const handled = buffer.handleInput(key);
+
+      if (handled) {
+        if (keyMatchers[Command.CLEAR_INPUT](key)) {
           resetCompletionState();
         }
-        // Fall through to BaseTextInput's default CLEAR_INPUT handler
-      }
 
-      // All remaining keys (readline shortcuts, text input) handled by BaseTextInput
-      return false;
+        // Clear ghost text when user types regular characters (not navigation/control keys)
+        if (
+          completion.promptCompletion.text &&
+          key.sequence &&
+          key.sequence.length === 1 &&
+          !key.alt &&
+          !key.ctrl &&
+          !key.cmd
+        ) {
+          completion.promptCompletion.clear();
+          setExpandedSuggestionIndex(-1);
+        }
+      }
+      return handled;
     },
     [
       focus,
       buffer,
       completion,
+      setForceShowShellSuggestions,
       shellModeActive,
       setShellModeActive,
       onClearScreen,
       inputHistory,
-      handleSubmitAndClear,
+      handleSubmit,
       shellHistory,
       reverseSearchCompletion,
-      handleClipboardImage,
+      handleClipboardPaste,
       resetCompletionState,
-      escPressCount,
-      showEscapePrompt,
       resetEscapeState,
       vimHandleInput,
       reverseSearchActive,
       textBeforeReverseSearch,
       cursorPosition,
-      recentPasteTime,
+      recentUnsafePasteTime,
       commandSearchActive,
       commandSearchCompletion,
-      onToggleShortcuts,
-      showShortcuts,
-      uiState,
-      isAttachmentMode,
-      attachments,
-      selectedAttachmentIndex,
-      handleAttachmentDelete,
-      uiActions,
-      pasteWorkaround,
-      nextLargePastePlaceholder,
-      pendingPastes,
-      parsePlaceholder,
-      freePlaceholderId,
-      agentTabBarFocused,
-      hasAgents,
-      setAgentTabBarFocused,
+      kittyProtocol.enabled,
+      shortcutsHelpVisible,
+      setShortcutsHelpVisible,
+      tryLoadQueuedMessages,
+      onQueueMessage,
+      setQueueErrorMessage,
+      resetReverseSearchCompletionState,
+      setBannerVisible,
+      activePtyId,
+      setEmbeddedShellFocused,
+      backgroundTasks.size,
+      backgroundTaskHeight,
+      streamingState,
+      handleEscPress,
+      registerPlainTabPress,
+      resetPlainTabPress,
+      toggleCleanUiDetailsVisible,
+      shouldShowSuggestions,
+      isShellSuggestionsVisible,
+      forceShowShellSuggestions,
+      keyMatchers,
+      isHelpDismissKey,
+      settings,
     ],
   );
 
-  const renderLineWithHighlighting = useCallback(
-    (opts: RenderLineOptions): React.ReactNode => {
-      const {
-        lineText,
-        isOnCursorLine,
-        cursorCol: cursorVisualColAbsolute,
-        showCursor: showCursorOpt,
-        absoluteVisualIndex,
-        buffer: buf,
-      } = opts;
-      const mapEntry = buf.visualToLogicalMap[absoluteVisualIndex];
-      const [logicalLineIdx, logicalStartCol] = mapEntry;
-      const logicalLine = buf.lines[logicalLineIdx] || '';
-      const tokens = parseInputForHighlighting(logicalLine, logicalLineIdx);
+  useKeypress(handleInput, {
+    isActive: !isEmbeddedShellFocused && !copyModeEnabled,
+    priority: true,
+  });
 
       const visualStart = logicalStartCol;
       const visualEnd = logicalStartCol + cpLen(lineText);
@@ -1093,66 +1542,319 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     </Text>
   );
 
+  const useBackgroundColor = config.getUseBackgroundColor();
+  const isLowColor = isLowColorDepth();
+  const terminalBg = theme.background.primary || 'black';
+
+  // We should fallback to lines if the background color is disabled OR if it is
+  // enabled but we are in a low color depth terminal where we don't have a safe
+  // background color to use.
+  const useLineFallback = useMemo(() => {
+    if (!useBackgroundColor) {
+      return true;
+    }
+    if (isLowColor) {
+      return !getSafeLowColorBackground(terminalBg);
+    }
+    return false;
+  }, [useBackgroundColor, isLowColor, terminalBg]);
+
+  useEffect(() => {
+    if (onSuggestionsVisibilityChange) {
+      onSuggestionsVisibilityChange(shouldShowSuggestions);
+    }
+  }, [shouldShowSuggestions, onSuggestionsVisibilityChange]);
+
+  const showAutoAcceptStyling =
+    !shellModeActive && approvalMode === ApprovalMode.AUTO_EDIT;
+  const showYoloStyling =
+    !shellModeActive && approvalMode === ApprovalMode.YOLO;
+  const showPlanStyling =
+    !shellModeActive && approvalMode === ApprovalMode.PLAN;
+
+  let statusColor: string | undefined;
+  let statusText = '';
+  if (shellModeActive) {
+    statusColor = theme.ui.symbol;
+    statusText = 'Shell mode';
+  } else if (showYoloStyling) {
+    statusColor = theme.status.error;
+    statusText = 'YOLO mode';
+  } else if (showPlanStyling) {
+    statusColor = theme.status.success;
+    statusText = 'Plan mode';
+  } else if (showAutoAcceptStyling) {
+    statusColor = theme.status.warning;
+    statusText = 'Accepting edits';
+  }
+
+  const suggestionsNode = shouldShowSuggestions ? (
+    <Box paddingRight={2}>
+      <SuggestionsDisplay
+        suggestions={activeCompletion.suggestions}
+        activeIndex={activeCompletion.activeSuggestionIndex}
+        isLoading={activeCompletion.isLoadingSuggestions}
+        width={suggestionsWidth}
+        scrollOffset={activeCompletion.visibleStartIndex}
+        userInput={buffer.text}
+        mode={
+          completion.completionMode === CompletionMode.AT ||
+          completion.completionMode === CompletionMode.SHELL
+            ? 'reverse'
+            : buffer.text.startsWith('/') &&
+                !reverseSearchActive &&
+                !commandSearchActive
+              ? 'slash'
+              : 'reverse'
+        }
+        expandedIndex={expandedSuggestionIndex}
+      />
+    </Box>
+  ) : null;
+
+  const borderColor =
+    isShellFocused && !isEmbeddedShellFocused
+      ? (statusColor ?? theme.ui.focus)
+      : theme.border.default;
+
   return (
     <>
-      {attachments.length > 0 && (
-        <Box marginLeft={2} marginBottom={0}>
-          <Text color={theme.text.secondary}>{t('Attachments: ')}</Text>
-          {attachments.map((att, idx) => (
-            <Text
-              key={att.id}
-              color={
-                isAttachmentMode && idx === selectedAttachmentIndex
-                  ? theme.status.success
-                  : theme.text.secondary
-              }
-            >
-              [{att.filename}]{idx < attachments.length - 1 ? ' ' : ''}
-            </Text>
-          ))}
-        </Box>
-      )}
-      <BaseTextInput
-        buffer={buffer}
-        onSubmit={handleSubmitAndClear}
-        onKeypress={handleInput}
-        showCursor={showCursor}
-        placeholder={placeholder}
-        prefix={prefixNode}
-        borderColor={borderColor}
-        isActive={!isEmbeddedShellFocused}
-        renderLine={renderLineWithHighlighting}
-      />
-      {shouldShowSuggestions && (
-        <Box marginLeft={2} marginRight={2}>
-          <SuggestionsDisplay
-            suggestions={activeCompletion.suggestions}
-            activeIndex={activeCompletion.activeSuggestionIndex}
-            isLoading={activeCompletion.isLoadingSuggestions}
-            width={suggestionsWidth}
-            scrollOffset={activeCompletion.visibleStartIndex}
-            userInput={buffer.text}
-            mode={
-              buffer.text.startsWith('/') &&
-              !reverseSearchActive &&
-              !commandSearchActive
-                ? 'slash'
-                : 'reverse'
-            }
-            expandedIndex={expandedSuggestionIndex}
-          />
-        </Box>
-      )}
-      {/* Attachment hints - show when there are attachments and no suggestions visible */}
-      {attachments.length > 0 && !shouldShowSuggestions && (
-        <Box marginLeft={2} marginRight={2}>
-          <Text color={theme.text.secondary}>
-            {isAttachmentMode
-              ? t('← → select, Delete to remove, ↓ to exit')
-              : t('↑ to manage attachments')}
+      {suggestionsPosition === 'above' && suggestionsNode}
+      {useLineFallback ? (
+        <Box
+          borderStyle="round"
+          borderTop={true}
+          borderBottom={false}
+          borderLeft={false}
+          borderRight={false}
+          borderColor={borderColor}
+          width={terminalWidth}
+          flexDirection="row"
+          alignItems="flex-start"
+          height={0}
+        />
+      ) : null}
+      <HalfLinePaddedBox
+        backgroundBaseColor={theme.background.input}
+        backgroundOpacity={1}
+        useBackgroundColor={useBackgroundColor}
+      >
+        <Box
+          flexGrow={1}
+          flexDirection="row"
+          paddingX={1}
+          borderColor={borderColor}
+          borderStyle={useLineFallback ? 'round' : undefined}
+          borderTop={false}
+          borderBottom={false}
+          borderLeft={!useBackgroundColor}
+          borderRight={!useBackgroundColor}
+        >
+          <Text
+            color={statusColor ?? theme.text.accent}
+            aria-label={statusText || undefined}
+          >
+            {shellModeActive ? (
+              reverseSearchActive ? (
+                <Text
+                  color={theme.text.link}
+                  aria-label={SCREEN_READER_USER_PREFIX}
+                >
+                  (r:){' '}
+                </Text>
+              ) : (
+                '!'
+              )
+            ) : commandSearchActive ? (
+              <Text color={theme.text.accent}>(r:) </Text>
+            ) : showYoloStyling ? (
+              '*'
+            ) : (
+              '>'
+            )}{' '}
           </Text>
+          <Box flexGrow={1} flexDirection="column" ref={innerBoxRef}>
+            {buffer.text.length === 0 && placeholder ? (
+              showCursor ? (
+                <Text
+                  terminalCursorFocus={showCursor}
+                  terminalCursorPosition={0}
+                >
+                  {chalk.inverse(placeholder.slice(0, 1))}
+                  <Text color={theme.text.secondary}>
+                    {placeholder.slice(1)}
+                  </Text>
+                </Text>
+              ) : (
+                <Text color={theme.text.secondary}>{placeholder}</Text>
+              )
+            ) : (
+              linesToRender
+                .map((lineText: string, visualIdxInRenderedSet: number) => {
+                  const absoluteVisualIdx =
+                    scrollVisualRow + visualIdxInRenderedSet;
+                  const mapEntry = buffer.visualToLogicalMap[absoluteVisualIdx];
+                  if (!mapEntry) return null;
+
+                  const cursorVisualRow =
+                    cursorVisualRowAbsolute - scrollVisualRow;
+                  const isOnCursorLine =
+                    focus && visualIdxInRenderedSet === cursorVisualRow;
+
+                  const renderedLine: React.ReactNode[] = [];
+
+                  const [logicalLineIdx] = mapEntry;
+                  const logicalLine = buffer.lines[logicalLineIdx] || '';
+                  const transformations =
+                    buffer.transformationsByLine[logicalLineIdx] ?? [];
+                  const tokens = parseInputForHighlighting(
+                    logicalLine,
+                    logicalLineIdx,
+                    transformations,
+                    ...(focus && buffer.cursor[0] === logicalLineIdx
+                      ? [buffer.cursor[1]]
+                      : []),
+                  );
+                  const startColInTransformed =
+                    buffer.visualToTransformedMap[absoluteVisualIdx] ?? 0;
+                  const visualStartCol = startColInTransformed;
+                  const visualEndCol = visualStartCol + cpLen(lineText);
+                  const segments = parseSegmentsFromTokens(
+                    tokens,
+                    visualStartCol,
+                    visualEndCol,
+                  );
+                  let charCount = 0;
+                  segments.forEach((seg, segIdx) => {
+                    const segLen = cpLen(seg.text);
+                    let display = seg.text;
+
+                    if (isOnCursorLine) {
+                      const relativeVisualColForHighlight =
+                        cursorVisualColAbsolute;
+                      const segStart = charCount;
+                      const segEnd = segStart + segLen;
+                      if (
+                        relativeVisualColForHighlight >= segStart &&
+                        relativeVisualColForHighlight < segEnd
+                      ) {
+                        const charToHighlight = cpSlice(
+                          display,
+                          relativeVisualColForHighlight - segStart,
+                          relativeVisualColForHighlight - segStart + 1,
+                        );
+                        const highlighted = showCursor
+                          ? chalk.inverse(charToHighlight)
+                          : charToHighlight;
+                        display =
+                          cpSlice(
+                            display,
+                            0,
+                            relativeVisualColForHighlight - segStart,
+                          ) +
+                          highlighted +
+                          cpSlice(
+                            display,
+                            relativeVisualColForHighlight - segStart + 1,
+                          );
+                      }
+                      charCount = segEnd;
+                    } else {
+                      // Advance the running counter even when not on cursor line
+                      charCount += segLen;
+                    }
+
+                    const color =
+                      seg.type === 'command' ||
+                      seg.type === 'file' ||
+                      seg.type === 'paste'
+                        ? theme.text.accent
+                        : theme.text.primary;
+
+                    renderedLine.push(
+                      <Text key={`token-${segIdx}`} color={color}>
+                        {display}
+                      </Text>,
+                    );
+                  });
+
+                  const currentLineGhost = isOnCursorLine ? inlineGhost : '';
+                  if (
+                    isOnCursorLine &&
+                    cursorVisualColAbsolute === cpLen(lineText)
+                  ) {
+                    if (!currentLineGhost) {
+                      renderedLine.push(
+                        <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
+                          {showCursor ? chalk.inverse(' ') : ' '}
+                        </Text>,
+                      );
+                    }
+                  }
+
+                  const showCursorBeforeGhost =
+                    focus &&
+                    isOnCursorLine &&
+                    cursorVisualColAbsolute === cpLen(lineText) &&
+                    currentLineGhost;
+
+                  return (
+                    <Box key={`line-${visualIdxInRenderedSet}`} height={1}>
+                      <Text
+                        terminalCursorFocus={showCursor && isOnCursorLine}
+                        terminalCursorPosition={cpIndexToOffset(
+                          lineText,
+                          cursorVisualColAbsolute,
+                        )}
+                      >
+                        {renderedLine}
+                        {showCursorBeforeGhost &&
+                          (showCursor ? chalk.inverse(' ') : ' ')}
+                        {currentLineGhost && (
+                          <Text color={theme.text.secondary}>
+                            {currentLineGhost}
+                          </Text>
+                        )}
+                      </Text>
+                    </Box>
+                  );
+                })
+                .concat(
+                  additionalLines.map((ghostLine, index) => {
+                    const padding = Math.max(
+                      0,
+                      inputWidth - stringWidth(ghostLine),
+                    );
+                    return (
+                      <Text
+                        key={`ghost-line-${index}`}
+                        color={theme.text.secondary}
+                      >
+                        {ghostLine}
+                        {' '.repeat(padding)}
+                      </Text>
+                    );
+                  }),
+                )
+            )}
+          </Box>
         </Box>
-      )}
+      </HalfLinePaddedBox>
+      {useLineFallback ? (
+        <Box
+          borderStyle="round"
+          borderTop={false}
+          borderBottom={true}
+          borderLeft={false}
+          borderRight={false}
+          borderColor={borderColor}
+          width={terminalWidth}
+          flexDirection="row"
+          alignItems="flex-start"
+          height={0}
+        />
+      ) : null}
+      {suggestionsPosition === 'below' && suggestionsNode}
     </>
   );
 };

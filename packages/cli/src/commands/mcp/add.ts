@@ -7,8 +7,8 @@
 // File for 'qwen mcp add' command
 import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
-import type { MCPServerConfig } from '@apex-code/apex-core';
+import { debugLogger, type MCPServerConfig } from '@google/gemini-cli-core';
+import { exitCli } from '../utils.js';
 
 async function addMcpServer(
   name: string,
@@ -42,7 +42,7 @@ async function addMcpServer(
   const inHome = settings.workspace.path === settings.user.path;
 
   if (scope === 'project' && inHome) {
-    writeStderrLine(
+    debugLogger.error(
       'Error: Please use --scope user to edit settings in the home directory.',
     );
     process.exit(1);
@@ -69,6 +69,7 @@ async function addMcpServer(
     case 'sse':
       newServer = {
         url: commandOrUrl,
+        type: 'sse',
         headers,
         timeout,
         trust,
@@ -79,7 +80,8 @@ async function addMcpServer(
       break;
     case 'http':
       newServer = {
-        httpUrl: commandOrUrl,
+        url: commandOrUrl,
+        type: 'http',
         headers,
         timeout,
         trust,
@@ -117,7 +119,7 @@ async function addMcpServer(
 
   const isExistingServer = !!mcpServers[name];
   if (isExistingServer) {
-    writeStdoutLine(
+    debugLogger.log(
       `MCP server "${name}" is already configured within ${scope} settings.`,
     );
   }
@@ -127,9 +129,9 @@ async function addMcpServer(
   settings.setValue(settingsScope, 'mcpServers', mcpServers);
 
   if (isExistingServer) {
-    writeStdoutLine(`MCP server "${name}" updated in ${scope} settings.`);
+    debugLogger.log(`MCP server "${name}" updated in ${scope} settings.`);
   } else {
-    writeStdoutLine(
+    debugLogger.log(
       `MCP server "${name}" added to ${scope} settings. (${transport})`,
     );
   }
@@ -163,9 +165,8 @@ export const addCommand: CommandModule = {
         choices: ['user', 'project'],
       })
       .option('transport', {
-        alias: 't',
-        describe:
-          'Transport type (stdio, sse, http). Auto-detected from URL if not specified.',
+        alias: ['t', 'type'],
+        describe: 'Transport type (stdio, sse, http)',
         type: 'string',
         choices: ['stdio', 'sse', 'http'],
       })
@@ -210,7 +211,9 @@ export const addCommand: CommandModule = {
       .middleware((argv) => {
         // Handle -- separator args as server args if present
         if (argv['--']) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           const existingArgs = (argv['args'] as Array<string | number>) || [];
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           argv['args'] = [...existingArgs, ...(argv['--'] as string[])];
         }
 
@@ -230,20 +233,33 @@ export const addCommand: CommandModule = {
       }),
   handler: async (argv) => {
     await addMcpServer(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       argv['name'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       argv['commandOrUrl'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       argv['args'] as Array<string | number>,
       {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         scope: argv['scope'] as string,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         transport: argv['transport'] as string,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         env: argv['env'] as string[],
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         header: argv['header'] as string[],
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         timeout: argv['timeout'] as number | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         trust: argv['trust'] as boolean | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         description: argv['description'] as string | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         includeTools: argv['includeTools'] as string[] | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         excludeTools: argv['excludeTools'] as string[] | undefined,
       },
     );
+    await exitCli();
   },
 };

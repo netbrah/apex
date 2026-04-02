@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '@apex-code/apex-core';
 import {
   getErrorMessage,
   getMCPServerPrompts,
-} from '@apex-code/apex-core';
-import type {
-  CommandContext,
-  SlashCommand,
-  SlashCommandActionReturn,
+  type Config,
+} from '@google/gemini-cli-core';
+import {
+  CommandKind,
+  type CommandContext,
+  type SlashCommand,
+  type SlashCommandActionReturn,
 } from '../ui/commands/types.js';
-import { CommandKind } from '../ui/commands/types.js';
 import type { ICommandLoader } from './types.js';
 import type { PromptArgument } from '@modelcontextprotocol/sdk/types.js';
 
@@ -37,15 +37,18 @@ export class McpPromptLoader implements ICommandLoader {
     if (!this.config) {
       return Promise.resolve([]);
     }
-    const mcpServers = this.config.getMcpServers() || {};
+    const mcpServers = this.config.getMcpClientManager()?.getMcpServers() || {};
     for (const serverName in mcpServers) {
       const prompts = getMCPServerPrompts(this.config, serverName) || [];
       for (const prompt of prompts) {
-        const commandName = `${prompt.name}`;
+        // Sanitize prompt names to ensure they are valid slash commands (e.g. "Prompt Name" -> "Prompt-Name")
+        const commandName = `${prompt.name}`.trim().replace(/\s+/g, '-');
         const newPromptCommand: SlashCommand = {
           name: commandName,
           description: prompt.description || `Invoke prompt ${prompt.name}`,
           kind: CommandKind.MCP_PROMPT,
+          mcpServerName: serverName,
+          autoExecute: !prompt.arguments || prompt.arguments.length === 0,
           subCommands: [
             {
               name: 'help',
@@ -104,7 +107,8 @@ export class McpPromptLoader implements ICommandLoader {
             }
 
             try {
-              const mcpServers = this.config.getMcpServers() || {};
+              const mcpServers =
+                this.config.getMcpClientManager()?.getMcpServers() || {};
               const mcpServerConfig = mcpServers[serverName];
               if (!mcpServerConfig) {
                 return {
@@ -123,10 +127,8 @@ export class McpPromptLoader implements ICommandLoader {
                 };
               }
 
-              const firstMessage = result.messages?.[0];
-              const content = firstMessage?.content;
-
-              if (content?.type !== 'text') {
+              const maybeContent = result.messages?.[0]?.content;
+              if (maybeContent.type !== 'text') {
                 return {
                   type: 'message',
                   messageType: 'error',
@@ -137,7 +139,7 @@ export class McpPromptLoader implements ICommandLoader {
 
               return {
                 type: 'submit_prompt',
-                content: JSON.stringify(content.text),
+                content: JSON.stringify(maybeContent.text),
               };
             } catch (error) {
               return {

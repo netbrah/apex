@@ -4,27 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { glob, escape } from 'glob';
-import type { ToolInvocation, ToolResult } from './tools.js';
-import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
-import { ToolNames, ToolDisplayNames } from './tool-names.js';
-import { resolveAndValidatePath } from '../utils/paths.js';
-import { type Config } from '../config/config.js';
-import type { PermissionDecision } from '../permissions/types.js';
 import {
-  DEFAULT_FILE_FILTERING_OPTIONS,
-  type FileFilteringOptions,
-} from '../config/constants.js';
+  BaseDeclarativeTool,
+  BaseToolInvocation,
+  Kind,
+  type ToolInvocation,
+  type ToolResult,
+  type PolicyUpdateOptions,
+  type ToolConfirmationOutcome,
+} from './tools.js';
+import { shortenPath, makeRelative } from '../utils/paths.js';
+import { type Config } from '../config/config.js';
+import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
 import { ToolErrorType } from './tool-error.js';
+import { GLOB_TOOL_NAME, GLOB_DISPLAY_NAME } from './tool-names.js';
+import { buildPatternArgsPattern } from '../policy/utils.js';
 import { getErrorMessage } from '../utils/errors.js';
-import type { FileDiscoveryService } from '../services/fileDiscoveryService.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('GLOB');
-
-const MAX_FILE_COUNT = 100;
+import { debugLogger } from '../utils/debugLogger.js';
+import { GLOB_DEFINITION } from './definitions/coreTools.js';
+import { resolveToolDeclaration } from './definitions/resolver.js';
 
 // Subset of 'Path' interface provided by 'glob' that we can implement for testing
 export interface GlobPath {
@@ -74,7 +76,22 @@ export interface GlobToolParams {
   /**
    * The directory to search in (optional, defaults to current directory)
    */
-  path?: string;
+  dir_path?: string;
+
+  /**
+   * Whether the search should be case-sensitive (optional, defaults to false)
+   */
+  case_sensitive?: boolean;
+
+  /**
+   * Whether to respect .gitignore patterns (optional, defaults to true)
+   */
+  respect_git_ignore?: boolean;
+
+  /**
+   * Whether to respect .geminiignore patterns (optional, defaults to true)
+   */
+  respect_gemini_ignore?: boolean;
 }
 
 class GlobToolInvocation extends BaseToolInvocation<
@@ -86,92 +103,33 @@ class GlobToolInvocation extends BaseToolInvocation<
   constructor(
     private config: Config,
     params: GlobToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ) {
-    super(params);
-    this.fileService = config.getFileService();
+    super(params, messageBus, _toolName, _toolDisplayName);
   }
 
   getDescription(): string {
     let description = `'${this.params.pattern}'`;
-    if (this.params.path) {
-      description += ` in path '${this.params.path}'`;
+    if (this.params.dir_path) {
+      const searchDir = path.resolve(
+        this.config.getTargetDir(),
+        this.params.dir_path || '.',
+      );
+      const relativePath = makeRelative(searchDir, this.config.getTargetDir());
+      description += ` within ${shortenPath(relativePath)}`;
     }
 
     return description;
   }
 
-  /**
-   * Returns 'ask' for paths outside the workspace, so that external glob
-   * searches require user confirmation.
-   */
-  override async getDefaultPermission(): Promise<PermissionDecision> {
-    if (!this.params.path) {
-      return 'allow'; // Default workspace directory
-    }
-    const workspaceContext = this.config.getWorkspaceContext();
-    const resolvedPath = path.resolve(
-      this.config.getTargetDir(),
-      this.params.path,
-    );
-    if (workspaceContext.isPathWithinWorkspace(resolvedPath)) {
-      return 'allow';
-    }
-    return 'ask';
-  }
-
-  /**
-   * Runs glob search in a single directory and returns filtered entries.
-   */
-  private async globInDirectory(
-    searchDir: string,
-    pattern: string,
-    signal: AbortSignal,
-  ): Promise<GlobPath[]> {
-    let effectivePattern = pattern;
-    const fullPath = path.join(searchDir, effectivePattern);
-    if (fs.existsSync(fullPath)) {
-      effectivePattern = escape(effectivePattern);
-    }
-
-    const entries = (await glob(effectivePattern, {
-      cwd: searchDir,
-      withFileTypes: true,
-      nodir: true,
-      stat: true,
-      nocase: true,
-      dot: true,
-      follow: false,
-      signal,
-    })) as GlobPath[];
-
-    // Filter using paths relative to the project root (the base that
-    // FileDiscoveryService uses for .gitignore / .apexignore evaluation).
-    // Using searchDir-relative paths would cause ignore rules to be
-    // evaluated against incorrect paths when searchDir != projectRoot.
-    const projectRoot = this.config.getTargetDir();
-    const relativePaths = entries.map((p) =>
-      path.relative(projectRoot, p.fullpath()),
-    );
-
-    const { filteredPaths } = this.fileService.filterFilesWithReport(
-      relativePaths,
-      this.getFileFilteringOptions(),
-    );
-
-    const normalizePathForComparison = (p: string) =>
-      process.platform === 'win32' || process.platform === 'darwin'
-        ? p.toLowerCase()
-        : p;
-
-    const filteredAbsolutePaths = new Set(
-      filteredPaths.map((p) =>
-        normalizePathForComparison(path.resolve(projectRoot, p)),
-      ),
-    );
-
-    return entries.filter((entry) =>
-      filteredAbsolutePaths.has(normalizePathForComparison(entry.fullpath())),
-    );
+  override getPolicyUpdateOptions(
+    _outcome: ToolConfirmationOutcome,
+  ): PolicyUpdateOptions | undefined {
+    return {
+      argsPattern: buildPatternArgsPattern(this.params.pattern),
+    };
   }
 
   async execute(signal: AbortSignal): Promise<ToolResult> {
@@ -180,15 +138,28 @@ class GlobToolInvocation extends BaseToolInvocation<
       const searchDirs: string[] = [];
       let searchLocationDescription: string;
 
-      if (this.params.path) {
-        // User specified a path — search only that directory
-        const searchDirAbs = resolveAndValidatePath(
-          this.config,
-          this.params.path,
-          { allowExternalPaths: true },
+      // If a specific path is provided, resolve it and check if it's within workspace
+      let searchDirectories: readonly string[];
+      if (this.params.dir_path) {
+        const searchDirAbsolute = path.resolve(
+          this.config.getTargetDir(),
+          this.params.dir_path,
         );
-        searchDirs.push(searchDirAbs);
-        searchLocationDescription = `within ${searchDirAbs}`;
+        const validationError = this.config.validatePathAccess(
+          searchDirAbsolute,
+          'read',
+        );
+        if (validationError) {
+          return {
+            llmContent: validationError,
+            returnDisplay: 'Path not in workspace.',
+            error: {
+              message: validationError,
+              type: ToolErrorType.PATH_NOT_IN_WORKSPACE,
+            },
+          };
+        }
+        searchDirectories = [searchDirAbsolute];
       } else {
         // No path specified — search all workspace directories
         const workspaceDirs = this.config
@@ -201,26 +172,67 @@ class GlobToolInvocation extends BaseToolInvocation<
             : `in the workspace directory`;
       }
 
-      // Collect entries from all search directories
-      const pattern = this.params.pattern;
-      const allFilteredEntries: GlobPath[] = [];
-      const seenPaths = new Set<string>();
+      // Get centralized file discovery service
+      const fileDiscovery = this.config.getFileService();
 
-      for (const searchDir of searchDirs) {
-        const entries = await this.globInDirectory(searchDir, pattern, signal);
-        for (const entry of entries) {
-          // Deduplicate entries that might appear in overlapping directories
-          const normalized = entry.fullpath();
-          if (!seenPaths.has(normalized)) {
-            seenPaths.add(normalized);
-            allFilteredEntries.push(entry);
-          }
+      // Collect entries from all search directories
+      const allEntries: GlobPath[] = [];
+      for (const searchDir of searchDirectories) {
+        let pattern = this.params.pattern;
+        const fullPath = path.join(searchDir, pattern);
+        if (fs.existsSync(fullPath)) {
+          pattern = escape(pattern);
         }
+
+        const entries = (await glob(pattern, {
+          cwd: searchDir,
+          withFileTypes: true,
+          nodir: true,
+          stat: true,
+          nocase: !this.params.case_sensitive,
+          dot: true,
+          ignore: this.config.getFileExclusions().getGlobExcludes(),
+          follow: false,
+          signal,
+        })) as GlobPath[];
+
+        allEntries.push(...entries);
       }
 
-      const filteredEntries = allFilteredEntries;
+      const relativePaths = allEntries.map((p) =>
+        path.relative(this.config.getTargetDir(), p.fullpath()),
+      );
+
+      const { filteredPaths, ignoredCount } =
+        fileDiscovery.filterFilesWithReport(relativePaths, {
+          respectGitIgnore:
+            this.params?.respect_git_ignore ??
+            this.config.getFileFilteringOptions().respectGitIgnore ??
+            DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
+          respectGeminiIgnore:
+            this.params?.respect_gemini_ignore ??
+            this.config.getFileFilteringOptions().respectGeminiIgnore ??
+            DEFAULT_FILE_FILTERING_OPTIONS.respectGeminiIgnore,
+        });
+
+      const filteredAbsolutePaths = new Set(
+        filteredPaths.map((p) => path.resolve(this.config.getTargetDir(), p)),
+      );
+
+      const filteredEntries = allEntries.filter((entry) =>
+        filteredAbsolutePaths.has(entry.fullpath()),
+      );
 
       if (!filteredEntries || filteredEntries.length === 0) {
+        let message = `No files found matching pattern "${this.params.pattern}"`;
+        if (searchDirectories.length === 1) {
+          message += ` within ${searchDirectories[0]}`;
+        } else {
+          message += ` within ${searchDirectories.length} workspace directories`;
+        }
+        if (ignoredCount > 0) {
+          message += ` (${ignoredCount} files were ignored)`;
+        }
         return {
           llmContent: `No files found matching pattern "${this.params.pattern}" ${searchLocationDescription}`,
           returnDisplay: `No files found`,
@@ -264,15 +276,18 @@ class GlobToolInvocation extends BaseToolInvocation<
         const fileTerm = omittedFiles === 1 ? 'file' : 'files';
         resultMessage += `\n---\n[${omittedFiles} ${fileTerm} truncated] ...`;
       }
+      if (ignoredCount > 0) {
+        resultMessage += ` (${ignoredCount} additional files were ignored)`;
+      }
+      resultMessage += `, sorted by modification time (newest first):\n${fileListDescription}`;
 
       return {
         llmContent: resultMessage,
         returnDisplay: `Found ${totalFileCount} matching file(s)${truncated ? ' (truncated)' : ''}`,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      debugLogger.error(`GlobLogic execute Error: ${errorMessage}`, error);
+      debugLogger.warn(`GlobLogic execute Error`, error);
+      const errorMessage = getErrorMessage(error);
       const rawError = `Error during glob search operation: ${errorMessage}`;
       return {
         llmContent: rawError,
@@ -302,29 +317,20 @@ class GlobToolInvocation extends BaseToolInvocation<
  * Implementation of the Glob tool logic
  */
 export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
-  static readonly Name = ToolNames.GLOB;
-
-  constructor(private config: Config) {
+  static readonly Name = GLOB_TOOL_NAME;
+  constructor(
+    private config: Config,
+    messageBus: MessageBus,
+  ) {
     super(
       GlobTool.Name,
-      ToolDisplayNames.GLOB,
-      'Fast file pattern matching tool that works with any codebase size\n- Supports glob patterns like "**/*.js" or "src/**/*.ts"\n- Returns matching file paths sorted by modification time\n- Use this tool when you need to find files by name patterns\n- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead\n- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.',
+      GLOB_DISPLAY_NAME,
+      GLOB_DEFINITION.base.description!,
       Kind.Search,
-      {
-        properties: {
-          pattern: {
-            description: 'The glob pattern to match files against',
-            type: 'string',
-          },
-          path: {
-            description:
-              'The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.',
-            type: 'string',
-          },
-        },
-        required: ['pattern'],
-        type: 'object',
-      },
+      GLOB_DEFINITION.base.parametersJsonSchema,
+      messageBus,
+      true,
+      false,
     );
   }
 
@@ -334,6 +340,31 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
   protected override validateToolParamValues(
     params: GlobToolParams,
   ): string | null {
+    const searchDirAbsolute = path.resolve(
+      this.config.getTargetDir(),
+      params.dir_path || '.',
+    );
+
+    const validationError = this.config.validatePathAccess(
+      searchDirAbsolute,
+      'read',
+    );
+    if (validationError) {
+      return validationError;
+    }
+
+    const targetDir = searchDirAbsolute || this.config.getTargetDir();
+    try {
+      if (!fs.existsSync(targetDir)) {
+        return `Search path does not exist ${targetDir}`;
+      }
+      if (!fs.statSync(targetDir).isDirectory()) {
+        return `Search path is not a directory: ${targetDir}`;
+      }
+    } catch (e: unknown) {
+      return `Error accessing search path: ${e}`;
+    }
+
     if (
       !params.pattern ||
       typeof params.pattern !== 'string' ||
@@ -358,7 +389,20 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
 
   protected createInvocation(
     params: GlobToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ): ToolInvocation<GlobToolParams, ToolResult> {
-    return new GlobToolInvocation(this.config, params);
+    return new GlobToolInvocation(
+      this.config,
+      params,
+      messageBus,
+      _toolName,
+      _toolDisplayName,
+    );
+  }
+
+  override getSchema(modelId?: string) {
+    return resolveToolDeclaration(GLOB_DEFINITION, modelId);
   }
 }

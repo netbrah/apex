@@ -5,11 +5,12 @@
  */
 
 import { type CommandModule } from 'yargs';
-import { SettingScope } from '../../config/settings.js';
-import { getErrorMessage } from '../../utils/errors.js';
-import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
-import { getExtensionManager } from './utils.js';
-import { t } from '../../i18n/index.js';
+import { loadSettings, SettingScope } from '../../config/settings.js';
+import { debugLogger, getErrorMessage } from '@google/gemini-cli-core';
+import { ExtensionManager } from '../../config/extension-manager.js';
+import { requestConsentNonInteractive } from '../../config/extensions/consent.js';
+import { promptForSetting } from '../../config/extensions/extensionSettings.js';
+import { exitCli } from '../utils.js';
 
 interface DisableArgs {
   name: string;
@@ -17,21 +18,29 @@ interface DisableArgs {
 }
 
 export async function handleDisable(args: DisableArgs) {
-  const extensionManager = await getExtensionManager();
+  const workspaceDir = process.cwd();
+  const extensionManager = new ExtensionManager({
+    workspaceDir,
+    requestConsent: requestConsentNonInteractive,
+    requestSetting: promptForSetting,
+    settings: loadSettings(workspaceDir).merged,
+  });
+  await extensionManager.loadExtensions();
+
   try {
     if (args.scope?.toLowerCase() === 'workspace') {
-      extensionManager.disableExtension(args.name, SettingScope.Workspace);
+      await extensionManager.disableExtension(
+        args.name,
+        SettingScope.Workspace,
+      );
     } else {
-      extensionManager.disableExtension(args.name, SettingScope.User);
+      await extensionManager.disableExtension(args.name, SettingScope.User);
     }
-    writeStdoutLine(
-      t('Extension "{{name}}" successfully disabled for scope "{{scope}}".', {
-        name: args.name,
-        scope: args.scope || SettingScope.User,
-      }),
+    debugLogger.log(
+      `Extension "${args.name}" successfully disabled for scope "${args.scope}".`,
     );
   } catch (error) {
-    writeStderrLine(getErrorMessage(error));
+    debugLogger.error(getErrorMessage(error));
     process.exit(1);
   }
 }
@@ -46,7 +55,7 @@ export const disableCommand: CommandModule = {
         type: 'string',
       })
       .option('scope', {
-        describe: t('The scope to disable the extenison in.'),
+        describe: 'The scope to disable the extension in.',
         type: 'string',
         default: SettingScope.User,
       })
@@ -55,23 +64,25 @@ export const disableCommand: CommandModule = {
           argv.scope &&
           !Object.values(SettingScope)
             .map((s) => s.toLowerCase())
-            .includes((argv.scope as string).toLowerCase())
+            .includes(argv.scope.toLowerCase())
         ) {
           throw new Error(
-            t('Invalid scope: {{scope}}. Please use one of {{scopes}}.', {
-              scope: argv.scope as string,
-              scopes: Object.values(SettingScope)
-                .map((s) => s.toLowerCase())
-                .join(', '),
-            }),
+            `Invalid scope: ${argv.scope}. Please use one of ${Object.values(
+              SettingScope,
+            )
+              .map((s) => s.toLowerCase())
+              .join(', ')}.`,
           );
         }
         return true;
       }),
   handler: async (argv) => {
     await handleDisable({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       name: argv['name'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       scope: argv['scope'] as string,
     });
+    await exitCli();
   },
 };

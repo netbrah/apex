@@ -16,10 +16,9 @@ import { t, getCurrentLanguage } from '../../i18n/index.js';
 
 export const docsCommand: SlashCommand = {
   name: 'docs',
-  get description() {
-    return t('open full Apex documentation in your browser');
-  },
+  description: 'Open full Gemini CLI documentation in your browser',
   kind: CommandKind.BUILT_IN,
+  autoExecute: true,
   action: async (context: CommandContext): Promise<void> => {
     const langPath = getCurrentLanguage()?.startsWith('zh') ? 'zh' : 'en';
     const docsUrl = `https://apex-code.dev/docs/${langPath}`;

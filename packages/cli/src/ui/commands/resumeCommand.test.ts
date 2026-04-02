@@ -1,38 +1,41 @@
 /**
  * @license
- * Copyright 2025 Apex
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { resumeCommand } from './resumeCommand.js';
-import { type CommandContext } from './types.js';
-import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
+import type { CommandContext } from './types.js';
 
 describe('resumeCommand', () => {
-  let mockContext: CommandContext;
-
-  beforeEach(() => {
-    mockContext = createMockCommandContext();
-  });
-
-  it('should return a dialog action to open the resume dialog', async () => {
-    // Ensure the command has an action to test.
-    if (!resumeCommand.action) {
-      throw new Error('The resume command must have an action.');
-    }
-
-    const result = await resumeCommand.action(mockContext, '');
-
-    // Assert that the action returns the correct object to trigger the resume dialog.
+  it('should open the session browser for bare /resume', async () => {
+    const result = await resumeCommand.action?.({} as CommandContext, '');
     expect(result).toEqual({
       type: 'dialog',
-      dialog: 'resume',
+      dialog: 'sessionBrowser',
     });
   });
 
-  it('should have the correct name and description', () => {
-    expect(resumeCommand.name).toBe('resume');
-    expect(resumeCommand.description).toBe('Resume a previous session');
+  it('should expose unified chat subcommands directly under /resume', () => {
+    const visibleSubCommandNames = (resumeCommand.subCommands ?? [])
+      .filter((subCommand) => !subCommand.hidden)
+      .map((subCommand) => subCommand.name);
+
+    expect(visibleSubCommandNames).toEqual(
+      expect.arrayContaining(['list', 'save', 'resume', 'delete', 'share']),
+    );
+  });
+
+  it('should keep a hidden /resume checkpoints compatibility alias', () => {
+    const checkpoints = resumeCommand.subCommands?.find(
+      (subCommand) => subCommand.name === 'checkpoints',
+    );
+    expect(checkpoints?.hidden).toBe(true);
+    expect(
+      checkpoints?.subCommands?.map((subCommand) => subCommand.name),
+    ).toEqual(
+      expect.arrayContaining(['list', 'save', 'resume', 'delete', 'share']),
+    );
   });
 });

@@ -18,8 +18,8 @@ import type {
   SessionMetrics,
   ModelMetrics,
   ToolCallStats,
-} from '@apex-code/apex-core';
-import { uiTelemetryService } from '@apex-code/apex-core';
+} from '@google/gemini-cli-core';
+import { uiTelemetryService, sessionId } from '@google/gemini-cli-core';
 
 export enum ToolCallDecision {
   ACCEPT = 'accept',
@@ -37,6 +37,7 @@ function areModelMetricsEqual(a: ModelMetrics, b: ModelMetrics): boolean {
     return false;
   }
   if (
+    a.tokens.input !== b.tokens.input ||
     a.tokens.prompt !== b.tokens.prompt ||
     a.tokens.candidates !== b.tokens.candidates ||
     a.tokens.total !== b.tokens.total ||
@@ -162,6 +163,7 @@ export interface ComputedSessionStats {
   successRate: number;
   agreementRate: number;
   totalCachedTokens: number;
+  totalInputTokens: number;
   totalPromptTokens: number;
   totalLinesAdded: number;
   totalLinesRemoved: number;
@@ -220,10 +222,6 @@ export const SessionStatsProvider: React.FC<{
       setStats((prevState) => {
         if (
           prevState.lastPromptTokenCount === lastPromptTokenCount &&
-          prevState.lastOutputTokenCount === lastOutputTokenCount &&
-          prevState.lastToolTokenCount === lastToolTokenCount &&
-          prevState.lastCachedContentTokenCount ===
-            lastCachedContentTokenCount &&
           areMetricsEqual(prevState.metrics, metrics)
         ) {
           return prevState;
@@ -232,14 +230,22 @@ export const SessionStatsProvider: React.FC<{
           ...prevState,
           metrics,
           lastPromptTokenCount,
-          lastOutputTokenCount,
-          lastToolTokenCount,
-          lastCachedContentTokenCount,
         };
       });
     };
 
+    const handleClear = (newSessionId?: string) => {
+      setStats((prevState) => ({
+        ...prevState,
+        sessionId: newSessionId || prevState.sessionId,
+        sessionStartTime: new Date(),
+        promptCount: 0,
+      }));
+    };
+
     uiTelemetryService.on('update', handleUpdate);
+    uiTelemetryService.on('clear', handleClear);
+    // Set initial state
     handleUpdate({
       metrics: uiTelemetryService.getMetrics(),
       lastPromptTokenCount: uiTelemetryService.getLastPromptTokenCount(),
@@ -251,6 +257,7 @@ export const SessionStatsProvider: React.FC<{
 
     return () => {
       uiTelemetryService.off('update', handleUpdate);
+      uiTelemetryService.off('clear', handleClear);
     };
   }, []);
 

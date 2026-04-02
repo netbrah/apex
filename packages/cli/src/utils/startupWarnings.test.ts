@@ -10,9 +10,9 @@ import * as fs from 'node:fs/promises';
 import { getErrorMessage } from '@apex-code/apex-core';
 
 vi.mock('node:fs/promises', { spy: true });
-vi.mock('@apex-code/apex-core', async (importOriginal) => {
+vi.mock('@google/gemini-cli-core', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@apex-code/apex-core')>();
+    await importOriginal<typeof import('@google/gemini-cli-core')>();
   return {
     ...actual,
     getErrorMessage: vi.fn(),

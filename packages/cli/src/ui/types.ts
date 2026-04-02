@@ -1,30 +1,48 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {
-  CompressionStatus,
-  MCPServerConfig,
-  ThoughtSummary,
-  ToolCallConfirmationDetails,
-  ToolConfirmationOutcome,
-  ToolResultDisplay,
-  AgentStatus,
-} from '@apex-code/apex-core';
+import {
+  type CompressionStatus,
+  type GeminiCLIExtension,
+  type MCPServerConfig,
+  type ThoughtSummary,
+  type SerializableConfirmationDetails,
+  type ToolResultDisplay,
+  type RetrieveUserQuotaResponse,
+  type SkillDefinition,
+  type AgentDefinition,
+  type ApprovalMode,
+  type Kind,
+  type AnsiOutput,
+  CoreToolCallStatus,
+  checkExhaustive,
+  type SubagentActivityItem,
+} from '@google/gemini-cli-core';
 import type { PartListUnion } from '@google/genai';
 import { type ReactNode } from 'react';
 
-export type { ThoughtSummary };
+export { CoreToolCallStatus };
+export type {
+  ThoughtSummary,
+  SkillDefinition,
+  SerializableConfirmationDetails,
+  ToolResultDisplay,
+};
 
 export enum AuthState {
-  // Attemtping to authenticate or re-authenticate
+  // Attempting to authenticate or re-authenticate
   Unauthenticated = 'unauthenticated',
   // Auth dialog is open for user to select auth method
   Updating = 'updating',
+  // Waiting for user to input API key
+  AwaitingApiKeyInput = 'awaiting_api_key_input',
   // Successfully authenticated
   Authenticated = 'authenticated',
+  // Waiting for the user to restart after a Google login
+  AwaitingGoogleLoginRestart = 'awaiting_google_login_restart',
 }
 
 // Only defining the state enum needed by the UI
@@ -50,25 +68,75 @@ export enum ToolCallStatus {
   Error = 'Error',
 }
 
+/**
+ * Maps core tool call status to a simplified UI status.
+ */
+export function mapCoreStatusToDisplayStatus(
+  coreStatus: CoreToolCallStatus,
+): ToolCallStatus {
+  switch (coreStatus) {
+    case CoreToolCallStatus.Validating:
+      return ToolCallStatus.Pending;
+    case CoreToolCallStatus.AwaitingApproval:
+      return ToolCallStatus.Confirming;
+    case CoreToolCallStatus.Executing:
+      return ToolCallStatus.Executing;
+    case CoreToolCallStatus.Success:
+      return ToolCallStatus.Success;
+    case CoreToolCallStatus.Cancelled:
+      return ToolCallStatus.Canceled;
+    case CoreToolCallStatus.Error:
+      return ToolCallStatus.Error;
+    case CoreToolCallStatus.Scheduled:
+      return ToolCallStatus.Pending;
+    default:
+      return checkExhaustive(coreStatus);
+  }
+}
+
+/**
+ * --- TYPE GUARDS ---
+ */
+
+export const isTodoList = (res: unknown): res is { todos: unknown[] } =>
+  typeof res === 'object' && res !== null && 'todos' in res;
+
+export const isAnsiOutput = (res: unknown): res is AnsiOutput =>
+  Array.isArray(res) && (res.length === 0 || Array.isArray(res[0]));
+
 export interface ToolCallEvent {
   type: 'tool_call';
-  status: ToolCallStatus;
+  status: CoreToolCallStatus;
   callId: string;
   name: string;
   args: Record<string, never>;
   resultDisplay: ToolResultDisplay | undefined;
-  confirmationDetails: ToolCallConfirmationDetails | undefined;
+  confirmationDetails: SerializableConfirmationDetails | undefined;
+  correlationId?: string;
 }
 
 export interface IndividualToolCallDisplay {
   callId: string;
+  parentCallId?: string;
   name: string;
+  args?: Record<string, unknown>;
   description: string;
-  resultDisplay: ToolResultDisplay | string | undefined;
-  status: ToolCallStatus;
-  confirmationDetails: ToolCallConfirmationDetails | undefined;
+  resultDisplay: ToolResultDisplay | undefined;
+  status: CoreToolCallStatus;
+  // True when the tool was initiated directly by the user (slash/@/shell flows).
+  isClientInitiated?: boolean;
+  kind?: Kind;
+  confirmationDetails: SerializableConfirmationDetails | undefined;
   renderOutputAsMarkdown?: boolean;
   ptyId?: number;
+  outputFile?: string;
+  correlationId?: string;
+  approvalMode?: ApprovalMode;
+  progressMessage?: string;
+  originalRequestName?: string;
+  progress?: number;
+  progressTotal?: number;
+  subagentHistory?: SubagentActivityItem[];
 }
 
 export interface CompressionProps {
@@ -78,11 +146,10 @@ export interface CompressionProps {
   compressionStatus: CompressionStatus | null;
 }
 
-export interface SummaryProps {
-  isPending: boolean;
-  stage: 'generating' | 'saving' | 'completed';
-  filePath?: string; // Path to the saved summary file
-}
+/**
+ * For use when you want no icon.
+ */
+export const emptyIcon = '  ';
 
 export interface HistoryItemBase {
   text?: string; // Text content for user/gemini/info/error messages
@@ -116,6 +183,10 @@ export type HistoryItemGeminiThoughtContent = HistoryItemBase & {
 export type HistoryItemInfo = HistoryItemBase & {
   type: 'info';
   text: string;
+  secondaryText?: string;
+  icon?: string;
+  color?: string;
+  marginBottom?: number;
 };
 
 export type HistoryItemError = HistoryItemBase & {
@@ -139,24 +210,22 @@ export type HistoryItemRetryCountdown = HistoryItemBase & {
   text: string;
 };
 
+export type HistoryItemWarning = HistoryItemBase & {
+  type: 'warning';
+  text: string;
+};
+
 export type HistoryItemAbout = HistoryItemBase & {
   type: 'about';
-  systemInfo: {
-    cliVersion: string;
-    osPlatform: string;
-    osArch: string;
-    osRelease: string;
-    nodeVersion: string;
-    npmVersion: string;
-    sandboxEnv: string;
-    modelVersion: string;
-    selectedAuthType: string;
-    ideClient: string;
-    sessionId: string;
-    memoryUsage: string;
-    baseUrl?: string;
-    gitCommit?: string;
-  };
+  cliVersion: string;
+  osVersion: string;
+  sandboxEnv: string;
+  modelVersion: string;
+  selectedAuthType: string;
+  gcpProject: string;
+  ideClient: string;
+  userEmail?: string;
+  tier?: string;
 };
 
 export type HistoryItemHelp = HistoryItemBase & {
@@ -164,17 +233,40 @@ export type HistoryItemHelp = HistoryItemBase & {
   timestamp: Date;
 };
 
-export type HistoryItemStats = HistoryItemBase & {
+export interface HistoryItemQuotaBase extends HistoryItemBase {
+  selectedAuthType?: string;
+  userEmail?: string;
+  tier?: string;
+  currentModel?: string;
+  pooledRemaining?: number;
+  pooledLimit?: number;
+  pooledResetTime?: string;
+}
+
+export interface QuotaStats {
+  remaining: number | undefined;
+  limit: number | undefined;
+  resetTime?: string;
+}
+
+export type HistoryItemStats = HistoryItemQuotaBase & {
   type: 'stats';
   duration: string;
+  quotas?: RetrieveUserQuotaResponse;
+  creditBalance?: number;
 };
 
-export type HistoryItemModelStats = HistoryItemBase & {
+export type HistoryItemModelStats = HistoryItemQuotaBase & {
   type: 'model_stats';
 };
 
 export type HistoryItemToolStats = HistoryItemBase & {
   type: 'tool_stats';
+};
+
+export type HistoryItemModel = HistoryItemBase & {
+  type: 'model';
+  model: string;
 };
 
 export type HistoryItemQuit = HistoryItemBase & {
@@ -185,6 +277,10 @@ export type HistoryItemQuit = HistoryItemBase & {
 export type HistoryItemToolGroup = HistoryItemBase & {
   type: 'tool_group';
   tools: IndividualToolCallDisplay[];
+  borderTop?: boolean;
+  borderBottom?: boolean;
+  borderColor?: string;
+  borderDimColor?: boolean;
 };
 
 export type HistoryItemUserShell = HistoryItemBase & {
@@ -197,23 +293,41 @@ export type HistoryItemCompression = HistoryItemBase & {
   compression: CompressionProps;
 };
 
-export type HistoryItemSummary = HistoryItemBase & {
-  type: 'summary';
-  summary: SummaryProps;
-};
-
 export type HistoryItemExtensionsList = HistoryItemBase & {
   type: 'extensions_list';
+  extensions: GeminiCLIExtension[];
+};
+
+export interface ChatDetail {
+  name: string;
+  mtime: string;
+}
+
+export type HistoryItemThinking = HistoryItemBase & {
+  type: 'thinking';
+  thought: ThoughtSummary;
+};
+
+export type HistoryItemHint = HistoryItemBase & {
+  type: 'hint';
+  text: string;
+};
+
+export type HistoryItemChatList = HistoryItemBase & {
+  type: 'chat_list';
+  chats: ChatDetail[];
+};
+
+export type HistoryItemSubagent = HistoryItemBase & {
+  type: 'subagent';
+  agentName: string;
+  history: SubagentActivityItem[];
 };
 
 export interface ToolDefinition {
   name: string;
   displayName: string;
   description?: string;
-}
-
-export interface SkillDefinition {
-  name: string;
 }
 
 export type HistoryItemToolsList = HistoryItemBase & {
@@ -225,6 +339,17 @@ export type HistoryItemToolsList = HistoryItemBase & {
 export type HistoryItemSkillsList = HistoryItemBase & {
   type: 'skills_list';
   skills: SkillDefinition[];
+  showDescriptions: boolean;
+};
+
+export type AgentDefinitionJson = Pick<
+  AgentDefinition,
+  'name' | 'displayName' | 'description' | 'kind'
+>;
+
+export type HistoryItemAgentsList = HistoryItemBase & {
+  type: 'agents_list';
+  agents: AgentDefinitionJson[];
 };
 
 // JSON-friendly types for using as a simple data model showing info about an
@@ -245,125 +370,40 @@ export interface JsonMcpPrompt {
   description?: string;
 }
 
+export interface JsonMcpResource {
+  serverName: string;
+  name?: string;
+  uri?: string;
+  mimeType?: string;
+  description?: string;
+}
+
 export type HistoryItemMcpStatus = HistoryItemBase & {
   type: 'mcp_status';
   servers: Record<string, MCPServerConfig>;
   tools: JsonMcpTool[];
   prompts: JsonMcpPrompt[];
+  resources: JsonMcpResource[];
   authStatus: Record<
     string,
     'authenticated' | 'expired' | 'unauthenticated' | 'not-configured'
   >;
+  enablementState: Record<
+    string,
+    {
+      enabled: boolean;
+      isSessionDisabled: boolean;
+      isPersistentDisabled: boolean;
+    }
+  >;
+  errors: Record<string, string>;
   blockedServers: Array<{ name: string; extensionName: string }>;
   discoveryInProgress: boolean;
   connectingServers: string[];
   showDescriptions: boolean;
   showSchema: boolean;
-  showTips: boolean;
 };
 
-// --- Context Usage types ---
-
-export interface ContextCategoryBreakdown {
-  systemPrompt: number;
-  builtinTools: number;
-  mcpTools: number;
-  memoryFiles: number;
-  skills: number;
-  messages: number;
-  freeSpace: number;
-  autocompactBuffer: number;
-}
-
-export interface ContextToolDetail {
-  name: string;
-  tokens: number;
-}
-
-export interface ContextMemoryDetail {
-  path: string;
-  tokens: number;
-}
-
-export interface ContextSkillDetail {
-  name: string;
-  /** Token cost of the skill listing (name+description) in the tool definition */
-  tokens: number;
-  /** Whether this skill has been invoked and its full body loaded into context */
-  loaded?: boolean;
-  /** Token cost of the loaded SKILL.md body (only set when loaded is true) */
-  bodyTokens?: number;
-}
-
-export type HistoryItemContextUsage = HistoryItemBase & {
-  type: 'context_usage';
-  modelName: string;
-  totalTokens: number;
-  contextWindowSize: number;
-  breakdown: ContextCategoryBreakdown;
-  builtinTools: ContextToolDetail[];
-  mcpTools: ContextToolDetail[];
-  memoryFiles: ContextMemoryDetail[];
-  skills: ContextSkillDetail[];
-  /** True when totalTokens is estimated (no API call yet) rather than from API response */
-  isEstimated?: boolean;
-  /** When true, show per-item detail sections (tools, memory, skills). Default: false (compact). */
-  showDetails?: boolean;
-};
-
-/**
- * Arena agent completion card data.
- */
-export interface ArenaAgentCardData {
-  label: string;
-  status: AgentStatus;
-  durationMs: number;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  toolCalls: number;
-  successfulToolCalls: number;
-  failedToolCalls: number;
-  rounds: number;
-  error?: string;
-  diff?: string;
-}
-
-export type HistoryItemArenaAgentComplete = HistoryItemBase & {
-  type: 'arena_agent_complete';
-  agent: ArenaAgentCardData;
-};
-
-export type HistoryItemArenaSessionComplete = HistoryItemBase & {
-  type: 'arena_session_complete';
-  sessionStatus: string;
-  task: string;
-  totalDurationMs: number;
-  agents: ArenaAgentCardData[];
-};
-
-/**
- * Insight progress message.
- */
-export type HistoryItemInsightProgress = HistoryItemBase & {
-  type: 'insight_progress';
-  progress: InsightProgressProps;
-};
-
-export interface BtwProps {
-  question: string;
-  answer: string;
-  isPending: boolean;
-}
-
-export type HistoryItemBtw = HistoryItemBase & {
-  type: 'btw';
-  btw: BtwProps;
-};
-
-// Using Omit<HistoryItem, 'id'> seems to have some issues with typescript's
-// type inference e.g. historyItem.type === 'tool_group' isn't auto-inferring that
-// 'tools' in historyItem.
 // Individually exported types extending HistoryItemBase
 export type HistoryItemWithoutId =
   | HistoryItemUser
@@ -375,27 +415,24 @@ export type HistoryItemWithoutId =
   | HistoryItemInfo
   | HistoryItemError
   | HistoryItemWarning
-  | HistoryItemSuccess
-  | HistoryItemRetryCountdown
   | HistoryItemAbout
   | HistoryItemHelp
   | HistoryItemToolGroup
   | HistoryItemStats
   | HistoryItemModelStats
   | HistoryItemToolStats
+  | HistoryItemModel
   | HistoryItemQuit
-  | HistoryItemCompression
-  | HistoryItemSummary
   | HistoryItemCompression
   | HistoryItemExtensionsList
   | HistoryItemToolsList
   | HistoryItemSkillsList
+  | HistoryItemAgentsList
   | HistoryItemMcpStatus
-  | HistoryItemContextUsage
-  | HistoryItemArenaAgentComplete
-  | HistoryItemArenaSessionComplete
-  | HistoryItemInsightProgress
-  | HistoryItemBtw;
+  | HistoryItemChatList
+  | HistoryItemThinking
+  | HistoryItemHint
+  | HistoryItemSubagent;
 
 export type HistoryItem = HistoryItemWithoutId & { id: number };
 
@@ -414,24 +451,13 @@ export enum MessageType {
   QUIT = 'quit',
   GEMINI = 'gemini',
   COMPRESSION = 'compression',
-  SUMMARY = 'summary',
   EXTENSIONS_LIST = 'extensions_list',
   TOOLS_LIST = 'tools_list',
   SKILLS_LIST = 'skills_list',
+  AGENTS_LIST = 'agents_list',
   MCP_STATUS = 'mcp_status',
-  CONTEXT_USAGE = 'context_usage',
-  ARENA_AGENT_COMPLETE = 'arena_agent_complete',
-  ARENA_SESSION_COMPLETE = 'arena_session_complete',
-  INSIGHT_PROGRESS = 'insight_progress',
-  BTW = 'btw',
-}
-
-export interface InsightProgressProps {
-  stage: string;
-  progress: number;
-  detail?: string;
-  isComplete?: boolean;
-  error?: string;
+  CHAT_LIST = 'chat_list',
+  HINT = 'hint',
 }
 
 // Simplified message structure for internal feedback
@@ -444,22 +470,14 @@ export type Message =
   | {
       type: MessageType.ABOUT;
       timestamp: Date;
-      systemInfo: {
-        cliVersion: string;
-        osPlatform: string;
-        osArch: string;
-        osRelease: string;
-        nodeVersion: string;
-        npmVersion: string;
-        sandboxEnv: string;
-        modelVersion: string;
-        selectedAuthType: string;
-        ideClient: string;
-        sessionId: string;
-        memoryUsage: string;
-        baseUrl?: string;
-        gitCommit?: string;
-      };
+      cliVersion: string;
+      osVersion: string;
+      sandboxEnv: string;
+      modelVersion: string;
+      selectedAuthType: string;
+      gcpProject: string;
+      ideClient: string;
+      userEmail?: string;
       content?: string; // Optional content, not really used for ABOUT
     }
   | {
@@ -528,19 +546,12 @@ export type SlashCommandProcessorResult =
       type: 'schedule_tool';
       toolName: string;
       toolArgs: Record<string, unknown>;
+      postSubmitPrompt?: PartListUnion;
     }
   | {
       type: 'handled'; // Indicates the command was processed and no further action is needed.
     }
   | SubmitPromptResult;
-
-export interface ShellConfirmationRequest {
-  commands: string[];
-  onConfirm: (
-    outcome: ToolConfirmationOutcome,
-    approvedCommands?: string[],
-  ) => void;
-}
 
 export interface ConfirmationRequest {
   prompt: ReactNode;
@@ -551,22 +562,15 @@ export interface LoopDetectionConfirmationRequest {
   onComplete: (result: { userSelection: 'disable' | 'keep' }) => void;
 }
 
-export interface SettingInputRequest {
-  settingName: string;
-  settingDescription: string;
-  sensitive: boolean;
-  onSubmit: (value: string) => void;
-  onCancel: () => void;
+export interface PermissionConfirmationRequest {
+  files: string[];
+  onComplete: (result: { allowed: boolean }) => void;
 }
 
-export interface PluginChoice {
+export interface ActiveHook {
   name: string;
-  description?: string;
-}
-
-export interface PluginChoiceRequest {
-  marketplaceName: string;
-  plugins: PluginChoice[];
-  onSelect: (pluginName: string) => void;
-  onCancel: () => void;
+  eventName: string;
+  source?: string;
+  index?: number;
+  total?: number;
 }

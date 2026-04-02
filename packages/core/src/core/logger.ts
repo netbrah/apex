@@ -7,8 +7,10 @@
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type { Content } from '@google/genai';
+import type { AuthType } from './contentGenerator.js';
 import type { Storage } from '../config/storage.js';
-import { createDebugLogger, type DebugLogger } from '../utils/debugLogger.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { coreEvents } from '../utils/events.js';
 
 const LOG_FILE_NAME = 'logs.json';
 
@@ -25,11 +27,9 @@ export interface LogEntry {
   message: string;
 }
 
-export interface ModelSwitchEvent {
-  fromModel: string;
-  toModel: string;
-  reason: 'vision_auto_switch' | 'manual' | 'fallback' | 'other';
-  context?: string;
+export interface Checkpoint {
+  history: readonly Content[];
+  authType?: AuthType;
 }
 
 // This regex matches any character that is NOT a letter (a-z, A-Z),
@@ -60,7 +60,7 @@ export function encodeTagName(str: string): string {
 export function decodeTagName(str: string): string {
   try {
     return decodeURIComponent(str);
-  } catch (_e) {
+  } catch {
     // Fallback for old, potentially malformed encoding
     return str.replace(/%([0-9A-F]{2})/g, (_, hex) =>
       String.fromCharCode(parseInt(hex, 16)),
@@ -91,14 +91,16 @@ export class Logger {
     }
     try {
       const fileContent = await fs.readFile(this.logFilePath, 'utf-8');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsedLogs = JSON.parse(fileContent);
       if (!Array.isArray(parsedLogs)) {
-        this.debugLogger.debug(
+        debugLogger.debug(
           `Log file at ${this.logFilePath} is not a valid JSON array. Starting with empty logs.`,
         );
         await this._backupCorruptedLogFile('malformed_array');
         return [];
       }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       return parsedLogs.filter(
         (entry) =>
           typeof entry.sessionId === 'string' &&
@@ -108,19 +110,20 @@ export class Logger {
           typeof entry.message === 'string',
       ) as LogEntry[];
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code === 'ENOENT') {
         return [];
       }
       if (error instanceof SyntaxError) {
-        this.debugLogger.debug(
+        debugLogger.debug(
           `Invalid JSON in log file ${this.logFilePath}. Backing up and starting fresh.`,
           error,
         );
         await this._backupCorruptedLogFile('invalid_json');
         return [];
       }
-      this.debugLogger.debug(
+      debugLogger.debug(
         `Failed to read or parse log file ${this.logFilePath}:`,
         error,
       );
@@ -133,8 +136,8 @@ export class Logger {
     const backupPath = `${this.logFilePath}.${reason}.${Date.now()}.bak`;
     try {
       await fs.rename(this.logFilePath, backupPath);
-      this.debugLogger.debug(`Backed up corrupted log file to ${backupPath}`);
-    } catch (_backupError) {
+      debugLogger.debug(`Backed up corrupted log file to ${backupPath}`);
+    } catch {
       // If rename fails (e.g. file doesn't exist), no need to log an error here as the primary error (e.g. invalid JSON) is already handled.
     }
   }
@@ -144,15 +147,16 @@ export class Logger {
       return;
     }
 
-    this.apexDir = this.storage.getProjectTempDir();
-    this.logFilePath = path.join(this.apexDir, LOG_FILE_NAME);
+    await this.storage.initialize();
+    this.geminiDir = this.storage.getProjectTempDir();
+    this.logFilePath = path.join(this.geminiDir, LOG_FILE_NAME);
 
     try {
       await fs.mkdir(this.apexDir, { recursive: true });
       let fileExisted = true;
       try {
         await fs.access(this.logFilePath);
-      } catch (_e) {
+      } catch {
         fileExisted = false;
       }
       this.logs = await this._readLogFile();
@@ -168,7 +172,7 @@ export class Logger {
           : 0;
       this.initialized = true;
     } catch (err) {
-      this.debugLogger.error('Failed to initialize logger:', err);
+      coreEvents.emitFeedback('error', 'Failed to initialize logger:', err);
       this.initialized = false;
     }
   }
@@ -177,9 +181,7 @@ export class Logger {
     entryToAppend: LogEntry,
   ): Promise<LogEntry | null> {
     if (!this.logFilePath) {
-      this.debugLogger.debug(
-        'Log file path not set. Cannot persist log entry.',
-      );
+      debugLogger.debug('Log file path not set. Cannot persist log entry.');
       throw new Error('Log file path not set during update attempt.');
     }
 
@@ -187,7 +189,7 @@ export class Logger {
     try {
       currentLogsOnDisk = await this._readLogFile();
     } catch (readError) {
-      this.debugLogger.debug(
+      debugLogger.debug(
         'Critical error reading log file before append:',
         readError,
       );
@@ -218,7 +220,7 @@ export class Logger {
     );
 
     if (entryExists) {
-      this.debugLogger.debug(
+      debugLogger.debug(
         `Duplicate log entry detected and skipped: session ${entryToAppend.sessionId}, messageId ${entryToAppend.messageId}`,
       );
       this.logs = currentLogsOnDisk; // Ensure in-memory is synced with disk
@@ -236,7 +238,7 @@ export class Logger {
       this.logs = currentLogsOnDisk;
       return entryToAppend; // Return the successfully appended entry
     } catch (error) {
-      this.debugLogger.debug('Error writing to log file:', error);
+      debugLogger.debug('Error writing to log file:', error);
       throw error;
     }
   }
@@ -255,7 +257,7 @@ export class Logger {
 
   async logMessage(type: MessageSenderType, message: string): Promise<void> {
     if (!this.initialized || this.sessionId === undefined) {
-      this.debugLogger.debug(
+      debugLogger.debug(
         'Logger not initialized or session ID missing. Cannot log message.',
       );
       return;
@@ -278,7 +280,7 @@ export class Logger {
         // then this instance can increment its idea of the next messageId for this session.
         this.messageId = writtenEntry.messageId + 1;
       }
-    } catch (_error) {
+    } catch {
       // Error already logged by _updateLogFile or _readLogFile
     }
   }
@@ -302,6 +304,7 @@ export class Logger {
       await fs.access(newPath);
       return newPath; // Found it, use the new path.
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code !== 'ENOENT') {
         throw error; // A real error occurred, rethrow it.
@@ -315,6 +318,7 @@ export class Logger {
       await fs.access(oldPath);
       return oldPath; // Found it, use the old path.
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code !== 'ENOENT') {
         throw error; // A real error occurred, rethrow it.
@@ -325,9 +329,9 @@ export class Logger {
     return newPath;
   }
 
-  async saveCheckpoint(conversation: Content[], tag: string): Promise<void> {
+  async saveCheckpoint(checkpoint: Checkpoint, tag: string): Promise<void> {
     if (!this.initialized) {
-      this.debugLogger.error(
+      debugLogger.error(
         'Logger not initialized or checkpoint file path not set. Cannot save a checkpoint.',
       );
       return;
@@ -335,48 +339,63 @@ export class Logger {
     // Always save with the new encoded path.
     const path = this._checkpointPath(tag);
     try {
-      await fs.writeFile(path, JSON.stringify(conversation, null, 2), 'utf-8');
+      await fs.writeFile(path, JSON.stringify(checkpoint, null, 2), 'utf-8');
     } catch (error) {
-      this.debugLogger.error('Error writing to checkpoint file:', error);
+      debugLogger.error('Error writing to checkpoint file:', error);
     }
   }
 
-  async loadCheckpoint(tag: string): Promise<Content[]> {
+  async loadCheckpoint(tag: string): Promise<Checkpoint> {
     if (!this.initialized) {
-      this.debugLogger.error(
+      debugLogger.error(
         'Logger not initialized or checkpoint file path not set. Cannot load checkpoint.',
       );
-      return [];
+      return { history: [] };
     }
 
     const path = await this._getCheckpointPath(tag);
     try {
       const fileContent = await fs.readFile(path, 'utf-8');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsedContent = JSON.parse(fileContent);
-      if (!Array.isArray(parsedContent)) {
-        this.debugLogger.warn(
-          `Checkpoint file at ${path} is not a valid JSON array. Returning empty checkpoint.`,
-        );
-        return [];
+
+      // Handle legacy format (just an array of Content)
+      if (Array.isArray(parsedContent)) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        return { history: parsedContent as Content[] };
       }
-      return parsedContent as Content[];
+
+      if (
+        typeof parsedContent === 'object' &&
+        parsedContent !== null &&
+        'history' in parsedContent
+      ) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        return parsedContent as Checkpoint;
+      }
+
+      debugLogger.warn(
+        `Checkpoint file at ${path} has an unknown format. Returning empty checkpoint.`,
+      );
+      return { history: [] };
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code === 'ENOENT') {
         // This is okay, it just means the checkpoint doesn't exist in either format.
-        return [];
+        return { history: [] };
       }
-      this.debugLogger.error(
+      debugLogger.error(
         `Failed to read or parse checkpoint file ${path}:`,
         error,
       );
-      return [];
+      return { history: [] };
     }
   }
 
   async deleteCheckpoint(tag: string): Promise<boolean> {
-    if (!this.initialized || !this.apexDir) {
-      this.debugLogger.error(
+    if (!this.initialized || !this.geminiDir) {
+      debugLogger.error(
         'Logger not initialized or checkpoint file path not set. Cannot delete checkpoint.',
       );
       return false;
@@ -390,9 +409,10 @@ export class Logger {
       await fs.unlink(newPath);
       deletedSomething = true;
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code !== 'ENOENT') {
-        this.debugLogger.error(
+        debugLogger.error(
           `Failed to delete checkpoint file ${newPath}:`,
           error,
         );
@@ -402,15 +422,16 @@ export class Logger {
     }
 
     // 2. Attempt to delete the old raw path for backward compatibility.
-    const oldPath = path.join(this.apexDir!, `checkpoint-${tag}.json`);
+    const oldPath = path.join(this.geminiDir, `checkpoint-${tag}.json`);
     if (newPath !== oldPath) {
       try {
         await fs.unlink(oldPath);
         deletedSomething = true;
       } catch (error) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const nodeError = error as NodeJS.ErrnoException;
         if (nodeError.code !== 'ENOENT') {
-          this.debugLogger.error(
+          debugLogger.error(
             `Failed to delete checkpoint file ${oldPath}:`,
             error,
           );
@@ -437,12 +458,13 @@ export class Logger {
       await fs.access(filePath);
       return true;
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError.code === 'ENOENT') {
         return false; // It truly doesn't exist in either format.
       }
       // A different error occurred.
-      this.debugLogger.error(
+      debugLogger.error(
         `Failed to check checkpoint existence for ${
           filePath ?? `path for tag "${tag}"`
         }:`,

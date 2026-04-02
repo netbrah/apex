@@ -14,12 +14,77 @@ const execFileAsync = promisify(execFile);
 
 const MAX_TRAVERSAL_DEPTH = 32;
 
+interface ProcessInfo {
+  pid: number;
+  parentPid: number;
+  name: string;
+  command: string;
+}
+
+interface RawProcessInfo {
+  ProcessId?: number;
+  ParentProcessId?: number;
+  Name?: string;
+  CommandLine?: string;
+}
+
+/**
+ * Fetches the entire process table on Windows.
+ */
+async function getProcessTableWindows(): Promise<Map<number, ProcessInfo>> {
+  const processMap = new Map<number, ProcessInfo>();
+  try {
+    // Fetch ProcessId, ParentProcessId, Name, and CommandLine for all processes.
+    const powershellCommand =
+      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress';
+    // Increase maxBuffer to handle large process lists (default is 1MB)
+    const { stdout } = await execAsync(`powershell "${powershellCommand}"`, {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
+    if (!stdout.trim()) {
+      return processMap;
+    }
+
+    let processes: RawProcessInfo | RawProcessInfo[];
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      processes = JSON.parse(stdout);
+    } catch {
+      return processMap;
+    }
+
+    if (!Array.isArray(processes)) {
+      processes = [processes];
+    }
+
+    for (const p of processes) {
+      if (p && typeof p.ProcessId === 'number') {
+        processMap.set(p.ProcessId, {
+          pid: p.ProcessId,
+          parentPid: p.ParentProcessId || 0,
+          name: p.Name || '',
+          command: p.CommandLine || '',
+        });
+      }
+    }
+  } catch {
+    // Fallback or error handling if PowerShell fails
+  }
+  return processMap;
+}
+
+/**
+ * Fetches the parent process ID, name, and command for a given process ID on Unix.
+ *
+ * @param pid The process ID to inspect.
+ * @returns A promise that resolves to the parent's PID, name, and command.
+ */
 async function getProcessInfo(pid: number): Promise<{
   parentPid: number;
   name: string;
   command: string;
 }> {
-  // Only used for Unix systems (macOS and Linux)
   try {
     const command = `ps -o ppid=,command= -p ${pid}`;
     const { stdout } = await execAsync(command);
@@ -32,12 +97,13 @@ async function getProcessInfo(pid: number): Promise<{
     const parentPid = parseInt(ppidString, 10);
     const fullCommand = trimmedStdout.substring(ppidString.length).trim();
     const processName = path.basename(fullCommand.split(' ')[0]);
+
     return {
       parentPid: isNaN(parentPid) ? 1 : parentPid,
       name: processName,
       command: fullCommand,
     };
-  } catch (_e) {
+  } catch {
     return { parentPid: 0, name: '', command: '' };
   }
 }
@@ -108,7 +174,7 @@ interface RawProcessInfo {
 }
 
 /**
- * Fetches the entire process table on Windows.
+ * Finds the IDE process info on Windows using a snapshot approach.
  */
 async function getProcessTableWindows(): Promise<Map<number, ProcessInfo>> {
   const processMap = new Map<number, ProcessInfo>();
@@ -158,30 +224,28 @@ async function getIdeProcessInfoForWindows(): Promise<{
 }> {
   // Fetch the entire process table in one go.
   const processMap = await getProcessTableWindows();
-
   const myPid = process.pid;
   const myProc = processMap.get(myPid);
 
   if (!myProc) {
-    // Fallback: return current process info if snapshot fails
-    return { pid: myPid, command: '' };
+    // Fallback: try to get info for current process directly if snapshot fails
+    const { command } = await getProcessInfo(myPid);
+    return { pid: myPid, command };
   }
 
-  // Perform tree traversal in memory
+  // Perform tree traversal in memory.
+  // Strategy: Find the great-grandchild of the root process (pid 0 or non-existent parent).
   const ancestors: ProcessInfo[] = [];
   let curr: ProcessInfo | undefined = myProc;
 
   for (let i = 0; i < MAX_TRAVERSAL_DEPTH && curr; i++) {
     ancestors.push(curr);
-
     if (curr.parentPid === 0 || !processMap.has(curr.parentPid)) {
-      // Parent process not in map, stop traversal
-      break;
+      break; // Reached root
     }
     curr = processMap.get(curr.parentPid);
   }
 
-  // Use heuristic: return the great-grandparent (ancestors[length-3])
   if (ancestors.length >= 3) {
     const target = ancestors[ancestors.length - 3];
     return { pid: target.pid, command: target.command };
@@ -200,6 +264,13 @@ async function getIdeProcessInfoForWindows(): Promise<{
  * to identify the main application process (e.g., the main VS Code window
  * process).
  *
+ * This function can be overridden by setting the `GEMINI_CLI_IDE_PID`
+ * environment variable. This is useful for launching Gemini CLI in a
+ * standalone terminal while still connecting to an IDE instance.
+ *
+ * If `GEMINI_CLI_IDE_PID` is set, the function uses that PID and fetches
+ * the command for it.
+ *
  * If the IDE process cannot be reliably identified, it will return the
  * top-level ancestor process ID and command as a fallback.
  *
@@ -210,6 +281,19 @@ export async function getIdeProcessInfo(): Promise<{
   command: string;
 }> {
   const platform = os.platform();
+
+  if (process.env['GEMINI_CLI_IDE_PID']) {
+    const idePid = parseInt(process.env['GEMINI_CLI_IDE_PID'], 10);
+    if (!isNaN(idePid) && idePid > 0) {
+      if (platform === 'win32') {
+        const processMap = await getProcessTableWindows();
+        const proc = processMap.get(idePid);
+        return { pid: idePid, command: proc?.command || '' };
+      }
+      const { command } = await getProcessInfo(idePid);
+      return { pid: idePid, command };
+    }
+  }
 
   if (platform === 'win32') {
     return getIdeProcessInfoForWindows();

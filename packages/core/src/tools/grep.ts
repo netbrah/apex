@@ -1,30 +1,43 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
+import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { EOL } from 'node:os';
 import { spawn } from 'node:child_process';
 import ignore from 'ignore';
 import { globStream } from 'glob';
-import type { ToolInvocation, ToolResult } from './tools.js';
-import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
-import { ToolNames, ToolDisplayNames } from './tool-names.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('GREP');
-import { resolveAndValidatePath } from '../utils/paths.js';
+import { execStreaming } from '../utils/shell-utils.js';
+import {
+  DEFAULT_TOTAL_MAX_MATCHES,
+  DEFAULT_SEARCH_TIMEOUT_MS,
+} from './constants.js';
+import {
+  BaseDeclarativeTool,
+  BaseToolInvocation,
+  Kind,
+  type ToolInvocation,
+  type ToolResult,
+  type PolicyUpdateOptions,
+  type ToolConfirmationOutcome,
+} from './tools.js';
+import { makeRelative, shortenPath } from '../utils/paths.js';
 import { getErrorMessage, isNodeError } from '../utils/errors.js';
 import { isGitRepository } from '../utils/gitUtils.js';
 import type { Config } from '../config/config.js';
 import type { PermissionDecision } from '../permissions/types.js';
 import type { FileExclusions } from '../utils/ignorePatterns.js';
 import { ToolErrorType } from './tool-error.js';
-import { isCommandAvailable } from '../utils/shell-utils.js';
-import { loadUserRgIgnorePatterns } from '../utils/rgIgnoreUtils.js';
+import { GREP_TOOL_NAME, GREP_DISPLAY_NAME } from './tool-names.js';
+import { buildPatternArgsPattern } from '../policy/utils.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { GREP_DEFINITION } from './definitions/coreTools.js';
+import { resolveToolDeclaration } from './definitions/resolver.js';
+import { type GrepMatch, formatGrepResults } from './grep-utils.js';
 
 // --- Interfaces ---
 
@@ -40,26 +53,32 @@ export interface GrepToolParams {
   /**
    * The directory to search in (optional, defaults to current directory relative to root)
    */
-  path?: string;
+  dir_path?: string;
 
   /**
    * Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")
    */
-  glob?: string;
+  include_pattern?: string;
 
   /**
-   * Maximum number of matching lines to return (optional, shows all if not specified)
+   * Optional: A regular expression pattern to exclude from the search results.
    */
-  limit?: number;
-}
+  exclude_pattern?: string;
 
-/**
- * Result object for a single grep match
- */
-interface GrepMatch {
-  filePath: string;
-  lineNumber: number;
-  line: string;
+  /**
+   * Optional: If true, only the file paths of the matches will be returned.
+   */
+  names_only?: boolean;
+
+  /**
+   * Optional: Maximum number of matches to return per file. Use this to prevent being overwhelmed by repetitive matches in large files.
+   */
+  max_matches_per_file?: number;
+
+  /**
+   * Optional: Maximum number of total matches to return. Use this to limit the overall size of the response. Defaults to 100 if omitted.
+   */
+  total_max_matches?: number;
 }
 
 class GrepToolInvocation extends BaseToolInvocation<
@@ -72,32 +91,116 @@ class GrepToolInvocation extends BaseToolInvocation<
   constructor(
     private readonly config: Config,
     params: GrepToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ) {
-    super(params);
+    super(params, messageBus, _toolName, _toolDisplayName);
     this.fileExclusions = config.getFileExclusions();
   }
 
   /**
-   * Returns 'ask' for paths outside the workspace, so that external grep
-   * searches require user confirmation.
+   * Parses a single line of grep-like output (git grep, system grep).
+   * Expects format: filePath:lineNumber:lineContent
+   * @param {string} line The line to parse.
+   * @param {string} basePath The absolute directory for path resolution.
+   * @returns {GrepMatch | null} Parsed match or null if malformed.
    */
-  override async getDefaultPermission(): Promise<PermissionDecision> {
-    if (!this.params.path) {
-      return 'allow'; // Default workspace directory
+  private parseGrepLine(line: string, basePath: string): GrepMatch | null {
+    if (!line.trim()) return null;
+
+    // Use regex to locate the first occurrence of :<digits>:
+    // This allows filenames to contain colons, as long as they don't look like :<digits>:
+    // Note: This regex assumes filenames do not contain colons, or at least not followed by digits.
+    const match = line.match(/^(.+?):(\d+):(.*)$/);
+    if (!match) return null;
+
+    const [, filePathRaw, lineNumberStr, lineContent] = match;
+    const lineNumber = parseInt(lineNumberStr, 10);
+
+    if (!isNaN(lineNumber)) {
+      const absoluteFilePath = path.resolve(basePath, filePathRaw);
+      const relativeCheck = path.relative(basePath, absoluteFilePath);
+      if (
+        relativeCheck === '..' ||
+        relativeCheck.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativeCheck)
+      ) {
+        return null;
+      }
+
+      const relativeFilePath = path.relative(basePath, absoluteFilePath);
+
+      return {
+        filePath: relativeFilePath || path.basename(absoluteFilePath),
+        absolutePath: absoluteFilePath,
+        lineNumber,
+        line: lineContent,
+      };
     }
-    const workspaceContext = this.config.getWorkspaceContext();
-    const resolvedPath = path.resolve(
-      this.config.getTargetDir(),
-      this.params.path,
-    );
-    if (workspaceContext.isPathWithinWorkspace(resolvedPath)) {
-      return 'allow';
-    }
-    return 'ask';
+    return null;
   }
 
   async execute(signal: AbortSignal): Promise<ToolResult> {
     try {
+      const workspaceContext = this.config.getWorkspaceContext();
+      const pathParam = this.params.dir_path;
+
+      let searchDirAbs: string | null = null;
+      if (pathParam) {
+        searchDirAbs = path.resolve(this.config.getTargetDir(), pathParam);
+        const validationError = this.config.validatePathAccess(
+          searchDirAbs,
+          'read',
+        );
+        if (validationError) {
+          return {
+            llmContent: validationError,
+            returnDisplay: 'Error: Path not in workspace.',
+            error: {
+              message: validationError,
+              type: ToolErrorType.PATH_NOT_IN_WORKSPACE,
+            },
+          };
+        }
+
+        try {
+          const stats = await fsPromises.stat(searchDirAbs);
+          if (!stats.isDirectory()) {
+            return {
+              llmContent: `Path is not a directory: ${searchDirAbs}`,
+              returnDisplay: 'Error: Path is not a directory.',
+              error: {
+                message: `Path is not a directory: ${searchDirAbs}`,
+                type: ToolErrorType.PATH_IS_NOT_A_DIRECTORY,
+              },
+            };
+          }
+        } catch (error: unknown) {
+          if (isNodeError(error) && error.code === 'ENOENT') {
+            return {
+              llmContent: `Path does not exist: ${searchDirAbs}`,
+              returnDisplay: 'Error: Path does not exist.',
+              error: {
+                message: `Path does not exist: ${searchDirAbs}`,
+                type: ToolErrorType.FILE_NOT_FOUND,
+              },
+            };
+          }
+          const errorMessage = getErrorMessage(error);
+          return {
+            llmContent: `Failed to access path stats for ${searchDirAbs}: ${errorMessage}`,
+            returnDisplay: 'Error: Failed to access path.',
+            error: {
+              message: `Failed to access path stats for ${searchDirAbs}: ${errorMessage}`,
+              type: ToolErrorType.GREP_EXECUTION_ERROR,
+            },
+          };
+        }
+      }
+
+      const searchDirDisplay = pathParam || '.';
+
       // Determine which directories to search
       const searchDirs: string[] = [];
       let searchLocationDescription: string;
@@ -123,26 +226,68 @@ class GrepToolInvocation extends BaseToolInvocation<
             : `in the workspace directory`;
       }
 
-      // Perform grep search across all directories
-      let rawMatches: GrepMatch[] = [];
-      for (const searchDir of searchDirs) {
-        const matches = await this.performGrepSearch({
-          pattern: this.params.pattern,
-          path: searchDir,
-          glob: this.params.glob,
-          signal,
-        });
-        // When searching multiple directories, convert relative file paths
-        // to absolute paths so results from different directories are
-        // unambiguous.
-        if (searchDirs.length > 1) {
-          for (const match of matches) {
-            if (!path.isAbsolute(match.filePath)) {
-              match.filePath = path.resolve(searchDir, match.filePath);
-            }
+      // Collect matches from all search directories
+      let allMatches: GrepMatch[] = [];
+      const totalMaxMatches =
+        this.params.total_max_matches ?? DEFAULT_TOTAL_MAX_MATCHES;
+
+      // Create a timeout controller to prevent indefinitely hanging searches
+      const timeoutController = new AbortController();
+      const configTimeout = this.config.getFileFilteringOptions().searchTimeout;
+      // If configTimeout is less than standard default, it might be too short for grep.
+      // We check if it's greater or if we should use DEFAULT_SEARCH_TIMEOUT_MS as a fallback.
+      // Let's assume the user can set it higher if they want. Using it directly if it exists, otherwise fallback.
+      const timeoutMs =
+        configTimeout && configTimeout > DEFAULT_SEARCH_TIMEOUT_MS
+          ? configTimeout
+          : DEFAULT_SEARCH_TIMEOUT_MS;
+      const timeoutId = setTimeout(() => {
+        timeoutController.abort();
+      }, timeoutMs);
+
+      // Link the passed signal to our timeout controller
+      const onAbort = () => timeoutController.abort();
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      try {
+        for (const searchDir of searchDirectories) {
+          const remainingLimit = totalMaxMatches - allMatches.length;
+          if (remainingLimit <= 0) break;
+
+          const matches = await this.performGrepSearch({
+            pattern: this.params.pattern,
+            path: searchDir,
+            include_pattern: this.params.include_pattern,
+            exclude_pattern: this.params.exclude_pattern,
+            maxMatches: remainingLimit,
+            max_matches_per_file: this.params.max_matches_per_file,
+            signal: timeoutController.signal,
+          });
+
+          // Add directory prefix if searching multiple directories
+          if (searchDirectories.length > 1) {
+            const dirName = path.basename(searchDir);
+            matches.forEach((match) => {
+              match.filePath = path.join(dirName, match.filePath);
+            });
           }
+
+          allMatches = allMatches.concat(matches);
         }
-        rawMatches.push(...matches);
+      } catch (error) {
+        if (timeoutController.signal.aborted) {
+          throw new Error(
+            `Operation timed out after ${timeoutMs}ms. In large repositories, consider narrowing your search scope by specifying a 'dir_path' or an 'include_pattern'.`,
+          );
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+        signal.removeEventListener('abort', onAbort);
       }
 
       // Deduplicate matches that might appear from overlapping workspace
@@ -157,98 +302,14 @@ class GrepToolInvocation extends BaseToolInvocation<
         });
       }
 
-      const filterDescription = this.params.glob
-        ? ` (filter: "${this.params.glob}")`
-        : '';
-
-      // Check if we have any matches
-      if (rawMatches.length === 0) {
-        const noMatchMsg = `No matches found for pattern "${this.params.pattern}" ${searchLocationDescription}${filterDescription}.`;
-        return { llmContent: noMatchMsg, returnDisplay: `No matches found` };
-      }
-
-      const charLimit = this.config.getTruncateToolOutputThreshold();
-      const lineLimit = Math.min(
-        this.config.getTruncateToolOutputLines(),
-        this.params.limit ?? Number.POSITIVE_INFINITY,
+      return await formatGrepResults(
+        allMatches,
+        this.params,
+        searchLocationDescription,
+        totalMaxMatches,
       );
-
-      // Apply line limit if specified
-      let truncatedByLineLimit = false;
-      let matchesToInclude = rawMatches;
-      if (rawMatches.length > lineLimit) {
-        matchesToInclude = rawMatches.slice(0, lineLimit);
-        truncatedByLineLimit = true;
-      }
-
-      const totalMatches = rawMatches.length;
-      const matchTerm = totalMatches === 1 ? 'match' : 'matches';
-
-      // Build header
-      const header = `Found ${totalMatches} ${matchTerm} for pattern "${this.params.pattern}" ${searchLocationDescription}${filterDescription}:\n---\n`;
-
-      // Group matches by file
-      const matchesByFile = matchesToInclude.reduce(
-        (acc, match) => {
-          const fileKey = match.filePath;
-          if (!acc[fileKey]) {
-            acc[fileKey] = [];
-          }
-          acc[fileKey].push(match);
-          acc[fileKey].sort((a, b) => a.lineNumber - b.lineNumber);
-          return acc;
-        },
-        {} as Record<string, GrepMatch[]>,
-      );
-
-      // Build grep output
-      let grepOutput = '';
-      for (const filePath in matchesByFile) {
-        grepOutput += `File: ${filePath}\n`;
-        matchesByFile[filePath].forEach((match) => {
-          const trimmedLine = match.line.trim();
-          grepOutput += `L${match.lineNumber}: ${trimmedLine}\n`;
-        });
-        grepOutput += '---\n';
-      }
-
-      // Apply character limit as safety net
-      let truncatedByCharLimit = false;
-      if (Number.isFinite(charLimit) && grepOutput.length > charLimit) {
-        grepOutput = grepOutput.slice(0, charLimit) + '...';
-        truncatedByCharLimit = true;
-      }
-
-      // Count how many lines we actually included after character truncation
-      const finalLines = grepOutput
-        .split('\n')
-        .filter(
-          (line) =>
-            line.trim() && !line.startsWith('File:') && !line.startsWith('---'),
-        );
-      const includedLines = finalLines.length;
-
-      // Build result
-      let llmContent = header + grepOutput;
-
-      // Add truncation notice if needed
-      if (truncatedByLineLimit || truncatedByCharLimit) {
-        const omittedMatches = totalMatches - includedLines;
-        llmContent += ` [${omittedMatches} ${omittedMatches === 1 ? 'line' : 'lines'} truncated] ...`;
-      }
-
-      // Build display message
-      let displayMessage = `Found ${totalMatches} ${matchTerm}`;
-      if (truncatedByLineLimit || truncatedByCharLimit) {
-        displayMessage += ` (truncated)`;
-      }
-
-      return {
-        llmContent: llmContent.trim(),
-        returnDisplay: displayMessage,
-      };
     } catch (error) {
-      debugLogger.error(`Error during GrepLogic execution: ${error}`);
+      debugLogger.warn(`Error during GrepLogic execution: ${error}`);
       const errorMessage = getErrorMessage(error);
       return {
         llmContent: `Error during grep search operation: ${errorMessage}`,
@@ -261,66 +322,67 @@ class GrepToolInvocation extends BaseToolInvocation<
     }
   }
 
-  /**
-   * Parses the standard output of grep-like commands (git grep, system grep).
-   * Expects format: filePath:lineNumber:lineContent
-   * Handles colons within file paths and line content correctly.
-   * @param {string} output The raw stdout string.
-   * @param {string} basePath The absolute directory the search was run from, for relative paths.
-   * @returns {GrepMatch[]} Array of match objects.
-   */
-  private parseGrepOutput(output: string, basePath: string): GrepMatch[] {
-    const results: GrepMatch[] = [];
-    if (!output) return results;
-
-    const lines = output.split(EOL); // Use OS-specific end-of-line
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      // Find the index of the first colon.
-      const firstColonIndex = line.indexOf(':');
-      if (firstColonIndex === -1) continue; // Malformed
-
-      // Find the index of the second colon, searching *after* the first one.
-      const secondColonIndex = line.indexOf(':', firstColonIndex + 1);
-      if (secondColonIndex === -1) continue; // Malformed
-
-      // Extract parts based on the found colon indices
-      const filePathRaw = line.substring(0, firstColonIndex);
-      const lineNumberStr = line.substring(
-        firstColonIndex + 1,
-        secondColonIndex,
-      );
-      const lineContent = line.substring(secondColonIndex + 1);
-
-      const lineNumber = parseInt(lineNumberStr, 10);
-
-      if (!isNaN(lineNumber)) {
-        const absoluteFilePath = path.resolve(basePath, filePathRaw);
-        const relativeFilePath = path.relative(basePath, absoluteFilePath);
-
-        results.push({
-          filePath: relativeFilePath || path.basename(absoluteFilePath),
-          lineNumber,
-          line: lineContent,
-        });
-      }
-    }
-    return results;
+  override getPolicyUpdateOptions(
+    _outcome: ToolConfirmationOutcome,
+  ): PolicyUpdateOptions | undefined {
+    return {
+      argsPattern: buildPatternArgsPattern(this.params.pattern),
+    };
   }
 
   /**
-   * Gets a description of the grep operation
-   * @returns A string describing the grep
+   * Checks if a command is available in the system's PATH.
+   * @param {string} command The command name (e.g., 'git', 'grep').
+   * @returns {Promise<boolean>} True if the command is available, false otherwise.
    */
-  getDescription(): string {
-    let description = `'${this.params.pattern}' in path '${this.params.path || './'}'`;
-    if (this.params.glob) {
-      description += ` (filter: '${this.params.glob}')`;
-    }
+  private async isCommandAvailable(command: string): Promise<boolean> {
+    const checkCommand = process.platform === 'win32' ? 'where' : 'command';
+    const checkArgs =
+      process.platform === 'win32' ? [command] : ['-v', command];
+    try {
+      const sandboxManager = this.config.sandboxManager;
 
-    return description;
+      let finalCommand = checkCommand;
+      let finalArgs = checkArgs;
+      let finalEnv = process.env;
+
+      if (sandboxManager) {
+        try {
+          const prepared = await sandboxManager.prepareCommand({
+            command: checkCommand,
+            args: checkArgs,
+            cwd: process.cwd(),
+            env: process.env,
+          });
+          finalCommand = prepared.program;
+          finalArgs = prepared.args;
+          finalEnv = prepared.env;
+        } catch (err) {
+          debugLogger.debug(
+            `[GrepTool] Sandbox preparation failed for '${command}':`,
+            err,
+          );
+        }
+      }
+
+      return await new Promise((resolve) => {
+        const child = spawn(finalCommand, finalArgs, {
+          stdio: 'ignore',
+          shell: true,
+          env: finalEnv,
+        });
+        child.on('close', (code) => resolve(code === 0));
+        child.on('error', (err) => {
+          debugLogger.debug(
+            `[GrepTool] Failed to start process for '${command}':`,
+            err.message,
+          );
+          resolve(false);
+        });
+      });
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -331,13 +393,28 @@ class GrepToolInvocation extends BaseToolInvocation<
   private async performGrepSearch(options: {
     pattern: string;
     path: string; // Expects absolute path
-    glob?: string;
+    include_pattern?: string;
+    exclude_pattern?: string;
+    maxMatches: number;
+    max_matches_per_file?: number;
     signal: AbortSignal;
   }): Promise<GrepMatch[]> {
-    const { pattern, path: absolutePath, glob } = options;
+    const {
+      pattern,
+      path: absolutePath,
+      include_pattern,
+      exclude_pattern,
+      maxMatches,
+      max_matches_per_file,
+    } = options;
     let strategyUsed = 'none';
 
     try {
+      let excludeRegex: RegExp | null = null;
+      if (exclude_pattern) {
+        excludeRegex = new RegExp(exclude_pattern, 'i');
+      }
+
       // --- Strategy 1: git grep ---
       const isGit = isGitRepository(absolutePath);
       const gitAvailable = isGit && isCommandAvailable('git').available;
@@ -352,39 +429,35 @@ class GrepToolInvocation extends BaseToolInvocation<
           '--ignore-case',
           pattern,
         ];
-        if (glob) {
-          gitArgs.push('--', glob);
+        if (max_matches_per_file) {
+          gitArgs.push('--max-count', max_matches_per_file.toString());
+        }
+        if (include_pattern) {
+          gitArgs.push('--', include_pattern);
         }
 
         try {
-          const output = await new Promise<string>((resolve, reject) => {
-            const child = spawn('git', gitArgs, {
-              cwd: absolutePath,
-              windowsHide: true,
-            });
-            const stdoutChunks: Buffer[] = [];
-            const stderrChunks: Buffer[] = [];
-
-            child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
-            child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
-            child.on('error', (err) =>
-              reject(new Error(`Failed to start git grep: ${err.message}`)),
-            );
-            child.on('close', (code) => {
-              const stdoutData = Buffer.concat(stdoutChunks).toString('utf8');
-              const stderrData = Buffer.concat(stderrChunks).toString('utf8');
-              if (code === 0) resolve(stdoutData);
-              else if (code === 1)
-                resolve(''); // No matches
-              else
-                reject(
-                  new Error(`git grep exited with code ${code}: ${stderrData}`),
-                );
-            });
+          const generator = execStreaming('git', gitArgs, {
+            cwd: absolutePath,
+            signal: options.signal,
+            allowedExitCodes: [0, 1],
+            sandboxManager: this.config.sandboxManager,
           });
-          return this.filterMatchesByUserRgIgnore(
-            this.parseGrepOutput(output, absolutePath),
-          );
+
+          const results: GrepMatch[] = [];
+          for await (const line of generator) {
+            const match = this.parseGrepLine(line, absolutePath);
+            if (match) {
+              if (excludeRegex && excludeRegex.test(match.line)) {
+                continue;
+              }
+              results.push(match);
+              if (results.length >= maxMatches) {
+                break;
+              }
+            }
+          }
+          return results;
         } catch (gitError: unknown) {
           debugLogger.debug(
             `GrepLogic: git grep failed: ${getErrorMessage(
@@ -395,10 +468,14 @@ class GrepToolInvocation extends BaseToolInvocation<
       }
 
       // --- Strategy 2: System grep ---
-      const { available: grepAvailable } = isCommandAvailable('grep');
+      debugLogger.debug(
+        'GrepLogic: System grep is being considered as fallback strategy.',
+      );
+
+      const grepAvailable = await this.isCommandAvailable('grep');
       if (grepAvailable) {
         strategyUsed = 'system grep';
-        const grepArgs = ['-r', '-n', '-H', '-E'];
+        const grepArgs = ['-r', '-n', '-H', '-E', '-I'];
         // Extract directory names from exclusion patterns for grep --exclude-dir
         const globExcludes = this.fileExclusions.getGlobExcludes();
         const commonExcludes = globExcludes
@@ -421,75 +498,44 @@ class GrepToolInvocation extends BaseToolInvocation<
           })
           .filter((dir): dir is string => !!dir);
         commonExcludes.forEach((dir) => grepArgs.push(`--exclude-dir=${dir}`));
-        if (glob) {
-          grepArgs.push(`--include=${glob}`);
+        if (max_matches_per_file) {
+          grepArgs.push('--max-count', max_matches_per_file.toString());
+        }
+        if (include_pattern) {
+          grepArgs.push(`--include=${include_pattern}`);
         }
         grepArgs.push(pattern);
         grepArgs.push('.');
 
+        const results: GrepMatch[] = [];
         try {
-          const output = await new Promise<string>((resolve, reject) => {
-            const child = spawn('grep', grepArgs, {
-              cwd: absolutePath,
-              windowsHide: true,
-            });
-            const stdoutChunks: Buffer[] = [];
-            const stderrChunks: Buffer[] = [];
-
-            const onData = (chunk: Buffer) => stdoutChunks.push(chunk);
-            const onStderr = (chunk: Buffer) => {
-              const stderrStr = chunk.toString();
-              // Suppress common harmless stderr messages
-              if (
-                !stderrStr.includes('Permission denied') &&
-                !/grep:.*: Is a directory/i.test(stderrStr)
-              ) {
-                stderrChunks.push(chunk);
-              }
-            };
-            const onError = (err: Error) => {
-              cleanup();
-              reject(new Error(`Failed to start system grep: ${err.message}`));
-            };
-            const onClose = (code: number | null) => {
-              const stdoutData = Buffer.concat(stdoutChunks).toString('utf8');
-              const stderrData = Buffer.concat(stderrChunks)
-                .toString('utf8')
-                .trim();
-              cleanup();
-              if (code === 0) resolve(stdoutData);
-              else if (code === 1)
-                resolve(''); // No matches
-              else {
-                if (stderrData)
-                  reject(
-                    new Error(
-                      `System grep exited with code ${code}: ${stderrData}`,
-                    ),
-                  );
-                else resolve(''); // Exit code > 1 but no stderr, likely just suppressed errors
-              }
-            };
-
-            const cleanup = () => {
-              child.stdout.removeListener('data', onData);
-              child.stderr.removeListener('data', onStderr);
-              child.removeListener('error', onError);
-              child.removeListener('close', onClose);
-              if (child.connected) {
-                child.disconnect();
-              }
-            };
-
-            child.stdout.on('data', onData);
-            child.stderr.on('data', onStderr);
-            child.on('error', onError);
-            child.on('close', onClose);
+          const generator = execStreaming('grep', grepArgs, {
+            cwd: absolutePath,
+            signal: options.signal,
+            allowedExitCodes: [0, 1],
+            sandboxManager: this.config.sandboxManager,
           });
-          return this.filterMatchesByUserRgIgnore(
-            this.parseGrepOutput(output, absolutePath),
-          );
+
+          for await (const line of generator) {
+            const match = this.parseGrepLine(line, absolutePath);
+            if (match) {
+              if (excludeRegex && excludeRegex.test(match.line)) {
+                continue;
+              }
+              results.push(match);
+              if (results.length >= maxMatches) {
+                break;
+              }
+            }
+          }
+          return results;
         } catch (grepError: unknown) {
+          if (
+            grepError instanceof Error &&
+            /Permission denied|Is a directory/i.test(grepError.message)
+          ) {
+            return results;
+          }
           debugLogger.debug(
             `GrepLogic: System grep failed: ${getErrorMessage(
               grepError,
@@ -503,7 +549,7 @@ class GrepToolInvocation extends BaseToolInvocation<
         'GrepLogic: Falling back to JavaScript grep implementation.',
       );
       strategyUsed = 'javascript fallback';
-      const globPattern = glob ? glob : '**/*';
+      const globPattern = include_pattern ? include_pattern : '**/*';
       const ignorePatterns = this.fileExclusions.getGlobExcludes();
 
       const filesIterator = globStream(globPattern, {
@@ -518,22 +564,46 @@ class GrepToolInvocation extends BaseToolInvocation<
       const regex = new RegExp(pattern, 'i');
       const allMatches: GrepMatch[] = [];
 
-      for await (const filePath of filesIterator) {
-        const fileAbsolutePath = filePath as string;
+      for await (const filePath of filesStream) {
+        if (allMatches.length >= maxMatches) break;
+        const fileAbsolutePath = filePath;
+        // security check
+        const relativePath = path.relative(absolutePath, fileAbsolutePath);
+        if (
+          relativePath === '..' ||
+          relativePath.startsWith(`..${path.sep}`) ||
+          path.isAbsolute(relativePath)
+        )
+          continue;
+
         try {
           const content = await fsPromises.readFile(fileAbsolutePath, 'utf8');
           const lines = content.split(/\r?\n/);
-          lines.forEach((line, index) => {
+          let matchesInFile = 0;
+          for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
             if (regex.test(line)) {
+              if (excludeRegex && excludeRegex.test(line)) {
+                continue;
+              }
               allMatches.push({
                 filePath:
                   path.relative(absolutePath, fileAbsolutePath) ||
                   path.basename(fileAbsolutePath),
+                absolutePath: fileAbsolutePath,
                 lineNumber: index + 1,
                 line,
               });
+              matchesInFile++;
+              if (allMatches.length >= maxMatches) break;
+              if (
+                max_matches_per_file &&
+                matchesInFile >= max_matches_per_file
+              ) {
+                break;
+              }
             }
-          });
+          }
         } catch (readError: unknown) {
           // Ignore errors like permission denied or file gone during read
           if (!isNodeError(readError) || readError.code !== 'ENOENT') {
@@ -548,7 +618,7 @@ class GrepToolInvocation extends BaseToolInvocation<
 
       return this.filterMatchesByUserRgIgnore(allMatches);
     } catch (error: unknown) {
-      debugLogger.error(
+      debugLogger.warn(
         `GrepLogic: Error in performGrepSearch (Strategy: ${strategyUsed}): ${getErrorMessage(
           error,
         )}`,
@@ -557,65 +627,58 @@ class GrepToolInvocation extends BaseToolInvocation<
     }
   }
 
-  private filterMatchesByUserRgIgnore(matches: GrepMatch[]): GrepMatch[] {
-    if (this.userRgIgnorePatterns.length === 0) {
-      return matches;
+  getDescription(): string {
+    let description = `'${this.params.pattern}'`;
+    if (this.params.include_pattern) {
+      description += ` in ${this.params.include_pattern}`;
     }
-
-    try {
-      const rgIgnoreMatcher = ignore();
-      rgIgnoreMatcher.add(this.userRgIgnorePatterns);
-      return matches.filter((match) => {
-        const normalizedPath = match.filePath.replace(/\\/g, '/');
-        return !rgIgnoreMatcher.ignores(normalizedPath);
-      });
-    } catch {
-      // If ignore pattern parsing fails, keep original results.
-      return matches;
+    if (this.params.dir_path) {
+      const resolvedPath = path.resolve(
+        this.config.getTargetDir(),
+        this.params.dir_path,
+      );
+      if (
+        resolvedPath === this.config.getTargetDir() ||
+        this.params.dir_path === '.'
+      ) {
+        description += ` within ./`;
+      } else {
+        const relativePath = makeRelative(
+          resolvedPath,
+          this.config.getTargetDir(),
+        );
+        description += ` within ${shortenPath(relativePath)}`;
+      }
+    } else {
+      // When no path is specified, indicate searching all workspace directories
+      const workspaceContext = this.config.getWorkspaceContext();
+      const directories = workspaceContext.getDirectories();
+      if (directories.length > 1) {
+        description += ` across all workspace directories`;
+      }
     }
+    return description;
   }
 }
-
-// --- GrepLogic Class ---
 
 /**
  * Implementation of the Grep tool logic (moved from CLI)
  */
 export class GrepTool extends BaseDeclarativeTool<GrepToolParams, ToolResult> {
-  static readonly Name = ToolNames.GREP;
-
-  constructor(private readonly config: Config) {
+  static readonly Name = GREP_TOOL_NAME;
+  constructor(
+    private readonly config: Config,
+    messageBus: MessageBus,
+  ) {
     super(
       GrepTool.Name,
-      ToolDisplayNames.GREP,
-      'A powerful search tool for finding patterns in files\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")\n  - Filter files with glob parameter (e.g., "*.js", "**/*.tsx")\n  - Case-insensitive by default\n  - Use Agent tool for open-ended searches requiring multiple rounds\n',
+      GREP_DISPLAY_NAME,
+      GREP_DEFINITION.base.description!,
       Kind.Search,
-      {
-        properties: {
-          pattern: {
-            type: 'string',
-            description:
-              'The regular expression pattern to search for in file contents',
-          },
-          glob: {
-            type: 'string',
-            description:
-              'Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")',
-          },
-          path: {
-            type: 'string',
-            description:
-              'File or directory to search in. Defaults to current working directory.',
-          },
-          limit: {
-            type: 'number',
-            description:
-              'Limit output to first N matching lines. Optional - shows all matches if not specified.',
-          },
-        },
-        required: ['pattern'],
-        type: 'object',
-      },
+      GREP_DEFINITION.base.parametersJsonSchema,
+      messageBus,
+      true,
+      false,
     );
   }
 
@@ -634,14 +697,53 @@ export class GrepTool extends BaseDeclarativeTool<GrepToolParams, ToolResult> {
       return `Invalid regular expression pattern: ${params.pattern}. Error: ${getErrorMessage(error)}`;
     }
 
-    // Only validate path if one is provided
-    if (params.path) {
+    if (params.exclude_pattern) {
       try {
-        resolveAndValidatePath(this.config, params.path, {
-          allowExternalPaths: true,
-        });
+        new RegExp(params.exclude_pattern);
       } catch (error) {
-        return getErrorMessage(error);
+        return `Invalid exclude regular expression pattern provided: ${params.exclude_pattern}. Error: ${getErrorMessage(error)}`;
+      }
+    }
+
+    if (
+      params.max_matches_per_file !== undefined &&
+      params.max_matches_per_file < 1
+    ) {
+      return 'max_matches_per_file must be at least 1.';
+    }
+
+    if (
+      params.total_max_matches !== undefined &&
+      params.total_max_matches < 1
+    ) {
+      return 'total_max_matches must be at least 1.';
+    }
+
+    // Only validate dir_path if one is provided
+    if (params.dir_path) {
+      const resolvedPath = path.resolve(
+        this.config.getTargetDir(),
+        params.dir_path,
+      );
+      const validationError = this.config.validatePathAccess(
+        resolvedPath,
+        'read',
+      );
+      if (validationError) {
+        return validationError;
+      }
+
+      // We still want to check if it's a directory
+      try {
+        const stats = fs.statSync(resolvedPath);
+        if (!stats.isDirectory()) {
+          return `Path is not a directory: ${resolvedPath}`;
+        }
+      } catch (error: unknown) {
+        if (isNodeError(error) && error.code === 'ENOENT') {
+          return `Path does not exist: ${resolvedPath}`;
+        }
+        return `Failed to access path stats for ${resolvedPath}: ${getErrorMessage(error)}`;
       }
     }
 
@@ -650,7 +752,20 @@ export class GrepTool extends BaseDeclarativeTool<GrepToolParams, ToolResult> {
 
   protected createInvocation(
     params: GrepToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ): ToolInvocation<GrepToolParams, ToolResult> {
-    return new GrepToolInvocation(this.config, params);
+    return new GrepToolInvocation(
+      this.config,
+      params,
+      messageBus,
+      _toolName,
+      _toolDisplayName,
+    );
+  }
+
+  override getSchema(modelId?: string) {
+    return resolveToolDeclaration(GREP_DEFINITION, modelId);
   }
 }

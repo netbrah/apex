@@ -1,222 +1,115 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// no hooks needed beyond keypress handled inside
-import { Box, Text } from 'ink';
+import type React from 'react';
+import { useCallback } from 'react';
+import { Text, Box } from 'ink';
+import { useKeypress, type Key } from '../../hooks/useKeypress.js';
 import chalk from 'chalk';
-import stringWidth from 'string-width';
-import { useTextBuffer } from './text-buffer.js';
-import { useKeypress } from '../../hooks/useKeypress.js';
-import { keyMatchers, Command } from '../../keyMatchers.js';
-import { cpSlice, cpLen } from '../../utils/textUtils.js';
 import { theme } from '../../semantic-colors.js';
-import { Colors } from '../../colors.js';
-import type { Key } from '../../hooks/useKeypress.js';
-import { useCallback, useRef, useEffect } from 'react';
+import { expandPastePlaceholders, type TextBuffer } from './text-buffer.js';
+import { cpSlice, cpIndexToOffset } from '../../utils/textUtils.js';
+import { Command } from '../../key/keyMatchers.js';
+import { useKeyMatchers } from '../../hooks/useKeyMatchers.js';
 
 export interface TextInputProps {
-  value: string;
-  onChange: (text: string) => void;
-  onSubmit?: () => void;
-  /** Called when Tab is pressed; if provided, prevents the default tab-insertion behaviour. */
-  onTab?: () => void;
-  /** Called when ↑ is pressed; if provided, prevents cursor-up in the buffer. */
-  onUp?: () => void;
-  /** Called when ↓ is pressed; if provided, prevents cursor-down in the buffer. */
-  onDown?: () => void;
+  buffer: TextBuffer;
   placeholder?: string;
-  height?: number; // lines in viewport; >1 enables multiline
-  isActive?: boolean; // when false, ignore keypresses
-  validationErrors?: string[];
-  inputWidth?: number;
-  initialCursorOffset?: number;
+  onSubmit?: (value: string) => void;
+  onCancel?: () => void;
+  focus?: boolean;
 }
 
 export function TextInput({
-  value,
-  onChange,
+  buffer,
+  placeholder = '',
   onSubmit,
-  onTab,
-  onUp,
-  onDown,
-  placeholder,
-  height = 1,
-  isActive = true,
-  validationErrors = [],
-  inputWidth = 80,
-  initialCursorOffset,
-}: TextInputProps) {
-  const allowMultiline = height > 1;
+  onCancel,
+  focus = true,
+}: TextInputProps): React.JSX.Element {
+  const keyMatchers = useKeyMatchers();
+  const {
+    text,
+    handleInput,
+    visualCursor,
+    viewportVisualLines,
+    visualScrollRow,
+  } = buffer;
+  const [cursorVisualRowAbsolute, cursorVisualColAbsolute] = visualCursor;
 
-  // Stabilize onChange to avoid triggering useTextBuffer's onChange effect every render
-  const onChangeRef = useRef(onChange);
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-  const stableOnChange = useCallback((text: string) => {
-    onChangeRef.current?.(text);
-  }, []);
-
-  const buffer = useTextBuffer({
-    initialText: value || '',
-    initialCursorOffset,
-    viewport: { height, width: inputWidth },
-    isValidPath: () => false,
-    onChange: stableOnChange,
-  });
-
-  const handleSubmit = () => {
-    if (!onSubmit) return;
-    onSubmit();
-  };
-
-  useKeypress(
+  const handleKeyPress = useCallback(
     (key: Key) => {
-      if (!buffer || !isActive) return;
-
-      // Tab completion: delegate to caller instead of inserting a tab character
-      if (key.name === 'tab') {
-        onTab?.();
-        return;
+      if (key.name === 'escape' && onCancel) {
+        onCancel();
+        return true;
       }
 
-      // Arrow-key completion navigation: delegate to caller
-      if (key.name === 'up' && onUp) {
-        onUp();
-        return;
-      }
-      if (key.name === 'down' && onDown) {
-        onDown();
-        return;
+      if (keyMatchers[Command.SUBMIT](key) && onSubmit) {
+        onSubmit(expandPastePlaceholders(text, buffer.pastedContent));
+        return true;
       }
 
-      // Submit on Enter
-      if (keyMatchers[Command.SUBMIT](key) || key.name === 'return') {
-        if (allowMultiline) {
-          const [row, col] = buffer.cursor;
-          const line = buffer.lines[row];
-          const charBefore = col > 0 ? cpSlice(line, col - 1, col) : '';
-          if (charBefore === '\\') {
-            buffer.backspace();
-            buffer.newline();
-          } else {
-            handleSubmit();
-          }
-        } else {
-          handleSubmit();
-        }
-        return;
-      }
-
-      // Multiline newline insertion (Shift+Enter etc.)
-      if (allowMultiline && keyMatchers[Command.NEWLINE](key)) {
-        buffer.newline();
-        return;
-      }
-
-      // Navigation helpers
-      if (keyMatchers[Command.HOME](key)) {
-        buffer.move('home');
-        return;
-      }
-      if (keyMatchers[Command.END](key)) {
-        buffer.move('end');
-        buffer.moveToOffset(cpLen(buffer.text));
-        return;
-      }
-
-      if (keyMatchers[Command.CLEAR_INPUT](key)) {
-        if (buffer.text.length > 0) buffer.setText('');
-        return;
-      }
-      if (keyMatchers[Command.KILL_LINE_RIGHT](key)) {
-        buffer.killLineRight();
-        return;
-      }
-      if (keyMatchers[Command.KILL_LINE_LEFT](key)) {
-        buffer.killLineLeft();
-        return;
-      }
-
-      if (keyMatchers[Command.OPEN_EXTERNAL_EDITOR](key)) {
-        buffer.openInExternalEditor();
-        return;
-      }
-
-      buffer.handleInput(key);
+      const handled = handleInput(key);
+      return handled;
     },
-    { isActive },
+    [handleInput, onCancel, onSubmit, text, buffer.pastedContent, keyMatchers],
   );
 
-  if (!buffer) return null;
+  useKeypress(handleKeyPress, { isActive: focus, priority: true });
 
-  const linesToRender = buffer.viewportVisualLines;
-  const [cursorVisualRowAbsolute, cursorVisualColAbsolute] =
-    buffer.visualCursor;
-  const scrollVisualRow = buffer.visualScrollRow;
+  const showPlaceholder = text.length === 0 && placeholder;
+
+  if (showPlaceholder) {
+    return (
+      <Box>
+        {focus ? (
+          <Text terminalCursorFocus={focus} terminalCursorPosition={0}>
+            {chalk.inverse(placeholder[0] || ' ')}
+            <Text color={theme.text.secondary}>{placeholder.slice(1)}</Text>
+          </Text>
+        ) : (
+          <Text color={theme.text.secondary}>{placeholder}</Text>
+        )}
+      </Box>
+    );
+  }
 
   return (
-    <Box flexDirection="column" gap={1}>
-      <Box>
-        <Text color={theme.text.accent}>{'> '}</Text>
-        <Box flexGrow={1} flexDirection="column">
-          {buffer.text.length === 0 && placeholder ? (
-            <Text>
-              {chalk.inverse(placeholder.slice(0, 1))}
-              <Text color={Colors.Gray}>{placeholder.slice(1)}</Text>
-            </Text>
-          ) : (
-            linesToRender.map((lineText, visualIdxInRenderedSet) => {
-              const cursorVisualRow = cursorVisualRowAbsolute - scrollVisualRow;
-              let display = cpSlice(lineText, 0, inputWidth);
-              const currentVisualWidth = stringWidth(display);
-              if (currentVisualWidth < inputWidth) {
-                display = display + ' '.repeat(inputWidth - currentVisualWidth);
-              }
+    <Box flexDirection="column">
+      {viewportVisualLines.map((lineText, idx) => {
+        const currentVisualRow = visualScrollRow + idx;
+        const isCursorLine =
+          focus && currentVisualRow === cursorVisualRowAbsolute;
 
-              if (visualIdxInRenderedSet === cursorVisualRow) {
-                const relativeVisualColForHighlight = cursorVisualColAbsolute;
-                if (relativeVisualColForHighlight >= 0) {
-                  if (relativeVisualColForHighlight < cpLen(display)) {
-                    const charToHighlight =
-                      cpSlice(
-                        display,
-                        relativeVisualColForHighlight,
-                        relativeVisualColForHighlight + 1,
-                      ) || ' ';
-                    const highlighted = chalk.inverse(charToHighlight);
-                    display =
-                      cpSlice(display, 0, relativeVisualColForHighlight) +
-                      highlighted +
-                      cpSlice(display, relativeVisualColForHighlight + 1);
-                  } else if (
-                    relativeVisualColForHighlight === cpLen(display) &&
-                    cpLen(display) === inputWidth
-                  ) {
-                    display = display + chalk.inverse(' ');
-                  }
-                }
-              }
-              return (
-                <Text key={`line-${visualIdxInRenderedSet}`}>{display}</Text>
-              );
-            })
-          )}
-        </Box>
-      </Box>
+        const lineDisplay = isCursorLine
+          ? cpSlice(lineText, 0, cursorVisualColAbsolute) +
+            chalk.inverse(
+              cpSlice(
+                lineText,
+                cursorVisualColAbsolute,
+                cursorVisualColAbsolute + 1,
+              ) || ' ',
+            ) +
+            cpSlice(lineText, cursorVisualColAbsolute + 1)
+          : lineText;
 
-      {validationErrors.length > 0 && (
-        <Box flexDirection="column">
-          {validationErrors.map((error, index) => (
-            <Text key={index} color={theme.status.error}>
-              ⚠ {error}
+        return (
+          <Box key={idx} height={1}>
+            <Text
+              terminalCursorFocus={isCursorLine}
+              terminalCursorPosition={cpIndexToOffset(
+                lineText,
+                cursorVisualColAbsolute,
+              )}
+            >
+              {lineDisplay}
             </Text>
-          ))}
-        </Box>
-      )}
+          </Box>
+        );
+      })}
     </Box>
   );
 }

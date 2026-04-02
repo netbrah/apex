@@ -8,9 +8,13 @@ import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { ConfirmationRequiredError, ShellProcessor } from './shellProcessor.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import type { CommandContext } from '../../ui/commands/types.js';
-import type { Config } from '@apex-code/apex-core';
-import { ApprovalMode } from '@apex-code/apex-core';
-import os from 'node:os';
+import type { Config } from '@google/gemini-cli-core';
+import {
+  ApprovalMode,
+  getShellConfiguration,
+  PolicyDecision,
+  NoopSandboxManager,
+} from '@google/gemini-cli-core';
 import { quote } from 'shell-quote';
 import { createPartFromText } from '@google/genai';
 import type { PromptPipelineContent } from './types.js';
@@ -18,31 +22,16 @@ import type { PromptPipelineContent } from './types.js';
 // Helper function to determine the expected escaped string based on the current OS,
 // mirroring the logic in the actual `escapeShellArg` implementation.
 function getExpectedEscapedArgForPlatform(arg: string): string {
-  if (os.platform() === 'win32') {
-    // Detect Git Bash / MSYS2 / MinTTY environments (same logic as getShellConfiguration)
-    const msystem = process.env['MSYSTEM'];
-    const term = process.env['TERM'] || '';
-    const isGitBash =
-      msystem?.startsWith('MINGW') ||
-      msystem?.startsWith('MSYS') ||
-      term.includes('msys') ||
-      term.includes('cygwin');
+  const { shell } = getShellConfiguration();
 
-    if (isGitBash) {
-      return quote([arg]);
-    }
-
-    const comSpec = (process.env['ComSpec'] || 'cmd.exe').toLowerCase();
-    const isPowerShell =
-      comSpec.endsWith('powershell.exe') || comSpec.endsWith('pwsh.exe');
-
-    if (isPowerShell) {
+  switch (shell) {
+    case 'powershell':
       return `'${arg.replace(/'/g, "''")}'`;
-    } else {
+    case 'cmd':
       return `"${arg.replace(/"/g, '""')}"`;
-    }
-  } else {
-    return quote([arg]);
+    case 'bash':
+    default:
+      return quote([arg]);
   }
 }
 
@@ -76,18 +65,33 @@ const SUCCESS_RESULT = {
 describe('ShellProcessor', () => {
   let context: CommandContext;
   let mockConfig: Partial<Config>;
+  let mockPolicyEngineCheck: Mock;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
+    mockPolicyEngineCheck = vi.fn().mockResolvedValue({
+      decision: PolicyDecision.ALLOW,
+    });
+
     mockConfig = {
       getTargetDir: vi.fn().mockReturnValue('/test/dir'),
       getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.DEFAULT),
-      getShouldUseNodePtyShell: vi.fn().mockReturnValue(false),
-      getShellExecutionConfig: vi.fn().mockReturnValue({}),
-      getPermissionsAllow: vi.fn().mockReturnValue([]),
-      // Default: no permission manager (tests that need one set it explicitly)
-      getPermissionManager: vi.fn().mockReturnValue(null),
+      getEnableInteractiveShell: vi.fn().mockReturnValue(false),
+      getShellExecutionConfig: vi.fn().mockReturnValue({
+        sandboxManager: new NoopSandboxManager(),
+        sanitizationConfig: {
+          allowedEnvironmentVariables: [],
+          blockedEnvironmentVariables: [],
+          enableEnvironmentVariableRedaction: false,
+        },
+      }),
+      getPolicyEngine: vi.fn().mockReturnValue({
+        check: mockPolicyEngineCheck,
+      }),
+      get config() {
+        return this as unknown as Config;
+      },
     };
 
     context = createMockCommandContext({
@@ -97,7 +101,7 @@ describe('ShellProcessor', () => {
         args: 'default args',
       },
       services: {
-        config: mockConfig as Config,
+        agentContext: mockConfig as Config,
       },
       session: {
         sessionShellAllowlist: new Set(),
@@ -119,7 +123,7 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent('!{ls}');
     const contextWithoutConfig = createMockCommandContext({
       services: {
-        config: null,
+        agentContext: null,
       },
     });
 
@@ -143,9 +147,8 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       'The current status is: !{git status}',
     );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: true,
-      disallowedCommands: [],
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ALLOW,
     });
     mockShellExecute.mockReturnValue({
       result: Promise.resolve({ ...SUCCESS_RESULT, output: 'On branch main' }),
@@ -153,10 +156,12 @@ describe('ShellProcessor', () => {
 
     const result = await processor.process(prompt, context);
 
-    expect(mockCheckCommandPermissions).toHaveBeenCalledWith(
-      'git status',
-      expect.any(Object),
-      context.session.sessionShellAllowlist,
+    expect(mockPolicyEngineCheck).toHaveBeenCalledWith(
+      {
+        name: 'run_shell_command',
+        args: { command: 'git status' },
+      },
+      undefined,
     );
     expect(mockShellExecute).toHaveBeenCalledWith(
       'git status',
@@ -174,9 +179,8 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       '!{git status} in !{pwd}',
     );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: true,
-      disallowedCommands: [],
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ALLOW,
     });
 
     mockShellExecute
@@ -192,7 +196,7 @@ describe('ShellProcessor', () => {
 
     const result = await processor.process(prompt, context);
 
-    expect(mockCheckCommandPermissions).toHaveBeenCalledTimes(2);
+    expect(mockPolicyEngineCheck).toHaveBeenCalledTimes(2);
     expect(mockShellExecute).toHaveBeenCalledTimes(2);
     expect(result).toEqual([{ text: 'On branch main in /usr/home' }]);
   });
@@ -202,9 +206,8 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       'Do something dangerous: !{rm -rf /}',
     );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: false,
-      disallowedCommands: ['rm -rf /'],
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ASK_USER,
     });
 
     await expect(processor.process(prompt, context)).rejects.toThrow(
@@ -248,11 +251,11 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       'Do something dangerous: !{rm -rf /}',
     );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: false,
-      disallowedCommands: ['rm -rf /'],
+    // In YOLO mode, PolicyEngine returns ALLOW
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ALLOW,
     });
-    // Override the approval mode for this test
+    // Override the approval mode for this test (though PolicyEngine mock handles the decision)
     (mockConfig.getApprovalMode as Mock).mockReturnValue(ApprovalMode.YOLO);
     mockShellExecute.mockReturnValue({
       result: Promise.resolve({ ...SUCCESS_RESULT, output: 'deleted' }),
@@ -277,17 +280,14 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       'Do something forbidden: !{reboot}',
     );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: false,
-      disallowedCommands: ['reboot'],
-      isHardDenial: true, // This is the key difference
-      blockReason: 'System commands are blocked',
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.DENY,
     });
     // Set approval mode to YOLO
     (mockConfig.getApprovalMode as Mock).mockReturnValue(ApprovalMode.YOLO);
 
     await expect(processor.process(prompt, context)).rejects.toThrow(
-      /Blocked command: "reboot". Reason: System commands are blocked/,
+      /Blocked command: "reboot". Reason: Blocked by policy/,
     );
 
     // Ensure it never tried to execute
@@ -299,9 +299,8 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       'Do something dangerous: !{rm -rf /}',
     );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: false,
-      disallowedCommands: ['rm -rf /'],
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ASK_USER,
     });
 
     try {
@@ -323,14 +322,12 @@ describe('ShellProcessor', () => {
     const prompt: PromptPipelineContent = createPromptPipelineContent(
       '!{cmd1} and !{cmd2}',
     );
-    mockCheckCommandPermissions.mockImplementation((cmd) => {
-      if (cmd === 'cmd1') {
-        return { allAllowed: false, disallowedCommands: ['cmd1'] };
+    mockPolicyEngineCheck.mockImplementation(async (toolCall) => {
+      const cmd = toolCall.args.command;
+      if (cmd === 'cmd1' || cmd === 'cmd2') {
+        return { decision: PolicyDecision.ASK_USER };
       }
-      if (cmd === 'cmd2') {
-        return { allAllowed: false, disallowedCommands: ['cmd2'] };
-      }
-      return { allAllowed: true, disallowedCommands: [] };
+      return { decision: PolicyDecision.ALLOW };
     });
 
     try {
@@ -351,11 +348,12 @@ describe('ShellProcessor', () => {
       'First: !{echo "hello"}, Second: !{rm -rf /}',
     );
 
-    mockCheckCommandPermissions.mockImplementation((cmd) => {
+    mockPolicyEngineCheck.mockImplementation(async (toolCall) => {
+      const cmd = toolCall.args.command;
       if (cmd.includes('rm')) {
-        return { allAllowed: false, disallowedCommands: [cmd] };
+        return { decision: PolicyDecision.ASK_USER };
       }
-      return { allAllowed: true, disallowedCommands: [] };
+      return { decision: PolicyDecision.ALLOW };
     });
 
     await expect(processor.process(prompt, context)).rejects.toThrow(
@@ -372,10 +370,13 @@ describe('ShellProcessor', () => {
       'Allowed: !{ls -l}, Disallowed: !{rm -rf /}',
     );
 
-    mockCheckCommandPermissions.mockImplementation((cmd) => ({
-      allAllowed: !cmd.includes('rm'),
-      disallowedCommands: cmd.includes('rm') ? [cmd] : [],
-    }));
+    mockPolicyEngineCheck.mockImplementation(async (toolCall) => {
+      const cmd = toolCall.args.command;
+      if (cmd.includes('rm')) {
+        return { decision: PolicyDecision.ASK_USER };
+      }
+      return { decision: PolicyDecision.ALLOW };
+    });
 
     try {
       await processor.process(prompt, context);
@@ -394,13 +395,12 @@ describe('ShellProcessor', () => {
       'Run !{cmd1} and !{cmd2}',
     );
 
-    // Add commands to the session allowlist
+    // Add commands to the session allowlist (conceptually, in this test we just mock the engine allowing them)
     context.session.sessionShellAllowlist = new Set(['cmd1', 'cmd2']);
 
     // checkCommandPermissions should now pass for these
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: true,
-      disallowedCommands: [],
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ALLOW,
     });
 
     mockShellExecute
@@ -413,18 +413,56 @@ describe('ShellProcessor', () => {
 
     const result = await processor.process(prompt, context);
 
-    expect(mockCheckCommandPermissions).toHaveBeenCalledWith(
-      'cmd1',
-      expect.any(Object),
-      context.session.sessionShellAllowlist,
-    );
-    expect(mockCheckCommandPermissions).toHaveBeenCalledWith(
-      'cmd2',
-      expect.any(Object),
-      context.session.sessionShellAllowlist,
-    );
+    expect(mockPolicyEngineCheck).not.toHaveBeenCalled();
     expect(mockShellExecute).toHaveBeenCalledTimes(2);
     expect(result).toEqual([{ text: 'Run output1 and output2' }]);
+  });
+
+  it('should support the full confirmation flow (Ask -> Approve -> Retry)', async () => {
+    // 1. Initial State: Command NOT allowed
+    const processor = new ShellProcessor('test-command');
+    const prompt: PromptPipelineContent =
+      createPromptPipelineContent('!{echo "once"}');
+
+    // Policy Engine says ASK_USER
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ASK_USER,
+    });
+
+    // 2. First Attempt: processing should fail with ConfirmationRequiredError
+    try {
+      await processor.process(prompt, context);
+      expect.fail('Should have thrown ConfirmationRequiredError');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfirmationRequiredError);
+      expect(mockPolicyEngineCheck).toHaveBeenCalledTimes(1);
+    }
+
+    // 3. User Approves: Add to session allowlist (simulating UI action)
+    context.session.sessionShellAllowlist.add('echo "once"');
+
+    // 4. Retry: calling process() again with the same context
+    // Reset mocks to ensure we track new calls cleanly
+    mockPolicyEngineCheck.mockClear();
+
+    // Mock successful execution
+    mockShellExecute.mockReturnValue({
+      result: Promise.resolve({ ...SUCCESS_RESULT, output: 'once' }),
+    });
+
+    const result = await processor.process(prompt, context);
+
+    // 5. Verify Success AND Policy Engine Bypass
+    expect(mockPolicyEngineCheck).not.toHaveBeenCalled();
+    expect(mockShellExecute).toHaveBeenCalledWith(
+      'echo "once"',
+      expect.any(String),
+      expect.any(Function),
+      expect.any(Object),
+      false,
+      expect.any(Object),
+    );
+    expect(result).toEqual([{ text: 'once' }]);
   });
 
   it('should trim whitespace from the command inside the injection before interpolation', async () => {
@@ -439,9 +477,8 @@ describe('ShellProcessor', () => {
 
     const expectedCommand = `ls ${expectedEscapedArgs} -l`;
 
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: true,
-      disallowedCommands: [],
+    mockPolicyEngineCheck.mockResolvedValue({
+      decision: PolicyDecision.ALLOW,
     });
     mockShellExecute.mockReturnValue({
       result: Promise.resolve({ ...SUCCESS_RESULT, output: 'total 0' }),
@@ -449,10 +486,9 @@ describe('ShellProcessor', () => {
 
     await processor.process(prompt, context);
 
-    expect(mockCheckCommandPermissions).toHaveBeenCalledWith(
-      expectedCommand,
-      expect.any(Object),
-      context.session.sessionShellAllowlist,
+    expect(mockPolicyEngineCheck).toHaveBeenCalledWith(
+      { name: 'run_shell_command', args: { command: expectedCommand } },
+      undefined,
     );
     expect(mockShellExecute).toHaveBeenCalledWith(
       expectedCommand,
@@ -471,7 +507,7 @@ describe('ShellProcessor', () => {
 
     const result = await processor.process(prompt, context);
 
-    expect(mockCheckCommandPermissions).not.toHaveBeenCalled();
+    expect(mockPolicyEngineCheck).not.toHaveBeenCalled();
     expect(mockShellExecute).not.toHaveBeenCalled();
 
     // It replaces !{} with an empty string.
@@ -665,20 +701,20 @@ describe('ShellProcessor', () => {
 
       const expectedEscapedArgs = getExpectedEscapedArgForPlatform(rawArgs);
       const expectedResolvedCommand = `rm ${expectedEscapedArgs}`;
-      mockCheckCommandPermissions.mockReturnValue({
-        allAllowed: false,
-        disallowedCommands: [expectedResolvedCommand],
-        isHardDenial: false,
+      mockPolicyEngineCheck.mockResolvedValue({
+        decision: PolicyDecision.ASK_USER,
       });
 
       await expect(processor.process(prompt, context)).rejects.toThrow(
         ConfirmationRequiredError,
       );
 
-      expect(mockCheckCommandPermissions).toHaveBeenCalledWith(
-        expectedResolvedCommand,
-        expect.any(Object),
-        context.session.sessionShellAllowlist,
+      expect(mockPolicyEngineCheck).toHaveBeenCalledWith(
+        {
+          name: 'run_shell_command',
+          args: { command: expectedResolvedCommand },
+        },
+        undefined,
       );
     });
 
@@ -688,15 +724,12 @@ describe('ShellProcessor', () => {
         createPromptPipelineContent('!{rm {{args}}}');
       const expectedEscapedArgs = getExpectedEscapedArgForPlatform(rawArgs);
       const expectedResolvedCommand = `rm ${expectedEscapedArgs}`;
-      mockCheckCommandPermissions.mockReturnValue({
-        allAllowed: false,
-        disallowedCommands: [expectedResolvedCommand],
-        isHardDenial: true,
-        blockReason: 'It is forbidden.',
+      mockPolicyEngineCheck.mockResolvedValue({
+        decision: PolicyDecision.DENY,
       });
 
       await expect(processor.process(prompt, context)).rejects.toThrow(
-        `Blocked command: "${expectedResolvedCommand}". Reason: It is forbidden.`,
+        `Blocked command: "${expectedResolvedCommand}". Reason: Blocked by policy.`,
       );
     });
   });

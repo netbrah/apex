@@ -6,13 +6,59 @@
 
 import type { UpdateObject } from '../ui/utils/updateCheck.js';
 import type { LoadedSettings } from '../config/settings.js';
-import { getInstallationInfo } from './installationInfo.js';
+import { getInstallationInfo, PackageManager } from './installationInfo.js';
 import { updateEventEmitter } from './updateEventEmitter.js';
-import type { HistoryItem } from '../ui/types.js';
-import { MessageType } from '../ui/types.js';
+import { MessageType, type HistoryItem } from '../ui/types.js';
 import { spawnWrapper } from './spawnWrapper.js';
 import type { spawn } from 'node:child_process';
-import os from 'node:os';
+import { debugLogger } from '@google/gemini-cli-core';
+
+let _updateInProgress = false;
+
+/** @internal */
+export function _setUpdateStateForTesting(value: boolean) {
+  _updateInProgress = value;
+}
+
+export function isUpdateInProgress() {
+  return _updateInProgress;
+}
+
+/**
+ * Returns a promise that resolves when the update process completes or times out.
+ */
+export async function waitForUpdateCompletion(
+  timeoutMs = 30000,
+): Promise<void> {
+  if (!_updateInProgress) {
+    return;
+  }
+
+  debugLogger.log(
+    '\nGemini CLI is waiting for a background update to complete before restarting...',
+  );
+
+  return new Promise((resolve) => {
+    // Re-check the condition inside the promise executor to avoid a race condition.
+    // If the update finished between the initial check and now, resolve immediately.
+    if (!_updateInProgress) {
+      resolve();
+      return;
+    }
+
+    const timer = setTimeout(cleanup, timeoutMs);
+
+    function cleanup() {
+      clearTimeout(timer);
+      updateEventEmitter.off('update-success', cleanup);
+      updateEventEmitter.off('update-failed', cleanup);
+      resolve();
+    }
+
+    updateEventEmitter.once('update-success', cleanup);
+    updateEventEmitter.once('update-failed', cleanup);
+  });
+}
 
 export function handleAutoUpdate(
   info: UpdateObject | null,
@@ -24,45 +70,77 @@ export function handleAutoUpdate(
     return;
   }
 
-  // enableAutoUpdate is checked in gemini.tsx before calling this function,
-  // so if we get here, auto-update is enabled (or undefined, which defaults to enabled).
-  const isAutoUpdateEnabled =
-    settings.merged.general?.enableAutoUpdate !== false;
+  if (settings.merged.tools.sandbox || process.env['GEMINI_SANDBOX']) {
+    updateEventEmitter.emit('update-info', {
+      message: `${info.message}\nAutomatic update is not available in sandbox mode.`,
+    });
+    return;
+  }
+
+  if (!settings.merged.general.enableAutoUpdateNotification) {
+    return;
+  }
 
   const installationInfo = getInstallationInfo(
     projectRoot,
-    isAutoUpdateEnabled,
+    settings.merged.general.enableAutoUpdate,
   );
+
+  if (
+    [
+      PackageManager.NPX,
+      PackageManager.PNPX,
+      PackageManager.BUNX,
+      PackageManager.BINARY,
+    ].includes(installationInfo.packageManager)
+  ) {
+    return;
+  }
 
   let combinedMessage = info.message;
   if (installationInfo.updateMessage) {
     combinedMessage += `\n${installationInfo.updateMessage}`;
   }
 
-  updateEventEmitter.emit('update-received', {
-    message: combinedMessage,
-  });
-
-  // Don't automatically run the update if auto-update is disabled or no update command
-  if (!installationInfo.updateCommand || !isAutoUpdateEnabled) {
+  if (
+    !installationInfo.updateCommand ||
+    !settings.merged.general.enableAutoUpdate
+  ) {
+    updateEventEmitter.emit('update-received', {
+      ...info,
+      message: combinedMessage,
+      isUpdating: false,
+    });
     return;
   }
+  updateEventEmitter.emit('update-received', {
+    ...info,
+    message: combinedMessage,
+    isUpdating: true,
+  });
+  if (_updateInProgress) {
+    return;
+  }
+
   const isNightly = info.update.latest.includes('nightly');
 
   const updateCommand = installationInfo.updateCommand.replace(
     '@latest',
     isNightly ? '@nightly' : `@${info.update.latest}`,
   );
-  const isWindows = os.platform() === 'win32';
-  const shell = isWindows ? 'cmd.exe' : 'bash';
-  const shellArgs = isWindows ? ['/c', updateCommand] : ['-c', updateCommand];
-  const updateProcess = spawnFn(shell, shellArgs, { stdio: 'pipe' });
-  let errorOutput = '';
-  updateProcess.stderr.on('data', (data) => {
-    errorOutput += data.toString();
+  const updateProcess = spawnFn(updateCommand, {
+    stdio: 'ignore',
+    shell: true,
+    detached: true,
   });
 
+  _updateInProgress = true;
+
+  // Un-reference the child process to allow the parent to exit independently.
+  updateProcess.unref();
+
   updateProcess.on('close', (code) => {
+    _updateInProgress = false;
     if (code === 0) {
       updateEventEmitter.emit('update-success', {
         message:
@@ -70,12 +148,13 @@ export function handleAutoUpdate(
       });
     } else {
       updateEventEmitter.emit('update-failed', {
-        message: `Automatic update failed. Please try updating manually. (command: ${updateCommand}, stderr: ${errorOutput.trim()})`,
+        message: `Automatic update failed. Please try updating manually. (command: ${updateCommand})`,
       });
     }
   });
 
   updateProcess.on('error', (err) => {
+    _updateInProgress = false;
     updateEventEmitter.emit('update-failed', {
       message: `Automatic update failed. Please try updating manually. (error: ${err.message})`,
     });
@@ -88,7 +167,7 @@ export function setUpdateHandler(
   setUpdateInfo: (info: UpdateObject | null) => void,
 ) {
   let successfullyInstalled = false;
-  const handleUpdateRecieved = (info: UpdateObject) => {
+  const handleUpdateReceived = (info: UpdateObject) => {
     setUpdateInfo(info);
     const savedMessage = info.message;
     setTimeout(() => {
@@ -138,13 +217,13 @@ export function setUpdateHandler(
     );
   };
 
-  updateEventEmitter.on('update-received', handleUpdateRecieved);
+  updateEventEmitter.on('update-received', handleUpdateReceived);
   updateEventEmitter.on('update-failed', handleUpdateFailed);
   updateEventEmitter.on('update-success', handleUpdateSuccess);
   updateEventEmitter.on('update-info', handleUpdateInfo);
 
   return () => {
-    updateEventEmitter.off('update-received', handleUpdateRecieved);
+    updateEventEmitter.off('update-received', handleUpdateReceived);
     updateEventEmitter.off('update-failed', handleUpdateFailed);
     updateEventEmitter.off('update-success', handleUpdateSuccess);
     updateEventEmitter.off('update-info', handleUpdateInfo);

@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { safeLiteralReplace, normalizeContent } from './textUtils.js';
+import {
+  safeLiteralReplace,
+  truncateString,
+  safeTemplateReplace,
+} from './textUtils.js';
 
 describe('safeLiteralReplace', () => {
   it('returns original string when oldString empty or not found', () => {
@@ -78,42 +82,119 @@ describe('safeLiteralReplace', () => {
   });
 });
 
-describe('normalizeContent', () => {
-  it('strips UTF-8 BOM from the beginning of the string', () => {
-    const contentWithBOM = '\uFEFFHello World';
-    expect(normalizeContent(contentWithBOM)).toBe('Hello World');
+describe('truncateString', () => {
+  it('should not truncate string shorter than maxLength', () => {
+    expect(truncateString('abc', 5)).toBe('abc');
   });
 
-  it('preserves BOM-like characters not at the beginning', () => {
-    const content = 'Hello\uFEFFWorld';
-    expect(normalizeContent(content)).toBe('Hello\uFEFFWorld');
+  it('should not truncate string equal to maxLength', () => {
+    expect(truncateString('abcde', 5)).toBe('abcde');
   });
 
-  it('converts CRLF to LF', () => {
-    const content = 'Line 1\r\nLine 2';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2');
+  it('should truncate string longer than maxLength and append default suffix', () => {
+    expect(truncateString('abcdef', 5)).toBe('abcde...[TRUNCATED]');
   });
 
-  it('converts standalone CR to LF', () => {
-    const content = 'Line 1\rLine 2';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2');
+  it('should truncate string longer than maxLength and append custom suffix', () => {
+    expect(truncateString('abcdef', 5, '...')).toBe('abcde...');
   });
 
-  it('leaves existing LF unchanged', () => {
-    const content = 'Line 1\nLine 2';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2');
+  it('should handle empty string', () => {
+    expect(truncateString('', 5)).toBe('');
   });
 
-  it('handles mixed line endings correctly', () => {
-    const content = 'Line 1\r\nLine 2\rLine 3\nLine 4';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2\nLine 3\nLine 4');
+  it('should not slice surrogate pairs', () => {
+    const emoji = '😭'; // \uD83D\uDE2D, length 2
+    const str = 'a' + emoji; // length 3
+
+    // We expect 'a' (len 1). Adding the emoji (len 2) would make it 3, exceeding maxLength 2.
+    expect(truncateString(str, 2, '')).toBe('a');
+    expect(truncateString(str, 1, '')).toBe('a');
+    expect(truncateString(emoji, 1, '')).toBe('');
+    expect(truncateString(emoji, 2, '')).toBe(emoji);
   });
 
-  it('handles empty strings', () => {
-    expect(normalizeContent('')).toBe('');
+  it('should handle pre-existing dangling high surrogates at the cut point', () => {
+    // \uD83D is a high surrogate without a following low surrogate
+    const str = 'a\uD83Db';
+    // 'a' (1) + '\uD83D' (1) = 2.
+    // BUT our function should strip the dangling surrogate for safety.
+    expect(truncateString(str, 2, '')).toBe('a');
   });
 
-  it('handles strings without newlines or BOM', () => {
-    expect(normalizeContent('Just a single line')).toBe('Just a single line');
+  it('should handle multi-code-point grapheme clusters like combining marks', () => {
+    // FORCE Decomposed form (NFD) to ensure 'e' + 'accent' are separate code units
+    // This ensures the test behaves the same on Linux and Mac.
+    const combinedChar = 'e\u0301'.normalize('NFD');
+
+    // In NFD, combinedChar.length is 2.
+    const str = 'a' + combinedChar; // 'a' + 'e' + '\u0301' (length 3)
+
+    // Truncating at 2: 'a' (1) + 'e\u0301' (2) = 3. Too long, should stay at 'a'.
+    expect(truncateString(str, 2, '')).toBe('a');
+    expect(truncateString(str, 1, '')).toBe('a');
+
+    // Truncating combinedChar (len 2) at maxLength 1: too long, should be empty.
+    expect(truncateString(combinedChar, 1, '')).toBe('');
+
+    // Truncating combinedChar (len 2) at maxLength 2: fits perfectly.
+    expect(truncateString(combinedChar, 2, '')).toBe(combinedChar);
+  });
+});
+
+describe('safeTemplateReplace', () => {
+  it('replaces all occurrences of known keys', () => {
+    const tmpl = 'Hello {{name}}, welcome to {{place}}. {{name}} is happy.';
+    const replacements = { name: 'Alice', place: 'Wonderland' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe(
+      'Hello Alice, welcome to Wonderland. Alice is happy.',
+    );
+  });
+
+  it('ignores keys not present in replacements', () => {
+    const tmpl = 'Hello {{name}}, welcome to {{unknown}}.';
+    const replacements = { name: 'Bob' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe(
+      'Hello Bob, welcome to {{unknown}}.',
+    );
+  });
+
+  it('ignores extra keys in replacements', () => {
+    const tmpl = 'Hello {{name}}';
+    const replacements = { name: 'Charlie', age: '30' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe('Hello Charlie');
+  });
+
+  it('handles empty template', () => {
+    expect(safeTemplateReplace('', { key: 'val' })).toBe('');
+  });
+
+  it('handles template with no placeholders', () => {
+    expect(safeTemplateReplace('No keys here', { key: 'val' })).toBe(
+      'No keys here',
+    );
+  });
+
+  it('prevents double interpolation (security check)', () => {
+    const tmpl = 'User said: {{userInput}}';
+    const replacements = {
+      userInput: '{{secret}}',
+      secret: 'super_secret_value',
+    };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe(
+      'User said: {{secret}}',
+    );
+  });
+
+  it('handles values with $ signs correctly (no regex group substitution)', () => {
+    const tmpl = 'Price: {{price}}';
+    const replacements = { price: '$100' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe('Price: $100');
+  });
+
+  it('treats special replacement patterns (e.g. "$&") as literal strings', () => {
+    const tmpl = 'Value: {{val}}';
+    const replacements = { val: '$&' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe('Value: $&');
   });
 });

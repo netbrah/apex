@@ -25,6 +25,7 @@ import os from 'node:os';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import dotenv from 'dotenv';
+import { GEMINI_DIR } from '@google/gemini-cli-core';
 
 const argv = yargs(hideBin(process.argv)).option('q', {
   alias: 'quiet',
@@ -32,10 +33,12 @@ const argv = yargs(hideBin(process.argv)).option('q', {
   default: false,
 }).argv;
 
-let sandboxMode = process.env.APEX_SANDBOX;
+const homedir = () => process.env['GEMINI_CLI_HOME'] || os.homedir();
 
-if (!sandboxMode) {
-  const userSettingsFile = join(os.homedir(), '.apex', 'settings.json');
+let geminiSandbox = process.env.GEMINI_SANDBOX;
+
+if (!geminiSandbox) {
+  const userSettingsFile = join(homedir(), GEMINI_DIR, 'settings.json');
   if (existsSync(userSettingsFile)) {
     const settings = JSON.parse(
       stripJsonComments(readFileSync(userSettingsFile, 'utf-8')),
@@ -49,7 +52,7 @@ if (!sandboxMode) {
 if (!sandboxMode) {
   let currentDir = process.cwd();
   while (true) {
-    const qwenEnv = join(currentDir, '.apex', '.env');
+    const geminiEnv = join(currentDir, GEMINI_DIR, '.env');
     const regularEnv = join(currentDir, '.env');
     if (existsSync(qwenEnv)) {
       dotenv.config({ path: qwenEnv, quiet: true });

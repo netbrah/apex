@@ -14,7 +14,6 @@ export const QuittingDisplay = () => {
   const { rows: terminalHeight, columns: terminalWidth } = useTerminalSize();
 
   const availableTerminalHeight = terminalHeight;
-  const { mainAreaWidth } = uiState;
 
   if (!uiState.quittingMessages) {
     return null;
@@ -29,7 +28,6 @@ export const QuittingDisplay = () => {
             uiState.constrainHeight ? availableTerminalHeight : undefined
           }
           terminalWidth={terminalWidth}
-          mainAreaWidth={mainAreaWidth}
           item={item}
           isPending={false}
         />

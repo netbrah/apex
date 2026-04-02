@@ -17,6 +17,7 @@ export { DEFAULT_TELEMETRY_TARGET, DEFAULT_OTLP_ENDPOINT };
 export {
   initializeTelemetry,
   shutdownTelemetry,
+  flushTelemetry,
   isTelemetrySdkInitialized,
 } from './sdk.js';
 export {
@@ -25,7 +26,12 @@ export {
   parseTelemetryTargetValue,
 } from './config.js';
 export {
-  logStartSession,
+  GcpTraceExporter,
+  GcpMetricExporter,
+  GcpLogExporter,
+} from './gcp-exporters.js';
+export {
+  logCliConfiguration,
   logUserPrompt,
   logUserRetry,
   logToolCall,
@@ -36,24 +42,22 @@ export {
   logFlashFallback,
   logSlashCommand,
   logConversationFinishedEvent,
-  logKittySequenceOverflow,
   logChatCompression,
-  logToolOutputMasking,
   logToolOutputTruncated,
   logExtensionEnable,
   logExtensionInstallEvent,
   logExtensionUninstall,
-  logExtensionDisable,
   logExtensionUpdateEvent,
-  logRipgrepFallback,
-  logNextSpeakerCheck,
-  logAuth,
-  logSkillLaunch,
-  logUserFeedback,
-  logArenaSessionStarted,
-  logArenaAgentCompleted,
-  logArenaSessionEnded,
+  logWebFetchFallbackAttempt,
+  logNetworkRetryAttempt,
+  logRewind,
+  logOnboardingStart,
+  logOnboardingSuccess,
 } from './loggers.js';
+export {
+  logConsecaPolicyGeneration,
+  logConsecaVerdict,
+} from './conseca-logger.js';
 export type { SlashCommandEvent, ChatCompressionEvent } from './types.js';
 export {
   SlashCommandStatus,
@@ -68,18 +72,17 @@ export {
   StartSessionEvent,
   ToolCallEvent,
   ConversationFinishedEvent,
-  KittySequenceOverflowEvent,
   ToolOutputTruncatedEvent,
-  RipgrepFallbackEvent,
-  NextSpeakerCheckEvent,
-  AuthEvent,
-  SkillLaunchEvent,
-  UserFeedbackEvent,
-  UserFeedbackRating,
-  makeArenaSessionStartedEvent,
-  makeArenaAgentCompletedEvent,
-  makeArenaSessionEndedEvent,
+  WebFetchFallbackAttemptEvent,
+  NetworkRetryAttemptEvent,
+  ToolCallDecision,
+  RewindEvent,
+  OnboardingStartEvent,
+  OnboardingSuccessEvent,
+  ConsecaPolicyGenerationEvent,
+  ConsecaVerdictEvent,
 } from './types.js';
+export { LlmRole } from './llmRole.js';
 export { makeSlashCommandEvent, makeChatCompressionEvent } from './types.js';
 export type {
   ArenaSessionStartedEvent,
@@ -92,6 +95,32 @@ export type { TelemetryEvent } from './types.js';
 export { SpanStatusCode, ValueType } from '@opentelemetry/api';
 export { SemanticAttributes } from '@opentelemetry/semantic-conventions';
 export * from './uiTelemetry.js';
+export * from './billingEvents.js';
+export {
+  MemoryMonitor,
+  initializeMemoryMonitor,
+  getMemoryMonitor,
+  recordCurrentMemoryUsage,
+  startGlobalMemoryMonitoring,
+  stopGlobalMemoryMonitoring,
+} from './memory-monitor.js';
+export type { MemorySnapshot, ProcessMetrics } from './memory-monitor.js';
+export { HighWaterMarkTracker } from './high-water-mark-tracker.js';
+export { RateLimiter } from './rate-limiter.js';
+export { ActivityType } from './activity-types.js';
+export {
+  ActivityDetector,
+  getActivityDetector,
+  recordUserActivity,
+  isUserActive,
+} from './activity-detector.js';
+export {
+  ActivityMonitor,
+  initializeActivityMonitor,
+  getActivityMonitor,
+  startGlobalActivityMonitoring,
+  stopGlobalActivityMonitoring,
+} from './activity-monitor.js';
 export {
   // Core metrics functions
   recordToolCallMetrics,
@@ -100,8 +129,18 @@ export {
   recordApiErrorMetrics,
   recordFileOperationMetric,
   recordInvalidChunk,
+  recordRetryAttemptMetrics,
   recordContentRetry,
   recordContentRetryFailure,
+  recordModelRoutingMetrics,
+  // Custom metrics for token usage and API responses
+  recordCustomTokenUsageMetrics,
+  recordCustomApiResponseMetrics,
+  recordExitFail,
+  // OpenTelemetry GenAI semantic convention for token usage and operation duration
+  recordGenAiClientTokenUsage,
+  recordGenAiClientOperationDuration,
+  getConventionAttributes,
   // Performance monitoring functions
   recordStartupPerformance,
   recordMemoryUsage,
@@ -114,16 +153,22 @@ export {
   recordPerformanceRegression,
   recordBaselineComparison,
   isPerformanceMonitoringActive,
-  // Arena metrics functions
-  recordArenaSessionStartedMetrics,
-  recordArenaAgentCompletedMetrics,
-  recordArenaSessionEndedMetrics,
+  recordFlickerFrame,
+  recordSlowRender,
   // Performance monitoring types
   PerformanceMetricType,
   MemoryMetricType,
   ToolExecutionPhase,
   ApiRequestPhase,
   FileOperation,
+  // OpenTelemetry Semantic Convention types
+  GenAiOperationName,
+  GenAiProviderName,
+  GenAiTokenType,
+  // Billing metrics functions
+  recordOverageOptionSelected,
+  recordCreditPurchaseClick,
 } from './metrics.js';
-export { ApexLogger } from './apex-logger/apex-logger.js';
-export { sanitizeHookName } from './sanitize.js';
+export { runInDevTraceSpan, type SpanMetadata } from './trace.js';
+export { startupProfiler, StartupProfiler } from './startupProfiler.js';
+export * from './constants.js';

@@ -1,3 +1,17 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import {
+  DEFAULT_GEMINI_FLASH_LITE_MODEL,
+  DEFAULT_GEMINI_FLASH_MODEL,
+  DEFAULT_GEMINI_MODEL,
+  PREVIEW_GEMINI_FLASH_MODEL,
+  PREVIEW_GEMINI_MODEL,
+} from '../config/models.js';
+
 type Model = string;
 type TokenCount = number;
 
@@ -8,69 +22,18 @@ type TokenCount = number;
  */
 export type TokenLimitType = 'input' | 'output';
 
-export const DEFAULT_TOKEN_LIMIT: TokenCount = 131_072; // 128K (power-of-two)
-export const DEFAULT_OUTPUT_TOKEN_LIMIT: TokenCount = 32_000; // 32K tokens
-
-/**
- * Accurate numeric limits:
- * - power-of-two approximations (128K -> 131072, 256K -> 262144, etc.)
- * - vendor-declared exact values (e.g., 200k -> 200000, 1m -> 1000000) are
- *   used as stated in docs.
- */
-const LIMITS = {
-  '32k': 32_768,
-  '64k': 65_536,
-  '128k': 131_072,
-  '192k': 196_608, // MiniMax-M2.5 context window
-  '200k': 200_000, // vendor-declared decimal, used by OpenAI, Anthropic, etc.
-  '256k': 262_144,
-  '272k': 272_000, // vendor-declared decimal, GPT-5.x input (400K total - 128K output)
-  '400k': 400_000, // vendor-declared decimal, used by OpenAI GPT-5.x
-  '512k': 524_288,
-  '1m': 1_000_000,
-  // Output token limits (typically much smaller than input limits)
-  '4k': 4_096,
-  '8k': 8_192,
-  '16k': 16_384,
-} as const;
-
-/** Robust normalizer: strips provider prefixes, pipes/colons, date/version suffixes, etc. */
-export function normalize(model: string): string {
-  let s = (model ?? '').toLowerCase().trim();
-
-  // keep final path segment (strip provider prefixes), handle pipe/colon
-  s = s.replace(/^.*\//, '');
-  s = s.split('|').pop() ?? s;
-  s = s.split(':').pop() ?? s;
-
-  // collapse whitespace to single hyphen
-  s = s.replace(/\s+/g, '-');
-
-  // remove trailing build / date / revision suffixes:
-  // - dates (e.g., -20250219), -v1, version numbers, 'latest', 'preview' etc.
-  s = s.replace(/-preview/g, '');
-  // Special handling for model names that include date/version as part of the model identifier
-  // - Qwen models: qwen-plus-latest, qwen-flash-latest, qwen-vl-max-latest
-  // - Kimi models: kimi-k2-0905, kimi-k2-0711, etc. (keep date for version distinction)
-  if (
-    !s.match(/^qwen-(?:plus|flash|vl-max)-latest$/) &&
-    !s.match(/^kimi-k2-\d{4}$/) &&
-    !s.match(/^claude-(?:opus|sonnet|haiku)-\d+\.\d+$/)
-  ) {
-    // Regex breakdown:
-    // -(?:...)$ - Non-capturing group for suffixes at the end of the string
-    // The following patterns are matched within the group:
-    //   \d{4,} - Match 4 or more digits (dates) like -20250219 -0528 (4+ digit dates)
-    //   \d+x\d+b - Match patterns like 4x8b, -7b, -70b
-    //   v\d+(?:\.\d+)* - Match version patterns starting with 'v' like -v1, -v1.2, -v2.1.3
-    //   (?<=-[^-]+-)\d+(?:\.\d+)+ - Match version numbers with dots that are preceded by another dash,
-    //     like -1.1, -2.0.1 but only when they are preceded by another dash, Example: model-test-1.1 → model-test;
-    //     Note: this does NOT match 4.1 in gpt-4.1 because there's no dash before -4.1 in that context.
-    //   latest|exp - Match the literal string "latest" or "exp"
-    s = s.replace(
-      /-(?:\d{4,}|\d+x\d+b|v\d+(?:\.\d+)*|(?<=-[^-]+-)\d+(?:\.\d+)+|latest|exp)$/g,
-      '',
-    );
+export function tokenLimit(model: Model): TokenCount {
+  // Add other models as they become relevant or if specified by config
+  // Pulled from https://ai.google.dev/gemini-api/docs/models
+  switch (model) {
+    case PREVIEW_GEMINI_MODEL:
+    case PREVIEW_GEMINI_FLASH_MODEL:
+    case DEFAULT_GEMINI_MODEL:
+    case DEFAULT_GEMINI_FLASH_MODEL:
+    case DEFAULT_GEMINI_FLASH_LITE_MODEL:
+      return 1_048_576;
+    default:
+      return DEFAULT_TOKEN_LIMIT;
   }
 
   // remove quantization / numeric / precision suffixes common in local/community models

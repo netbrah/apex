@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { WorkspaceContext } from './workspaceContext.js';
+import { debugLogger } from './debugLogger.js';
 
 describe('WorkspaceContext with real filesystem', () => {
   let tempDir: string;
@@ -68,7 +69,7 @@ describe('WorkspaceContext with real filesystem', () => {
     it('should resolve relative paths to absolute', () => {
       const workspaceContext = new WorkspaceContext(cwd);
       const relativePath = path.relative(cwd, otherDir);
-      workspaceContext.addDirectory(relativePath, cwd);
+      workspaceContext.addDirectory(relativePath);
       const directories = workspaceContext.getDirectories();
 
       expect(directories).toEqual([cwd, otherDir]);
@@ -83,18 +84,21 @@ describe('WorkspaceContext with real filesystem', () => {
       expect(directories).toHaveLength(2);
     });
 
-    it('should handle symbolic links correctly', () => {
-      const realDir = path.join(tempDir, 'real');
-      fs.mkdirSync(realDir, { recursive: true });
-      const symlinkDir = path.join(tempDir, 'symlink-to-real');
-      fs.symlinkSync(realDir, symlinkDir, 'dir');
-      const workspaceContext = new WorkspaceContext(cwd);
-      workspaceContext.addDirectory(symlinkDir);
+    it.skipIf(os.platform() === 'win32')(
+      'should handle symbolic links correctly',
+      () => {
+        const realDir = path.join(tempDir, 'real');
+        fs.mkdirSync(realDir, { recursive: true });
+        const symlinkDir = path.join(tempDir, 'symlink-to-real');
+        fs.symlinkSync(realDir, symlinkDir, 'dir');
+        const workspaceContext = new WorkspaceContext(cwd);
+        workspaceContext.addDirectory(symlinkDir);
 
-      const directories = workspaceContext.getDirectories();
+        const directories = workspaceContext.getDirectories();
 
-      expect(directories).toEqual([cwd, realDir]);
-    });
+        expect(directories).toEqual([cwd, realDir]);
+      },
+    );
   });
 
   describe('path validation', () => {
@@ -158,7 +162,7 @@ describe('WorkspaceContext with real filesystem', () => {
       );
     });
 
-    describe('with symbolic link', () => {
+    describe.skipIf(os.platform() === 'win32')('with symbolic link', () => {
       describe('in the workspace', () => {
         let realDir: string;
         let symlinkDir: string;
@@ -274,7 +278,7 @@ describe('WorkspaceContext with real filesystem', () => {
         // handle it gracefully and return false.
         expect(workspaceContext.isPathWithinWorkspace(linkA)).toBe(false);
         expect(workspaceContext.isPathWithinWorkspace(linkB)).toBe(false);
-      });
+      }, 30000);
     });
   });
 
@@ -370,6 +374,75 @@ describe('WorkspaceContext with real filesystem', () => {
       expect(dirs1).toEqual(dirs2);
     });
   });
+
+  describe('addDirectories', () => {
+    it('should add multiple directories and emit one event', () => {
+      const dir3 = path.join(tempDir, 'dir3');
+      fs.mkdirSync(dir3);
+
+      const workspaceContext = new WorkspaceContext(cwd);
+      const listener = vi.fn();
+      workspaceContext.onDirectoriesChanged(listener);
+
+      const result = workspaceContext.addDirectories([otherDir, dir3]);
+
+      expect(workspaceContext.getDirectories()).toContain(otherDir);
+      expect(workspaceContext.getDirectories()).toContain(dir3);
+      expect(listener).toHaveBeenCalledOnce();
+      expect(result.added).toHaveLength(2);
+      expect(result.failed).toHaveLength(0);
+    });
+
+    it('should handle partial failures', () => {
+      const workspaceContext = new WorkspaceContext(cwd);
+      const listener = vi.fn();
+      workspaceContext.onDirectoriesChanged(listener);
+
+      const loggerSpy = vi
+        .spyOn(debugLogger, 'warn')
+        .mockImplementation(() => {});
+
+      const nonExistent = path.join(tempDir, 'does-not-exist');
+      const result = workspaceContext.addDirectories([otherDir, nonExistent]);
+
+      expect(workspaceContext.getDirectories()).toContain(otherDir);
+      expect(workspaceContext.getDirectories()).not.toContain(nonExistent);
+      expect(listener).toHaveBeenCalledOnce();
+      expect(loggerSpy).toHaveBeenCalled();
+      expect(result.added).toEqual([otherDir]);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0].path).toBe(nonExistent);
+      expect(result.failed[0].error).toBeDefined();
+
+      loggerSpy.mockRestore();
+    });
+
+    it('should not emit event if no directories added', () => {
+      const workspaceContext = new WorkspaceContext(cwd);
+      const listener = vi.fn();
+      workspaceContext.onDirectoriesChanged(listener);
+      const loggerSpy = vi
+        .spyOn(debugLogger, 'warn')
+        .mockImplementation(() => {});
+
+      const nonExistent = path.join(tempDir, 'does-not-exist');
+      const result = workspaceContext.addDirectories([nonExistent]);
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(result.added).toHaveLength(0);
+      expect(result.failed).toHaveLength(1);
+      loggerSpy.mockRestore();
+    });
+  });
+
+  describe('addDirectory', () => {
+    it('should throw error if directory fails to add', () => {
+      const workspaceContext = new WorkspaceContext(cwd);
+      const nonExistent = path.join(tempDir, 'does-not-exist');
+
+      expect(() => workspaceContext.addDirectory(nonExistent)).toThrow();
+    });
+  });
 });
 
 describe('WorkspaceContext with optional directories', () => {
@@ -391,6 +464,8 @@ describe('WorkspaceContext with optional directories', () => {
     fs.mkdirSync(cwd, { recursive: true });
     fs.mkdirSync(existingDir1, { recursive: true });
     fs.mkdirSync(existingDir2, { recursive: true });
+
+    vi.spyOn(debugLogger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -404,134 +479,16 @@ describe('WorkspaceContext with optional directories', () => {
     ]);
     const directories = workspaceContext.getDirectories();
     expect(directories).toEqual([cwd, existingDir1]);
+    expect(debugLogger.warn).toHaveBeenCalledTimes(1);
+    expect(debugLogger.warn).toHaveBeenCalledWith(
+      `[WARN] Skipping unreadable directory: ${nonExistentDir} (Directory does not exist: ${nonExistentDir})`,
+    );
   });
 
   it('should include an existing optional directory', () => {
     const workspaceContext = new WorkspaceContext(cwd, [existingDir1]);
     const directories = workspaceContext.getDirectories();
     expect(directories).toEqual([cwd, existingDir1]);
-  });
-});
-
-describe('WorkspaceContext removeDirectory', () => {
-  let tempDir: string;
-  let cwd: string;
-  let addedDir: string;
-  let anotherDir: string;
-
-  beforeEach(() => {
-    tempDir = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'workspace-context-remove-')),
-    );
-    cwd = path.join(tempDir, 'project');
-    addedDir = path.join(tempDir, 'added');
-    anotherDir = path.join(tempDir, 'another');
-
-    fs.mkdirSync(cwd, { recursive: true });
-    fs.mkdirSync(addedDir, { recursive: true });
-    fs.mkdirSync(anotherDir, { recursive: true });
-  });
-
-  afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  it('should remove a runtime-added directory', () => {
-    const ctx = new WorkspaceContext(cwd);
-    ctx.addDirectory(addedDir);
-    expect(ctx.getDirectories()).toContain(addedDir);
-
-    const result = ctx.removeDirectory(addedDir);
-    expect(result).toBe(true);
-    expect(ctx.getDirectories()).not.toContain(addedDir);
-  });
-
-  it('should not remove the initial cwd directory', () => {
-    const ctx = new WorkspaceContext(cwd, [addedDir]);
-    // Only cwd is truly initial (non-removable)
-    const result = ctx.removeDirectory(cwd);
-    expect(result).toBe(false);
-    expect(ctx.getDirectories()).toContain(cwd);
-  });
-
-  it('should allow removing an additional directory passed at construction', () => {
-    const ctx = new WorkspaceContext(cwd, [addedDir]);
-    // additionalDirectories are NOT initial — they can be removed
-    const result = ctx.removeDirectory(addedDir);
-    expect(result).toBe(true);
-    expect(ctx.getDirectories()).not.toContain(addedDir);
-  });
-
-  it('should return false for non-existent directory', () => {
-    const ctx = new WorkspaceContext(cwd);
-    const result = ctx.removeDirectory('/non/existent/path');
-    expect(result).toBe(false);
-  });
-
-  it('should notify listeners when a directory is removed', () => {
-    const ctx = new WorkspaceContext(cwd);
-    ctx.addDirectory(addedDir);
-
-    const listener = vi.fn();
-    ctx.onDirectoriesChanged(listener);
-
-    ctx.removeDirectory(addedDir);
-    expect(listener).toHaveBeenCalledOnce();
-  });
-
-  it('should not notify listeners when removal fails', () => {
-    const ctx = new WorkspaceContext(cwd);
-
-    const listener = vi.fn();
-    ctx.onDirectoriesChanged(listener);
-
-    ctx.removeDirectory(addedDir); // not in workspace
-    expect(listener).not.toHaveBeenCalled();
-  });
-});
-
-describe('WorkspaceContext isInitialDirectory', () => {
-  let tempDir: string;
-  let cwd: string;
-  let additionalDir: string;
-  let runtimeDir: string;
-
-  beforeEach(() => {
-    tempDir = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'workspace-context-initial-')),
-    );
-    cwd = path.join(tempDir, 'project');
-    additionalDir = path.join(tempDir, 'additional');
-    runtimeDir = path.join(tempDir, 'runtime');
-
-    fs.mkdirSync(cwd, { recursive: true });
-    fs.mkdirSync(additionalDir, { recursive: true });
-    fs.mkdirSync(runtimeDir, { recursive: true });
-  });
-
-  afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  it('should return true for the initial cwd directory', () => {
-    const ctx = new WorkspaceContext(cwd);
-    expect(ctx.isInitialDirectory(cwd)).toBe(true);
-  });
-
-  it('should return false for an additional directory passed at construction', () => {
-    const ctx = new WorkspaceContext(cwd, [additionalDir]);
-    // additionalDirectories are no longer considered 'initial'
-    expect(ctx.isInitialDirectory(additionalDir)).toBe(false);
-  });
-
-  it('should return false for a runtime-added directory', () => {
-    const ctx = new WorkspaceContext(cwd);
-    ctx.addDirectory(runtimeDir);
-    expect(ctx.isInitialDirectory(runtimeDir)).toBe(false);
-  });
-
-  it('should return false for a directory not in the workspace', () => {
-    const ctx = new WorkspaceContext(cwd);
-    expect(ctx.isInitialDirectory('/some/random/path')).toBe(false);
+    expect(debugLogger.warn).not.toHaveBeenCalled();
   });
 });

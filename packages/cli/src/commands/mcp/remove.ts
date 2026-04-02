@@ -7,8 +7,8 @@
 // File for 'qwen mcp remove' command
 import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { writeStdoutLine } from '../../utils/stdioHelpers.js';
-import { MCPOAuthTokenStorage } from '@apex-code/apex-core';
+import { debugLogger } from '@google/gemini-cli-core';
+import { exitCli } from '../utils.js';
 
 async function removeMcpServer(
   name: string,
@@ -25,7 +25,7 @@ async function removeMcpServer(
   const mcpServers = existingSettings.mcpServers || {};
 
   if (!mcpServers[name]) {
-    writeStdoutLine(`Server "${name}" not found in ${scope} settings.`);
+    debugLogger.log(`Server "${name}" not found in ${scope} settings.`);
     return;
   }
 
@@ -33,15 +33,7 @@ async function removeMcpServer(
 
   settings.setValue(settingsScope, 'mcpServers', mcpServers);
 
-  // Clean up any stored OAuth tokens for this server
-  try {
-    const tokenStorage = new MCPOAuthTokenStorage();
-    await tokenStorage.deleteCredentials(name);
-  } catch {
-    // Token cleanup is best-effort; don't fail the remove operation
-  }
-
-  writeStdoutLine(`Server "${name}" removed from ${scope} settings.`);
+  debugLogger.log(`Server "${name}" removed from ${scope} settings.`);
 }
 
 export const removeCommand: CommandModule = {
@@ -63,8 +55,11 @@ export const removeCommand: CommandModule = {
         choices: ['user', 'project'],
       }),
   handler: async (argv) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     await removeMcpServer(argv['name'] as string, {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       scope: argv['scope'] as string,
     });
+    await exitCli();
   },
 };

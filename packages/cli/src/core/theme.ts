@@ -6,7 +6,6 @@
 
 import { themeManager } from '../ui/themes/theme-manager.js';
 import { type LoadedSettings } from '../config/settings.js';
-import { t } from '../i18n/index.js';
 
 /**
  * Validates the configured theme.
@@ -14,11 +13,9 @@ import { t } from '../i18n/index.js';
  * @returns An error message if the theme is not found, otherwise null.
  */
 export function validateTheme(settings: LoadedSettings): string | null {
-  const effectiveTheme = settings.merged.ui?.theme;
+  const effectiveTheme = settings.merged.ui.theme;
   if (effectiveTheme && !themeManager.findThemeByName(effectiveTheme)) {
-    return t('Theme "{{themeName}}" not found.', {
-      themeName: effectiveTheme,
-    });
+    return `Theme "${effectiveTheme}" not found.`;
   }
   return null;
 }

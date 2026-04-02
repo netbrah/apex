@@ -30,10 +30,6 @@ export const VARIABLE_SCHEMA = {
     type: 'string',
     description: 'The path of the extension in the filesystem.',
   },
-  CLAUDE_PLUGIN_ROOT: {
-    type: 'string',
-    description: 'The path of the extension in the filesystem.',
-  },
   workspacePath: {
     type: 'string',
     description: 'The absolute path of the current workspace.',

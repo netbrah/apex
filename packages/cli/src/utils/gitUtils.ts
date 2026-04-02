@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { debugLogger } from '@google/gemini-cli-core';
 import { execSync } from 'node:child_process';
 import { ProxyAgent } from 'undici';
 import { createDebugLogger } from '@apex-code/apex-core';
@@ -25,9 +26,9 @@ export const isGitHubRepository = (): boolean => {
     const pattern = /github\.com/;
 
     return pattern.test(remotes);
-  } catch (_error) {
+  } catch (error) {
     // If any filesystem error occurs, assume not a git repo
-    debugLogger.debug(`Failed to get git remote:`, _error);
+    debugLogger.debug(`Failed to get git remote:`, error);
     return false;
   }
 };
@@ -80,15 +81,17 @@ export const getLatestGitHubRelease = async (
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const releaseTag = (await response.json()).tag_name;
     if (!releaseTag) {
       throw new Error(`Response did not include tag_name field`);
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return releaseTag;
-  } catch (_error) {
+  } catch (error) {
     debugLogger.debug(
-      `Failed to determine latest apex-action release:`,
-      _error,
+      `Failed to determine latest run-gemini-cli release:`,
+      error,
     );
     throw new Error(
       `Unable to determine the latest apex-action release on GitHub.`,

@@ -11,13 +11,22 @@ import {
   logIdeConnection,
   IdeConnectionEvent,
   IdeConnectionType,
+} from '@google/gemini-cli-core';
+import {
+  type Config,
+  IdeClient,
+  type File,
+  logIdeConnection,
+  IdeConnectionEvent,
+  IdeConnectionType,
 } from '@apex-code/apex-core';
 import {
   APEX_COMPANION_EXTENSION_NAME,
   getIdeInstaller,
   IDEConnectionStatus,
   ideContextStore,
-} from '@apex-code/apex-core';
+  GEMINI_CLI_COMPANION_EXTENSION_NAME,
+} from '@google/gemini-cli-core';
 import path from 'node:path';
 import type {
   CommandContext,
@@ -122,11 +131,12 @@ async function getIdeStatusMessageWithFiles(ideClient: IdeClient): Promise<{
 async function setIdeModeAndSyncConnection(
   config: Config,
   value: boolean,
+  options: { logToConsole?: boolean } = {},
 ): Promise<void> {
   config.setIdeMode(value);
   const ideClient = await IdeClient.getInstance();
   if (value) {
-    await ideClient.connect();
+    await ideClient.connect(options);
     logIdeConnection(config, new IdeConnectionEvent(IdeConnectionType.SESSION));
   } else {
     await ideClient.disconnect();
@@ -139,36 +149,31 @@ export const ideCommand = async (): Promise<SlashCommand> => {
   if (!currentIDE) {
     return {
       name: 'ide',
-      get description() {
-        return t('manage IDE integration');
-      },
+      description: 'Manage IDE integration',
       kind: CommandKind.BUILT_IN,
+      autoExecute: false,
       action: (): SlashCommandActionReturn =>
         ({
           type: 'message',
           messageType: 'error',
-          content: t(
-            'IDE integration is not supported in your current environment. To use this feature, run Apex in one of these supported IDEs: VS Code or VS Code forks.',
-          ),
+          content: `IDE integration is not supported in your current environment. To use this feature, run Gemini CLI in one of these supported IDEs: Antigravity, VS Code, or VS Code forks.`,
         }) as const,
     };
   }
 
   const ideSlashCommand: SlashCommand = {
     name: 'ide',
-    get description() {
-      return t('manage IDE integration');
-    },
+    description: 'Manage IDE integration',
     kind: CommandKind.BUILT_IN,
+    autoExecute: false,
     subCommands: [],
   };
 
   const statusCommand: SlashCommand = {
     name: 'status',
-    get description() {
-      return t('check status of IDE integration');
-    },
+    description: 'Check status of IDE integration',
     kind: CommandKind.BUILT_IN,
+    autoExecute: true,
     action: async (): Promise<SlashCommandActionReturn> => {
       const { messageType, content } =
         await getIdeStatusMessageWithFiles(ideClient);
@@ -182,13 +187,9 @@ export const ideCommand = async (): Promise<SlashCommand> => {
 
   const installCommand: SlashCommand = {
     name: 'install',
-    get description() {
-      const ideName = ideClient.getDetectedIdeDisplayName() ?? 'IDE';
-      return t('install required IDE companion for {{ideName}}', {
-        ideName,
-      });
-    },
+    description: `Install required IDE companion for ${ideClient.getDetectedIdeDisplayName()}`,
     kind: CommandKind.BUILT_IN,
+    autoExecute: true,
     action: async (context) => {
       const installer = getIdeInstaller(currentIDE);
       const isSandBox = !!process.env['SANDBOX'];
@@ -238,7 +239,13 @@ export const ideCommand = async (): Promise<SlashCommand> => {
         );
         // Poll for up to 5 seconds for the extension to activate.
         for (let i = 0; i < 10; i++) {
-          await setIdeModeAndSyncConnection(context.services.config!, true);
+          await setIdeModeAndSyncConnection(
+            context.services.agentContext!.config,
+            true,
+            {
+              logToConsole: false,
+            },
+          );
           if (
             ideClient.getConnectionStatus().status ===
             IDEConnectionStatus.Connected
@@ -272,17 +279,19 @@ export const ideCommand = async (): Promise<SlashCommand> => {
 
   const enableCommand: SlashCommand = {
     name: 'enable',
-    get description() {
-      return t('enable IDE integration');
-    },
+    description: 'Enable IDE integration',
     kind: CommandKind.BUILT_IN,
+    autoExecute: true,
     action: async (context: CommandContext) => {
       context.services.settings.setValue(
         SettingScope.User,
         'ide.enabled',
         true,
       );
-      await setIdeModeAndSyncConnection(context.services.config!, true);
+      await setIdeModeAndSyncConnection(
+        context.services.agentContext!.config,
+        true,
+      );
       const { messageType, content } = getIdeStatusMessage(ideClient);
       context.ui.addItem(
         {
@@ -296,17 +305,19 @@ export const ideCommand = async (): Promise<SlashCommand> => {
 
   const disableCommand: SlashCommand = {
     name: 'disable',
-    get description() {
-      return t('disable IDE integration');
-    },
+    description: 'Disable IDE integration',
     kind: CommandKind.BUILT_IN,
+    autoExecute: true,
     action: async (context: CommandContext) => {
       context.services.settings.setValue(
         SettingScope.User,
         'ide.enabled',
         false,
       );
-      await setIdeModeAndSyncConnection(context.services.config!, false);
+      await setIdeModeAndSyncConnection(
+        context.services.agentContext!.config,
+        false,
+      );
       const { messageType, content } = getIdeStatusMessage(ideClient);
       context.ui.addItem(
         {

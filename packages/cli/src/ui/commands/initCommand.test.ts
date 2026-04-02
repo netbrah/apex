@@ -9,26 +9,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { initCommand } from './initCommand.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
-import { type CommandContext } from './types.js';
+import type { CommandContext } from './types.js';
+import type { SubmitPromptActionReturn } from '@google/gemini-cli-core';
 
-// Mock the 'fs' module with both named and default exports to avoid breaking default import sites
+// Mock the 'fs' module
 vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fs')>();
-  const existsSync = vi.fn();
-  const writeFileSync = vi.fn();
-  const readFileSync = vi.fn();
+  const actual = await importOriginal<typeof import('node:fs')>();
   return {
     ...actual,
-    existsSync,
-    writeFileSync,
-    readFileSync,
-    default: {
-      ...(actual as unknown as Record<string, unknown>),
-      existsSync,
-      writeFileSync,
-      readFileSync,
-    },
-  } as unknown as typeof import('fs');
+    existsSync: vi.fn(),
+    writeFileSync: vi.fn(),
+  };
 });
 
 describe('initCommand', () => {
@@ -41,8 +32,10 @@ describe('initCommand', () => {
     // Create a fresh mock context for each test
     mockContext = createMockCommandContext({
       services: {
-        config: {
-          getTargetDir: () => targetDir,
+        agentContext: {
+          config: {
+            getTargetDir: () => targetDir,
+          },
         },
       },
     });
@@ -78,7 +71,10 @@ describe('initCommand', () => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
 
     // Act: Run the command's action
-    const result = await initCommand.action!(mockContext, '');
+    const result = (await initCommand.action!(
+      mockContext,
+      '',
+    )) as SubmitPromptActionReturn;
 
     // Assert: Check that writeFileSync was called correctly
     expect(fs.writeFileSync).toHaveBeenCalledWith(geminiMdPath, '', 'utf8');
@@ -153,7 +149,7 @@ describe('initCommand', () => {
     // Arrange: Create a context without config
     const noConfigContext = createMockCommandContext();
     if (noConfigContext.services) {
-      noConfigContext.services.config = null;
+      noConfigContext.services.agentContext = null;
     }
 
     // Act: Run the command's action

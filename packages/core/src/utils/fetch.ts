@@ -6,16 +6,12 @@
 
 import { getErrorMessage, isNodeError } from './errors.js';
 import { URL } from 'node:url';
+import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici';
+import ipaddr from 'ipaddr.js';
+import { lookup } from 'node:dns/promises';
 
-const PRIVATE_IP_RANGES = [
-  /^10\./,
-  /^127\./,
-  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-  /^192\.168\./,
-  /^::1$/,
-  /^fc00:/,
-  /^fe80:/,
-];
+const DEFAULT_HEADERS_TIMEOUT = 300000; // 5 minutes
+const DEFAULT_BODY_TIMEOUT = 300000; // 5 minutes
 
 const TLS_ERROR_CODES = new Set([
   'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
@@ -41,152 +37,185 @@ export class FetchError extends Error {
   constructor(
     message: string,
     public code?: string,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'FetchError';
   }
+}
+
+export class PrivateIpError extends Error {
+  constructor(message = 'Access to private network is blocked') {
+    super(message);
+    this.name = 'PrivateIpError';
+  }
+}
+
+// Configure default global dispatcher with higher timeouts
+setGlobalDispatcher(
+  new Agent({
+    headersTimeout: DEFAULT_HEADERS_TIMEOUT,
+    bodyTimeout: DEFAULT_BODY_TIMEOUT,
+  }),
+);
+
+/**
+ * Sanitizes a hostname by stripping IPv6 brackets if present.
+ */
+export function sanitizeHostname(hostname: string): string {
+  return hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname;
+}
+
+/**
+ * Checks if a hostname is a local loopback address allowed for development/testing.
+ */
+export function isLoopbackHost(hostname: string): boolean {
+  const sanitized = sanitizeHostname(hostname);
+  return (
+    sanitized === 'localhost' ||
+    sanitized === '127.0.0.1' ||
+    sanitized === '::1'
+  );
 }
 
 export function isPrivateIp(url: string): boolean {
   try {
     const hostname = new URL(url).hostname;
-    return PRIVATE_IP_RANGES.some((range) => range.test(hostname));
-  } catch (_e) {
+    return isAddressPrivate(hostname);
+  } catch {
     return false;
   }
+}
+
+/**
+ * IANA Benchmark Testing Range (198.18.0.0/15).
+ * Classified as 'unicast' by ipaddr.js but is reserved and should not be
+ * accessible as public internet.
+ */
+const IANA_BENCHMARK_RANGE = ipaddr.parseCIDR('198.18.0.0/15');
+
+/**
+ * Checks if an address falls within the IANA benchmark testing range.
+ */
+function isBenchmarkAddress(addr: ipaddr.IPv4 | ipaddr.IPv6): boolean {
+  const [rangeAddr, rangeMask] = IANA_BENCHMARK_RANGE;
+  return (
+    addr instanceof ipaddr.IPv4 &&
+    rangeAddr instanceof ipaddr.IPv4 &&
+    addr.match(rangeAddr, rangeMask)
+  );
+}
+
+/**
+ * Internal helper to check if an IP address string is in a private or reserved range.
+ */
+export function isAddressPrivate(address: string): boolean {
+  const sanitized = sanitizeHostname(address);
+
+  if (sanitized === 'localhost') {
+    return true;
+  }
+
+  try {
+    if (!ipaddr.isValid(sanitized)) {
+      return false;
+    }
+
+    const addr = ipaddr.parse(sanitized);
+
+    // Special handling for IPv4-mapped IPv6 (::ffff:x.x.x.x)
+    // We unmap it and check the underlying IPv4 address.
+    if (addr instanceof ipaddr.IPv6 && addr.isIPv4MappedAddress()) {
+      return isAddressPrivate(addr.toIPv4Address().toString());
+    }
+
+    // Explicitly block IANA benchmark testing range.
+    if (isBenchmarkAddress(addr)) {
+      return true;
+    }
+
+    return addr.range() !== 'unicast';
+  } catch {
+    // If parsing fails despite isValid(), we treat it as potentially unsafe.
+    return true;
+  }
+}
+
+/**
+ * Checks if a URL resolves to a private IP address.
+ */
+export async function isPrivateIpAsync(url: string): Promise<boolean> {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname;
+
+    if (isLoopbackHost(hostname)) {
+      return false;
+    }
+
+    const addresses = await lookup(hostname, { all: true });
+    return addresses.some((addr) => isAddressPrivate(addr.address));
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return false;
+    }
+    throw new Error('Failed to verify if URL resolves to private IP', {
+      cause: error,
+    });
+  }
+}
+
+/**
+ * Creates an undici ProxyAgent that incorporates safe DNS lookup.
+ */
+export function createSafeProxyAgent(proxyUrl: string): ProxyAgent {
+  return new ProxyAgent({
+    uri: proxyUrl,
+  });
 }
 
 export async function fetchWithTimeout(
   url: string,
   timeout: number,
+  options?: RequestInit,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', () => controller.abort(), {
+        once: true,
+      });
+    }
+  }
+
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
     return response;
   } catch (error) {
     if (isNodeError(error) && error.code === 'ABORT_ERR') {
       throw new FetchError(`Request timed out after ${timeout}ms`, 'ETIMEDOUT');
     }
-    throw new FetchError(getErrorMessage(error));
+    throw new FetchError(getErrorMessage(error), undefined, { cause: error });
   } finally {
     clearTimeout(timeoutId);
   }
 }
 
-function getErrorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== 'object') {
-    return undefined;
-  }
-
-  if (
-    'code' in error &&
-    typeof (error as Record<string, unknown>)['code'] === 'string'
-  ) {
-    return (error as Record<string, string>)['code'];
-  }
-
-  return undefined;
-}
-
-function formatUnknownErrorMessage(error: unknown): string | undefined {
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (
-    typeof error === 'number' ||
-    typeof error === 'boolean' ||
-    typeof error === 'bigint'
-  ) {
-    return String(error);
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (!error || typeof error !== 'object') {
-    return undefined;
-  }
-
-  const message = (error as Record<string, unknown>)['message'];
-  if (typeof message === 'string') {
-    return message;
-  }
-
-  return undefined;
-}
-
-function formatErrorCause(error: unknown): string | undefined {
-  if (!(error instanceof Error)) {
-    return undefined;
-  }
-
-  const cause = (error as Error & { cause?: unknown }).cause;
-  if (!cause) {
-    return undefined;
-  }
-
-  const causeCode = getErrorCode(cause);
-  const causeMessage = formatUnknownErrorMessage(cause);
-
-  if (!causeCode && !causeMessage) {
-    return undefined;
-  }
-
-  if (causeCode && causeMessage && !causeMessage.includes(causeCode)) {
-    return `${causeCode}: ${causeMessage}`;
-  }
-
-  return causeMessage ?? causeCode;
-}
-
-export function formatFetchErrorForUser(
-  error: unknown,
-  options: { url?: string } = {},
-): string {
-  const errorMessage = getErrorMessage(error);
-
-  const code =
-    error instanceof Error
-      ? (getErrorCode((error as Error & { cause?: unknown }).cause) ??
-        getErrorCode(error))
-      : getErrorCode(error);
-
-  const cause = formatErrorCause(error);
-  const fullErrorMessage = [
-    errorMessage,
-    cause ? `(cause: ${cause})` : undefined,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const shouldShowFetchHints =
-    errorMessage.toLowerCase().includes('fetch failed') ||
-    (code != null && FETCH_TROUBLESHOOTING_ERROR_CODES.has(code));
-
-  const shouldShowTlsHint = code != null && TLS_ERROR_CODES.has(code);
-
-  if (!shouldShowFetchHints) {
-    return fullErrorMessage;
-  }
-
-  const hintLines = [
-    '',
-    'Troubleshooting:',
-    ...(options.url
-      ? [`- Confirm you can reach ${options.url} from this machine.`]
-      : []),
-    '- If you are behind a proxy, pass `--proxy <url>` (or set `proxy` in settings).',
-    ...(shouldShowTlsHint
-      ? [
-          '- If your network uses a corporate TLS inspection CA, set `NODE_EXTRA_CA_CERTS` to your CA bundle.',
-        ]
-      : []),
-  ];
-
-  return `${fullErrorMessage}${hintLines.join('\n')}`;
+export function setGlobalProxy(proxy: string) {
+  setGlobalDispatcher(
+    new ProxyAgent({
+      uri: proxy,
+      headersTimeout: DEFAULT_HEADERS_TIMEOUT,
+      bodyTimeout: DEFAULT_BODY_TIMEOUT,
+    }),
+  );
 }

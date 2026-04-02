@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -9,12 +9,11 @@ import * as path from 'node:path';
 import { Storage } from '../config/storage.js';
 import {
   getHookKey,
+  HookType,
   type HookDefinition,
   type HookEventName,
 } from './types.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('TRUSTED_HOOKS');
+import { debugLogger } from '../utils/debugLogger.js';
 
 interface TrustedHooksConfig {
   [projectPath: string]: string[]; // Array of trusted hook keys (name:command)
@@ -26,7 +25,7 @@ export class TrustedHooksManager {
 
   constructor() {
     this.configPath = path.join(
-      Storage.getGlobalApexDir(),
+      Storage.getGlobalGeminiDir(),
       'trusted_hooks.json',
     );
     this.load();
@@ -36,6 +35,7 @@ export class TrustedHooksManager {
     try {
       if (fs.existsSync(this.configPath)) {
         const content = fs.readFileSync(this.configPath, 'utf-8');
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         this.trustedHooks = JSON.parse(content);
       }
     } catch (error) {
@@ -73,12 +73,14 @@ export class TrustedHooksManager {
     const untrusted: string[] = [];
 
     for (const eventName of Object.keys(hooks)) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const definitions = hooks[eventName as HookEventName];
       if (!Array.isArray(definitions)) continue;
 
       for (const def of definitions) {
         if (!def || !Array.isArray(def.hooks)) continue;
         for (const hook of def.hooks) {
+          if (hook.type === HookType.Runtime) continue;
           const key = getHookKey(hook);
           if (!trustedKeys.has(key)) {
             // Return friendly name or command
@@ -101,12 +103,14 @@ export class TrustedHooksManager {
     const currentTrusted = new Set(this.trustedHooks[projectPath] || []);
 
     for (const eventName of Object.keys(hooks)) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const definitions = hooks[eventName as HookEventName];
       if (!Array.isArray(definitions)) continue;
 
       for (const def of definitions) {
         if (!def || !Array.isArray(def.hooks)) continue;
         for (const hook of def.hooks) {
+          if (hook.type === HookType.Runtime) continue;
           currentTrusted.add(getHookKey(hook));
         }
       }

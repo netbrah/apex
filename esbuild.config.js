@@ -7,14 +7,15 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { writeFileSync, rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { wasmLoader } from 'esbuild-plugin-wasm';
 
 let esbuild;
 try {
   esbuild = (await import('esbuild')).default;
-} catch (_error) {
-  console.warn('esbuild not available, skipping bundle step');
-  process.exit(0);
+} catch {
+  console.error('esbuild not available - cannot build bundle');
+  process.exit(1);
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,8 +23,36 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const pkg = require(path.resolve(__dirname, 'package.json'));
 
-// Clean dist directory (cross-platform)
-rmSync(path.resolve(__dirname, 'dist'), { recursive: true, force: true });
+function createWasmPlugins() {
+  const wasmBinaryPlugin = {
+    name: 'wasm-binary',
+    setup(build) {
+      build.onResolve({ filter: /\.wasm\?binary$/ }, (args) => {
+        const specifier = args.path.replace(/\?binary$/, '');
+        const resolveDir = args.resolveDir || '';
+        const isBareSpecifier =
+          !path.isAbsolute(specifier) &&
+          !specifier.startsWith('./') &&
+          !specifier.startsWith('../');
+
+        let resolvedPath;
+        if (isBareSpecifier) {
+          resolvedPath = require.resolve(specifier, {
+            paths: resolveDir ? [resolveDir, __dirname] : [__dirname],
+          });
+        } else {
+          resolvedPath = path.isAbsolute(specifier)
+            ? specifier
+            : path.join(resolveDir, specifier);
+        }
+
+        return { path: resolvedPath, namespace: 'wasm-embedded' };
+      });
+    },
+  };
+
+  return [wasmBinaryPlugin, wasmLoader({ mode: 'embedded' })];
+}
 
 const external = [
   '@lydell/node-pty',
@@ -33,52 +62,78 @@ const external = [
   '@lydell/node-pty-linux-x64',
   '@lydell/node-pty-win32-arm64',
   '@lydell/node-pty-win32-x64',
-  '@teddyzhu/clipboard',
-  '@teddyzhu/clipboard-darwin-arm64',
-  '@teddyzhu/clipboard-darwin-x64',
-  '@teddyzhu/clipboard-linux-x64-gnu',
-  '@teddyzhu/clipboard-linux-arm64-gnu',
-  '@teddyzhu/clipboard-win32-x64-msvc',
-  '@teddyzhu/clipboard-win32-arm64-msvc',
+  'keytar',
+  '@google/gemini-cli-devtools',
 ];
 
-esbuild
-  .build({
-    entryPoints: ['packages/cli/index.ts'],
-    bundle: true,
-    outfile: 'dist/cli.js',
-    platform: 'node',
-    format: 'esm',
-    target: 'node20',
-    external,
-    packages: 'bundle',
-    inject: [path.resolve(__dirname, 'scripts/esbuild-shims.js')],
-    banner: {
-      js: `// Force strict mode and setup for ESM
-"use strict";`,
-    },
-    alias: {
-      'is-in-ci': path.resolve(
-        __dirname,
-        'packages/cli/src/patches/is-in-ci.ts',
-      ),
-    },
-    define: {
-      'process.env.CLI_VERSION': JSON.stringify(pkg.version),
-      // Make global available for compatibility
-      global: 'globalThis',
-    },
-    loader: { '.node': 'file' },
-    metafile: true,
-    write: true,
-    keepNames: true,
-  })
-  .then(({ metafile }) => {
+const baseConfig = {
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  external,
+  loader: { '.node': 'file' },
+  write: true,
+};
+
+const commonAliases = {
+  punycode: 'punycode/',
+};
+
+const cliConfig = {
+  ...baseConfig,
+  banner: {
+    js: `const require = (await import('node:module')).createRequire(import.meta.url); const __chunk_filename = (await import('node:url')).fileURLToPath(import.meta.url); const __chunk_dirname = (await import('node:path')).dirname(__chunk_filename);`,
+  },
+  entryPoints: { gemini: 'packages/cli/index.ts' },
+  outdir: 'bundle',
+  splitting: true,
+  define: {
+    __filename: '__chunk_filename',
+    __dirname: '__chunk_dirname',
+    'process.env.CLI_VERSION': JSON.stringify(pkg.version),
+    'process.env.GEMINI_SANDBOX_IMAGE_DEFAULT': JSON.stringify(
+      pkg.config?.sandboxImageUri,
+    ),
+  },
+  plugins: createWasmPlugins(),
+  alias: {
+    'is-in-ci': path.resolve(__dirname, 'packages/cli/src/patches/is-in-ci.ts'),
+    ...commonAliases,
+  },
+  metafile: true,
+};
+
+const a2aServerConfig = {
+  ...baseConfig,
+  banner: {
+    js: `const require = (await import('node:module')).createRequire(import.meta.url); const __chunk_filename = (await import('node:url')).fileURLToPath(import.meta.url); const __chunk_dirname = (await import('node:path')).dirname(__chunk_filename);`,
+  },
+  entryPoints: ['packages/a2a-server/src/http/server.ts'],
+  outfile: 'packages/a2a-server/dist/a2a-server.mjs',
+  define: {
+    __filename: '__chunk_filename',
+    __dirname: '__chunk_dirname',
+    'process.env.CLI_VERSION': JSON.stringify(pkg.version),
+  },
+  plugins: createWasmPlugins(),
+  alias: commonAliases,
+};
+
+Promise.allSettled([
+  esbuild.build(cliConfig).then(({ metafile }) => {
     if (process.env.DEV === 'true') {
-      writeFileSync('./dist/esbuild.json', JSON.stringify(metafile, null, 2));
+      writeFileSync('./bundle/esbuild.json', JSON.stringify(metafile, null, 2));
     }
-  })
-  .catch((error) => {
-    console.error('esbuild build failed:', error);
-    process.exitCode = 1;
-  });
+  }),
+  esbuild.build(a2aServerConfig),
+]).then((results) => {
+  const [cliResult, a2aResult] = results;
+  if (cliResult.status === 'rejected') {
+    console.error('gemini.js build failed:', cliResult.reason);
+    process.exit(1);
+  }
+  // error in a2a-server bundling will not stop gemini.js bundling process
+  if (a2aResult.status === 'rejected') {
+    console.warn('a2a-server build failed:', a2aResult.reason);
+  }
+});

@@ -1,107 +1,98 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { createContext, useContext } from 'react';
 import { type Key } from '../hooks/useKeypress.js';
 import { type IdeIntegrationNudgeResult } from '../IdeIntegrationNudge.js';
-import { type CommandMigrationNudgeResult } from '../CommandFormatMigrationNudge.js';
 import { type FolderTrustChoice } from '../components/FolderTrustDialog.js';
 import {
   type AuthType,
   type EditorType,
-  type ApprovalMode,
-} from '@apex-code/apex-core';
-import { type SettingScope } from '../../config/settings.js';
-import { type CodingPlanRegion } from '../../constants/codingPlan.js';
-import { type AlibabaStandardRegion } from '../../constants/alibabaStandardApiKey.js';
+  type AgentDefinition,
+} from '@google/gemini-cli-core';
+import { type LoadableSettingScope } from '../../config/settings.js';
 import type { AuthState } from '../types.js';
-import { type ArenaDialogType } from '../hooks/useArenaCommand.js';
-// OpenAICredentials type (previously imported from OpenAIKeyPrompt)
-export interface OpenAICredentials {
-  apiKey: string;
-  baseUrl?: string;
-  model?: string;
-}
+import { type PermissionsDialogProps } from '../components/PermissionsModifyTrustDialog.js';
+import type { SessionInfo } from '../../utils/sessionUtils.js';
+import { type NewAgentsChoice } from '../components/NewAgentsNotification.js';
+import type { OverageMenuIntent, EmptyWalletIntent } from './UIStateContext.js';
 
 export interface UIActions {
-  openThemeDialog: () => void;
-  openEditorDialog: () => void;
   handleThemeSelect: (
-    themeName: string | undefined,
-    scope: SettingScope,
-  ) => void;
+    themeName: string,
+    scope: LoadableSettingScope,
+  ) => Promise<void>;
+  closeThemeDialog: () => void;
   handleThemeHighlight: (themeName: string | undefined) => void;
-  handleApprovalModeSelect: (
-    mode: ApprovalMode | undefined,
-    scope: SettingScope,
-  ) => void;
   handleAuthSelect: (
     authType: AuthType | undefined,
-    credentials?: OpenAICredentials,
-  ) => Promise<void>;
-  handleCodingPlanSubmit: (
-    apiKey: string,
-    region?: CodingPlanRegion,
-  ) => Promise<void>;
-  handleAlibabaStandardSubmit: (
-    apiKey: string,
-    region: AlibabaStandardRegion,
-    modelIdsInput: string,
-  ) => Promise<void>;
+    scope: LoadableSettingScope,
+  ) => void;
   setAuthState: (state: AuthState) => void;
   onAuthError: (error: string | null) => void;
-  cancelAuthentication: () => void;
   handleEditorSelect: (
     editorType: EditorType | undefined,
-    scope: SettingScope,
+    scope: LoadableSettingScope,
   ) => void;
   exitEditorDialog: () => void;
+  exitPrivacyNotice: () => void;
   closeSettingsDialog: () => void;
   closeModelDialog: () => void;
-  openArenaDialog: (type: Exclude<ArenaDialogType, null>) => void;
-  closeArenaDialog: () => void;
-  handleArenaModelsSelected?: (models: string[]) => void;
-  dismissCodingPlanUpdate: () => void;
-  closeTrustDialog: () => void;
+  openAgentConfigDialog: (
+    name: string,
+    displayName: string,
+    definition: AgentDefinition,
+  ) => void;
+  closeAgentConfigDialog: () => void;
+  openPermissionsDialog: (props?: PermissionsDialogProps) => void;
   closePermissionsDialog: () => void;
   setShellModeActive: (value: boolean) => void;
   vimHandleInput: (key: Key) => boolean;
   handleIdePromptComplete: (result: IdeIntegrationNudgeResult) => void;
-  handleCommandMigrationComplete: (result: CommandMigrationNudgeResult) => void;
   handleFolderTrustSelect: (choice: FolderTrustChoice) => void;
+  setIsPolicyUpdateDialogOpen: (value: boolean) => void;
   setConstrainHeight: (value: boolean) => void;
   onEscapePromptChange: (show: boolean) => void;
-  onSuggestionsVisibilityChange: (visible: boolean) => void;
   refreshStatic: () => void;
-  handleFinalSubmit: (value: string) => void;
-  handleRetryLastPrompt: () => void;
+  handleFinalSubmit: (value: string) => Promise<void>;
   handleClearScreen: () => void;
-  // Welcome back dialog
-  handleWelcomeBackSelection: (choice: 'continue' | 'restart') => void;
-  handleWelcomeBackClose: () => void;
-  // Subagent dialogs
-  closeSubagentCreateDialog: () => void;
-  closeAgentsManagerDialog: () => void;
-  // Extensions manager dialog
-  closeExtensionsManagerDialog: () => void;
-  // MCP dialog
-  closeMcpDialog: () => void;
-  // Hooks dialog
-  openHooksDialog: () => void;
-  // Hooks dialog
-  closeHooksDialog: () => void;
-  // Resume session dialog
-  openResumeDialog: () => void;
-  closeResumeDialog: () => void;
-  handleResume: (sessionId: string) => void;
-  // Feedback dialog
-  openFeedbackDialog: () => void;
-  closeFeedbackDialog: () => void;
-  temporaryCloseFeedbackDialog: () => void;
-  submitFeedback: (rating: number) => void;
+  handleProQuotaChoice: (
+    choice: 'retry_later' | 'retry_once' | 'retry_always' | 'upgrade',
+  ) => void;
+  handleValidationChoice: (choice: 'verify' | 'change_auth' | 'cancel') => void;
+  handleOverageMenuChoice: (choice: OverageMenuIntent) => void;
+  handleEmptyWalletChoice: (choice: EmptyWalletIntent) => void;
+  openSessionBrowser: () => void;
+  closeSessionBrowser: () => void;
+  handleResumeSession: (session: SessionInfo) => Promise<void>;
+  handleDeleteSession: (session: SessionInfo) => Promise<void>;
+  setQueueErrorMessage: (message: string | null) => void;
+  addMessage: (message: string) => void;
+  popAllMessages: () => string | undefined;
+  handleApiKeySubmit: (apiKey: string) => Promise<void>;
+  handleApiKeyCancel: () => void;
+  setBannerVisible: (visible: boolean) => void;
+  setShortcutsHelpVisible: (visible: boolean) => void;
+  setCleanUiDetailsVisible: (visible: boolean) => void;
+  toggleCleanUiDetailsVisible: () => void;
+  revealCleanUiDetailsTemporarily: (durationMs?: number) => void;
+  handleWarning: (message: string) => void;
+  setEmbeddedShellFocused: (value: boolean) => void;
+  dismissBackgroundTask: (pid: number) => Promise<void>;
+  setActiveBackgroundTaskPid: (pid: number) => void;
+  setIsBackgroundTaskListOpen: (isOpen: boolean) => void;
+  setAuthContext: (context: { requiresRestart?: boolean }) => void;
+  onHintInput: (char: string) => void;
+  onHintBackspace: () => void;
+  onHintClear: () => void;
+  onHintSubmit: (hint: string) => void;
+  handleRestart: () => void;
+  handleNewAgentsSelect: (choice: NewAgentsChoice) => Promise<void>;
+  getPreferredEditor: () => EditorType | undefined;
+  clearAccountSuspension: () => void;
 }
 
 export const UIActionsContext = createContext<UIActions | null>(null);

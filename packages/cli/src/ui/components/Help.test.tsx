@@ -4,20 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/** @vitest-environment jsdom */
-
-import { render } from 'ink-testing-library';
+import { render } from '../../test-utils/render.js';
 import { describe, it, expect } from 'vitest';
 import { Help } from './Help.js';
-import type { SlashCommand } from '../commands/types.js';
-import { CommandKind } from '../commands/types.js';
+import { CommandKind, type SlashCommand } from '../commands/types.js';
 
 const mockCommands: readonly SlashCommand[] = [
   {
     name: 'test',
     description: 'A test command',
     kind: CommandKind.BUILT_IN,
-    altNames: ['alias-one', 'alias-two'],
   },
   {
     name: 'hidden',
@@ -46,38 +42,38 @@ const mockCommands: readonly SlashCommand[] = [
 ];
 
 describe('Help Component', () => {
-  it('should render platform-specific keyboard shortcuts', () => {
-    const { lastFrame } = render(<Help commands={mockCommands} />);
-    const output = lastFrame();
-
-    if (process.platform === 'win32') {
-      expect(output).toContain('Tab');
-      expect(output).not.toContain('Shift+Tab');
-    } else {
-      expect(output).toContain('Shift+Tab');
-    }
-  });
-
-  it('should not render hidden commands', () => {
-    const { lastFrame } = render(<Help commands={mockCommands} />);
+  it('should not render hidden commands', async () => {
+    const { lastFrame, unmount } = await render(
+      <Help commands={mockCommands} />,
+    );
     const output = lastFrame();
 
     expect(output).toContain('/test');
     expect(output).not.toContain('/hidden');
+    unmount();
   });
 
-  it('should not render hidden subcommands', () => {
-    const { lastFrame } = render(<Help commands={mockCommands} />);
+  it('should not render hidden subcommands', async () => {
+    const { lastFrame, unmount } = await render(
+      <Help commands={mockCommands} />,
+    );
     const output = lastFrame();
 
     expect(output).toContain('visible-child');
     expect(output).not.toContain('hidden-child');
+    unmount();
   });
 
-  it('should render alt names for commands when available', () => {
-    const { lastFrame } = render(<Help commands={mockCommands} />);
+  it('should render keyboard shortcuts', async () => {
+    const { lastFrame, unmount } = await render(
+      <Help commands={mockCommands} />,
+    );
     const output = lastFrame();
 
-    expect(output).toContain('/test (alias-one, alias-two)');
+    expect(output).toContain('Keyboard Shortcuts:');
+    expect(output).toContain('Ctrl+C');
+    expect(output).toContain('Ctrl+S');
+    expect(output).toContain('Page Up/Page Down');
+    unmount();
   });
 });

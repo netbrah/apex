@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -10,12 +16,12 @@ import {
   ExtensionSettingScope,
   getScopedEnvContents,
 } from './extensionSettings.js';
-import type { ExtensionConfig } from './extensionManager.js';
+import type { ExtensionConfig } from '../extension.js';
 import { ExtensionStorage } from './storage.js';
 import prompts from 'prompts';
 import * as fsPromises from 'node:fs/promises';
 import * as fs from 'node:fs';
-import { KeychainTokenStorage } from '../mcp/token-storage/keychain-token-storage.js';
+import { KeychainTokenStorage } from '@google/gemini-cli-core';
 import { EXTENSION_SETTINGS_FILENAME } from './variables.js';
 
 vi.mock('prompts');
@@ -27,19 +33,14 @@ vi.mock('os', async (importOriginal) => {
   };
 });
 
-vi.mock(
-  '../mcp/token-storage/keychain-token-storage.js',
-  async (importOriginal) => {
-    const actual =
-      await importOriginal<
-        typeof import('../mcp/token-storage/keychain-token-storage.js')
-      >();
-    return {
-      ...actual,
-      KeychainTokenStorage: vi.fn(),
-    };
-  },
-);
+vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@google/gemini-cli-core')>();
+  return {
+    ...actual,
+    KeychainTokenStorage: vi.fn(),
+  };
+});
 
 describe('extensionSettings', () => {
   let tempHomeDir: string;
@@ -82,7 +83,7 @@ describe('extensionSettings', () => {
       os.tmpdir(),
       `gemini-cli-test-workspace-${Date.now()}`,
     );
-    extensionDir = path.join(tempHomeDir, '.apex', 'extensions', 'test-ext');
+    extensionDir = path.join(tempHomeDir, '.gemini', 'extensions', 'test-ext');
     // Spy and mock the method, but also create the directory so we can write to it.
     vi.spyOn(ExtensionStorage.prototype, 'getExtensionDir').mockReturnValue(
       extensionDir,
@@ -215,7 +216,7 @@ describe('extensionSettings', () => {
         SENSITIVE_VAR: 'secret',
       };
       const userKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345`,
+        `Gemini CLI Extensions test-ext 12345`,
       );
       await userKeychain.setSecret('SENSITIVE_VAR', 'secret');
       const envPath = path.join(extensionDir, '.env');
@@ -255,7 +256,7 @@ describe('extensionSettings', () => {
       };
       const previousSettings = { SENSITIVE_VAR: 'secret' };
       const userKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345`,
+        `Gemini CLI Extensions test-ext 12345`,
       );
       await userKeychain.setSecret('SENSITIVE_VAR', 'secret');
 
@@ -397,6 +398,35 @@ describe('extensionSettings', () => {
       expect(actualContent).toBe('VAR1="a value with spaces"\n');
     });
 
+    it('should not set sensitive settings if the value is empty during initial setup', async () => {
+      const config: ExtensionConfig = {
+        name: 'test-ext',
+        version: '1.0.0',
+        settings: [
+          {
+            name: 's1',
+            description: 'd1',
+            envVar: 'SENSITIVE_VAR',
+            sensitive: true,
+          },
+        ],
+      };
+      mockRequestSetting.mockResolvedValue('');
+
+      await maybePromptForSettings(
+        config,
+        '12345',
+        mockRequestSetting,
+        undefined,
+        undefined,
+      );
+
+      const userKeychain = new KeychainTokenStorage(
+        `Gemini CLI Extensions test-ext 12345`,
+      );
+      expect(await userKeychain.getSecret('SENSITIVE_VAR')).toBeNull();
+    });
+
     it('should not attempt to clear secrets if keychain is unavailable', async () => {
       // Arrange
       const mockIsAvailable = vi.fn().mockResolvedValue(false);
@@ -520,7 +550,7 @@ describe('extensionSettings', () => {
       const userEnvPath = path.join(extensionDir, EXTENSION_SETTINGS_FILENAME);
       await fsPromises.writeFile(userEnvPath, 'VAR1=user-value1');
       const userKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345`,
+        `Gemini CLI Extensions test-ext 12345`,
       );
       await userKeychain.setSecret('SENSITIVE_VAR', 'user-secret');
 
@@ -528,6 +558,7 @@ describe('extensionSettings', () => {
         config,
         extensionId,
         ExtensionSettingScope.USER,
+        tempWorkspaceDir,
       );
 
       expect(contents).toEqual({
@@ -543,7 +574,7 @@ describe('extensionSettings', () => {
       );
       await fsPromises.writeFile(workspaceEnvPath, 'VAR1=workspace-value1');
       const workspaceKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345 ${tempWorkspaceDir}`,
+        `Gemini CLI Extensions test-ext 12345 ${tempWorkspaceDir}`,
       );
       await workspaceKeychain.setSecret('SENSITIVE_VAR', 'workspace-secret');
 
@@ -551,10 +582,34 @@ describe('extensionSettings', () => {
         config,
         extensionId,
         ExtensionSettingScope.WORKSPACE,
+        tempWorkspaceDir,
       );
 
       expect(contents).toEqual({
         VAR1: 'workspace-value1',
+        SENSITIVE_VAR: 'workspace-secret',
+      });
+    });
+
+    it('should ignore .env if it is a directory', async () => {
+      const workspaceEnvPath = path.join(
+        tempWorkspaceDir,
+        EXTENSION_SETTINGS_FILENAME,
+      );
+      fs.mkdirSync(workspaceEnvPath);
+      const workspaceKeychain = new KeychainTokenStorage(
+        `Gemini CLI Extensions test-ext 12345 ${tempWorkspaceDir}`,
+      );
+      await workspaceKeychain.setSecret('SENSITIVE_VAR', 'workspace-secret');
+
+      const contents = await getScopedEnvContents(
+        config,
+        extensionId,
+        ExtensionSettingScope.WORKSPACE,
+        tempWorkspaceDir,
+      );
+
+      expect(contents).toEqual({
         SENSITIVE_VAR: 'workspace-secret',
       });
     });
@@ -580,7 +635,7 @@ describe('extensionSettings', () => {
         'VAR1=user-value1\nVAR3=user-value3',
       );
       const userKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext ${extensionId}`,
+        `Gemini CLI Extensions test-ext ${extensionId}`,
       );
       await userKeychain.setSecret('VAR2', 'user-secret2');
 
@@ -591,11 +646,15 @@ describe('extensionSettings', () => {
       );
       await fsPromises.writeFile(workspaceEnvPath, 'VAR1=workspace-value1');
       const workspaceKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext ${extensionId} ${tempWorkspaceDir}`,
+        `Gemini CLI Extensions test-ext ${extensionId} ${tempWorkspaceDir}`,
       );
       await workspaceKeychain.setSecret('VAR2', 'workspace-secret2');
 
-      const contents = await getEnvContents(config, extensionId);
+      const contents = await getEnvContents(
+        config,
+        extensionId,
+        tempWorkspaceDir,
+      );
 
       expect(contents).toEqual({
         VAR1: 'workspace-value1',
@@ -620,7 +679,7 @@ describe('extensionSettings', () => {
       const userEnvPath = path.join(extensionDir, '.env');
       await fsPromises.writeFile(userEnvPath, 'VAR1=value1\n');
       const userKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345`,
+        `Gemini CLI Extensions test-ext 12345`,
       );
       await userKeychain.setSecret('VAR2', 'value2');
       mockRequestSetting.mockClear();
@@ -635,6 +694,7 @@ describe('extensionSettings', () => {
         'VAR1',
         mockRequestSetting,
         ExtensionSettingScope.USER,
+        tempWorkspaceDir,
       );
 
       const expectedEnvPath = path.join(extensionDir, '.env');
@@ -651,11 +711,32 @@ describe('extensionSettings', () => {
         'VAR1',
         mockRequestSetting,
         ExtensionSettingScope.WORKSPACE,
+        tempWorkspaceDir,
       );
 
       const expectedEnvPath = path.join(tempWorkspaceDir, '.env');
       const actualContent = await fsPromises.readFile(expectedEnvPath, 'utf-8');
       expect(actualContent).toContain('VAR1=new-workspace-value');
+    });
+
+    it('should throw an error when trying to write to a workspace with a .env directory', async () => {
+      const workspaceEnvPath = path.join(tempWorkspaceDir, '.env');
+      fs.mkdirSync(workspaceEnvPath);
+
+      mockRequestSetting.mockResolvedValue('new-workspace-value');
+
+      await expect(
+        updateSetting(
+          config,
+          '12345',
+          'VAR1',
+          mockRequestSetting,
+          ExtensionSettingScope.WORKSPACE,
+          tempWorkspaceDir,
+        ),
+      ).rejects.toThrow(
+        /Cannot write extension settings to .* because it is a directory./,
+      );
     });
 
     it('should update a sensitive setting in USER scope', async () => {
@@ -667,10 +748,11 @@ describe('extensionSettings', () => {
         'VAR2',
         mockRequestSetting,
         ExtensionSettingScope.USER,
+        tempWorkspaceDir,
       );
 
       const userKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345`,
+        `Gemini CLI Extensions test-ext 12345`,
       );
       expect(await userKeychain.getSecret('VAR2')).toBe('new-value2');
     });
@@ -684,10 +766,11 @@ describe('extensionSettings', () => {
         'VAR2',
         mockRequestSetting,
         ExtensionSettingScope.WORKSPACE,
+        tempWorkspaceDir,
       );
 
       const workspaceKeychain = new KeychainTokenStorage(
-        `APEX Extensions test-ext 12345 ${tempWorkspaceDir}`,
+        `Gemini CLI Extensions test-ext 12345 ${tempWorkspaceDir}`,
       );
       expect(await workspaceKeychain.getSecret('VAR2')).toBe(
         'new-workspace-secret',
@@ -709,6 +792,7 @@ describe('extensionSettings', () => {
         'VAR1',
         mockRequestSetting,
         ExtensionSettingScope.WORKSPACE,
+        tempWorkspaceDir,
       );
 
       // Read the .env file after update
@@ -725,6 +809,129 @@ describe('extensionSettings', () => {
       // Ensure no other unexpected changes or deletions
       const lines = actualContent.split('\n').filter((line) => line.length > 0);
       expect(lines).toHaveLength(3); // Should only have the three variables
+    });
+
+    it('should delete a sensitive setting if the new value is empty', async () => {
+      mockRequestSetting.mockResolvedValue('');
+
+      await updateSetting(
+        config,
+        '12345',
+        'VAR2',
+        mockRequestSetting,
+        ExtensionSettingScope.USER,
+        tempWorkspaceDir,
+      );
+
+      const userKeychain = new KeychainTokenStorage(
+        `Gemini CLI Extensions test-ext 12345`,
+      );
+      expect(await userKeychain.getSecret('VAR2')).toBeNull();
+    });
+
+    it('should delete a non-sensitive setting if the new value is empty', async () => {
+      mockRequestSetting.mockResolvedValue('');
+
+      await updateSetting(
+        config,
+        '12345',
+        'VAR1',
+        mockRequestSetting,
+        ExtensionSettingScope.USER,
+        tempWorkspaceDir,
+      );
+
+      const expectedEnvPath = path.join(extensionDir, '.env');
+      const actualContent = await fsPromises.readFile(expectedEnvPath, 'utf-8');
+      expect(actualContent).not.toContain('VAR1=');
+    });
+
+    it('should not throw if deleting a non-existent sensitive setting with empty value', async () => {
+      mockRequestSetting.mockResolvedValue('');
+      // Ensure it doesn't exist first
+      const userKeychain = new KeychainTokenStorage(
+        `Gemini CLI Extensions test-ext 12345`,
+      );
+      await userKeychain.deleteSecret('VAR2');
+
+      await updateSetting(
+        config,
+        '12345',
+        'VAR2',
+        mockRequestSetting,
+        ExtensionSettingScope.USER,
+        tempWorkspaceDir,
+      );
+      // Should complete without error
+    });
+
+    it('should throw error if env var name contains invalid characters', async () => {
+      const securityConfig: ExtensionConfig = {
+        name: 'test-ext',
+        version: '1.0.0',
+        settings: [{ name: 's2', description: 'd2', envVar: 'VAR-BAD' }],
+      };
+      mockRequestSetting.mockResolvedValue('value');
+
+      await expect(
+        updateSetting(
+          securityConfig,
+          '12345',
+          'VAR-BAD',
+          mockRequestSetting,
+          ExtensionSettingScope.USER,
+          tempWorkspaceDir,
+        ),
+      ).rejects.toThrow(/Invalid environment variable name/);
+    });
+
+    it('should throw error if env var value contains newlines', async () => {
+      mockRequestSetting.mockResolvedValue('value\nwith\nnewlines');
+
+      await expect(
+        updateSetting(
+          config,
+          '12345',
+          'VAR1',
+          mockRequestSetting,
+          ExtensionSettingScope.USER,
+          tempWorkspaceDir,
+        ),
+      ).rejects.toThrow(/Invalid environment variable value/);
+    });
+
+    it('should quote values with spaces', async () => {
+      mockRequestSetting.mockResolvedValue('value with spaces');
+
+      await updateSetting(
+        config,
+        '12345',
+        'VAR1',
+        mockRequestSetting,
+        ExtensionSettingScope.USER,
+        tempWorkspaceDir,
+      );
+
+      const expectedEnvPath = path.join(extensionDir, '.env');
+      const actualContent = await fsPromises.readFile(expectedEnvPath, 'utf-8');
+      expect(actualContent).toContain('VAR1="value with spaces"');
+    });
+
+    it('should escape quotes in values', async () => {
+      mockRequestSetting.mockResolvedValue('value with "quotes"');
+
+      await updateSetting(
+        config,
+        '12345',
+        'VAR1',
+        mockRequestSetting,
+        ExtensionSettingScope.USER,
+        tempWorkspaceDir,
+      );
+
+      const expectedEnvPath = path.join(extensionDir, '.env');
+      const actualContent = await fsPromises.readFile(expectedEnvPath, 'utf-8');
+      expect(actualContent).toContain('VAR1="value with \\"quotes\\""');
     });
   });
 });

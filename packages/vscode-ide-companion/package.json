@@ -1,9 +1,9 @@
 {
-  "name": "apex-vscode-ide-companion",
-  "displayName": "Apex Companion",
-  "description": "Browse ~/.apex/ — settings, chat sessions, debug logs, and more.",
-  "version": "1.0.0",
-  "publisher": "netapp",
+  "name": "gemini-cli-vscode-ide-companion",
+  "displayName": "Gemini CLI Companion",
+  "description": "Enable Gemini CLI with direct access to your IDE workspace.",
+  "version": "0.36.0-nightly.20260317.2f90b4653",
+  "publisher": "google",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
@@ -28,23 +28,21 @@
     "onStartupFinished"
   ],
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "apex-explorer",
-          "title": "Apex",
-          "icon": "assets/sidebar-icon.svg"
+    "configuration": {
+      "title": "Gemini CLI",
+      "properties": {
+        "gemini-cli.debug.logging.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable detailed logging for debugging the Gemini CLI Companion."
         }
-      ]
+      }
     },
-    "views": {
-      "apex-explorer": [
-        {
-          "id": "apex.explorer",
-          "name": "Apex"
-        }
-      ]
-    },
+    "languages": [
+      {
+        "id": "gemini-diff-editable"
+      }
+    ],
     "commands": [
       {
         "command": "apex.openFile",
@@ -98,21 +96,38 @@
   "main": "./dist/extension.cjs",
   "type": "module",
   "scripts": {
+    "prepackage": "npm run generate:notices && npm run check-types && npm run lint && npm run build:prod",
     "build": "npm run build:dev",
-    "build:dev": "npm run check-types && node esbuild.js",
+    "build:dev": "node esbuild.js",
     "build:prod": "node esbuild.js --production",
+    "generate:notices": "node ./scripts/generate-notices.js",
+    "prepare": "npm run generate:notices",
     "check-types": "tsc --noEmit",
-    "watch": "node esbuild.js --watch",
+    "lint": "eslint src",
+    "watch": "npm-run-all2 -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "vsce package --no-dependencies",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "validate:notices": "node ./scripts/validate-notices.js"
   },
   "devDependencies": {
     "@types/node": "20.x",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.99.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "npm-run-all2": "^8.0.2",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "zod": "^3.25.76"
+  }
 }

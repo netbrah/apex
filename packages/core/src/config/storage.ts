@@ -7,129 +7,62 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
-import { AsyncLocalStorage } from 'node:async_hooks';
-import { getProjectHash, sanitizeCwd } from '../utils/paths.js';
+import {
+  GEMINI_DIR,
+  homedir,
+  GOOGLE_ACCOUNTS_FILENAME,
+  isSubpath,
+  resolveToRealPath,
+  normalizePath,
+} from '../utils/paths.js';
+import { ProjectRegistry } from './projectRegistry.js';
+import { StorageMigration } from './storageMigration.js';
 
-export const APEX_DIR = '.apex';
-export const GOOGLE_ACCOUNTS_FILENAME = 'google_accounts.json';
 export const OAUTH_FILE = 'oauth_creds.json';
-export const SKILL_PROVIDER_CONFIG_DIRS = ['.apex', '.agents'];
 const TMP_DIR_NAME = 'tmp';
 const BIN_DIR_NAME = 'bin';
-const PROJECT_DIR_NAME = 'projects';
-const IDE_DIR_NAME = 'ide';
-const DEBUG_DIR_NAME = 'debug';
-const ARENA_DIR_NAME = 'arena';
+const AGENTS_DIR_NAME = '.agents';
+
+export const AUTO_SAVED_POLICY_FILENAME = 'auto-saved.toml';
 
 export class Storage {
   private readonly targetDir: string;
+  private readonly sessionId: string | undefined;
+  private projectIdentifier: string | undefined;
+  private initPromise: Promise<void> | undefined;
+  private customPlansDir: string | undefined;
 
-  /**
-   * Custom runtime output base directory set via settings.
-   * When null, falls back to getGlobalApexDir().
-   */
-  private static runtimeBaseDir: string | null = null;
-  private static readonly runtimeBaseDirContext = new AsyncLocalStorage<
-    string | null
-  >();
-
-  constructor(targetDir: string) {
+  constructor(targetDir: string, sessionId?: string) {
     this.targetDir = targetDir;
+    this.sessionId = sessionId;
   }
 
-  private static resolveRuntimeBaseDir(
-    dir: string | null | undefined,
-    cwd?: string,
-  ): string | null {
-    if (!dir) {
-      return null;
-    }
-
-    let resolved = dir;
-    if (
-      resolved === '~' ||
-      resolved.startsWith('~/') ||
-      resolved.startsWith('~\\')
-    ) {
-      const relativeSegments =
-        resolved === '~'
-          ? []
-          : resolved
-              .slice(2)
-              .split(/[/\\]+/)
-              .filter(Boolean);
-      resolved = path.join(os.homedir(), ...relativeSegments);
-    }
-    if (!path.isAbsolute(resolved)) {
-      resolved = cwd ? path.resolve(cwd, resolved) : path.resolve(resolved);
-    }
-    return resolved;
+  setCustomPlansDir(dir: string | undefined): void {
+    this.customPlansDir = dir;
   }
 
-  /**
-   * Sets the custom runtime output base directory.
-   * Handles tilde (~) expansion and resolves relative paths to absolute.
-   * Pass null/undefined/empty string to reset to default (getGlobalApexDir()).
-   * @param dir - The directory path, or null/undefined to reset
-   * @param cwd - Base directory for resolving relative paths (defaults to process.cwd()).
-   *              Pass the project root so that relative values like ".apex" resolve
-   *              per-project, enabling a single global config to work across all projects.
-   */
-  static setRuntimeBaseDir(dir: string | null | undefined, cwd?: string): void {
-    Storage.runtimeBaseDir = Storage.resolveRuntimeBaseDir(dir, cwd);
-  }
-
-  /**
-   * Runs function execution in an async context with a specific runtime output dir.
-   * This is used to isolate runtime output paths between concurrent sessions.
-   */
-  static runWithRuntimeBaseDir<T>(
-    dir: string | null | undefined,
-    cwd: string | undefined,
-    fn: () => T,
-  ): T {
-    const resolved = Storage.resolveRuntimeBaseDir(dir, cwd);
-    return Storage.runtimeBaseDirContext.run(resolved, fn);
-  }
-
-  /**
-   * Returns the base directory for all runtime output (temp files, debug logs,
-   * session data, todos, insights, etc.).
-   *
-   * Priority: APEX_RUNTIME_DIR env var > setRuntimeBaseDir() value > getGlobalApexDir()
-   * @returns Absolute path to the runtime output base directory
-   */
-  static getRuntimeBaseDir(): string {
-    const envDir = process.env['APEX_RUNTIME_DIR'];
-    if (envDir) {
-      return (
-        Storage.resolveRuntimeBaseDir(envDir) ?? Storage.getGlobalApexDir()
-      );
-    }
-
-    const contextualDir = Storage.runtimeBaseDirContext.getStore();
-    if (contextualDir !== undefined) {
-      return contextualDir ?? Storage.getGlobalApexDir();
-    }
-    if (Storage.runtimeBaseDir) {
-      return Storage.runtimeBaseDir;
-    }
-    return Storage.getGlobalApexDir();
-  }
-
-  static getGlobalApexDir(): string {
-    if (process.env['APEX_HOME']) {
-      return process.env['APEX_HOME'];
-    }
-    const homeDir = os.homedir();
+  static getGlobalGeminiDir(): string {
+    const homeDir = homedir();
     if (!homeDir) {
-      return path.join(os.tmpdir(), '.apex');
+      return path.join(os.tmpdir(), GEMINI_DIR);
     }
     return path.join(homeDir, APEX_DIR);
   }
 
+  static getGlobalAgentsDir(): string {
+    const homeDir = homedir();
+    if (!homeDir) {
+      return '';
+    }
+    return path.join(homeDir, AGENTS_DIR_NAME);
+  }
+
   static getMcpOAuthTokensPath(): string {
     return path.join(Storage.getGlobalApexDir(), 'mcp-oauth-tokens.json');
+  }
+
+  static getA2AOAuthTokensPath(): string {
+    return path.join(Storage.getGlobalGeminiDir(), 'a2a-oauth-tokens.json');
   }
 
   static getGlobalSettingsPath(): string {
@@ -148,52 +81,109 @@ export class Storage {
     return path.join(Storage.getGlobalApexDir(), 'commands');
   }
 
+  static getUserSkillsDir(): string {
+    return path.join(Storage.getGlobalGeminiDir(), 'skills');
+  }
+
+  static getUserAgentSkillsDir(): string {
+    return path.join(Storage.getGlobalAgentsDir(), 'skills');
+  }
+
   static getGlobalMemoryFilePath(): string {
     return path.join(Storage.getGlobalApexDir(), 'memory.md');
+  }
+
+  static getUserPoliciesDir(): string {
+    return path.join(Storage.getGlobalGeminiDir(), 'policies');
+  }
+
+  static getUserKeybindingsPath(): string {
+    return path.join(Storage.getGlobalGeminiDir(), 'keybindings.json');
+  }
+
+  static getUserAgentsDir(): string {
+    return path.join(Storage.getGlobalGeminiDir(), 'agents');
+  }
+
+  static getAcknowledgedAgentsPath(): string {
+    return path.join(
+      Storage.getGlobalGeminiDir(),
+      'acknowledgments',
+      'agents.json',
+    );
+  }
+
+  static getPolicyIntegrityStoragePath(): string {
+    return path.join(Storage.getGlobalGeminiDir(), 'policy_integrity.json');
+  }
+
+  private static getSystemConfigDir(): string {
+    if (os.platform() === 'darwin') {
+      return '/Library/Application Support/GeminiCli';
+    } else if (os.platform() === 'win32') {
+      return 'C:\\ProgramData\\gemini-cli';
+    } else {
+      return '/etc/gemini-cli';
+    }
+  }
+
+  static getSystemSettingsPath(): string {
+    if (process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH']) {
+      return process.env['GEMINI_CLI_SYSTEM_SETTINGS_PATH'];
+    }
+    return path.join(Storage.getSystemConfigDir(), 'settings.json');
+  }
+
+  static getSystemPoliciesDir(): string {
+    return path.join(Storage.getSystemConfigDir(), 'policies');
   }
 
   static getGlobalTempDir(): string {
     return path.join(Storage.getRuntimeBaseDir(), TMP_DIR_NAME);
   }
 
-  static getGlobalDebugDir(): string {
-    return path.join(Storage.getRuntimeBaseDir(), DEBUG_DIR_NAME);
-  }
-
-  static getDebugLogPath(sessionId: string): string {
-    return path.join(Storage.getGlobalDebugDir(), `${sessionId}.txt`);
-  }
-
-  static getGlobalIdeDir(): string {
-    return path.join(Storage.getRuntimeBaseDir(), IDE_DIR_NAME);
-  }
-
   static getGlobalBinDir(): string {
-    return path.join(Storage.getGlobalApexDir(), BIN_DIR_NAME);
+    return path.join(Storage.getGlobalTempDir(), BIN_DIR_NAME);
   }
 
-  static getGlobalArenaDir(): string {
-    return path.join(Storage.getGlobalApexDir(), ARENA_DIR_NAME);
+  getGeminiDir(): string {
+    return path.join(this.targetDir, GEMINI_DIR);
   }
 
-  getApexDir(): string {
-    return path.join(this.targetDir, APEX_DIR);
-  }
-
-  getProjectDir(): string {
-    const projectId = sanitizeCwd(this.getProjectRoot());
-    const projectsDir = path.join(
-      Storage.getRuntimeBaseDir(),
-      PROJECT_DIR_NAME,
+  /**
+   * Checks if the current workspace storage location is the same as the global/user storage location.
+   * This handles symlinks and platform-specific path normalization.
+   */
+  isWorkspaceHomeDir(): boolean {
+    return (
+      normalizePath(resolveToRealPath(this.targetDir)) ===
+      normalizePath(resolveToRealPath(homedir()))
     );
-    return path.join(projectsDir, projectId);
+  }
+
+  getAgentsDir(): string {
+    return path.join(this.targetDir, AGENTS_DIR_NAME);
   }
 
   getProjectTempDir(): string {
-    const hash = getProjectHash(this.getProjectRoot());
+    const identifier = this.getProjectIdentifier();
     const tempDir = Storage.getGlobalTempDir();
-    const targetDir = path.join(tempDir, hash);
-    return targetDir;
+    return path.join(tempDir, identifier);
+  }
+
+  getWorkspacePoliciesDir(): string {
+    return path.join(this.getGeminiDir(), 'policies');
+  }
+
+  getWorkspaceAutoSavedPolicyPath(): string {
+    return path.join(
+      this.getWorkspacePoliciesDir(),
+      AUTO_SAVED_POLICY_FILENAME,
+    );
+  }
+
+  getAutoSavedPolicyPath(): string {
+    return path.join(Storage.getUserPoliciesDir(), AUTO_SAVED_POLICY_FILENAME);
   }
 
   ensureProjectTempDirExists(): void {
@@ -201,18 +191,90 @@ export class Storage {
   }
 
   static getOAuthCredsPath(): string {
-    return path.join(Storage.getGlobalApexDir(), OAUTH_FILE);
+    return path.join(Storage.getGlobalGeminiDir(), OAUTH_FILE);
   }
 
   getProjectRoot(): string {
     return this.targetDir;
   }
 
+  private getFilePathHash(filePath: string): string {
+    return crypto.createHash('sha256').update(filePath).digest('hex');
+  }
+
+  private getProjectIdentifier(): string {
+    if (!this.projectIdentifier) {
+      throw new Error('Storage must be initialized before use');
+    }
+    return this.projectIdentifier;
+  }
+
+  /**
+   * Initializes storage by setting up the project registry and performing migrations.
+   */
+  async initialize(): Promise<void> {
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = (async () => {
+      if (this.projectIdentifier) {
+        return;
+      }
+
+      const registryPath = path.join(
+        Storage.getGlobalGeminiDir(),
+        'projects.json',
+      );
+      const registry = new ProjectRegistry(registryPath, [
+        Storage.getGlobalTempDir(),
+        path.join(Storage.getGlobalGeminiDir(), 'history'),
+      ]);
+      await registry.initialize();
+
+      this.projectIdentifier = await registry.getShortId(this.getProjectRoot());
+      await this.performMigration();
+    })();
+
+    return this.initPromise;
+  }
+
+  /**
+   * Performs migration of legacy hash-based directories to the new slug-based format.
+   * This is called internally by initialize().
+   */
+  private async performMigration(): Promise<void> {
+    const shortId = this.getProjectIdentifier();
+    const oldHash = this.getFilePathHash(this.getProjectRoot());
+
+    // Migrate Temp Dir
+    const newTempDir = path.join(Storage.getGlobalTempDir(), shortId);
+    const oldTempDir = path.join(Storage.getGlobalTempDir(), oldHash);
+    await StorageMigration.migrateDirectory(oldTempDir, newTempDir);
+
+    // Migrate History Dir
+    const historyDir = path.join(Storage.getGlobalGeminiDir(), 'history');
+    const newHistoryDir = path.join(historyDir, shortId);
+    const oldHistoryDir = path.join(historyDir, oldHash);
+    await StorageMigration.migrateDirectory(oldHistoryDir, newHistoryDir);
+  }
+
   getHistoryDir(): string {
-    const hash = getProjectHash(this.getProjectRoot());
-    const historyDir = path.join(Storage.getRuntimeBaseDir(), 'history');
-    const targetDir = path.join(historyDir, hash);
-    return targetDir;
+    const identifier = this.getProjectIdentifier();
+    const historyDir = path.join(Storage.getGlobalGeminiDir(), 'history');
+    return path.join(historyDir, identifier);
+  }
+
+  getProjectMemoryDir(): string {
+    return this.getProjectMemoryTempDir();
+  }
+
+  getProjectMemoryTempDir(): string {
+    return path.join(this.getProjectTempDir(), 'memory');
+  }
+
+  getProjectSkillsMemoryDir(): string {
+    return path.join(this.getProjectMemoryTempDir(), 'skills');
   }
 
   getWorkspaceSettingsPath(): string {
@@ -223,8 +285,122 @@ export class Storage {
     return path.join(this.getApexDir(), 'commands');
   }
 
+  getProjectSkillsDir(): string {
+    return path.join(this.getGeminiDir(), 'skills');
+  }
+
+  getProjectAgentSkillsDir(): string {
+    return path.join(this.getAgentsDir(), 'skills');
+  }
+
+  getProjectAgentsDir(): string {
+    return path.join(this.getGeminiDir(), 'agents');
+  }
+
   getProjectTempCheckpointsDir(): string {
     return path.join(this.getProjectTempDir(), 'checkpoints');
+  }
+
+  getProjectTempLogsDir(): string {
+    return path.join(this.getProjectTempDir(), 'logs');
+  }
+
+  getProjectTempPlansDir(): string {
+    if (this.sessionId) {
+      return path.join(this.getProjectTempDir(), this.sessionId, 'plans');
+    }
+    return path.join(this.getProjectTempDir(), 'plans');
+  }
+
+  getProjectTempTrackerDir(): string {
+    if (this.sessionId) {
+      return path.join(this.getProjectTempDir(), this.sessionId, 'tracker');
+    }
+    return path.join(this.getProjectTempDir(), 'tracker');
+  }
+
+  getPlansDir(): string {
+    if (this.customPlansDir) {
+      const resolvedPath = path.resolve(
+        this.getProjectRoot(),
+        this.customPlansDir,
+      );
+      const realProjectRoot = resolveToRealPath(this.getProjectRoot());
+      const realResolvedPath = resolveToRealPath(resolvedPath);
+
+      if (!isSubpath(realProjectRoot, realResolvedPath)) {
+        throw new Error(
+          `Custom plans directory '${this.customPlansDir}' resolves to '${realResolvedPath}', which is outside the project root '${realProjectRoot}'.`,
+        );
+      }
+
+      return resolvedPath;
+    }
+    return this.getProjectTempPlansDir();
+  }
+
+  getProjectTempTasksDir(): string {
+    if (this.sessionId) {
+      return path.join(this.getProjectTempDir(), this.sessionId, 'tasks');
+    }
+    return path.join(this.getProjectTempDir(), 'tasks');
+  }
+
+  async listProjectChatFiles(): Promise<
+    Array<{ filePath: string; lastUpdated: string }>
+  > {
+    const chatsDir = path.join(this.getProjectTempDir(), 'chats');
+    try {
+      const files = await fs.promises.readdir(chatsDir);
+      const jsonFiles = files.filter((f) => f.endsWith('.json'));
+
+      const sessions = await Promise.all(
+        jsonFiles.map(async (file) => {
+          const absolutePath = path.join(chatsDir, file);
+          const stats = await fs.promises.stat(absolutePath);
+          return {
+            filePath: path.join('chats', file),
+            lastUpdated: stats.mtime.toISOString(),
+            mtimeMs: stats.mtimeMs,
+          };
+        }),
+      );
+
+      return sessions
+        .sort((a, b) => b.mtimeMs - a.mtimeMs)
+        .map(({ filePath, lastUpdated }) => ({ filePath, lastUpdated }));
+    } catch (e) {
+      // If directory doesn't exist, return empty
+      if (
+        e instanceof Error &&
+        'code' in e &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        (e as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        return [];
+      }
+      throw e;
+    }
+  }
+
+  async loadProjectTempFile<T>(filePath: string): Promise<T | null> {
+    const absolutePath = path.join(this.getProjectTempDir(), filePath);
+    try {
+      const content = await fs.promises.readFile(absolutePath, 'utf8');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      return JSON.parse(content) as T;
+    } catch (e) {
+      // If file doesn't exist, return null
+      if (
+        e instanceof Error &&
+        'code' in e &&
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        (e as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        return null;
+      }
+      throw e;
+    }
   }
 
   getExtensionsDir(): string {

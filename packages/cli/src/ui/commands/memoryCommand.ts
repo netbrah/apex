@@ -5,67 +5,38 @@
  */
 
 import {
-  getErrorMessage,
-  getAllGeminiMdFilenames,
-  loadServerHierarchicalMemory,
-  APEX_DIR,
-} from '@apex-code/apex-core';
-import path from 'node:path';
-import os from 'node:os';
-import fs from 'node:fs/promises';
+  addMemory,
+  listMemoryFiles,
+  refreshMemory,
+  showMemory,
+} from '@google/gemini-cli-core';
 import { MessageType } from '../types.js';
-import type { SlashCommand, SlashCommandActionReturn } from './types.js';
-import { CommandKind } from './types.js';
-import { t } from '../../i18n/index.js';
-
-/**
- * Read all existing memory files from the configured filenames in a directory.
- * Returns an array of found files with their paths and contents.
- */
-async function findAllExistingMemoryFiles(
-  dir: string,
-): Promise<Array<{ filePath: string; content: string }>> {
-  const results: Array<{ filePath: string; content: string }> = [];
-  for (const filename of getAllGeminiMdFilenames()) {
-    const filePath = path.join(dir, filename);
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      if (content.trim().length > 0) {
-        results.push({ filePath, content });
-      }
-    } catch {
-      // File doesn't exist, try next
-    }
-  }
-  return results;
-}
+import {
+  CommandKind,
+  type SlashCommand,
+  type SlashCommandActionReturn,
+} from './types.js';
 
 export const memoryCommand: SlashCommand = {
   name: 'memory',
-  get description() {
-    return t('Commands for interacting with memory.');
-  },
+  description: 'Commands for interacting with memory',
   kind: CommandKind.BUILT_IN,
+  autoExecute: false,
   subCommands: [
     {
       name: 'show',
-      get description() {
-        return t('Show the current memory contents.');
-      },
+      description: 'Show the current memory contents',
       kind: CommandKind.BUILT_IN,
+      autoExecute: true,
       action: async (context) => {
-        const memoryContent = context.services.config?.getUserMemory() || '';
-        const fileCount = context.services.config?.getGeminiMdFileCount() || 0;
-
-        const messageContent =
-          memoryContent.length > 0
-            ? `${t('Current memory content from {{count}} file(s):', { count: String(fileCount) })}\n\n---\n${memoryContent}\n---`
-            : t('Memory is currently empty.');
+        const config = context.services.agentContext?.config;
+        if (!config) return;
+        const result = showMemory(config);
 
         context.ui.addItem(
           {
             type: MessageType.INFO,
-            text: messageContent,
+            text: result.content,
           },
           Date.now(),
         );
@@ -153,21 +124,14 @@ export const memoryCommand: SlashCommand = {
     },
     {
       name: 'add',
-      get description() {
-        return t(
-          'Add content to the memory. Use --global for global memory or --project for project memory.',
-        );
-      },
+      description: 'Add content to the memory',
       kind: CommandKind.BUILT_IN,
+      autoExecute: false,
       action: (context, args): SlashCommandActionReturn | void => {
-        if (!args || args.trim() === '') {
-          return {
-            type: 'message',
-            messageType: 'error',
-            content: t(
-              'Usage: /memory add [--global|--project] <text to remember>',
-            ),
-          };
+        const result = addMemory(args);
+
+        if (result.type === 'message') {
+          return result;
         }
 
         const trimmedArgs = args.trim();
@@ -217,11 +181,7 @@ export const memoryCommand: SlashCommand = {
           Date.now(),
         );
 
-        return {
-          type: 'tool',
-          toolName: 'save_memory',
-          toolArgs: scope ? { fact, scope } : { fact },
-        };
+        return result;
       },
       subCommands: [
         {
@@ -291,61 +251,62 @@ export const memoryCommand: SlashCommand = {
       ],
     },
     {
-      name: 'refresh',
-      get description() {
-        return t('Refresh the memory from the source.');
-      },
+      name: 'reload',
+      altNames: ['refresh'],
+      description: 'Reload the memory from the source',
       kind: CommandKind.BUILT_IN,
+      autoExecute: true,
       action: async (context) => {
         context.ui.addItem(
           {
             type: MessageType.INFO,
-            text: t('Refreshing memory from source files...'),
+            text: 'Reloading memory from source files...',
           },
           Date.now(),
         );
 
         try {
-          const config = context.services.config;
+          const config = context.services.agentContext?.config;
           if (config) {
-            const { memoryContent, fileCount } =
-              await loadServerHierarchicalMemory(
-                config.getWorkingDir(),
-                config.shouldLoadMemoryFromIncludeDirectories()
-                  ? config.getWorkspaceContext().getDirectories()
-                  : [],
-                config.getFileService(),
-                config.getExtensionContextFilePaths(),
-                config.getFolderTrust(),
-                context.services.settings.merged.context?.importFormat ||
-                  'tree', // Use setting or default to 'tree'
-              );
-            config.setUserMemory(memoryContent);
-            config.setGeminiMdFileCount(fileCount);
-
-            const successMessage =
-              memoryContent.length > 0
-                ? `Memory refreshed successfully. Loaded ${memoryContent.length} characters from ${fileCount} file(s).`
-                : 'Memory refreshed successfully. No memory content found.';
+            const result = await refreshMemory(config);
 
             context.ui.addItem(
               {
                 type: MessageType.INFO,
-                text: successMessage,
+                text: result.content,
               },
               Date.now(),
             );
           }
         } catch (error) {
-          const errorMessage = getErrorMessage(error);
           context.ui.addItem(
             {
               type: MessageType.ERROR,
-              text: `Error refreshing memory: ${errorMessage}`,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              text: `Error reloading memory: ${(error as Error).message}`,
             },
             Date.now(),
           );
         }
+      },
+    },
+    {
+      name: 'list',
+      description: 'Lists the paths of the GEMINI.md files in use',
+      kind: CommandKind.BUILT_IN,
+      autoExecute: true,
+      action: async (context) => {
+        const config = context.services.agentContext?.config;
+        if (!config) return;
+        const result = listMemoryFiles(config);
+
+        context.ui.addItem(
+          {
+            type: MessageType.INFO,
+            text: result.content,
+          },
+          Date.now(),
+        );
       },
     },
   ],

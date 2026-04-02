@@ -4,22 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
-import type { Storage } from '@apex-code/apex-core';
-import { Logger } from '@apex-code/apex-core';
+import { useState, useEffect, useContext } from 'react';
+import {
+  sessionId as globalSessionId,
+  Logger,
+  type Storage,
+} from '@google/gemini-cli-core';
+import { ConfigContext } from '../contexts/ConfigContext.js';
 
 /**
  * Hook to manage the logger instance.
  */
-export const useLogger = (storage: Storage, sessionId: string) => {
+export const useLogger = (storage: Storage): Logger | null => {
   const [logger, setLogger] = useState<Logger | null>(null);
+  const config = useContext(ConfigContext);
 
   useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
+    const activeSessionId = config?.getSessionId() ?? globalSessionId;
+    const newLogger = new Logger(activeSessionId, storage);
 
-    const newLogger = new Logger(sessionId, storage);
     /**
      * Start async initialization, no need to await. Using await slows down the
      * time from launch to see the gemini-cli prompt and it's better to not save
@@ -31,7 +34,7 @@ export const useLogger = (storage: Storage, sessionId: string) => {
         setLogger(newLogger);
       })
       .catch(() => {});
-  }, [storage, sessionId]);
+  }, [storage, config]);
 
   return logger;
 };

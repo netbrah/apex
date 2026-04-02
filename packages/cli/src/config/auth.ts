@@ -4,85 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  AuthType,
-  type Config,
-  type ModelProvidersConfig,
-  type ProviderModelConfig,
-} from '@apex-code/apex-core';
-import { loadEnvironment, loadSettings, type Settings } from './settings.js';
-import { t } from '../i18n/index.js';
+import { AuthType } from '@google/gemini-cli-core';
+import { loadEnvironment, loadSettings } from './settings.js';
 
-/**
- * Default environment variable names for each auth type
- */
-const DEFAULT_ENV_KEYS: Record<string, string> = {
-  [AuthType.USE_OPENAI]: 'OPENAI_API_KEY',
-  [AuthType.USE_OPENAI_RESPONSES]: 'OPENAI_API_KEY',
-  [AuthType.USE_ANTHROPIC]: 'ANTHROPIC_API_KEY',
-  [AuthType.USE_GEMINI]: 'GEMINI_API_KEY',
-  [AuthType.USE_VERTEX_AI]: 'GOOGLE_API_KEY',
-};
-
-/**
- * Find model configuration from modelProviders by authType and modelId
- */
-function findModelConfig(
-  modelProviders: ModelProvidersConfig | undefined,
-  authType: string,
-  modelId: string | undefined,
-): ProviderModelConfig | undefined {
-  if (!modelProviders || !modelId) {
-    return undefined;
+export function validateAuthMethod(authMethod: string): string | null {
+  loadEnvironment(loadSettings().merged, process.cwd());
+  if (
+    authMethod === AuthType.LOGIN_WITH_GOOGLE ||
+    authMethod === AuthType.COMPUTE_ADC
+  ) {
+    return null;
   }
 
-  const models = modelProviders[authType];
-  if (!Array.isArray(models)) {
-    return undefined;
-  }
-
-  return models.find((m) => m.id === modelId);
-}
-
-/**
- * Check if API key is available for the given auth type and model configuration.
- * Prioritizes custom envKey from modelProviders over default environment variables.
- */
-function hasApiKeyForAuth(
-  authType: string,
-  settings: Settings,
-  config?: Config,
-): {
-  hasKey: boolean;
-  checkedEnvKey: string | undefined;
-  isExplicitEnvKey: boolean;
-} {
-  const modelProviders = settings.modelProviders as
-    | ModelProvidersConfig
-    | undefined;
-
-  // Use config.getModelsConfig().getModel() if available for accurate model ID resolution
-  // that accounts for CLI args, env vars, and settings. Fall back to settings.model.name.
-  const modelId = config?.getModelsConfig().getModel() ?? settings.model?.name;
-
-  // Try to find model-specific envKey from modelProviders
-  const modelConfig = findModelConfig(modelProviders, authType, modelId);
-  if (modelConfig?.envKey) {
-    // Explicit envKey configured - only check this env var, no apiKey fallback
-    const hasKey = !!process.env[modelConfig.envKey];
-    return {
-      hasKey,
-      checkedEnvKey: modelConfig.envKey,
-      isExplicitEnvKey: true,
-    };
-  }
-
-  // Using default environment variable - apiKey fallback is allowed
-  const defaultEnvKey = DEFAULT_ENV_KEYS[authType];
-  if (defaultEnvKey) {
-    const hasKey = !!process.env[defaultEnvKey];
-    if (hasKey) {
-      return { hasKey, checkedEnvKey: defaultEnvKey, isExplicitEnvKey: false };
+  if (authMethod === AuthType.USE_GEMINI) {
+    if (!process.env['GEMINI_API_KEY']) {
+      return (
+        'When using Gemini API, you must specify the GEMINI_API_KEY environment variable.\n' +
+        'Update your environment and try again (no reload needed if using .env)!'
+      );
     }
   }
 
@@ -172,50 +111,5 @@ export function validateAuthMethod(
     return null;
   }
 
-  if (authMethod === AuthType.USE_ANTHROPIC) {
-    const apiKeyError = getApiKeyError(authMethod, settings.merged, config);
-    if (apiKeyError) {
-      return apiKeyError;
-    }
-
-    // Check baseUrl - can come from modelProviders or environment
-    const modelProviders = settings.merged.modelProviders as
-      | ModelProvidersConfig
-      | undefined;
-    // Use config.getModelsConfig().getModel() if available for accurate model ID
-    const modelId =
-      config?.getModelsConfig().getModel() ?? settings.merged.model?.name;
-    const modelConfig = findModelConfig(modelProviders, authMethod, modelId);
-
-    if (modelConfig && !modelConfig.baseUrl) {
-      return t(
-        'Anthropic provider missing required baseUrl in modelProviders[].baseUrl.',
-      );
-    }
-    if (!modelConfig && !process.env['ANTHROPIC_BASE_URL']) {
-      return t('ANTHROPIC_BASE_URL environment variable not found.');
-    }
-
-    return null;
-  }
-
-  if (authMethod === AuthType.USE_GEMINI) {
-    const apiKeyError = getApiKeyError(authMethod, settings.merged, config);
-    if (apiKeyError) {
-      return apiKeyError;
-    }
-    return null;
-  }
-
-  if (authMethod === AuthType.USE_VERTEX_AI) {
-    const apiKeyError = getApiKeyError(authMethod, settings.merged, config);
-    if (apiKeyError) {
-      return apiKeyError;
-    }
-
-    process.env['GOOGLE_GENAI_USE_VERTEXAI'] = 'true';
-    return null;
-  }
-
-  return t('Invalid auth method selected.');
+  return 'Invalid auth method selected.';
 }

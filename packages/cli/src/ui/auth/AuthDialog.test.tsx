@@ -4,514 +4,429 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AuthDialog } from './AuthDialog.js';
-import { LoadedSettings } from '../../config/settings.js';
-import type { Config } from '@apex-code/apex-core';
-import { AuthType } from '@apex-code/apex-core';
+import { act } from 'react';
 import { renderWithProviders } from '../../test-utils/render.js';
-import { UIStateContext } from '../contexts/UIStateContext.js';
-import { UIActionsContext } from '../contexts/UIActionsContext.js';
-import type { UIState } from '../contexts/UIStateContext.js';
-import type { UIActions } from '../contexts/UIActionsContext.js';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
+import { AuthDialog } from './AuthDialog.js';
+import { AuthType, type Config, debugLogger } from '@google/gemini-cli-core';
+import type { LoadedSettings } from '../../config/settings.js';
+import { AuthState } from '../types.js';
+import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
+import { useKeypress } from '../hooks/useKeypress.js';
+import { validateAuthMethodWithSettings } from './useAuth.js';
+import { runExitCleanup } from '../../utils/cleanup.js';
+import { Text } from 'ink';
+import { RELAUNCH_EXIT_CODE } from '../../utils/processUtils.js';
 
-const createMockUIState = (overrides: Partial<UIState> = {}): UIState => {
-  // AuthDialog only uses authError and pendingAuthType
-  const baseState = {
-    authError: null,
-    pendingAuthType: undefined,
-  } as Partial<UIState>;
-
+// Mocks
+vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@google/gemini-cli-core')>();
   return {
-    ...baseState,
-    ...overrides,
-  } as UIState;
-};
+    ...actual,
+    clearCachedCredentialFile: vi.fn(),
+  };
+});
 
-const createMockUIActions = (overrides: Partial<UIActions> = {}): UIActions => {
-  // AuthDialog only uses handleAuthSelect
-  const baseActions = {
-    handleAuthSelect: vi.fn(),
-    handleCodingPlanSubmit: vi.fn(),
-    handleAlibabaStandardSubmit: vi.fn(),
-    onAuthError: vi.fn(),
-    handleRetryLastPrompt: vi.fn(),
-  } as Partial<UIActions>;
+vi.mock('../../utils/cleanup.js', () => ({
+  runExitCleanup: vi.fn(),
+}));
 
-  return {
-    ...baseActions,
-    ...overrides,
-  } as UIActions;
-};
+vi.mock('./useAuth.js', () => ({
+  validateAuthMethodWithSettings: vi.fn(),
+}));
 
-const renderAuthDialog = (
-  settings: LoadedSettings,
-  uiStateOverrides: Partial<UIState> = {},
-  uiActionsOverrides: Partial<UIActions> = {},
-  configAuthType: AuthType | undefined = undefined,
-  configApiKey: string | undefined = undefined,
-) => {
-  const uiState = createMockUIState(uiStateOverrides);
-  const uiActions = createMockUIActions(uiActionsOverrides);
+vi.mock('../hooks/useKeypress.js', () => ({
+  useKeypress: vi.fn(),
+}));
 
-  const mockConfig = {
-    getAuthType: vi.fn(() => configAuthType),
-    getContentGeneratorConfig: vi.fn(() => ({ apiKey: configApiKey })),
-  } as unknown as Config;
+vi.mock('../components/shared/RadioButtonSelect.js', () => ({
+  RadioButtonSelect: vi.fn(({ items, initialIndex }) => (
+    <>
+      {items.map((item: { value: string; label: string }, index: number) => (
+        <Text key={item.value}>
+          {index === initialIndex ? '(selected)' : '(not selected)'}{' '}
+          {item.label}
+        </Text>
+      ))}
+    </>
+  )),
+}));
 
-  return renderWithProviders(
-    <UIStateContext.Provider value={uiState}>
-      <UIActionsContext.Provider value={uiActions}>
-        <AuthDialog />
-      </UIActionsContext.Provider>
-    </UIStateContext.Provider>,
-    { settings, config: mockConfig },
-  );
-};
+const mockedUseKeypress = useKeypress as Mock;
+const mockedRadioButtonSelect = RadioButtonSelect as Mock;
+const mockedValidateAuthMethod = validateAuthMethodWithSettings as Mock;
+const mockedRunExitCleanup = runExitCleanup as Mock;
 
 describe('AuthDialog', () => {
-  const wait = (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  let originalEnv: NodeJS.ProcessEnv;
-
+  let props: {
+    config: Config;
+    settings: LoadedSettings;
+    setAuthState: (state: AuthState) => void;
+    authError: string | null;
+    onAuthError: (error: string | null) => void;
+    setAuthContext: (context: { requiresRestart?: boolean }) => void;
+  };
   beforeEach(() => {
-    originalEnv = { ...process.env };
-    process.env['GEMINI_API_KEY'] = '';
-    process.env['APEX_DEFAULT_AUTH_TYPE'] = '';
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    vi.stubEnv('CLOUD_SHELL', undefined as unknown as string);
+    vi.stubEnv('GEMINI_CLI_USE_COMPUTE_ADC', undefined as unknown as string);
+    vi.stubEnv('GEMINI_DEFAULT_AUTH_TYPE', undefined as unknown as string);
+    vi.stubEnv('GEMINI_API_KEY', undefined as unknown as string);
+
+    props = {
+      config: {
+        isBrowserLaunchSuppressed: vi.fn().mockReturnValue(false),
+      } as unknown as Config,
+      settings: {
+        merged: {
+          security: {
+            auth: {},
+          },
+        },
+        setValue: vi.fn(),
+      } as unknown as LoadedSettings,
+      setAuthState: vi.fn(),
+      authError: null,
+      onAuthError: vi.fn(),
+      setAuthContext: vi.fn(),
+    };
   });
 
   afterEach(() => {
-    process.env = originalEnv;
+    vi.unstubAllEnvs();
   });
 
-  it('should show an error if the initial auth type is invalid', () => {
-    process.env['GEMINI_API_KEY'] = '';
-
-    const settings: LoadedSettings = new LoadedSettings(
-      {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      {
-        settings: {},
-        originalSettings: {},
-        path: '',
-      },
-      {
-        settings: {
-          security: {
-            auth: {
-              selectedType: AuthType.USE_GEMINI,
-            },
-          },
-        },
-        originalSettings: {
-          security: {
-            auth: {
-              selectedType: AuthType.USE_GEMINI,
-            },
-          },
-        },
-        path: '',
-      },
-      {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      true,
-      new Set(),
-    );
-
-    const { lastFrame } = renderAuthDialog(settings, {
-      authError: 'GEMINI_API_KEY  environment variable not found',
+  describe('Environment Variable Effects on Auth Options', () => {
+    const cloudShellLabel = 'Use Cloud Shell user credentials';
+    const metadataServerLabel =
+      'Use metadata server application default credentials';
+    const computeAdcItem = (label: string) => ({
+      label,
+      value: AuthType.COMPUTE_ADC,
+      key: AuthType.COMPUTE_ADC,
     });
 
-    expect(lastFrame()).toContain(
-      'GEMINI_API_KEY  environment variable not found',
+    it.each([
+      {
+        env: { CLOUD_SHELL: 'true' },
+        shouldContain: [computeAdcItem(cloudShellLabel)],
+        shouldNotContain: [computeAdcItem(metadataServerLabel)],
+        desc: 'in Cloud Shell',
+      },
+      {
+        env: { GEMINI_CLI_USE_COMPUTE_ADC: 'true' },
+        shouldContain: [computeAdcItem(metadataServerLabel)],
+        shouldNotContain: [computeAdcItem(cloudShellLabel)],
+        desc: 'with GEMINI_CLI_USE_COMPUTE_ADC',
+      },
+      {
+        env: {},
+        shouldContain: [],
+        shouldNotContain: [
+          computeAdcItem(cloudShellLabel),
+          computeAdcItem(metadataServerLabel),
+        ],
+        desc: 'by default',
+      },
+    ])(
+      'correctly shows/hides COMPUTE_ADC options $desc',
+      async ({ env, shouldContain, shouldNotContain }) => {
+        for (const [key, value] of Object.entries(env)) {
+          vi.stubEnv(key, value as string);
+        }
+        const { unmount } = await renderWithProviders(
+          <AuthDialog {...props} />,
+        );
+        const items = mockedRadioButtonSelect.mock.calls[0][0].items;
+        for (const item of shouldContain) {
+          expect(items).toContainEqual(item);
+        }
+        for (const item of shouldNotContain) {
+          expect(items).not.toContainEqual(item);
+        }
+        unmount();
+      },
     );
   });
 
-  describe('GEMINI_API_KEY environment variable', () => {
-    it('should detect GEMINI_API_KEY environment variable', () => {
-      process.env['GEMINI_API_KEY'] = 'foobar';
-
-      const settings: LoadedSettings = new LoadedSettings(
-        {
-          settings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          originalSettings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          path: '',
-        },
-        {
-          settings: {},
-          originalSettings: {},
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        true,
-        new Set(),
-      );
-
-      const { lastFrame } = renderAuthDialog(settings);
-
-      // Since the auth dialog shows API Key option now,
-      // it won't show GEMINI_API_KEY messages
-      expect(lastFrame()).toContain('API Key');
-    });
-
-    it('should not show the GEMINI_API_KEY message if APEX_DEFAULT_AUTH_TYPE is set to something else', () => {
-      process.env['GEMINI_API_KEY'] = 'foobar';
-      process.env['APEX_DEFAULT_AUTH_TYPE'] = AuthType.USE_OPENAI;
-
-      const settings: LoadedSettings = new LoadedSettings(
-        {
-          settings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          originalSettings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          path: '',
-        },
-        {
-          settings: {},
-          originalSettings: {},
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        true,
-        new Set(),
-      );
-
-      const { lastFrame } = renderAuthDialog(settings);
-
-      expect(lastFrame()).not.toContain(
-        'Existing API key detected (GEMINI_API_KEY)',
-      );
-    });
-
-    it('should show the GEMINI_API_KEY message if APEX_DEFAULT_AUTH_TYPE is set to use api key', () => {
-      process.env['GEMINI_API_KEY'] = 'foobar';
-      process.env['APEX_DEFAULT_AUTH_TYPE'] = AuthType.USE_OPENAI;
-
-      const settings: LoadedSettings = new LoadedSettings(
-        {
-          settings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          originalSettings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          path: '',
-        },
-        {
-          settings: {},
-          originalSettings: {},
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        true,
-        new Set(),
-      );
-
-      const { lastFrame } = renderAuthDialog(settings);
-
-      // Since the auth dialog shows API Key option now,
-      // it won't show GEMINI_API_KEY messages
-      expect(lastFrame()).toContain('API Key');
-    });
-  });
-
-  describe('APEX_DEFAULT_AUTH_TYPE environment variable', () => {
-    it('should fall back to default if APEX_DEFAULT_AUTH_TYPE is not set', () => {
-      const settings: LoadedSettings = new LoadedSettings(
-        {
-          settings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          originalSettings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          path: '',
-        },
-        {
-          settings: {},
-          originalSettings: {},
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        true,
-        new Set(),
-      );
-
-      const { lastFrame } = renderAuthDialog(settings);
-
-      // Default is API Key (first option)
-      expect(lastFrame()).toContain('API Key');
-    });
-
-    it('should show an error and fall back to default if APEX_DEFAULT_AUTH_TYPE is invalid', () => {
-      process.env['APEX_DEFAULT_AUTH_TYPE'] = 'invalid-auth-type';
-
-      const settings: LoadedSettings = new LoadedSettings(
-        {
-          settings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          originalSettings: {
-            security: { auth: { selectedType: undefined } },
-            ui: { customThemes: {} },
-            mcpServers: {},
-          },
-          path: '',
-        },
-        {
-          settings: {},
-          originalSettings: {},
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        {
-          settings: { ui: { customThemes: {} }, mcpServers: {} },
-          originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-          path: '',
-        },
-        true,
-        new Set(),
-      );
-
-      const { lastFrame } = renderAuthDialog(settings);
-
-      // Since the auth dialog doesn't show APEX_DEFAULT_AUTH_TYPE errors anymore,
-      // it will just show the default API Key option
-      expect(lastFrame()).toContain('API Key');
-    });
-  });
-
-  it('should prevent exiting when no auth method is selected and show error message', async () => {
-    const handleAuthSelect = vi.fn();
-    const settings: LoadedSettings = new LoadedSettings(
-      {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      {
-        settings: {},
-        originalSettings: {},
-        path: '',
-      },
-      {
-        settings: {
-          security: { auth: { selectedType: undefined } },
-          ui: { customThemes: {} },
-          mcpServers: {},
-        },
-        originalSettings: {
-          security: { auth: { selectedType: undefined } },
-          ui: { customThemes: {} },
-          mcpServers: {},
-        },
-        path: '',
-      },
-      {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      true,
-      new Set(),
-    );
-
-    const { lastFrame, stdin, unmount } = renderAuthDialog(
-      settings,
-      {},
-      { handleAuthSelect },
-      undefined, // config.getAuthType() returns undefined
-    );
-    await wait();
-
-    // Simulate pressing escape key
-    stdin.write('\u001b'); // ESC key
-    await wait();
-
-    // Should show error message instead of calling handleAuthSelect
-    await vi.waitFor(() => {
-      const frame = lastFrame();
-      expect(frame).toContain('You must select an auth method');
-      expect(frame).toContain('Press Ctrl+C again to exit');
-    });
-    expect(handleAuthSelect).not.toHaveBeenCalled();
+  it('filters auth types when enforcedType is set', async () => {
+    props.settings.merged.security.auth.enforcedType = AuthType.USE_GEMINI;
+    const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+    const items = mockedRadioButtonSelect.mock.calls[0][0].items;
+    expect(items).toHaveLength(1);
+    expect(items[0].value).toBe(AuthType.USE_GEMINI);
     unmount();
   });
 
-  it('should not exit if there is already an error message', async () => {
-    const handleAuthSelect = vi.fn();
-    const settings: LoadedSettings = new LoadedSettings(
-      {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      {
-        settings: {},
-        originalSettings: {},
-        path: '',
-      },
-      {
-        settings: {
-          security: { auth: { selectedType: undefined } },
-          ui: { customThemes: {} },
-          mcpServers: {},
-        },
-        originalSettings: {
-          security: { auth: { selectedType: undefined } },
-          ui: { customThemes: {} },
-          mcpServers: {},
-        },
-        path: '',
-      },
-      {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      true,
-      new Set(),
-    );
-
-    const { lastFrame, stdin, unmount } = renderAuthDialog(
-      settings,
-      { authError: 'Initial error' },
-      { handleAuthSelect },
-      undefined, // config.getAuthType() returns undefined
-    );
-    await wait();
-
-    expect(lastFrame()).toContain('Initial error');
-
-    // Simulate pressing escape key
-    stdin.write('\u001b'); // ESC key
-    await wait();
-
-    // Should not call handleAuthSelect
-    expect(handleAuthSelect).not.toHaveBeenCalled();
+  it('sets initial index to 0 when enforcedType is set', async () => {
+    props.settings.merged.security.auth.enforcedType = AuthType.USE_GEMINI;
+    const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+    const { initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
+    expect(initialIndex).toBe(0);
     unmount();
   });
 
-  it('should allow exiting when auth method is already selected', async () => {
-    const handleAuthSelect = vi.fn();
-    const settings: LoadedSettings = new LoadedSettings(
+  describe('Initial Auth Type Selection', () => {
+    it.each([
       {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
-      },
-      {
-        settings: {},
-        originalSettings: {},
-        path: '',
-      },
-      {
-        settings: {
-          security: { auth: { selectedType: AuthType.USE_OPENAI } },
-          ui: { customThemes: {} },
-          mcpServers: {},
+        setup: () => {
+          props.settings.merged.security.auth.selectedType =
+            AuthType.USE_VERTEX_AI;
         },
-        originalSettings: {
-          security: { auth: { selectedType: AuthType.USE_OPENAI } },
-          ui: { customThemes: {} },
-          mcpServers: {},
-        },
-        path: '',
+        expected: AuthType.USE_VERTEX_AI,
+        desc: 'from settings',
       },
       {
-        settings: { ui: { customThemes: {} }, mcpServers: {} },
-        originalSettings: { ui: { customThemes: {} }, mcpServers: {} },
-        path: '',
+        setup: () => {
+          vi.stubEnv('GEMINI_DEFAULT_AUTH_TYPE', AuthType.USE_GEMINI);
+        },
+        expected: AuthType.USE_GEMINI,
+        desc: 'from GEMINI_DEFAULT_AUTH_TYPE env var',
       },
-      true,
-      new Set(),
+      {
+        setup: () => {
+          vi.stubEnv('GEMINI_API_KEY', 'test-key');
+        },
+        expected: AuthType.USE_GEMINI,
+        desc: 'from GEMINI_API_KEY env var',
+      },
+      {
+        setup: () => {},
+        expected: AuthType.LOGIN_WITH_GOOGLE,
+        desc: 'defaults to Sign in with Google',
+      },
+    ])('selects initial auth type $desc', async ({ setup, expected }) => {
+      setup();
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { items, initialIndex } = mockedRadioButtonSelect.mock.calls[0][0];
+      expect(items[initialIndex].value).toBe(expected);
+      unmount();
+    });
+  });
+
+  describe('handleAuthSelect', () => {
+    it('calls onAuthError if validation fails', async () => {
+      mockedValidateAuthMethod.mockReturnValue('Invalid method');
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      handleAuthSelect(AuthType.USE_GEMINI);
+
+      expect(mockedValidateAuthMethod).toHaveBeenCalledWith(
+        AuthType.USE_GEMINI,
+        props.settings,
+      );
+      expect(props.onAuthError).toHaveBeenCalledWith('Invalid method');
+      expect(props.settings.setValue).not.toHaveBeenCalled();
+      unmount();
+    });
+
+    it('sets auth context with requiresRestart: true for LOGIN_WITH_GOOGLE', async () => {
+      mockedValidateAuthMethod.mockReturnValue(null);
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await handleAuthSelect(AuthType.LOGIN_WITH_GOOGLE);
+
+      expect(props.setAuthContext).toHaveBeenCalledWith({
+        requiresRestart: true,
+      });
+      unmount();
+    });
+
+    it('sets auth context with empty object for other auth types', async () => {
+      mockedValidateAuthMethod.mockReturnValue(null);
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await handleAuthSelect(AuthType.USE_GEMINI);
+
+      expect(props.setAuthContext).toHaveBeenCalledWith({});
+      unmount();
+    });
+
+    it('always shows API key dialog even when env var is present', async () => {
+      mockedValidateAuthMethod.mockReturnValue(null);
+      vi.stubEnv('GEMINI_API_KEY', 'test-key-from-env');
+      // props.settings.merged.security.auth.selectedType is undefined here, simulating initial setup
+
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await handleAuthSelect(AuthType.USE_GEMINI);
+
+      expect(props.setAuthState).toHaveBeenCalledWith(
+        AuthState.AwaitingApiKeyInput,
+      );
+      unmount();
+    });
+
+    it('always shows API key dialog even when env var is empty string', async () => {
+      mockedValidateAuthMethod.mockReturnValue(null);
+      vi.stubEnv('GEMINI_API_KEY', ''); // Empty string
+      // props.settings.merged.security.auth.selectedType is undefined here
+
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await handleAuthSelect(AuthType.USE_GEMINI);
+
+      expect(props.setAuthState).toHaveBeenCalledWith(
+        AuthState.AwaitingApiKeyInput,
+      );
+      unmount();
+    });
+
+    it('shows API key dialog on initial setup if no env var is present', async () => {
+      mockedValidateAuthMethod.mockReturnValue(null);
+      // process.env['GEMINI_API_KEY'] is not set
+      // props.settings.merged.security.auth.selectedType is undefined here, simulating initial setup
+
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await handleAuthSelect(AuthType.USE_GEMINI);
+
+      expect(props.setAuthState).toHaveBeenCalledWith(
+        AuthState.AwaitingApiKeyInput,
+      );
+      unmount();
+    });
+
+    it('always shows API key dialog on re-auth even if env var is present', async () => {
+      mockedValidateAuthMethod.mockReturnValue(null);
+      vi.stubEnv('GEMINI_API_KEY', 'test-key-from-env');
+      // Simulate switching from a different auth method (e.g., Google Login → API key)
+      props.settings.merged.security.auth.selectedType =
+        AuthType.LOGIN_WITH_GOOGLE;
+
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await handleAuthSelect(AuthType.USE_GEMINI);
+
+      expect(props.setAuthState).toHaveBeenCalledWith(
+        AuthState.AwaitingApiKeyInput,
+      );
+      unmount();
+    });
+
+    it('exits process for Sign in with Google when browser is suppressed', async () => {
+      vi.useFakeTimers();
+      const exitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation(() => undefined as never);
+      const logSpy = vi.spyOn(debugLogger, 'log').mockImplementation(() => {});
+      vi.mocked(props.config.isBrowserLaunchSuppressed).mockReturnValue(true);
+      mockedValidateAuthMethod.mockReturnValue(null);
+
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const { onSelect: handleAuthSelect } =
+        mockedRadioButtonSelect.mock.calls[0][0];
+      await act(async () => {
+        await handleAuthSelect(AuthType.LOGIN_WITH_GOOGLE);
+        await vi.runAllTimersAsync();
+      });
+
+      expect(mockedRunExitCleanup).toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith(RELAUNCH_EXIT_CODE);
+
+      exitSpy.mockRestore();
+      logSpy.mockRestore();
+      vi.useRealTimers();
+      unmount();
+    });
+  });
+
+  it('displays authError when provided', async () => {
+    props.authError = 'Something went wrong';
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AuthDialog {...props} />,
     );
-
-    const { stdin, unmount } = renderAuthDialog(
-      settings,
-      {},
-      { handleAuthSelect },
-      AuthType.USE_OPENAI, // config.getAuthType() returns USE_OPENAI
-    );
-    await wait();
-
-    // Simulate pressing escape key
-    stdin.write('\u001b'); // ESC key
-    await wait();
-
-    // Should call handleAuthSelect with undefined to exit
-    expect(handleAuthSelect).toHaveBeenCalledWith(undefined);
+    expect(lastFrame()).toContain('Something went wrong');
     unmount();
+  });
+
+  describe('useKeypress', () => {
+    it.each([
+      {
+        desc: 'does nothing on escape if authError is present',
+        setup: () => {
+          props.authError = 'Some error';
+        },
+        expectations: (p: typeof props) => {
+          expect(p.onAuthError).not.toHaveBeenCalled();
+          expect(p.setAuthState).not.toHaveBeenCalled();
+        },
+      },
+      {
+        desc: 'calls onAuthError on escape if no auth method is set',
+        setup: () => {
+          props.settings.merged.security.auth.selectedType = undefined;
+        },
+        expectations: (p: typeof props) => {
+          expect(p.onAuthError).toHaveBeenCalledWith(
+            'You must select an auth method to proceed. Press Ctrl+C twice to exit.',
+          );
+        },
+      },
+      {
+        desc: 'calls setAuthState(Unauthenticated) on escape if auth method is set',
+        setup: () => {
+          props.settings.merged.security.auth.selectedType =
+            AuthType.USE_GEMINI;
+        },
+        expectations: (p: typeof props) => {
+          expect(p.setAuthState).toHaveBeenCalledWith(
+            AuthState.Unauthenticated,
+          );
+          expect(p.settings.setValue).not.toHaveBeenCalled();
+        },
+      },
+    ])('$desc', async ({ setup, expectations }) => {
+      setup();
+      const { unmount } = await renderWithProviders(<AuthDialog {...props} />);
+      const keypressHandler = mockedUseKeypress.mock.calls[0][0];
+      keypressHandler({ name: 'escape' });
+      expectations(props);
+      unmount();
+    });
+  });
+
+  describe('Snapshots', () => {
+    it('renders correctly with default props', async () => {
+      const { lastFrame, unmount } = await renderWithProviders(
+        <AuthDialog {...props} />,
+      );
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
+    });
+
+    it('renders correctly with auth error', async () => {
+      props.authError = 'Something went wrong';
+      const { lastFrame, unmount } = await renderWithProviders(
+        <AuthDialog {...props} />,
+      );
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
+    });
+
+    it('renders correctly with enforced auth type', async () => {
+      props.settings.merged.security.auth.enforcedType = AuthType.USE_GEMINI;
+      const { lastFrame, unmount } = await renderWithProviders(
+        <AuthDialog {...props} />,
+      );
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
+    });
   });
 });

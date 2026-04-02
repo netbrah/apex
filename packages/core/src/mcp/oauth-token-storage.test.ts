@@ -4,24 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { coreEvents } from '../utils/events.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { MCPOAuthTokenStorage } from './oauth-token-storage.js';
 import { FORCE_ENCRYPTED_FILE_ENV_VAR } from './token-storage/index.js';
 import type { OAuthCredentials, OAuthToken } from './token-storage/types.js';
-import { APEX_DIR } from '../utils/paths.js';
-
-// Mock debugLogger
-const mockDebugLogger = vi.hoisted(() => ({
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-}));
-vi.mock('../utils/debugLogger.js', () => ({
-  createDebugLogger: vi.fn(() => mockDebugLogger),
-}));
+import { GEMINI_DIR } from '../utils/paths.js';
 
 // Mock dependencies
 vi.mock('node:fs', () => ({
@@ -33,10 +23,14 @@ vi.mock('node:fs', () => ({
   },
 }));
 
-vi.mock('node:path', () => ({
-  dirname: vi.fn(),
-  join: vi.fn(),
-}));
+vi.mock('node:path', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:path')>();
+  return {
+    ...actual,
+    dirname: vi.fn(),
+    join: vi.fn(),
+  };
+});
 
 vi.mock('../config/storage.js', () => ({
   Storage: {
@@ -44,14 +38,20 @@ vi.mock('../config/storage.js', () => ({
   },
 }));
 
-const mockHybridTokenStorage = {
+vi.mock('../utils/events.js', () => ({
+  coreEvents: {
+    emitFeedback: vi.fn(),
+  },
+}));
+
+const mockHybridTokenStorage = vi.hoisted(() => ({
   listServers: vi.fn(),
   setCredentials: vi.fn(),
   getCredentials: vi.fn(),
   deleteCredentials: vi.fn(),
   clearAll: vi.fn(),
   getAllCredentials: vi.fn(),
-};
+}));
 vi.mock('./token-storage/hybrid-token-storage.js', () => ({
   HybridTokenStorage: vi.fn(() => mockHybridTokenStorage),
 }));
@@ -97,7 +97,7 @@ describe('MCPOAuthTokenStorage', () => {
         const tokens = await tokenStorage.getAllCredentials();
 
         expect(tokens.size).toBe(0);
-        expect(mockDebugLogger.error).not.toHaveBeenCalled();
+        expect(coreEvents.emitFeedback).not.toHaveBeenCalled();
       });
 
       it('should load tokens from file successfully', async () => {
@@ -109,7 +109,7 @@ describe('MCPOAuthTokenStorage', () => {
         expect(tokens.size).toBe(1);
         expect(tokens.get('test-server')).toEqual(mockCredentials);
         expect(fs.readFile).toHaveBeenCalledWith(
-          path.join('/mock/home', APEX_DIR, 'mcp-oauth-tokens.json'),
+          path.join('/mock/home', GEMINI_DIR, 'mcp-oauth-tokens.json'),
           'utf-8',
         );
       });
@@ -120,8 +120,10 @@ describe('MCPOAuthTokenStorage', () => {
         const tokens = await tokenStorage.getAllCredentials();
 
         expect(tokens.size).toBe(0);
-        expect(mockDebugLogger.error).toHaveBeenCalledWith(
+        expect(coreEvents.emitFeedback).toHaveBeenCalledWith(
+          'error',
           expect.stringContaining('Failed to load MCP OAuth tokens'),
+          expect.any(Error),
         );
       });
 
@@ -132,8 +134,10 @@ describe('MCPOAuthTokenStorage', () => {
         const tokens = await tokenStorage.getAllCredentials();
 
         expect(tokens.size).toBe(0);
-        expect(mockDebugLogger.error).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to load MCP OAuth tokens'),
+        expect(coreEvents.emitFeedback).toHaveBeenCalledWith(
+          'error',
+          'Failed to load MCP OAuth tokens: Permission denied',
+          error,
         );
       });
     });
@@ -152,11 +156,11 @@ describe('MCPOAuthTokenStorage', () => {
         );
 
         expect(fs.mkdir).toHaveBeenCalledWith(
-          path.join('/mock/home', APEX_DIR),
+          path.join('/mock/home', GEMINI_DIR),
           { recursive: true },
         );
         expect(fs.writeFile).toHaveBeenCalledWith(
-          path.join('/mock/home', APEX_DIR, 'mcp-oauth-tokens.json'),
+          path.join('/mock/home', GEMINI_DIR, 'mcp-oauth-tokens.json'),
           expect.stringContaining('test-server'),
           { mode: 0o600 },
         );
@@ -198,8 +202,10 @@ describe('MCPOAuthTokenStorage', () => {
           tokenStorage.saveToken('test-server', mockToken),
         ).rejects.toThrow('Disk full');
 
-        expect(mockDebugLogger.error).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to save MCP OAuth token'),
+        expect(coreEvents.emitFeedback).toHaveBeenCalledWith(
+          'error',
+          'Failed to save MCP OAuth token: Disk full',
+          writeError,
         );
       });
     });
@@ -267,7 +273,7 @@ describe('MCPOAuthTokenStorage', () => {
         await tokenStorage.deleteCredentials('test-server');
 
         expect(fs.unlink).toHaveBeenCalledWith(
-          path.join('/mock/home', APEX_DIR, 'mcp-oauth-tokens.json'),
+          path.join('/mock/home', GEMINI_DIR, 'mcp-oauth-tokens.json'),
         );
         expect(fs.writeFile).not.toHaveBeenCalled();
       });
@@ -287,12 +293,15 @@ describe('MCPOAuthTokenStorage', () => {
         vi.mocked(fs.readFile).mockResolvedValue(
           JSON.stringify([mockCredentials]),
         );
-        vi.mocked(fs.unlink).mockRejectedValue(new Error('Permission denied'));
+        const unlinkError = new Error('Permission denied');
+        vi.mocked(fs.unlink).mockRejectedValue(unlinkError);
 
         await tokenStorage.deleteCredentials('test-server');
 
-        expect(mockDebugLogger.error).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to remove MCP OAuth token'),
+        expect(coreEvents.emitFeedback).toHaveBeenCalledWith(
+          'error',
+          'Failed to remove MCP OAuth token: Permission denied',
+          unlinkError,
         );
       });
     });
@@ -348,7 +357,7 @@ describe('MCPOAuthTokenStorage', () => {
         await tokenStorage.clearAll();
 
         expect(fs.unlink).toHaveBeenCalledWith(
-          path.join('/mock/home', APEX_DIR, 'mcp-oauth-tokens.json'),
+          path.join('/mock/home', GEMINI_DIR, 'mcp-oauth-tokens.json'),
         );
       });
 
@@ -357,16 +366,19 @@ describe('MCPOAuthTokenStorage', () => {
 
         await tokenStorage.clearAll();
 
-        expect(mockDebugLogger.error).not.toHaveBeenCalled();
+        expect(coreEvents.emitFeedback).not.toHaveBeenCalled();
       });
 
       it('should handle other file errors gracefully', async () => {
-        vi.mocked(fs.unlink).mockRejectedValue(new Error('Permission denied'));
+        const unlinkError = new Error('Permission denied');
+        vi.mocked(fs.unlink).mockRejectedValue(unlinkError);
 
         await tokenStorage.clearAll();
 
-        expect(mockDebugLogger.error).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to clear MCP OAuth tokens'),
+        expect(coreEvents.emitFeedback).toHaveBeenCalledWith(
+          'error',
+          'Failed to clear MCP OAuth tokens: Permission denied',
+          unlinkError,
         );
       });
     });

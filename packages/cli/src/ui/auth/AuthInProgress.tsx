@@ -7,7 +7,7 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import Spinner from 'ink-spinner';
+import { CliSpinner } from '../components/CliSpinner.js';
 import { theme } from '../semantic-colors.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { t } from '../../i18n/index.js';
@@ -41,7 +41,7 @@ export function AuthInProgress({
 
   return (
     <Box
-      borderStyle="single"
+      borderStyle="round"
       borderColor={theme.border.default}
       flexDirection="column"
       padding={1}
@@ -49,13 +49,13 @@ export function AuthInProgress({
     >
       {timedOut ? (
         <Text color={theme.status.error}>
-          {t('Authentication timed out. Please try again.')}
+          Authentication timed out. Please try again.
         </Text>
       ) : (
         <Box>
           <Text>
-            <Spinner type="dots" />{' '}
-            {t('Waiting for auth... (Press ESC or CTRL+C to cancel)')}
+            <CliSpinner type="dots" /> Waiting for authentication... (Press Esc
+            or Ctrl+C to cancel)
           </Text>
         </Box>
       )}

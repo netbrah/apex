@@ -1,15 +1,16 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import type { HookRegistry, HookRegistryEntry } from './hookRegistry.js';
-import type { HookExecutionPlan } from './types.js';
-import { getHookKey, HookEventName } from './types.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('TRUSTED_HOOKS');
+import {
+  getHookKey,
+  type HookExecutionPlan,
+  type HookEventName,
+} from './types.js';
+import { debugLogger } from '../utils/debugLogger.js';
 
 /**
  * Hook planner that selects matching hooks and creates execution plans
@@ -34,9 +35,9 @@ export class HookPlanner {
       return null;
     }
 
-    // Filter hooks by matcher - pass eventName for explicit dispatch
+    // Filter hooks by matcher
     const matchingEntries = hookEntries.filter((entry) =>
-      this.matchesContext(entry, eventName, context),
+      this.matchesContext(entry, context),
     );
 
     if (matchingEntries.length === 0) {
@@ -60,18 +61,18 @@ export class HookPlanner {
       sequential,
     };
 
+    debugLogger.debug(
+      `Created execution plan for ${eventName}: ${hookConfigs.length} hook(s) to execute ${sequential ? 'sequentially' : 'in parallel'}`,
+    );
+
     return plan;
   }
 
   /**
-   * Check if a hook entry matches the given context.
-   * Uses explicit event-based dispatch to avoid ambiguity between events
-   * that share similar context fields (e.g., SessionStart and SubagentStart
-   * both have agentType, but use different matcher semantics).
+   * Check if a hook entry matches the given context
    */
   private matchesContext(
     entry: HookRegistryEntry,
-    eventName: HookEventName,
     context?: HookEventContext,
   ): boolean {
     if (!entry.matcher || !context) {
@@ -84,80 +85,17 @@ export class HookPlanner {
       return true; // Empty string or wildcard matches all
     }
 
-    // Explicit dispatch by event name to avoid ambiguity
-    switch (eventName) {
-      // Tool events: match against tool name
-      case HookEventName.PreToolUse:
-      case HookEventName.PostToolUse:
-      case HookEventName.PostToolUseFailure:
-      case HookEventName.PermissionRequest:
-        return context.toolName
-          ? this.matchesToolName(matcher, context.toolName)
-          : true;
-
-      // Subagent events: match against agent type
-      case HookEventName.SubagentStart:
-      case HookEventName.SubagentStop:
-        return context.agentType
-          ? this.matchesAgentType(matcher, context.agentType)
-          : true;
-
-      // PreCompact: match against trigger
-      case HookEventName.PreCompact:
-        return context.trigger
-          ? this.matchesTrigger(matcher, context.trigger)
-          : true;
-
-      // Notification: match against notification type
-      case HookEventName.Notification:
-        return context.notificationType
-          ? this.matchesNotificationType(matcher, context.notificationType)
-          : true;
-
-      // SessionStart/SessionEnd: match against source/reason
-      case HookEventName.SessionStart:
-        return context.trigger
-          ? this.matchesSessionTrigger(matcher, context.trigger)
-          : true;
-
-      case HookEventName.SessionEnd:
-        return context.trigger
-          ? this.matchesSessionTrigger(matcher, context.trigger)
-          : true;
-
-      // Events that don't support matchers: always match
-      case HookEventName.UserPromptSubmit:
-      case HookEventName.Stop:
-      default:
-        return true;
+    // For tool events, match against tool name
+    if (context.toolName) {
+      return this.matchesToolName(matcher, context.toolName);
     }
-  }
 
-  /**
-   * Match notification type against matcher pattern
-   */
-  private matchesNotificationType(
-    matcher: string,
-    notificationType: string,
-  ): boolean {
-    return matcher === notificationType;
-  }
-
-  /**
-   * Match session source or end reason against matcher pattern
-   */
-  private matchesSessionTrigger(matcher: string, trigger: string): boolean {
-    try {
-      // Attempt to treat the matcher as a regular expression.
-      const regex = new RegExp(matcher);
-      return regex.test(trigger);
-    } catch (error) {
-      // If it's not a valid regex, treat it as a literal string for an exact match.
-      debugLogger.warn(
-        `Invalid regex in hook matcher "${matcher}" for session trigger "${trigger}", falling back to exact match: ${error}`,
-      );
-      return matcher === trigger;
+    // For other events, match against trigger/source
+    if (context.trigger) {
+      return this.matchesTrigger(matcher, context.trigger);
     }
+
+    return true;
   }
 
   /**
@@ -168,11 +106,8 @@ export class HookPlanner {
       // Attempt to treat the matcher as a regular expression.
       const regex = new RegExp(matcher);
       return regex.test(toolName);
-    } catch (error) {
+    } catch {
       // If it's not a valid regex, treat it as a literal string for an exact match.
-      debugLogger.warn(
-        `Invalid regex in hook matcher "${matcher}" for tool "${toolName}", falling back to exact match: ${error}`,
-      );
       return matcher === toolName;
     }
   }
@@ -182,22 +117,6 @@ export class HookPlanner {
    */
   private matchesTrigger(matcher: string, trigger: string): boolean {
     return matcher === trigger;
-  }
-
-  /**
-   * Match agent type against matcher pattern.
-   * Supports regex matching, same as tool name matching.
-   */
-  private matchesAgentType(matcher: string, agentType: string): boolean {
-    try {
-      const regex = new RegExp(matcher);
-      return regex.test(agentType);
-    } catch (error) {
-      debugLogger.warn(
-        `Invalid regex in hook matcher "${matcher}" for agent type "${agentType}", falling back to exact match: ${error}`,
-      );
-      return matcher === agentType;
-    }
   }
 
   /**
@@ -213,6 +132,8 @@ export class HookPlanner {
       if (!seen.has(key)) {
         seen.add(key);
         deduplicated.push(entry);
+      } else {
+        debugLogger.debug(`Deduplicated hook: ${key}`);
       }
     }
 
@@ -226,7 +147,4 @@ export class HookPlanner {
 export interface HookEventContext {
   toolName?: string;
   trigger?: string;
-  notificationType?: string;
-  /** Agent type for SubagentStart/SubagentStop matcher filtering */
-  agentType?: string;
 }

@@ -77,7 +77,7 @@ describe('getGitHubRepoInfo', async () => {
     expect(getGitHubRepoInfo()).toEqual({ owner: 'owner', repo: 'repo' });
   });
 
-  // Tests for credential formats
+  // --- Tests for credential formats ---
 
   it('returns the owner and repo for URL with classic PAT token (ghp_)', async () => {
     vi.mocked(child_process.execSync).mockReturnValueOnce(
@@ -114,7 +114,7 @@ describe('getGitHubRepoInfo', async () => {
     expect(getGitHubRepoInfo()).toEqual({ owner: 'owner', repo: 'repo' });
   });
 
-  // Tests for case insensitivity
+  // --- Tests for case insensitivity ---
 
   it('returns the owner and repo for URL with uppercase GITHUB.COM', async () => {
     vi.mocked(child_process.execSync).mockReturnValueOnce(
@@ -130,7 +130,7 @@ describe('getGitHubRepoInfo', async () => {
     expect(getGitHubRepoInfo()).toEqual({ owner: 'owner', repo: 'repo' });
   });
 
-  // Tests for SSH format
+  // --- Tests for SSH format ---
 
   it('returns the owner and repo for SSH URL', async () => {
     vi.mocked(child_process.execSync).mockReturnValueOnce(
@@ -148,7 +148,7 @@ describe('getGitHubRepoInfo', async () => {
     }).toThrowError(/Owner & repo could not be extracted from remote URL/);
   });
 
-  // Tests for edge cases
+  // --- Tests for edge cases ---
 
   it('returns the owner and repo for URL without .git suffix', async () => {
     vi.mocked(child_process.execSync).mockReturnValueOnce(

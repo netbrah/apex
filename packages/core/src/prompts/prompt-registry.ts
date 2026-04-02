@@ -5,9 +5,7 @@
  */
 
 import type { DiscoveredMCPPrompt } from '../tools/mcp-client.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('PROMPT_REGISTRY');
+import { debugLogger } from '../utils/debugLogger.js';
 
 export class PromptRegistry {
   private prompts: Map<string, DiscoveredMCPPrompt> = new Map();

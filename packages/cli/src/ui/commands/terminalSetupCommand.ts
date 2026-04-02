@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { MessageActionReturn, SlashCommand } from './types.js';
-import { CommandKind } from './types.js';
+import { CommandKind, type SlashCommand } from './types.js';
 import { terminalSetup } from '../utils/terminalSetup.js';
-import { t } from '../../i18n/index.js';
+import { type MessageActionReturn } from '@google/gemini-cli-core';
 
 /**
  * Command to configure terminal keybindings for multiline input support.
@@ -23,7 +22,7 @@ export const terminalSetupCommand: SlashCommand = {
     );
   },
   kind: CommandKind.BUILT_IN,
-
+  autoExecute: true,
   action: async (): Promise<MessageActionReturn> => {
     try {
       const result = await terminalSetup();

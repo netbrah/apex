@@ -4,386 +4,469 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { render, cleanup } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act } from 'react';
 import { ModelDialog } from './ModelDialog.js';
-import { useKeypress } from '../hooks/useKeypress.js';
-import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSelect.js';
-import { ConfigContext } from '../contexts/ConfigContext.js';
-import { SettingsContext } from '../contexts/SettingsContext.js';
-import type { Config } from '@apex-code/apex-core';
-import { AuthType } from '@apex-code/apex-core';
-import type { LoadedSettings } from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
+import { renderWithProviders } from '../../test-utils/render.js';
+import { waitFor } from '../../test-utils/async.js';
+import { createMockSettings } from '../../test-utils/settings.js';
+import {
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GEMINI_MODEL_AUTO,
+  DEFAULT_GEMINI_FLASH_MODEL,
+  DEFAULT_GEMINI_FLASH_LITE_MODEL,
+  PREVIEW_GEMINI_MODEL,
+  PREVIEW_GEMINI_3_1_MODEL,
+  PREVIEW_GEMINI_3_1_CUSTOM_TOOLS_MODEL,
+  PREVIEW_GEMINI_FLASH_MODEL,
+  PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL,
+  AuthType,
+} from '@google/gemini-cli-core';
+import type { Config, ModelSlashCommandEvent } from '@google/gemini-cli-core';
 
-const MOCK_OPENAI_MODELS = [
-  { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Latest GPT model' },
-  {
-    id: 'gpt-4.1-mini',
-    label: 'GPT-4.1 Mini',
-    description: 'Efficient GPT model',
-  },
-];
+// Mock dependencies
+const mockGetDisplayString = vi.fn();
+const mockLogModelSlashCommand = vi.fn();
+const mockModelSlashCommandEvent = vi.fn();
 
-vi.mock('../hooks/useKeypress.js', () => ({
-  useKeypress: vi.fn(),
-}));
-const mockedUseKeypress = vi.mocked(useKeypress);
-
-vi.mock('./shared/DescriptiveRadioButtonSelect.js', () => ({
-  DescriptiveRadioButtonSelect: vi.fn(() => null),
-}));
-
-// Helper to create getAvailableModelsForAuthType mock
-const createMockGetAvailableModelsForAuthType = () =>
-  vi.fn((t: AuthType) => {
-    if (t === AuthType.USE_OPENAI) {
-      return MOCK_OPENAI_MODELS.map((m) => ({
-        id: m.id,
-        label: m.label,
-        authType: AuthType.USE_OPENAI,
-      }));
-    }
-    return [];
-  });
-const mockedSelect = vi.mocked(DescriptiveRadioButtonSelect);
-
-const renderComponent = (
-  props: Partial<React.ComponentProps<typeof ModelDialog>> = {},
-  contextValue: Partial<Config> | undefined = undefined,
-) => {
-  const defaultProps = {
-    onClose: vi.fn(),
-  };
-  const combinedProps = { ...defaultProps, ...props };
-
-  const mockSettings = {
-    isTrusted: true,
-    user: { settings: {} },
-    workspace: { settings: {} },
-    setValue: vi.fn(),
-  } as unknown as LoadedSettings;
-
-  const mockConfig = {
-    // --- Functions used by ModelDialog ---
-    getModel: vi.fn(() => 'gpt-4.1'),
-    setModel: vi.fn().mockResolvedValue(undefined),
-    switchModel: vi.fn().mockResolvedValue(undefined),
-    getAuthType: vi.fn(() => 'openai'),
-    getAllConfiguredModels: vi.fn(() =>
-      MOCK_OPENAI_MODELS.map((m) => ({
-        id: m.id,
-        label: m.label,
-        description: m.description || '',
-        authType: AuthType.USE_OPENAI,
-      })),
-    ),
-
-    // --- Functions used by ClearcutLogger ---
-    getUsageStatisticsEnabled: vi.fn(() => true),
-    getSessionId: vi.fn(() => 'mock-session-id'),
-    getDebugMode: vi.fn(() => false),
-    getContentGeneratorConfig: vi.fn(() => ({
-      authType: AuthType.USE_OPENAI,
-      model: 'gpt-4.1',
-    })),
-    getUseModelRouter: vi.fn(() => false),
-    getProxy: vi.fn(() => undefined),
-
-    // --- Spread test-specific overrides ---
-    ...(contextValue ?? {}),
-  } as unknown as Config;
-
-  const renderResult = render(
-    <SettingsContext.Provider value={mockSettings}>
-      <ConfigContext.Provider value={mockConfig}>
-        <ModelDialog {...combinedProps} />
-      </ConfigContext.Provider>
-    </SettingsContext.Provider>,
-  );
-
+vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@google/gemini-cli-core')>();
   return {
-    ...renderResult,
-    props: combinedProps,
-    mockConfig,
-    mockSettings,
+    ...actual,
+    getDisplayString: (val: string) => mockGetDisplayString(val),
+    logModelSlashCommand: (config: Config, event: ModelSlashCommandEvent) =>
+      mockLogModelSlashCommand(config, event),
+    ModelSlashCommandEvent: class {
+      constructor(model: string) {
+        mockModelSlashCommandEvent(model);
+      }
+    },
+    PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL: 'gemini-3.1-flash-lite-preview',
   };
-};
+});
 
 describe('<ModelDialog />', () => {
+  const mockSetModel = vi.fn();
+  const mockGetModel = vi.fn();
+  const mockOnClose = vi.fn();
+  const mockGetHasAccessToPreviewModel = vi.fn();
+  const mockGetGemini31LaunchedSync = vi.fn();
+  const mockGetGemini31FlashLiteLaunchedSync = vi.fn();
+  const mockGetProModelNoAccess = vi.fn();
+  const mockGetProModelNoAccessSync = vi.fn();
+
+  interface MockConfig extends Partial<Config> {
+    setModel: (model: string, isTemporary?: boolean) => void;
+    getModel: () => string;
+    getHasAccessToPreviewModel: () => boolean;
+    getIdeMode: () => boolean;
+    getGemini31LaunchedSync: () => boolean;
+    getGemini31FlashLiteLaunchedSync: () => boolean;
+    getProModelNoAccess: () => Promise<boolean>;
+    getProModelNoAccessSync: () => boolean;
+    getLastRetrievedQuota: () =>
+      | {
+          buckets: Array<{
+            modelId?: string;
+            remainingFraction?: number;
+            resetTime?: string;
+          }>;
+        }
+      | undefined;
+  }
+
+  const mockConfig: MockConfig = {
+    setModel: mockSetModel,
+    getModel: mockGetModel,
+    getHasAccessToPreviewModel: mockGetHasAccessToPreviewModel,
+    getIdeMode: () => false,
+    getGemini31LaunchedSync: mockGetGemini31LaunchedSync,
+    getGemini31FlashLiteLaunchedSync: mockGetGemini31FlashLiteLaunchedSync,
+    getProModelNoAccess: mockGetProModelNoAccess,
+    getProModelNoAccessSync: mockGetProModelNoAccessSync,
+    getLastRetrievedQuota: () => ({ buckets: [] }),
+  };
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    // Ensure env-based fallback models don't leak into this suite from the developer environment.
-    delete process.env['OPENAI_MODEL'];
-    delete process.env['ANTHROPIC_MODEL'];
+    vi.resetAllMocks();
+    mockGetModel.mockReturnValue(DEFAULT_GEMINI_MODEL_AUTO);
+    mockGetHasAccessToPreviewModel.mockReturnValue(false);
+    mockGetGemini31LaunchedSync.mockReturnValue(false);
+    mockGetGemini31FlashLiteLaunchedSync.mockReturnValue(false);
+    mockGetProModelNoAccess.mockResolvedValue(false);
+    mockGetProModelNoAccessSync.mockReturnValue(false);
+
+    // Default implementation for getDisplayString
+    mockGetDisplayString.mockImplementation((val: string) => {
+      if (val === 'auto-gemini-2.5') return 'Auto (Gemini 2.5)';
+      if (val === 'auto-gemini-3') return 'Auto (Preview)';
+      return val;
+    });
   });
 
-  afterEach(() => {
-    cleanup();
-  });
-
-  it('renders the title', () => {
-    const { getByText } = renderComponent();
-    expect(getByText('Select Model')).toBeDefined();
-  });
-
-  it('passes all model options to DescriptiveRadioButtonSelect', () => {
-    renderComponent();
-    expect(mockedSelect).toHaveBeenCalledTimes(1);
-
-    const props = mockedSelect.mock.calls[0][0];
-    expect(props.items).toHaveLength(MOCK_OPENAI_MODELS.length);
-    // coder-model is the only model and it has vision capability
-    expect(props.items[0].value).toBe(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
-    expect(props.showNumbers).toBe(true);
-  });
-
-  it('initializes with the model from ConfigContext', () => {
-    const mockGetModel = vi.fn(() => 'gpt-4.1');
-    renderComponent(
-      {},
-      {
-        getModel: mockGetModel,
-        getAvailableModelsForAuthType:
-          createMockGetAvailableModelsForAuthType(),
+  const renderComponent = async (
+    configValue = mockConfig as Config,
+    authType = AuthType.LOGIN_WITH_GOOGLE,
+  ) => {
+    const settings = createMockSettings({
+      security: {
+        auth: {
+          selectedType: authType,
+        },
       },
-    );
-
-    expect(mockGetModel).toHaveBeenCalled();
-    // Calculate expected index dynamically based on model list
-    const qwenModels = MOCK_OPENAI_MODELS;
-    const expectedIndex = qwenModels.findIndex((m) => m.id === 'gpt-4.1');
-    expect(mockedSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        initialIndex: expectedIndex,
-      }),
-      undefined,
-    );
-  });
-
-  it('initializes with default coder model if context is not provided', () => {
-    renderComponent({}, undefined);
-
-    expect(mockedSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        initialIndex: 0,
-      }),
-      undefined,
-    );
-  });
-
-  it('initializes with default coder model if getModel returns undefined', () => {
-    const mockGetModel = vi.fn(() => undefined as unknown as string);
-    renderComponent(
-      {},
-      {
-        getModel: mockGetModel,
-        getAvailableModelsForAuthType:
-          createMockGetAvailableModelsForAuthType(),
-      },
-    );
-
-    expect(mockGetModel).toHaveBeenCalled();
-
-    // When getModel returns undefined, preferredModel falls back to 'gpt-4.1'
-    // which has index 0, so initialIndex should be 0
-    expect(mockedSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        initialIndex: 0,
-      }),
-      undefined,
-    );
-    expect(mockedSelect).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls config.switchModel and onClose when DescriptiveRadioButtonSelect.onSelect is triggered', async () => {
-    const { props, mockConfig, mockSettings } = renderComponent(
-      {},
-      {
-        getAvailableModelsForAuthType: vi.fn((t: AuthType) => {
-          if (t === AuthType.USE_OPENAI) {
-            return MOCK_OPENAI_MODELS.map((m) => ({
-              id: m.id,
-              label: m.label,
-              authType: AuthType.USE_OPENAI,
-            }));
-          }
-          return [];
-        }),
-      },
-    );
-
-    const childOnSelect = mockedSelect.mock.calls[0][0].onSelect;
-    expect(childOnSelect).toBeDefined();
-
-    await childOnSelect(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
-
-    expect(mockConfig?.switchModel).toHaveBeenCalledWith(
-      AuthType.USE_OPENAI,
-      'gpt-4.1',
-    );
-    expect(mockSettings.setValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'model.name',
-      'gpt-4.1',
-    );
-    expect(mockSettings.setValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'security.auth.selectedType',
-      AuthType.USE_OPENAI,
-    );
-    expect(props.onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls config.switchModel and persists authType+model when selecting a different authType', async () => {
-    const switchModel = vi.fn().mockResolvedValue(undefined);
-    const getAuthType = vi.fn(() => AuthType.USE_OPENAI);
-    const getAvailableModelsForAuthType = vi.fn((t: AuthType) => {
-      if (t === AuthType.USE_OPENAI) {
-        return [{ id: 'gpt-4', label: 'GPT-4', authType: t }];
-      }
-      return [];
     });
 
-    const mockConfigWithSwitchAuthType = {
-      getAuthType,
-      getModel: vi.fn(() => 'gpt-4'),
-      getContentGeneratorConfig: vi.fn(() => ({
-        authType: AuthType.USE_OPENAI,
-        model: 'gpt-4.1',
-      })),
-      // Add switchModel to the mock object (not the type)
-      switchModel,
-      getAvailableModelsForAuthType,
-    };
-
-    const { props, mockSettings } = renderComponent(
-      {},
-      // Cast to Config to bypass type checking, matching the runtime behavior
-      mockConfigWithSwitchAuthType as unknown as Partial<Config>,
+    const result = await renderWithProviders(
+      <ModelDialog onClose={mockOnClose} />,
+      {
+        config: configValue,
+        settings,
+      },
     );
+    return result;
+  };
 
-    const childOnSelect = mockedSelect.mock.calls[0][0].onSelect;
-    await childOnSelect(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
-
-    expect(switchModel).toHaveBeenCalledWith(AuthType.USE_OPENAI, 'gpt-4.1');
-    expect(mockSettings.setValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'model.name',
-      'gpt-4.1',
-    );
-    expect(mockSettings.setValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'security.auth.selectedType',
-      AuthType.USE_OPENAI,
-    );
-    expect(props.onClose).toHaveBeenCalledTimes(1);
+  it('renders the initial "main" view correctly', async () => {
+    const { lastFrame, unmount } = await renderComponent();
+    expect(lastFrame()).toContain('Select Model');
+    expect(lastFrame()).toContain('Remember model for future sessions: false');
+    expect(lastFrame()).toContain('Auto');
+    expect(lastFrame()).toContain('Manual');
+    unmount();
   });
 
-  it('passes onHighlight to DescriptiveRadioButtonSelect', () => {
-    renderComponent();
+  it('renders the "manual" view initially for users with no pro access and filters Pro models with correct order', async () => {
+    mockGetProModelNoAccessSync.mockReturnValue(true);
+    mockGetProModelNoAccess.mockResolvedValue(true);
+    mockGetHasAccessToPreviewModel.mockReturnValue(true);
+    mockGetGemini31FlashLiteLaunchedSync.mockReturnValue(true);
+    mockGetDisplayString.mockImplementation((val: string) => val);
 
-    const childOnHighlight = mockedSelect.mock.calls[0][0].onHighlight;
-    expect(childOnHighlight).toBeDefined();
-    expect(typeof childOnHighlight).toBe('function');
+    const { lastFrame, unmount } = await renderComponent();
+
+    const output = lastFrame();
+    expect(output).toContain('Select Model');
+    expect(output).not.toContain(DEFAULT_GEMINI_MODEL);
+    expect(output).not.toContain(PREVIEW_GEMINI_MODEL);
+
+    // Verify order: Flash Preview -> Flash Lite Preview -> Flash -> Flash Lite
+    const flashPreviewIdx = output.indexOf(PREVIEW_GEMINI_FLASH_MODEL);
+    const flashLitePreviewIdx = output.indexOf(
+      PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL,
+    );
+    const flashIdx = output.indexOf(DEFAULT_GEMINI_FLASH_MODEL);
+    const flashLiteIdx = output.indexOf(DEFAULT_GEMINI_FLASH_LITE_MODEL);
+
+    expect(flashPreviewIdx).toBeLessThan(flashLitePreviewIdx);
+    expect(flashLitePreviewIdx).toBeLessThan(flashIdx);
+    expect(flashIdx).toBeLessThan(flashLiteIdx);
+
+    expect(output).not.toContain('Auto');
+    unmount();
   });
 
-  it('calls onClose prop when "escape" key is pressed', () => {
-    const { props } = renderComponent();
+  it('closes dialog on escape in "manual" view for users with no pro access', async () => {
+    mockGetProModelNoAccessSync.mockReturnValue(true);
+    mockGetProModelNoAccess.mockResolvedValue(true);
+    const { stdin, waitUntilReady, unmount } = await renderComponent();
 
-    expect(mockedUseKeypress).toHaveBeenCalled();
-
-    const keyPressHandler = mockedUseKeypress.mock.calls[0][0];
-    const options = mockedUseKeypress.mock.calls[0][1];
-
-    expect(options).toEqual({ isActive: true });
-
-    keyPressHandler({
-      name: 'escape',
-      ctrl: false,
-      meta: false,
-      shift: false,
-      paste: false,
-      sequence: '',
+    // Already in manual view
+    await act(async () => {
+      stdin.write('\u001B'); // Escape
     });
-    expect(props.onClose).toHaveBeenCalledTimes(1);
-
-    keyPressHandler({
-      name: 'a',
-      ctrl: false,
-      meta: false,
-      shift: false,
-      paste: false,
-      sequence: '',
+    await act(async () => {
+      await waitUntilReady();
     });
-    expect(props.onClose).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+    unmount();
   });
 
-  it('updates initialIndex when config context changes', () => {
-    const mockGetModel = vi.fn(() => 'gpt-4.1');
-    const mockGetAuthType = vi.fn(() => 'openai');
-    const mockSettings = {
-      isTrusted: true,
-      user: { settings: {} },
-      workspace: { settings: {} },
-      setValue: vi.fn(),
-    } as unknown as LoadedSettings;
-    const { rerender } = render(
-      <SettingsContext.Provider value={mockSettings}>
-        <ConfigContext.Provider
-          value={
-            {
-              getModel: mockGetModel,
-              getAuthType: mockGetAuthType,
-              getAvailableModelsForAuthType:
-                createMockGetAvailableModelsForAuthType(),
-              getAllConfiguredModels: vi.fn(() =>
-                MOCK_OPENAI_MODELS.map((m) => ({
-                  id: m.id,
-                  label: m.label,
-                  description: m.description || '',
-                  authType: AuthType.USE_OPENAI,
-                })),
-              ),
-            } as unknown as Config
-          }
-        >
-          <ModelDialog onClose={vi.fn()} />
-        </ConfigContext.Provider>
-      </SettingsContext.Provider>,
-    );
+  it('switches to "manual" view when "Manual" is selected and uses getDisplayString for models', async () => {
+    mockGetDisplayString.mockImplementation((val: string) => {
+      if (val === DEFAULT_GEMINI_MODEL) return 'Formatted Pro Model';
+      if (val === DEFAULT_GEMINI_FLASH_MODEL) return 'Formatted Flash Model';
+      if (val === DEFAULT_GEMINI_FLASH_LITE_MODEL)
+        return 'Formatted Lite Model';
+      return val;
+    });
 
-    // 'gpt-4.1' (coder-model) is at index 0
-    expect(mockedSelect.mock.calls[0][0].initialIndex).toBe(0);
+    const { lastFrame, stdin, waitUntilReady, unmount } =
+      await renderComponent();
 
-    mockGetModel.mockReturnValue('gpt-4.1');
-    const newMockConfig = {
-      getModel: mockGetModel,
-      getAuthType: mockGetAuthType,
-      getAvailableModelsForAuthType: createMockGetAvailableModelsForAuthType(),
-      getAllConfiguredModels: vi.fn(() =>
-        MOCK_OPENAI_MODELS.map((m) => ({
-          id: m.id,
-          label: m.label,
-          description: m.description || '',
-          authType: AuthType.USE_OPENAI,
-        })),
-      ),
-    } as unknown as Config;
+    // Select "Manual" (index 1)
+    // Press down arrow to move to "Manual"
+    await act(async () => {
+      stdin.write('\u001B[B'); // Arrow Down
+    });
+    await waitUntilReady();
 
-    rerender(
-      <SettingsContext.Provider value={mockSettings}>
-        <ConfigContext.Provider value={newMockConfig}>
-          <ModelDialog onClose={vi.fn()} />
-        </ConfigContext.Provider>
-      </SettingsContext.Provider>,
-    );
+    // Press enter to select
+    await act(async () => {
+      stdin.write('\r');
+    });
+    await waitUntilReady();
 
-    // Should be called at least twice: initial render + re-render after context change
-    expect(mockedSelect).toHaveBeenCalledTimes(2);
-    // Calculate expected index for 'gpt-4.1' dynamically
-    const qwenModels = MOCK_OPENAI_MODELS;
-    const expectedCoderIndex = qwenModels.findIndex((m) => m.id === 'gpt-4.1');
-    expect(mockedSelect.mock.calls[1][0].initialIndex).toBe(expectedCoderIndex);
+    // Should now show manual options
+    await waitFor(() => {
+      const output = lastFrame();
+      expect(output).toContain('Formatted Pro Model');
+      expect(output).toContain('Formatted Flash Model');
+      expect(output).toContain('Formatted Lite Model');
+    });
+    unmount();
+  });
+
+  it('sets model and closes when a model is selected in "main" view', async () => {
+    const { stdin, waitUntilReady, unmount } = await renderComponent();
+
+    // Select "Auto" (index 0)
+    await act(async () => {
+      stdin.write('\r');
+    });
+    await waitUntilReady();
+
+    await waitFor(() => {
+      expect(mockSetModel).toHaveBeenCalledWith(
+        DEFAULT_GEMINI_MODEL_AUTO,
+        true, // Session only by default
+      );
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+    unmount();
+  });
+
+  it('sets model and closes when a model is selected in "manual" view', async () => {
+    const { stdin, waitUntilReady, unmount } = await renderComponent();
+
+    // Navigate to Manual (index 1) and select
+    await act(async () => {
+      stdin.write('\u001B[B');
+    });
+    await waitUntilReady();
+    await act(async () => {
+      stdin.write('\r');
+    });
+    await waitUntilReady();
+
+    // Now in manual view. Default selection is first item (DEFAULT_GEMINI_MODEL)
+    await act(async () => {
+      stdin.write('\r');
+    });
+    await waitUntilReady();
+
+    await waitFor(() => {
+      expect(mockSetModel).toHaveBeenCalledWith(DEFAULT_GEMINI_MODEL, true);
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+    unmount();
+  });
+
+  it('toggles persist mode with Tab key', async () => {
+    const { lastFrame, stdin, waitUntilReady, unmount } =
+      await renderComponent();
+
+    expect(lastFrame()).toContain('Remember model for future sessions: false');
+
+    // Press Tab to toggle persist mode
+    await act(async () => {
+      stdin.write('\t');
+    });
+    await waitUntilReady();
+
+    await waitFor(() => {
+      expect(lastFrame()).toContain('Remember model for future sessions: true');
+    });
+
+    // Select "Auto" (index 0)
+    await act(async () => {
+      stdin.write('\r');
+    });
+    await waitUntilReady();
+
+    await waitFor(() => {
+      expect(mockSetModel).toHaveBeenCalledWith(
+        DEFAULT_GEMINI_MODEL_AUTO,
+        false, // Persist enabled
+      );
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+    unmount();
+  });
+
+  it('closes dialog on escape in "main" view', async () => {
+    const { stdin, waitUntilReady, unmount } = await renderComponent();
+
+    await act(async () => {
+      stdin.write('\u001B'); // Escape
+    });
+    // Escape key has a 50ms timeout in KeypressContext, so we need to wrap waitUntilReady in act
+    await act(async () => {
+      await waitUntilReady();
+    });
+
+    await waitFor(() => {
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+    unmount();
+  });
+
+  it('goes back to "main" view on escape in "manual" view', async () => {
+    const { lastFrame, stdin, waitUntilReady, unmount } =
+      await renderComponent();
+
+    // Go to manual view
+    await act(async () => {
+      stdin.write('\u001B[B');
+    });
+    await waitUntilReady();
+    await act(async () => {
+      stdin.write('\r');
+    });
+    await waitUntilReady();
+
+    await waitFor(() => {
+      expect(lastFrame()).toContain(DEFAULT_GEMINI_MODEL);
+    });
+
+    // Press Escape
+    await act(async () => {
+      stdin.write('\u001B');
+    });
+    await act(async () => {
+      await waitUntilReady();
+    });
+
+    await waitFor(() => {
+      expect(mockOnClose).not.toHaveBeenCalled();
+      // Should be back to main view (Manual option visible)
+      expect(lastFrame()).toContain('Manual');
+    });
+    unmount();
+  });
+
+  it('shows the preferred manual model in the main view option using getDisplayString', async () => {
+    mockGetModel.mockReturnValue(DEFAULT_GEMINI_MODEL);
+    mockGetDisplayString.mockImplementation((val: string) => {
+      if (val === DEFAULT_GEMINI_MODEL) return 'My Custom Model Display';
+      if (val === 'auto-gemini-2.5') return 'Auto (Gemini 2.5)';
+      return val;
+    });
+    const { lastFrame, unmount } = await renderComponent();
+
+    expect(lastFrame()).toContain('Manual (My Custom Model Display)');
+    unmount();
+  });
+
+  describe('Preview Models', () => {
+    beforeEach(() => {
+      mockGetHasAccessToPreviewModel.mockReturnValue(true);
+    });
+
+    it('shows Auto (Preview) in main view when access is granted', async () => {
+      const { lastFrame, unmount } = await renderComponent();
+      expect(lastFrame()).toContain('Auto (Preview)');
+      unmount();
+    });
+
+    it('shows Gemini 3 models in manual view when Gemini 3.1 is NOT launched', async () => {
+      mockGetGemini31LaunchedSync.mockReturnValue(false);
+      const { lastFrame, stdin, waitUntilReady, unmount } =
+        await renderComponent();
+
+      // Go to manual view
+      await act(async () => {
+        stdin.write('\u001B[B'); // Manual
+      });
+      await waitUntilReady();
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      const output = lastFrame();
+      expect(output).toContain(PREVIEW_GEMINI_MODEL);
+      expect(output).toContain(PREVIEW_GEMINI_FLASH_MODEL);
+      unmount();
+    });
+
+    it('shows Gemini 3.1 models in manual view when Gemini 3.1 IS launched', async () => {
+      mockGetGemini31LaunchedSync.mockReturnValue(true);
+      const { lastFrame, stdin, waitUntilReady, unmount } =
+        await renderComponent(mockConfig as Config, AuthType.USE_VERTEX_AI);
+
+      // Go to manual view
+      await act(async () => {
+        stdin.write('\u001B[B'); // Manual
+      });
+      await waitUntilReady();
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      const output = lastFrame();
+      expect(output).toContain(PREVIEW_GEMINI_3_1_MODEL);
+      expect(output).toContain(PREVIEW_GEMINI_FLASH_MODEL);
+      unmount();
+    });
+
+    it('uses custom tools model when Gemini 3.1 IS launched and auth is Gemini API Key', async () => {
+      mockGetGemini31LaunchedSync.mockReturnValue(true);
+      const { stdin, waitUntilReady, unmount } = await renderComponent(
+        mockConfig as Config,
+        AuthType.USE_GEMINI,
+      );
+
+      // Go to manual view
+      await act(async () => {
+        stdin.write('\u001B[B'); // Manual
+      });
+      await waitUntilReady();
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      // Select Gemini 3.1 (first item in preview section)
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      await waitFor(() => {
+        expect(mockSetModel).toHaveBeenCalledWith(
+          PREVIEW_GEMINI_3_1_CUSTOM_TOOLS_MODEL,
+          true,
+        );
+      });
+      unmount();
+    });
+
+    it('shows Flash Lite Preview model regardless of tier when flag is enabled', async () => {
+      mockGetProModelNoAccessSync.mockReturnValue(false);
+      mockGetProModelNoAccess.mockResolvedValue(false);
+      mockGetHasAccessToPreviewModel.mockReturnValue(true);
+      mockGetGemini31FlashLiteLaunchedSync.mockReturnValue(true);
+      const { lastFrame, stdin, waitUntilReady, unmount } =
+        await renderComponent();
+
+      // Go to manual view
+      await act(async () => {
+        stdin.write('\u001B[B'); // Manual
+      });
+      await waitUntilReady();
+      await act(async () => {
+        stdin.write('\r');
+      });
+      await waitUntilReady();
+
+      const output = lastFrame();
+      expect(output).toContain(PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL);
+      unmount();
+    });
   });
 });

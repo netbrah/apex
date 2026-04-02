@@ -27,18 +27,12 @@ export default defineConfig({
     fileParallelism: true,
     poolOptions: {
       threads: {
-        minThreads: 2,
-        maxThreads: 4,
+        minThreads: 8,
+        maxThreads: 16,
       },
     },
-  },
-  resolve: {
-    alias: {
-      // Use built SDK bundle for e2e tests
-      '@apex-code/sdk': resolve(
-        __dirname,
-        '../packages/sdk-typescript/dist/index.mjs',
-      ),
+    env: {
+      GEMINI_TEST_TYPE: 'integration',
     },
   },
 });

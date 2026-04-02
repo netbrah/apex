@@ -10,6 +10,11 @@ if (process.env['NO_COLOR'] !== undefined) {
 }
 
 import { setSimulate429 } from './src/utils/testUtils.js';
+import { vi, afterEach } from 'vitest';
+import { coreEvents } from './src/utils/events.js';
+
+// Increase max listeners to avoid warnings in large test suites
+coreEvents.setMaxListeners(100);
 
 // Avoid writing per-session debug log files during tests.
 // Unit tests can opt-in by overriding this env var.
@@ -20,8 +25,41 @@ if (process.env['APEX_DEBUG_LOG_FILE'] === undefined) {
 // Disable 429 simulation globally for all tests
 setSimulate429(false);
 
-// Some dependencies (e.g., undici) expect a global File constructor in Node.
-// Provide a minimal shim for test environment if missing.
-if (typeof (globalThis as unknown as { File?: unknown }).File === 'undefined') {
-  (globalThis as unknown as { File: unknown }).File = class {} as unknown;
-}
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+// Default mocks for Storage and ProjectRegistry to prevent disk access in most tests.
+// These can be overridden in specific tests using vi.unmock().
+
+vi.mock('./src/config/projectRegistry.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./src/config/projectRegistry.js')>();
+  actual.ProjectRegistry.prototype.initialize = vi.fn(() =>
+    Promise.resolve(undefined),
+  );
+  actual.ProjectRegistry.prototype.getShortId = vi.fn(() =>
+    Promise.resolve('project-slug'),
+  );
+  return actual;
+});
+
+vi.mock('./src/config/storageMigration.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./src/config/storageMigration.js')>();
+  actual.StorageMigration.migrateDirectory = vi.fn(() =>
+    Promise.resolve(undefined),
+  );
+  return actual;
+});
+
+vi.mock('./src/config/storage.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('./src/config/storage.js')>();
+  actual.Storage.prototype.initialize = vi.fn(() => Promise.resolve(undefined));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (actual.Storage.prototype as any).getProjectIdentifier = vi.fn(
+    () => 'project-slug',
+  );
+  return actual;
+});

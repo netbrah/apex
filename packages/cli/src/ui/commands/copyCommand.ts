@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { debugLogger } from '@google/gemini-cli-core';
 import { copyToClipboard } from '../utils/commandUtils.js';
-import type { SlashCommand, SlashCommandActionReturn } from './types.js';
-import { CommandKind } from './types.js';
-import { t } from '../../i18n/index.js';
+import {
+  CommandKind,
+  type SlashCommand,
+  type SlashCommandActionReturn,
+} from './types.js';
 
 export const copyCommand: SlashCommand = {
   name: 'copy',
@@ -15,8 +18,9 @@ export const copyCommand: SlashCommand = {
     return t('Copy the last result or code snippet to clipboard');
   },
   kind: CommandKind.BUILT_IN,
+  autoExecute: true,
   action: async (context, _args): Promise<SlashCommandActionReturn | void> => {
-    const chat = await context.services.config?.getGeminiClient()?.getChat();
+    const chat = context.services.agentContext?.geminiClient?.getChat();
     const history = chat?.getHistory();
 
     // Get the last message from the AI (model role)
@@ -39,7 +43,8 @@ export const copyCommand: SlashCommand = {
 
     if (lastAiOutput) {
       try {
-        await copyToClipboard(lastAiOutput);
+        const settings = context.services.settings.merged;
+        await copyToClipboard(lastAiOutput, settings);
 
         return {
           type: 'message',
@@ -48,7 +53,7 @@ export const copyCommand: SlashCommand = {
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        context.services.config?.getDebugLogger().debug(message);
+        debugLogger.debug(message);
 
         return {
           type: 'message',

@@ -5,11 +5,17 @@
  */
 
 import { type CommandModule } from 'yargs';
-import { FatalConfigError, getErrorMessage } from '@apex-code/apex-core';
-import { SettingScope } from '../../config/settings.js';
-import { writeStdoutLine } from '../../utils/stdioHelpers.js';
-import { getExtensionManager } from './utils.js';
-import { t } from '../../i18n/index.js';
+import { loadSettings, SettingScope } from '../../config/settings.js';
+import { requestConsentNonInteractive } from '../../config/extensions/consent.js';
+import { ExtensionManager } from '../../config/extension-manager.js';
+import {
+  debugLogger,
+  FatalConfigError,
+  getErrorMessage,
+} from '@google/gemini-cli-core';
+import { promptForSetting } from '../../config/extensions/extensionSettings.js';
+import { exitCli } from '../utils.js';
+import { McpServerEnablementManager } from '../../config/mcp/mcpServerEnablement.js';
 
 interface EnableArgs {
   name: string;
@@ -17,26 +23,48 @@ interface EnableArgs {
 }
 
 export async function handleEnable(args: EnableArgs) {
-  const extensionManager = await getExtensionManager();
+  const workingDir = process.cwd();
+  const extensionManager = new ExtensionManager({
+    workspaceDir: workingDir,
+    requestConsent: requestConsentNonInteractive,
+    requestSetting: promptForSetting,
+    settings: loadSettings(workingDir).merged,
+  });
+  await extensionManager.loadExtensions();
 
   try {
     if (args.scope?.toLowerCase() === 'workspace') {
-      extensionManager.enableExtension(args.name, SettingScope.Workspace);
+      await extensionManager.enableExtension(args.name, SettingScope.Workspace);
     } else {
-      extensionManager.enableExtension(args.name, SettingScope.User);
+      await extensionManager.enableExtension(args.name, SettingScope.User);
     }
+
+    // Auto-enable any disabled MCP servers for this extension
+    const extension = extensionManager
+      .getExtensions()
+      .find((e) => e.name === args.name);
+
+    if (extension?.mcpServers) {
+      const mcpEnablementManager = McpServerEnablementManager.getInstance();
+      const enabledServers = await mcpEnablementManager.autoEnableServers(
+        Object.keys(extension.mcpServers ?? {}),
+      );
+
+      for (const serverName of enabledServers) {
+        debugLogger.log(
+          `MCP server '${serverName}' was disabled - now enabled.`,
+        );
+      }
+      // Note: No restartServer() - CLI exits immediately, servers load on next session
+    }
+
     if (args.scope) {
-      writeStdoutLine(
-        t('Extension "{{name}}" successfully enabled for scope "{{scope}}".', {
-          name: args.name,
-          scope: args.scope,
-        }),
+      debugLogger.log(
+        `Extension "${args.name}" successfully enabled for scope "${args.scope}".`,
       );
     } else {
-      writeStdoutLine(
-        t('Extension "{{name}}" successfully enabled in all scopes.', {
-          name: args.name,
-        }),
+      debugLogger.log(
+        `Extension "${args.name}" successfully enabled in all scopes.`,
       );
     }
   } catch (error) {
@@ -46,7 +74,7 @@ export async function handleEnable(args: EnableArgs) {
 
 export const enableCommand: CommandModule = {
   command: 'enable [--scope] <name>',
-  describe: t('Enables an extension.'),
+  describe: 'Enables an extension.',
   builder: (yargs) =>
     yargs
       .positional('name', {
@@ -54,9 +82,8 @@ export const enableCommand: CommandModule = {
         type: 'string',
       })
       .option('scope', {
-        describe: t(
-          'The scope to enable the extenison in. If not set, will be enabled in all scopes.',
-        ),
+        describe:
+          'The scope to enable the extension in. If not set, will be enabled in all scopes.',
         type: 'string',
       })
       .check((argv) => {
@@ -64,23 +91,25 @@ export const enableCommand: CommandModule = {
           argv.scope &&
           !Object.values(SettingScope)
             .map((s) => s.toLowerCase())
-            .includes((argv.scope as string).toLowerCase())
+            .includes(argv.scope.toLowerCase())
         ) {
           throw new Error(
-            t('Invalid scope: {{scope}}. Please use one of {{scopes}}.', {
-              scope: argv.scope as string,
-              scopes: Object.values(SettingScope)
-                .map((s) => s.toLowerCase())
-                .join(', '),
-            }),
+            `Invalid scope: ${argv.scope}. Please use one of ${Object.values(
+              SettingScope,
+            )
+              .map((s) => s.toLowerCase())
+              .join(', ')}.`,
           );
         }
         return true;
       }),
   handler: async (argv) => {
     await handleEnable({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       name: argv['name'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       scope: argv['scope'] as string,
     });
+    await exitCli();
   },
 };

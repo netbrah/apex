@@ -4,32 +4,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {
-  CountTokensParameters,
-  CountTokensResponse,
-  EmbedContentParameters,
-  EmbedContentResponse,
-  GenerateContentParameters,
-  GenerateContentResponse,
-} from '@google/genai';
-import type { Config } from '../config/config.js';
-import { LoggingContentGenerator } from './loggingContentGenerator/index.js';
-import type {
-  ConfigSource,
-  ConfigSourceKind,
-  ConfigSources,
-} from '../utils/configResolver.js';
 import {
-  getDefaultApiKeyEnvVar,
-  getDefaultModelEnvVar,
-  MissingAnthropicBaseUrlEnvError,
-  MissingApiKeyError,
-  MissingBaseUrlError,
-  MissingModelError,
-  StrictMissingCredentialsError,
-  StrictMissingModelIdError,
-} from '../models/modelConfigErrors.js';
-import { PROVIDER_SOURCED_FIELDS } from '../models/modelsConfig.js';
+  GoogleGenAI,
+  type CountTokensResponse,
+  type GenerateContentResponse,
+  type GenerateContentParameters,
+  type CountTokensParameters,
+  type EmbedContentResponse,
+  type EmbedContentParameters,
+} from '@google/genai';
+import * as os from 'node:os';
+import { createCodeAssistContentGenerator } from '../code_assist/codeAssist.js';
+import { isCloudShell } from '../ide/detect-ide.js';
+import type { Config } from '../config/config.js';
+import { loadApiKey } from './apiKeyCredentialStorage.js';
+
+import type { UserTierId, GeminiUserTier } from '../code_assist/types.js';
+import { LoggingContentGenerator } from './loggingContentGenerator.js';
+import { InstallationManager } from '../utils/installationManager.js';
+import { FakeContentGenerator } from './fakeContentGenerator.js';
+import { parseCustomHeaders } from '../utils/customHeaderUtils.js';
+import { determineSurface } from '../utils/surface.js';
+import { RecordingContentGenerator } from './recordingContentGenerator.js';
+import { getVersion, resolveModel } from '../../index.js';
+import type { LlmRole } from '../telemetry/llmRole.js';
 
 /**
  * Interface abstracting the core functionalities for generating content and counting tokens.
@@ -38,20 +36,24 @@ export interface ContentGenerator {
   generateContent(
     request: GenerateContentParameters,
     userPromptId: string,
+    role: LlmRole,
   ): Promise<GenerateContentResponse>;
 
   generateContentStream(
     request: GenerateContentParameters,
     userPromptId: string,
+    role: LlmRole,
   ): Promise<AsyncGenerator<GenerateContentResponse>>;
 
   countTokens(request: CountTokensParameters): Promise<CountTokensResponse>;
 
   embedContent(request: EmbedContentParameters): Promise<EmbedContentResponse>;
 
-  useSummarizedThinking(): boolean;
+  userTier?: UserTierId;
 
-  resetPipelineState?(): void;
+  userTierName?: string;
+
+  paidTier?: GeminiUserTier;
 }
 
 export enum AuthType {
@@ -59,7 +61,36 @@ export enum AuthType {
   USE_OPENAI_RESPONSES = 'openai-responses',
   USE_GEMINI = 'gemini',
   USE_VERTEX_AI = 'vertex-ai',
-  USE_ANTHROPIC = 'anthropic',
+  LEGACY_CLOUD_SHELL = 'cloud-shell',
+  COMPUTE_ADC = 'compute-default-credentials',
+  GATEWAY = 'gateway',
+}
+
+/**
+ * Detects the best authentication type based on environment variables.
+ *
+ * Checks in order:
+ * 1. GOOGLE_GENAI_USE_GCA=true -> LOGIN_WITH_GOOGLE
+ * 2. GOOGLE_GENAI_USE_VERTEXAI=true -> USE_VERTEX_AI
+ * 3. GEMINI_API_KEY -> USE_GEMINI
+ */
+export function getAuthTypeFromEnv(): AuthType | undefined {
+  if (process.env['GOOGLE_GENAI_USE_GCA'] === 'true') {
+    return AuthType.LOGIN_WITH_GOOGLE;
+  }
+  if (process.env['GOOGLE_GENAI_USE_VERTEXAI'] === 'true') {
+    return AuthType.USE_VERTEX_AI;
+  }
+  if (process.env['GEMINI_API_KEY']) {
+    return AuthType.USE_GEMINI;
+  }
+  if (
+    process.env['CLOUD_SHELL'] === 'true' ||
+    process.env['GEMINI_CLI_USE_COMPUTE_ADC'] === 'true'
+  ) {
+    return AuthType.COMPUTE_ADC;
+  }
+  return undefined;
 }
 
 /**
@@ -74,118 +105,48 @@ export type InputModalities = {
 };
 
 export type ContentGeneratorConfig = {
-  model: string;
   apiKey?: string;
   apiKeyEnvKey?: string;
   baseUrl?: string;
   vertexai?: boolean;
-  authType?: AuthType | undefined;
-  enableOpenAILogging?: boolean;
-  openAILoggingDir?: string;
-  timeout?: number; // Timeout configuration in milliseconds
-  maxRetries?: number; // Maximum retries for rate-limit errors
-  retryErrorCodes?: number[]; // Additional error codes that trigger rate-limit retry
-  enableCacheControl?: boolean; // Enable cache control for DashScope providers
-  samplingParams?: {
-    top_p?: number;
-    top_k?: number;
-    repetition_penalty?: number;
-    presence_penalty?: number;
-    frequency_penalty?: number;
-    temperature?: number;
-    max_tokens?: number;
-  };
-  reasoning?:
-    | false
-    | {
-        effort?: 'low' | 'medium' | 'high';
-        budget_tokens?: number;
-        summary?: 'auto' | 'concise' | 'detailed';
-      };
-  verbosity?: 'low' | 'medium' | 'high';
-  serviceTier?: 'auto' | 'priority';
-  proxy?: string | undefined;
-  userAgent?: string;
-  // Schema compliance mode for tool definitions
-  schemaCompliance?: 'auto' | 'openapi_30';
-  // Context window size override. If set to a positive number, it will override
-  // the automatic detection. Leave undefined to use automatic detection.
-  contextWindowSize?: number;
-  // Custom HTTP headers to be sent with requests
+  authType?: AuthType;
+  proxy?: string;
+  baseUrl?: string;
   customHeaders?: Record<string, string>;
-  // Extra body parameters to be merged into the request body
-  extra_body?: Record<string, unknown>;
-  // Supported input modalities. Unsupported media types are replaced with text
-  // placeholders. Leave undefined to use automatic detection from model name.
-  modalities?: InputModalities;
-  // When true, replay encrypted reasoning content from prior turns. Requires
-  // sticky routing (single deployment) or WebSocket transport. Default false.
-  enableEncryptedContentReplay?: boolean;
 };
 
-// Keep the public ContentGeneratorConfigSources API, but reuse the generic
-// source-tracking types from utils/configResolver to avoid duplication.
-export type ContentGeneratorConfigSourceKind = ConfigSourceKind;
-export type ContentGeneratorConfigSource = ConfigSource;
-export type ContentGeneratorConfigSources = ConfigSources;
-
-export type ResolvedContentGeneratorConfig = {
-  config: ContentGeneratorConfig;
-  sources: ContentGeneratorConfigSources;
-};
-
-function setSource(
-  sources: ContentGeneratorConfigSources,
-  path: string,
-  source: ContentGeneratorConfigSource,
-): void {
-  sources[path] = source;
-}
-
-function getSeedSource(
-  seed: ContentGeneratorConfigSources | undefined,
-  path: string,
-): ContentGeneratorConfigSource | undefined {
-  return seed?.[path];
-}
-
-/**
- * Resolve ContentGeneratorConfig while tracking the source of each effective field.
- *
- * This function now primarily validates and finalizes the configuration that has
- * already been resolved by ModelConfigResolver. The env fallback logic has been
- * moved to the unified resolver to eliminate duplication.
- *
- * Note: The generationConfig passed here should already be fully resolved with
- * proper source tracking from the caller (CLI/SDK layer).
- */
-export function resolveContentGeneratorConfigWithSources(
+export async function createContentGeneratorConfig(
   config: Config,
   authType: AuthType | undefined,
-  generationConfig?: Partial<ContentGeneratorConfig>,
-  seedSources?: ContentGeneratorConfigSources,
-  options?: { strictModelProvider?: boolean },
-): ResolvedContentGeneratorConfig {
-  const sources: ContentGeneratorConfigSources = { ...(seedSources || {}) };
-  const strictModelProvider = options?.strictModelProvider === true;
+  apiKey?: string,
+  baseUrl?: string,
+  customHeaders?: Record<string, string>,
+): Promise<ContentGeneratorConfig> {
+  const geminiApiKey =
+    apiKey ||
+    process.env['GEMINI_API_KEY'] ||
+    (await loadApiKey()) ||
+    undefined;
+  const googleApiKey = process.env['GOOGLE_API_KEY'] || undefined;
+  const googleCloudProject =
+    process.env['GOOGLE_CLOUD_PROJECT'] ||
+    process.env['GOOGLE_CLOUD_PROJECT_ID'] ||
+    undefined;
+  const googleCloudLocation = process.env['GOOGLE_CLOUD_LOCATION'] || undefined;
 
-  // Build config with computed fields
-  const newContentGeneratorConfig: Partial<ContentGeneratorConfig> = {
-    ...(generationConfig || {}),
+  const contentGeneratorConfig: ContentGeneratorConfig = {
     authType,
     proxy: config?.getProxy(),
+    baseUrl,
+    customHeaders,
   };
 
-  // Set sources for computed fields
-  setSource(sources, 'authType', {
-    kind: 'computed',
-    detail: 'provided by caller',
-  });
-  if (config?.getProxy()) {
-    setSource(sources, 'proxy', {
-      kind: 'computed',
-      detail: 'Config.getProxy()',
-    });
+  // If we are using Google auth or we are in Cloud Shell, there is nothing else to validate for now
+  if (
+    authType === AuthType.LOGIN_WITH_GOOGLE ||
+    authType === AuthType.COMPUTE_ADC
+  ) {
+    return contentGeneratorConfig;
   }
 
   // Preserve seed sources for fields that were passed in
@@ -208,88 +169,14 @@ export function resolveContentGeneratorConfigWithSources(
     throw new Error(validation.errors.map((e) => e.message).join('\n'));
   }
 
-  return {
-    config: newContentGeneratorConfig as ContentGeneratorConfig,
-    sources,
-  };
-}
+  if (authType === AuthType.GATEWAY) {
+    contentGeneratorConfig.apiKey = apiKey || 'gateway-placeholder-key';
+    contentGeneratorConfig.vertexai = false;
 
-export interface ModelConfigValidationResult {
-  valid: boolean;
-  errors: Error[];
-}
-
-/**
- * Validate a resolved model configuration.
- * This is the single validation entry point used across Core.
- */
-export function validateModelConfig(
-  config: ContentGeneratorConfig,
-  isStrictModelProvider: boolean = false,
-): ModelConfigValidationResult {
-  const errors: Error[] = [];
-
-  // API key is required for all auth types
-  if (!config.apiKey) {
-    if (isStrictModelProvider) {
-      errors.push(
-        new StrictMissingCredentialsError(
-          config.authType,
-          config.model,
-          config.apiKeyEnvKey,
-        ),
-      );
-    } else {
-      const envKey =
-        config.apiKeyEnvKey || getDefaultApiKeyEnvVar(config.authType);
-      errors.push(
-        new MissingApiKeyError({
-          authType: config.authType,
-          model: config.model,
-          baseUrl: config.baseUrl,
-          envKey,
-        }),
-      );
-    }
+    return contentGeneratorConfig;
   }
 
-  // Model is required
-  if (!config.model) {
-    if (isStrictModelProvider) {
-      errors.push(new StrictMissingModelIdError(config.authType));
-    } else {
-      const envKey = getDefaultModelEnvVar(config.authType);
-      errors.push(new MissingModelError({ authType: config.authType, envKey }));
-    }
-  }
-
-  // Explicit baseUrl is required for Anthropic; Migrated from existing code.
-  if (config.authType === AuthType.USE_ANTHROPIC && !config.baseUrl) {
-    if (isStrictModelProvider) {
-      errors.push(
-        new MissingBaseUrlError({
-          authType: config.authType,
-          model: config.model,
-        }),
-      );
-    } else if (config.authType === AuthType.USE_ANTHROPIC) {
-      errors.push(new MissingAnthropicBaseUrlEnvError());
-    }
-  }
-
-  return { valid: errors.length === 0, errors };
-}
-
-export function createContentGeneratorConfig(
-  config: Config,
-  authType: AuthType | undefined,
-  generationConfig?: Partial<ContentGeneratorConfig>,
-): ContentGeneratorConfig {
-  return resolveContentGeneratorConfigWithSources(
-    config,
-    authType,
-    generationConfig,
-  ).config;
+  return contentGeneratorConfig;
 }
 
 export async function createContentGenerator(
@@ -297,49 +184,137 @@ export async function createContentGenerator(
   config: Config,
   _isInitialAuth?: boolean,
 ): Promise<ContentGenerator> {
-  const validation = validateModelConfig(generatorConfig, false);
-  if (!validation.valid) {
-    throw new Error(validation.errors.map((e) => e.message).join('\n'));
-  }
+  const generator = await (async () => {
+    if (gcConfig.fakeResponses) {
+      const fakeGenerator = await FakeContentGenerator.fromFile(
+        gcConfig.fakeResponses,
+      );
+      return new LoggingContentGenerator(fakeGenerator, gcConfig);
+    }
+    const version = await getVersion();
+    const model = resolveModel(
+      gcConfig.getModel(),
+      config.authType === AuthType.USE_GEMINI ||
+        config.authType === AuthType.USE_VERTEX_AI ||
+        ((await gcConfig.getGemini31Launched?.()) ?? false),
+      config.authType === AuthType.USE_GEMINI ||
+        config.authType === AuthType.USE_VERTEX_AI ||
+        ((await gcConfig.getGemini31FlashLiteLaunched?.()) ?? false),
+      false,
+      gcConfig.getHasAccessToPreviewModel?.() ?? true,
+      gcConfig,
+    );
+    const customHeadersEnv =
+      process.env['GEMINI_CLI_CUSTOM_HEADERS'] || undefined;
+    const clientName = gcConfig.getClientName();
+    const surface = determineSurface();
 
-  const authType = generatorConfig.authType;
-  if (!authType) {
-    throw new Error('ContentGeneratorConfig must have an authType');
-  }
+    let userAgent: string;
+    // Use unified format for VS Code traffic.
+    // Note: We don't automatically assume a2a-server is VS Code,
+    // as it could be used by other clients unless the surface explicitly says 'vscode'.
+    if (clientName === 'acp-vscode' || surface === 'vscode') {
+      const osTypeMap: Record<string, string> = {
+        darwin: 'macOS',
+        win32: 'Windows',
+        linux: 'Linux',
+      };
+      const osType = osTypeMap[process.platform] || process.platform;
+      const osVersion = os.release();
+      const arch = process.arch;
 
-  let baseGenerator: ContentGenerator;
+      const vscodeVersion = process.env['TERM_PROGRAM_VERSION'] || 'unknown';
+      let hostPath = `VSCode/${vscodeVersion}`;
+      if (isCloudShell()) {
+        const cloudShellVersion =
+          process.env['CLOUD_SHELL_VERSION'] || 'unknown';
+        hostPath += ` > CloudShell/${cloudShellVersion}`;
+      }
 
-  if (authType === AuthType.USE_OPENAI) {
-    const { createOpenAIContentGenerator } = await import(
-      './openaiContentGenerator/index.js'
-    );
-    baseGenerator = createOpenAIContentGenerator(generatorConfig, config);
-  } else if (authType === AuthType.USE_OPENAI_RESPONSES) {
-    const { createOpenAIResponsesContentGenerator } = await import(
-      './openaiResponsesContentGenerator/index.js'
-    );
-    baseGenerator = createOpenAIResponsesContentGenerator(
-      generatorConfig,
-      config,
-    );
-  } else if (authType === AuthType.USE_ANTHROPIC) {
-    const { createAnthropicContentGenerator } = await import(
-      './anthropicContentGenerator/index.js'
-    );
-    baseGenerator = createAnthropicContentGenerator(generatorConfig, config);
-  } else if (
-    authType === AuthType.USE_GEMINI ||
-    authType === AuthType.USE_VERTEX_AI
-  ) {
-    const { createGeminiContentGenerator } = await import(
-      './geminiContentGenerator/index.js'
-    );
-    baseGenerator = createGeminiContentGenerator(generatorConfig, config);
-  } else {
+      userAgent = `CloudCodeVSCode/${version} (aidev_client; os_type=${osType}; os_version=${osVersion}; arch=${arch}; host_path=${hostPath}; proxy_client=geminicli)`;
+    } else {
+      const userAgentPrefix = clientName
+        ? `GeminiCLI-${clientName}`
+        : 'GeminiCLI';
+      userAgent = `${userAgentPrefix}/${version}/${model} (${process.platform}; ${process.arch}; ${surface})`;
+    }
+
+    const customHeadersMap = parseCustomHeaders(customHeadersEnv);
+    const apiKeyAuthMechanism =
+      process.env['GEMINI_API_KEY_AUTH_MECHANISM'] || 'x-goog-api-key';
+    const apiVersionEnv = process.env['GOOGLE_GENAI_API_VERSION'];
+
+    const baseHeaders: Record<string, string> = {
+      'User-Agent': userAgent,
+      ...customHeadersMap,
+    };
+
+    if (
+      apiKeyAuthMechanism === 'bearer' &&
+      (config.authType === AuthType.USE_GEMINI ||
+        config.authType === AuthType.USE_VERTEX_AI) &&
+      config.apiKey
+    ) {
+      baseHeaders['Authorization'] = `Bearer ${config.apiKey}`;
+    }
+    if (
+      config.authType === AuthType.LOGIN_WITH_GOOGLE ||
+      config.authType === AuthType.COMPUTE_ADC
+    ) {
+      const httpOptions = { headers: baseHeaders };
+      return new LoggingContentGenerator(
+        await createCodeAssistContentGenerator(
+          httpOptions,
+          config.authType,
+          gcConfig,
+          sessionId,
+        ),
+        gcConfig,
+      );
+    }
+
+    if (
+      config.authType === AuthType.USE_GEMINI ||
+      config.authType === AuthType.USE_VERTEX_AI ||
+      config.authType === AuthType.GATEWAY
+    ) {
+      let headers: Record<string, string> = { ...baseHeaders };
+      if (config.customHeaders) {
+        headers = { ...headers, ...config.customHeaders };
+      }
+      if (gcConfig?.getUsageStatisticsEnabled()) {
+        const installationManager = new InstallationManager();
+        const installationId = installationManager.getInstallationId();
+        headers = {
+          ...headers,
+          'x-gemini-api-privileged-user-id': `${installationId}`,
+        };
+      }
+      const httpOptions: {
+        baseUrl?: string;
+        headers: Record<string, string>;
+      } = { headers };
+
+      if (config.baseUrl) {
+        httpOptions.baseUrl = config.baseUrl;
+      }
+
+      const googleGenAI = new GoogleGenAI({
+        apiKey: config.apiKey === '' ? undefined : config.apiKey,
+        vertexai: config.vertexai,
+        httpOptions,
+        ...(apiVersionEnv && { apiVersion: apiVersionEnv }),
+      });
+      return new LoggingContentGenerator(googleGenAI.models, gcConfig);
+    }
     throw new Error(
-      `Error creating contentGenerator: Unsupported authType: ${authType}`,
+      `Error creating contentGenerator: Unsupported authType: ${config.authType}`,
     );
+  })();
+
+  if (gcConfig.recordResponses) {
+    return new RecordingContentGenerator(generator, gcConfig.recordResponses);
   }
 
-  return new LoggingContentGenerator(baseGenerator, config, generatorConfig);
+  return generator;
 }

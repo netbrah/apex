@@ -1,13 +1,13 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { t } from '../../i18n/index.js';
+import { type Config } from '@google/gemini-cli-core';
 
 type Tip = string | { text: string; weight: number };
 
@@ -32,30 +32,28 @@ function tipText(tip: Tip): string {
   return typeof tip === 'string' ? tip : tip.text;
 }
 
-function tipWeight(tip: Tip): number {
-  return typeof tip === 'string' ? 1 : tip.weight;
-}
-
-export function selectWeightedTip(tips: Tip[]): string {
-  const totalWeight = tips.reduce((sum, tip) => sum + tipWeight(tip), 0);
-  let random = Math.random() * totalWeight;
-  for (const tip of tips) {
-    random -= tipWeight(tip);
-    if (random <= 0) {
-      return tipText(tip);
-    }
-  }
-  return tipText(tips[tips.length - 1]!);
-}
-
-export const Tips: React.FC = () => {
-  const selectedTip = useMemo(() => selectWeightedTip(startupTips), []);
+export const Tips: React.FC<TipsProps> = ({ config }) => {
+  const geminiMdFileCount = config.getGeminiMdFileCount();
 
   return (
-    <Box marginLeft={2} marginRight={2}>
-      <Text color={theme.text.secondary}>
-        {t('Tips: ')}
-        {t(selectedTip)}
+    <Box flexDirection="column" marginTop={1}>
+      <Text color={theme.text.primary}>Tips for getting started:</Text>
+      {geminiMdFileCount === 0 && (
+        <Text color={theme.text.primary}>
+          1. Create <Text bold>GEMINI.md</Text> files to customize your
+          interactions
+        </Text>
+      )}
+      <Text color={theme.text.primary}>
+        {geminiMdFileCount === 0 ? '2.' : '1.'}{' '}
+        <Text color={theme.text.secondary}>/help</Text> for more information
+      </Text>
+      <Text color={theme.text.primary}>
+        {geminiMdFileCount === 0 ? '3.' : '2.'} Ask coding questions, edit code
+        or run commands
+      </Text>
+      <Text color={theme.text.primary}>
+        {geminiMdFileCount === 0 ? '4.' : '3.'} Be specific for the best results
       </Text>
     </Box>
   );

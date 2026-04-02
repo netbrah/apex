@@ -4,77 +4,126 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fsPromises from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
-import os, { EOL } from 'node:os';
+import os from 'node:os';
 import crypto from 'node:crypto';
-import type { Config } from '../config/config.js';
-import { ToolNames, ToolDisplayNames } from './tool-names.js';
+import { debugLogger } from '../index.js';
+import type { SandboxPermissions } from '../services/sandboxManager.js';
 import { ToolErrorType } from './tool-error.js';
-import type {
-  ToolInvocation,
-  ToolResult,
-  ToolResultDisplay,
-  ToolCallConfirmationDetails,
-  ToolExecuteConfirmationDetails,
-  ToolConfirmationPayload,
+import {
+  BaseDeclarativeTool,
+  BaseToolInvocation,
   ToolConfirmationOutcome,
+  Kind,
+  type ToolInvocation,
+  type ToolResult,
+  type BackgroundExecutionData,
+  type ToolCallConfirmationDetails,
+  type ToolExecuteConfirmationDetails,
+  type PolicyUpdateOptions,
+  type ToolLiveOutput,
+  type ExecuteOptions,
+  type ForcedToolDecision,
 } from './tools.js';
-import type { PermissionDecision } from '../permissions/types.js';
-import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
+
 import { getErrorMessage } from '../utils/errors.js';
-import { truncateToolOutput } from '../utils/truncation.js';
-import type {
-  ShellExecutionConfig,
-  ShellOutputEvent,
+import { summarizeToolOutput } from '../utils/summarizer.js';
+import {
+  ShellExecutionService,
+  type ShellOutputEvent,
 } from '../services/shellExecutionService.js';
-import { ShellExecutionService } from '../services/shellExecutionService.js';
-import { formatMemoryUsage } from '../utils/formatters.js';
+import { formatBytes } from '../utils/formatters.js';
 import type { AnsiOutput } from '../utils/terminalSerializer.js';
-import { isSubpaths } from '../utils/paths.js';
 import {
   getCommandRoot,
   getCommandRoots,
-  splitCommands,
+  initializeShellParsers,
   stripShellWrapper,
-  detectCommandSubstitution,
+  parseCommandDetails,
+  hasRedirection,
 } from '../utils/shell-utils.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
+import { SHELL_TOOL_NAME } from './tool-names.js';
+import { PARAM_ADDITIONAL_PERMISSIONS } from './definitions/base-declarations.js';
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
+import { getShellDefinition } from './definitions/coreTools.js';
+import { resolveToolDeclaration } from './definitions/resolver.js';
+import type { AgentLoopContext } from '../config/agent-loop-context.js';
+import { isSubpath } from '../utils/paths.js';
 import {
-  isShellCommandReadOnlyAST,
-  extractCommandRules,
-} from '../utils/shellAstParser.js';
-
-const debugLogger = createDebugLogger('SHELL');
+  getProactiveToolSuggestions,
+  isNetworkReliantCommand,
+} from '../sandbox/utils/proactivePermissions.js';
 
 export const OUTPUT_UPDATE_INTERVAL_MS = 1000;
 const DEFAULT_FOREGROUND_TIMEOUT_MS = 120000;
+
+// Delay so user does not see the output of the process before the process is moved to the background.
+const BACKGROUND_DELAY_MS = 200;
 
 export interface ShellToolParams {
   command: string;
   is_background: boolean;
   timeout?: number;
   description?: string;
-  directory?: string;
+  dir_path?: string;
+  is_background?: boolean;
+  delay_ms?: number;
+  [PARAM_ADDITIONAL_PERMISSIONS]?: SandboxPermissions;
 }
 
 export class ShellToolInvocation extends BaseToolInvocation<
   ShellToolParams,
   ToolResult
 > {
+  private proactivePermissionsConfirmed?: SandboxPermissions;
+
   constructor(
-    private readonly config: Config,
+    private readonly context: AgentLoopContext,
     params: ShellToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ) {
-    super(params);
+    super(params, messageBus, _toolName, _toolDisplayName);
   }
 
-  getDescription(): string {
-    let description = `${this.params.command}`;
+  /**
+   * Wraps a command in a subshell `()` to capture background process IDs (PIDs) using pgrep.
+   * Uses newlines to prevent breaking heredocs or trailing comments.
+   *
+   * @param command The raw command string to execute.
+   * @param tempFilePath Path to the temporary file where PIDs will be written.
+   * @param isWindows Whether the current platform is Windows (if true, the command is returned as-is).
+   * @returns The wrapped command string.
+   */
+  private wrapCommandForPgrep(
+    command: string,
+    tempFilePath: string,
+    isWindows: boolean,
+  ): string {
+    if (isWindows) {
+      return command;
+    }
+    let trimmed = command.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (trimmed.endsWith('\\')) {
+      trimmed += ' ';
+    }
+    return `(\n${trimmed}\n); __code=$?; pgrep -g 0 >${tempFilePath} 2>&1; exit $__code;`;
+  }
+
+  private getContextualDetails(): string {
+    let details = '';
     // append optional [in directory]
-    // note description is needed even if validation fails due to absolute path
-    if (this.params.directory) {
-      description += ` [in ${this.params.directory}]`;
+    // note explanation is needed even if validation fails due to absolute path
+    if (this.params.dir_path) {
+      details += `[in ${this.params.dir_path}]`;
+    } else {
+      details += `[current working directory ${process.cwd()}]`;
     }
     // append background indicator
     if (this.params.is_background) {
@@ -85,101 +134,276 @@ export class ShellToolInvocation extends BaseToolInvocation<
     }
     // append optional (description), replacing any line breaks with spaces
     if (this.params.description) {
-      description += ` (${this.params.description.replace(/\n/g, ' ')})`;
+      details += ` (${this.params.description.replace(/\n/g, ' ')})`;
     }
-    return description;
+    if (this.params.is_background) {
+      details += ' [background]';
+    }
+    return details;
   }
 
-  /**
-   * AST-based permission check for the shell command.
-   * - Command substitution → 'deny' (security)
-   * - Read-only commands (via AST analysis) → 'allow'
-   * - All other commands → 'ask'
-   */
-  override async getDefaultPermission(): Promise<PermissionDecision> {
-    const command = stripShellWrapper(this.params.command);
+  getDescription(): string {
+    return `${this.params.command} ${this.getContextualDetails()}`;
+  }
 
-    // Security: command substitution ($(), ``, <(), >()) → deny
-    if (detectCommandSubstitution(command)) {
-      return 'deny';
-    }
+  private simplifyPaths(paths: Set<string>): string[] {
+    if (paths.size === 0) return [];
+    const rawPaths = Array.from(paths);
 
-    // AST-based read-only detection
-    try {
-      const isReadOnly = await isShellCommandReadOnlyAST(command);
-      if (isReadOnly) {
-        return 'allow';
+    // 1. Remove redundant paths (subpaths of already included paths)
+    const sorted = rawPaths.sort((a, b) => a.length - b.length);
+    const nonRedundant: string[] = [];
+    for (const p of sorted) {
+      if (!nonRedundant.some((s) => isSubpath(s, p))) {
+        nonRedundant.push(p);
       }
-    } catch (e) {
-      debugLogger.warn('AST read-only check failed, falling back to ask:', e);
     }
 
-    return 'ask';
-  }
+    // 2. Consolidate clusters: if >= 3 paths share the same immediate parent, use the parent
+    const parentCounts = new Map<string, string[]>();
+    for (const p of nonRedundant) {
+      const parent = path.dirname(p);
+      if (!parentCounts.has(parent)) {
+        parentCounts.set(parent, []);
+      }
+      parentCounts.get(parent)!.push(p);
+    }
 
-  /**
-   * Constructs confirmation dialog details for a shell command that needs
-   * user approval.  For compound commands (e.g. `cd foo && npm run build`),
-   * sub-commands that are already allowed (read-only) are excluded from both
-   * the displayed root-command list and the suggested permission rules.
-   */
-  override async getConfirmationDetails(
-    _abortSignal: AbortSignal,
-  ): Promise<ToolCallConfirmationDetails> {
-    const command = stripShellWrapper(this.params.command);
+    const finalPaths = new Set<string>();
 
-    // Split compound command and filter out already-allowed (read-only) sub-commands
-    const subCommands = splitCommands(command);
-    const nonReadOnlySubCommands: string[] = [];
-    for (const sub of subCommands) {
-      try {
-        const isReadOnly = await isShellCommandReadOnlyAST(sub);
-        if (!isReadOnly) {
-          nonReadOnlySubCommands.push(sub);
+    const sensitiveDirs = new Set([
+      os.homedir(),
+      path.dirname(os.homedir()),
+      path.sep,
+      path.join(path.sep, 'etc'),
+      path.join(path.sep, 'usr'),
+      path.join(path.sep, 'var'),
+      path.join(path.sep, 'bin'),
+      path.join(path.sep, 'sbin'),
+      path.join(path.sep, 'lib'),
+      path.join(path.sep, 'root'),
+      path.join(path.sep, 'home'),
+      path.join(path.sep, 'Users'),
+    ]);
+
+    if (os.platform() === 'win32') {
+      const systemRoot = process.env['SystemRoot'];
+      if (systemRoot) {
+        sensitiveDirs.add(systemRoot);
+        sensitiveDirs.add(path.join(systemRoot, 'System32'));
+      }
+      const programFiles = process.env['ProgramFiles'];
+      if (programFiles) sensitiveDirs.add(programFiles);
+      const programFilesX86 = process.env['ProgramFiles(x86)'];
+      if (programFilesX86) sensitiveDirs.add(programFilesX86);
+    }
+
+    for (const [parent, children] of parentCounts.entries()) {
+      const isSensitive = sensitiveDirs.has(parent);
+      if (children.length >= 3 && parent.length > 1 && !isSensitive) {
+        finalPaths.add(parent);
+      } else {
+        for (const child of children) {
+          finalPaths.add(child);
         }
-      } catch {
-        nonReadOnlySubCommands.push(sub); // conservative: include if check fails
       }
     }
 
-    // Fallback to all sub-commands if everything was filtered out (shouldn't
-    // normally happen since getDefaultPermission already returned 'ask').
-    const effectiveSubCommands =
-      nonReadOnlySubCommands.length > 0 ? nonReadOnlySubCommands : subCommands;
-
-    const rootCommands = [
-      ...new Set(
-        effectiveSubCommands
-          .map((c) => getCommandRoot(c))
-          .filter((c): c is string => !!c),
-      ),
-    ];
-
-    // Extract minimum-scope permission rules only for sub-commands that
-    // actually need confirmation.
-    let permissionRules: string[] = [];
-    try {
-      const allRules: string[] = [];
-      for (const sub of effectiveSubCommands) {
-        const rules = await extractCommandRules(sub);
-        allRules.push(...rules);
+    // 3. Final redundancy check after consolidation
+    const finalSorted = Array.from(finalPaths).sort(
+      (a, b) => a.length - b.length,
+    );
+    const result: string[] = [];
+    for (const p of finalSorted) {
+      if (!result.some((s) => isSubpath(s, p))) {
+        result.push(p);
       }
-      permissionRules = [...new Set(allRules)].map((rule) => `Bash(${rule})`);
-    } catch (e) {
-      debugLogger.warn('Failed to extract command rules:', e);
+    }
+
+    return result;
+  }
+
+  override getDisplayTitle(): string {
+    return this.params.command;
+  }
+
+  override getExplanation(): string {
+    return this.getContextualDetails().trim();
+  }
+
+  override getPolicyUpdateOptions(
+    outcome: ToolConfirmationOutcome,
+  ): PolicyUpdateOptions | undefined {
+    if (
+      outcome === ToolConfirmationOutcome.ProceedAlwaysAndSave ||
+      outcome === ToolConfirmationOutcome.ProceedAlways
+    ) {
+      const command = stripShellWrapper(this.params.command);
+      const rootCommands = [...new Set(getCommandRoots(command))];
+      const allowRedirection = hasRedirection(command) ? true : undefined;
+
+      if (rootCommands.length > 0) {
+        return { commandPrefix: rootCommands, allowRedirection };
+      }
+      return { commandPrefix: this.params.command, allowRedirection };
+    }
+    return undefined;
+  }
+
+  override async shouldConfirmExecute(
+    abortSignal: AbortSignal,
+    forcedDecision?: ForcedToolDecision,
+  ): Promise<ToolCallConfirmationDetails | false> {
+    if (this.params[PARAM_ADDITIONAL_PERMISSIONS]) {
+      return this.getConfirmationDetails(abortSignal);
+    }
+
+    // Proactively suggest expansion for known network-heavy Node.js ecosystem tools
+    // (npm install, etc.) to avoid hangs when network is restricted by default.
+    // We do this even if the command is "allowed" by policy because the DEFAULT
+    // permissions are usually insufficient for these commands.
+    const command = stripShellWrapper(this.params.command);
+    const rootCommands = getCommandRoots(command);
+    const rootCommand = rootCommands[0];
+
+    if (rootCommand) {
+      const proactive = await getProactiveToolSuggestions(rootCommand);
+      if (proactive) {
+        const approved =
+          this.context.config.sandboxPolicyManager.getCommandPermissions(
+            rootCommand,
+          );
+        const missingNetwork = !!proactive.network && !approved?.network;
+
+        // Detect commands or sub-commands that definitely need network
+        const parsed = parseCommandDetails(command);
+        const subCommand = parsed?.details[0]?.args?.[0];
+        const needsNetwork = isNetworkReliantCommand(rootCommand, subCommand);
+
+        if (needsNetwork) {
+          // Add write permission to the current directory if we are in readonly mode
+          const mode = this.context.config.getApprovalMode();
+          const isReadonlyMode =
+            this.context.config.sandboxPolicyManager.getModeConfig(mode)
+              ?.readonly ?? false;
+
+          if (isReadonlyMode) {
+            const cwd =
+              this.params.dir_path || this.context.config.getTargetDir();
+            proactive.fileSystem = proactive.fileSystem || {
+              read: [],
+              write: [],
+            };
+            proactive.fileSystem.write = proactive.fileSystem.write || [];
+            if (!proactive.fileSystem.write.includes(cwd)) {
+              proactive.fileSystem.write.push(cwd);
+              proactive.fileSystem.read = proactive.fileSystem.read || [];
+              if (!proactive.fileSystem.read.includes(cwd)) {
+                proactive.fileSystem.read.push(cwd);
+              }
+            }
+          }
+
+          const missingRead = (proactive.fileSystem?.read || []).filter(
+            (p) => !approved?.fileSystem?.read?.includes(p),
+          );
+          const missingWrite = (proactive.fileSystem?.write || []).filter(
+            (p) => !approved?.fileSystem?.write?.includes(p),
+          );
+
+          const needsExpansion =
+            missingRead.length > 0 || missingWrite.length > 0 || missingNetwork;
+
+          if (needsExpansion) {
+            const details = await this.getConfirmationDetails(
+              abortSignal,
+              proactive,
+            );
+            if (details && details.type === 'sandbox_expansion') {
+              const originalOnConfirm = details.onConfirm;
+              details.onConfirm = async (outcome: ToolConfirmationOutcome) => {
+                await originalOnConfirm(outcome);
+                if (outcome !== ToolConfirmationOutcome.Cancel) {
+                  this.proactivePermissionsConfirmed = proactive;
+                }
+              };
+            }
+            return details;
+          }
+        }
+      }
+    }
+
+    return super.shouldConfirmExecute(abortSignal, forcedDecision);
+  }
+
+  protected override async getConfirmationDetails(
+    _abortSignal: AbortSignal,
+    proactivePermissions?: SandboxPermissions,
+  ): Promise<ToolCallConfirmationDetails | false> {
+    const command = stripShellWrapper(this.params.command);
+
+    const parsed = parseCommandDetails(command);
+    let rootCommandDisplay = '';
+
+    if (!parsed || parsed.hasError || parsed.details.length === 0) {
+      // Fallback if parser fails
+      const fallback = command.trim().split(/\s+/)[0];
+      rootCommandDisplay = fallback || 'shell command';
+      if (hasRedirection(command)) {
+        rootCommandDisplay += ', redirection';
+      }
+    } else {
+      rootCommandDisplay = parsed.details
+        .map((detail) => detail.name)
+        .join(', ');
+    }
+
+    const rootCommands = [...new Set(getCommandRoots(command))];
+    const rootCommand = rootCommands[0] || 'shell';
+
+    // Proactively suggest expansion for known network-heavy tools (npm install, etc.)
+    // to avoid hangs when network is restricted by default.
+    const effectiveAdditionalPermissions =
+      this.params[PARAM_ADDITIONAL_PERMISSIONS] || proactivePermissions;
+
+    // Rely entirely on PolicyEngine for interactive confirmation.
+    // If we are here, it means PolicyEngine returned ASK_USER (or no message bus),
+    // so we must provide confirmation details.
+    // If additional_permissions are provided, it's an expansion request
+    if (effectiveAdditionalPermissions) {
+      return {
+        type: 'sandbox_expansion',
+        title: proactivePermissions
+          ? 'Sandbox Expansion Request (Recommended)'
+          : 'Sandbox Expansion Request',
+        command: this.params.command,
+        rootCommand: rootCommandDisplay,
+        additionalPermissions: effectiveAdditionalPermissions,
+        onConfirm: async (outcome: ToolConfirmationOutcome) => {
+          if (outcome === ToolConfirmationOutcome.ProceedAlwaysAndSave) {
+            this.context.config.sandboxPolicyManager.addPersistentApproval(
+              rootCommand,
+              effectiveAdditionalPermissions,
+            );
+          } else if (outcome === ToolConfirmationOutcome.ProceedAlways) {
+            this.context.config.sandboxPolicyManager.addSessionApproval(
+              rootCommand,
+              effectiveAdditionalPermissions,
+            );
+          }
+        },
+      };
     }
 
     const confirmationDetails: ToolExecuteConfirmationDetails = {
       type: 'exec',
       title: 'Confirm Shell Command',
       command: this.params.command,
-      rootCommand: rootCommands.join(', '),
-      permissionRules,
-      onConfirm: async (
-        _outcome: ToolConfirmationOutcome,
-        _payload?: ToolConfirmationPayload,
-      ) => {
-        // No-op: persistence is handled by coreToolScheduler via PM rules
+      rootCommand: rootCommandDisplay,
+      rootCommands,
+      onConfirm: async (_outcome: ToolConfirmationOutcome) => {
+        // Policy updates are now handled centrally by the scheduler
       },
     };
     return confirmationDetails;
@@ -187,10 +411,10 @@ export class ShellToolInvocation extends BaseToolInvocation<
 
   async execute(
     signal: AbortSignal,
-    updateOutput?: (output: ToolResultDisplay) => void,
-    shellExecutionConfig?: ShellExecutionConfig,
-    setPidCallback?: (pid: number) => void,
+    updateOutput?: (output: ToolLiveOutput) => void,
+    options?: ExecuteOptions,
   ): Promise<ToolResult> {
+    const { shellExecutionConfig, setExecutionIdCallback } = options ?? {};
     const strippedCommand = stripShellWrapper(this.params.command);
 
     if (signal.aborted) {
@@ -217,59 +441,70 @@ export class ShellToolInvocation extends BaseToolInvocation<
       .toString('hex')}.tmp`;
     const tempFilePath = path.join(os.tmpdir(), tempFileName);
 
+    const timeoutMs = this.context.config.getShellToolInactivityTimeout();
+    const timeoutController = new AbortController();
+    let timeoutTimer: NodeJS.Timeout | undefined;
+
+    // Handle signal combination manually to avoid TS issues or runtime missing features
+    const combinedController = new AbortController();
+
+    const onAbort = () => combinedController.abort();
+
     try {
-      // Add co-author to git commit commands
-      const processedCommand = this.addCoAuthorToGitCommit(strippedCommand);
+      // pgrep is not available on Windows, so we can't get background PIDs
+      const commandToExecute = this.wrapCommandForPgrep(
+        strippedCommand,
+        tempFilePath,
+        isWindows,
+      );
 
-      const shouldRunInBackground = this.params.is_background;
-      let finalCommand = processedCommand;
+      const cwd = this.params.dir_path
+        ? path.resolve(this.context.config.getTargetDir(), this.params.dir_path)
+        : this.context.config.getTargetDir();
 
-      // On non-Windows, use & to run in background.
-      // On Windows, we don't use start /B because it creates a detached process that
-      // doesn't die when the parent dies. Instead, we rely on the race logic below
-      // to return early while keeping the process attached (detached: false).
-      if (
-        !isWindows &&
-        shouldRunInBackground &&
-        !finalCommand.trim().endsWith('&')
-      ) {
-        finalCommand = finalCommand.trim() + ' &';
+      const validationError = this.context.config.validatePathAccess(cwd);
+      if (validationError) {
+        return {
+          llmContent: validationError,
+          returnDisplay: 'Path not in workspace.',
+          error: {
+            message: validationError,
+            type: ToolErrorType.PATH_NOT_IN_WORKSPACE,
+          },
+        };
       }
-
-      // On Windows, we rely on the race logic below to handle background tasks.
-      // We just ensure the command string is clean.
-      if (isWindows && shouldRunInBackground) {
-        finalCommand = finalCommand.trim().replace(/&+$/, '').trim();
-      }
-
-      // On non-Windows background commands, wrap with pgrep to capture
-      // subprocess PIDs so we can report them to the user.
-      let commandToExecute: string;
-      if (!isWindows && shouldRunInBackground) {
-        // Background: wrap with pgrep to capture subprocess PIDs
-        let command = finalCommand.trim();
-        if (!command.endsWith('&')) command += ';';
-        commandToExecute = `{ ${command} }; __code=$?; pgrep -g 0 >${tempFilePath} 2>&1; exit $__code;`;
-      } else if (!isWindows) {
-        // Foreground on Unix: wrap in a subshell for heredoc safety.
-        // This ensures complex shell syntax like << EOF doesn't break
-        // when the command is passed via bash -c.
-        commandToExecute = `(${finalCommand})`;
-      } else {
-        commandToExecute = finalCommand;
-      }
-
-      const cwd = this.params.directory || this.config.getTargetDir();
-
       let cumulativeOutput: string | AnsiOutput = '';
       let lastUpdateTime = Date.now();
       let isBinaryStream = false;
+
+      const resetTimeout = () => {
+        if (timeoutMs <= 0) {
+          return;
+        }
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        timeoutTimer = setTimeout(() => {
+          timeoutController.abort();
+        }, timeoutMs);
+      };
+
+      signal.addEventListener('abort', onAbort, { once: true });
+      timeoutController.signal.addEventListener('abort', onAbort, {
+        once: true,
+      });
+
+      // Start timeout
+      resetTimeout();
 
       const { result: resultPromise, pid } =
         await ShellExecutionService.execute(
           commandToExecute,
           cwd,
           (event: ShellOutputEvent) => {
+            resetTimeout(); // Reset timeout on any event
+            if (!updateOutput) {
+              return;
+            }
+
             let shouldUpdate = false;
 
             switch (event.type) {
@@ -286,73 +521,129 @@ export class ShellToolInvocation extends BaseToolInvocation<
                 break;
               case 'binary_progress':
                 isBinaryStream = true;
-                cumulativeOutput = `[Receiving binary output... ${formatMemoryUsage(
+                cumulativeOutput = `[Receiving binary output... ${formatBytes(
                   event.bytesReceived,
                 )} received]`;
                 if (Date.now() - lastUpdateTime > OUTPUT_UPDATE_INTERVAL_MS) {
                   shouldUpdate = true;
                 }
                 break;
+              case 'exit':
+                break;
               default: {
                 throw new Error('An unhandled ShellOutputEvent was found.');
               }
             }
 
-            if (shouldUpdate && updateOutput) {
-              updateOutput(
-                typeof cumulativeOutput === 'string'
-                  ? cumulativeOutput
-                  : { ansiOutput: cumulativeOutput },
-              );
+            if (shouldUpdate && !this.params.is_background) {
+              updateOutput(cumulativeOutput);
               lastUpdateTime = Date.now();
             }
           },
-          combinedSignal,
-          shouldRunInBackground
-            ? false
-            : this.config.getShouldUseNodePtyShell(),
-          shellExecutionConfig ?? {},
+          combinedController.signal,
+          this.context.config.getEnableInteractiveShell(),
+          {
+            ...shellExecutionConfig,
+            sessionId: this.context.config?.getSessionId?.() ?? 'default',
+            pager: 'cat',
+            sanitizationConfig:
+              shellExecutionConfig?.sanitizationConfig ??
+              this.context.config.sanitizationConfig,
+            sandboxManager: this.context.config.sandboxManager,
+            additionalPermissions: {
+              network:
+                this.params[PARAM_ADDITIONAL_PERMISSIONS]?.network ||
+                this.proactivePermissionsConfirmed?.network,
+              fileSystem: {
+                read: [
+                  ...(this.params[PARAM_ADDITIONAL_PERMISSIONS]?.fileSystem
+                    ?.read || []),
+                  ...(this.proactivePermissionsConfirmed?.fileSystem?.read ||
+                    []),
+                ],
+                write: [
+                  ...(this.params[PARAM_ADDITIONAL_PERMISSIONS]?.fileSystem
+                    ?.write || []),
+                  ...(this.proactivePermissionsConfirmed?.fileSystem?.write ||
+                    []),
+                ],
+              },
+            },
+            backgroundCompletionBehavior:
+              this.context.config.getShellBackgroundCompletionBehavior(),
+            originalCommand: strippedCommand,
+          },
         );
 
-      if (pid && setPidCallback) {
-        setPidCallback(pid);
-      }
+      if (pid) {
+        if (setExecutionIdCallback) {
+          setExecutionIdCallback(pid);
+        }
 
-      // On Windows, background commands rely on early return since there's
-      // no & backgrounding or pgrep. Awaiting would block until completion.
-      if (shouldRunInBackground && isWindows) {
-        const pidMsg = pid ? ` PID: ${pid}` : '';
-        const killHint = ' (Use taskkill /F /T /PID <pid> to stop)';
+        // If the model requested to run in the background, do so after a short delay.
+        let completed = false;
+        if (this.params.is_background) {
+          resultPromise
+            .then(() => {
+              completed = true;
+            })
+            .catch(() => {
+              completed = true; // Also mark completed if it failed
+            });
 
-        return {
-          llmContent: `Background command started.${pidMsg}${killHint}`,
-          returnDisplay: `Background command started.${pidMsg}${killHint}`,
-        };
+          const sessionId = this.context.config?.getSessionId?.() ?? 'default';
+          const delay = this.params.delay_ms ?? BACKGROUND_DELAY_MS;
+          setTimeout(() => {
+            ShellExecutionService.background(pid, sessionId, strippedCommand);
+          }, delay);
+
+          // Wait for the delay amount to see if command returns quickly
+          await new Promise((resolve) => setTimeout(resolve, delay));
+
+          if (!completed) {
+            // Return early with initial output if still running
+            return {
+              llmContent: `Command is running in background. PID: ${pid}. Initial output:\n${cumulativeOutput}`,
+              returnDisplay: `Background process started with PID ${pid}.`,
+            };
+          }
+        }
       }
 
       const result = await resultPromise;
 
-      if (shouldRunInBackground) {
-        // Read subprocess PIDs captured by the pgrep wrapper (non-Windows only)
-        const backgroundPIDs: number[] = [];
-        if (!isWindows) {
-          if (fs.existsSync(tempFilePath)) {
-            const pgrepLines = fs
-              .readFileSync(tempFilePath, 'utf8')
-              .split(EOL)
-              .filter(Boolean);
-            for (const line of pgrepLines) {
-              if (!/^\d+$/.test(line)) {
-                debugLogger.warn(`pgrep: ${line}`);
+      const backgroundPIDs: number[] = [];
+      if (os.platform() !== 'win32') {
+        let tempFileExists = false;
+        try {
+          await fsPromises.access(tempFilePath);
+          tempFileExists = true;
+        } catch {
+          tempFileExists = false;
+        }
+
+        if (tempFileExists) {
+          const pgrepContent = await fsPromises.readFile(tempFilePath, 'utf8');
+          const pgrepLines = pgrepContent.split(os.EOL).filter(Boolean);
+          for (const line of pgrepLines) {
+            if (!/^\d+$/.test(line)) {
+              if (
+                line.includes('sysmond service not found') ||
+                line.includes('Cannot get process list') ||
+                line.includes('sysmon request failed')
+              ) {
                 continue;
               }
-              const bgPid = Number(line);
-              if (bgPid !== result.pid) {
-                backgroundPIDs.push(bgPid);
-              }
+              debugLogger.error(`pgrep: ${line}`);
             }
-          } else if (!signal.aborted) {
-            debugLogger.warn('missing pgrep output');
+            const pid = Number(line);
+            if (pid !== result.pid) {
+              backgroundPIDs.push(pid);
+            }
+          }
+        } else {
+          if (!signal.aborted && !result.backgrounded) {
+            debugLogger.error('missing pgrep output');
           }
         }
 
@@ -370,22 +661,22 @@ export class ShellToolInvocation extends BaseToolInvocation<
         };
       }
 
-      let llmContent = '';
-      if (result.aborted) {
-        // Check if it was a timeout or user cancellation
-        const wasTimeout =
-          !this.params.is_background &&
-          effectiveTimeout &&
-          combinedSignal.aborted &&
-          !signal.aborted;
+      let data: BackgroundExecutionData | undefined;
 
-        if (wasTimeout) {
-          llmContent = `Command timed out after ${effectiveTimeout}ms before it could complete.`;
-          if (result.output.trim()) {
-            llmContent += ` Below is the output before it timed out:\n${result.output}`;
-          } else {
-            llmContent += ' There was no output before it timed out.';
-          }
+      let llmContent = '';
+      let timeoutMessage = '';
+      if (result.aborted) {
+        if (timeoutController.signal.aborted) {
+          timeoutMessage = `Command was automatically cancelled because it exceeded the timeout of ${(
+            timeoutMs / 60000
+          ).toFixed(1)} minutes without output.`;
+          llmContent = timeoutMessage;
+        } else {
+          llmContent =
+            'Command was cancelled by user before it could complete.';
+        }
+        if (result.output.trim()) {
+          llmContent += ` Below is the output before it was cancelled:\n${result.output}`;
         } else {
           llmContent =
             'Command was cancelled by user before it could complete.';
@@ -395,72 +686,225 @@ export class ShellToolInvocation extends BaseToolInvocation<
             llmContent += ' There was no output before it was cancelled.';
           }
         }
+      } else if (this.params.is_background || result.backgrounded) {
+        llmContent = `Command moved to background (PID: ${result.pid}). Output hidden. Press Ctrl+B to view.`;
+        data = {
+          pid: result.pid,
+          command: this.params.command,
+          initialOutput: result.output,
+        };
       } else {
         // Create a formatted error string for display, replacing the wrapper command
         // with the user-facing command.
-        const finalError = result.error
-          ? result.error.message.replace(commandToExecute, this.params.command)
-          : '(none)';
+        const llmContentParts = [`Output: ${result.output || '(empty)'}`];
 
-        llmContent = [
-          `Command: ${this.params.command}`,
-          `Directory: ${this.params.directory || '(root)'}`,
-          `Output: ${result.output || '(empty)'}`,
-          `Error: ${finalError}`, // Use the cleaned error string.
-          `Exit Code: ${result.exitCode ?? '(none)'}`,
-          `Signal: ${result.signal ?? '(none)'}`,
-          `Process Group PGID: ${result.pid ?? '(none)'}`,
-        ].join('\n');
+        if (result.error) {
+          const finalError = result.error.message.replaceAll(
+            commandToExecute,
+            this.params.command,
+          );
+          llmContentParts.push(`Error: ${finalError}`);
+        }
+
+        if (result.exitCode !== null && result.exitCode !== 0) {
+          llmContentParts.push(`Exit Code: ${result.exitCode}`);
+          data = {
+            exitCode: result.exitCode,
+            isError: true,
+          };
+        }
+
+        if (result.signal) {
+          llmContentParts.push(`Signal: ${result.signal}`);
+        }
+        if (backgroundPIDs.length) {
+          llmContentParts.push(`Background PIDs: ${backgroundPIDs.join(', ')}`);
+        }
+        if (result.pid) {
+          llmContentParts.push(`Process Group PGID: ${result.pid}`);
+        }
+
+        llmContent = llmContentParts.join('\n');
       }
 
-      let returnDisplayMessage = '';
-      if (this.config.getDebugMode()) {
-        returnDisplayMessage = llmContent;
+      let returnDisplay: string | AnsiOutput = '';
+      if (this.context.config.getDebugMode()) {
+        returnDisplay = llmContent;
       } else {
-        if (result.output.trim()) {
-          returnDisplayMessage = result.output;
+        if (this.params.is_background || result.backgrounded) {
+          returnDisplay = `Command moved to background (PID: ${result.pid}). Output hidden. Press Ctrl+B to view.`;
+        } else if (result.aborted) {
+          const cancelMsg = timeoutMessage || 'Command cancelled by user.';
+          if (result.output.trim()) {
+            returnDisplay = `${cancelMsg}\n\nOutput before cancellation:\n${result.output}`;
+          } else {
+            returnDisplay = cancelMsg;
+          }
+        } else if (result.output.trim() || result.ansiOutput) {
+          returnDisplay =
+            result.ansiOutput && result.ansiOutput.length > 0
+              ? result.ansiOutput
+              : result.output;
         } else {
-          if (result.aborted) {
-            // Check if it was a timeout or user cancellation
-            const wasTimeout =
-              !this.params.is_background &&
-              effectiveTimeout &&
-              combinedSignal.aborted &&
-              !signal.aborted;
-
-            returnDisplayMessage = wasTimeout
-              ? `Command timed out after ${effectiveTimeout}ms.`
-              : 'Command cancelled by user.';
-          } else if (result.signal) {
-            returnDisplayMessage = `Command terminated by signal: ${result.signal}`;
+          if (result.signal) {
+            returnDisplay = `Command terminated by signal: ${result.signal}`;
           } else if (result.error) {
-            returnDisplayMessage = `Command failed: ${getErrorMessage(
-              result.error,
-            )}`;
+            returnDisplay = `Command failed: ${getErrorMessage(result.error)}`;
           } else if (result.exitCode !== null && result.exitCode !== 0) {
-            returnDisplayMessage = `Command exited with code: ${result.exitCode}`;
+            returnDisplay = `Command exited with code: ${result.exitCode}`;
           }
           // If output is empty and command succeeded (code 0, no error/signal/abort),
-          // returnDisplayMessage will remain empty, which is fine.
+          // returnDisplay will remain empty, which is fine.
         }
       }
 
-      // Truncate large output and save full content to a temp file.
-      if (typeof llmContent === 'string') {
-        const truncatedResult = await truncateToolOutput(
-          this.config,
-          ShellTool.Name,
-          llmContent,
-        );
+      // Heuristic Sandbox Denial Detection
+      if (
+        !!result.error ||
+        !!result.signal ||
+        (result.exitCode !== undefined && result.exitCode !== 0) ||
+        result.aborted
+      ) {
+        const sandboxDenial =
+          this.context.config.sandboxManager.parseDenials(result);
+        if (sandboxDenial) {
+          const strippedCommand = stripShellWrapper(this.params.command);
+          const rootCommands = getCommandRoots(strippedCommand).filter(
+            (r) => r !== 'shopt',
+          );
+          const rootCommandDisplay =
+            rootCommands.length > 0 ? rootCommands[0] : 'shell';
 
-        if (truncatedResult.outputFile) {
-          llmContent = truncatedResult.content;
-          returnDisplayMessage +=
-            (returnDisplayMessage ? '\n' : '') +
-            `Output too long and was saved to: ${truncatedResult.outputFile}`;
+          const readPaths = new Set(
+            this.params[PARAM_ADDITIONAL_PERMISSIONS]?.fileSystem?.read || [],
+          );
+          const writePaths = new Set(
+            this.params[PARAM_ADDITIONAL_PERMISSIONS]?.fileSystem?.write || [],
+          );
+
+          // Proactive permission suggestions for Node ecosystem tools
+          const proactive =
+            await getProactiveToolSuggestions(rootCommandDisplay);
+          if (proactive) {
+            if (proactive.network) {
+              sandboxDenial.network = true;
+            }
+            if (proactive.fileSystem?.read) {
+              for (const p of proactive.fileSystem.read) {
+                readPaths.add(p);
+              }
+            }
+            if (proactive.fileSystem?.write) {
+              for (const p of proactive.fileSystem.write) {
+                writePaths.add(p);
+              }
+            }
+          }
+
+          if (sandboxDenial.filePaths) {
+            for (const p of sandboxDenial.filePaths) {
+              try {
+                // Find an existing parent directory to add instead of a non-existent file
+                let currentPath = p;
+                if (currentPath.startsWith('~')) {
+                  currentPath = path.join(os.homedir(), currentPath.slice(1));
+                }
+                try {
+                  if (
+                    fs.existsSync(currentPath) &&
+                    fs.statSync(currentPath).isFile()
+                  ) {
+                    currentPath = path.dirname(currentPath);
+                  }
+                } catch {
+                  /* ignore */
+                }
+                while (currentPath.length > 1) {
+                  if (fs.existsSync(currentPath)) {
+                    const mode = this.context.config.getApprovalMode();
+                    const isReadonlyMode =
+                      this.context.config.sandboxPolicyManager.getModeConfig(
+                        mode,
+                      )?.readonly ?? false;
+                    const isAllowed =
+                      this.context.config.isPathAllowed(currentPath);
+
+                    if (!isAllowed || isReadonlyMode) {
+                      writePaths.add(currentPath);
+                      readPaths.add(currentPath);
+                    }
+                    break;
+                  }
+                  currentPath = path.dirname(currentPath);
+                }
+              } catch {
+                // ignore
+              }
+            }
+          }
+
+          const simplifiedRead = this.simplifyPaths(readPaths);
+          const simplifiedWrite = this.simplifyPaths(writePaths);
+
+          const additionalPermissions = {
+            network:
+              sandboxDenial.network ||
+              this.params[PARAM_ADDITIONAL_PERMISSIONS]?.network ||
+              undefined,
+            fileSystem:
+              simplifiedRead.length > 0 || simplifiedWrite.length > 0
+                ? {
+                    read: simplifiedRead,
+                    write: simplifiedWrite,
+                  }
+                : undefined,
+          };
+
+          const originalReadSize =
+            this.params[PARAM_ADDITIONAL_PERMISSIONS]?.fileSystem?.read
+              ?.length || 0;
+          const originalWriteSize =
+            this.params[PARAM_ADDITIONAL_PERMISSIONS]?.fileSystem?.write
+              ?.length || 0;
+          const originalNetwork =
+            !!this.params[PARAM_ADDITIONAL_PERMISSIONS]?.network;
+
+          const newReadSize =
+            additionalPermissions.fileSystem?.read?.length || 0;
+          const newWriteSize =
+            additionalPermissions.fileSystem?.write?.length || 0;
+          const newNetwork = !!additionalPermissions.network;
+
+          const hasNewPermissions =
+            newReadSize > originalReadSize ||
+            newWriteSize > originalWriteSize ||
+            (!originalNetwork && newNetwork);
+
+          if (hasNewPermissions) {
+            const confirmationDetails = {
+              type: 'sandbox_expansion',
+              title: 'Sandbox Expansion Request',
+              command: this.params.command,
+              rootCommand: rootCommandDisplay,
+              additionalPermissions,
+            };
+
+            return {
+              llmContent: 'Sandbox expansion required',
+              returnDisplay,
+              error: {
+                type: ToolErrorType.SANDBOX_EXPANSION_REQUIRED,
+                message: JSON.stringify(confirmationDetails),
+              },
+            };
+          }
+          // If no new permissions were found by heuristic, do not intercept.
+          // Just return the normal execution error so the LLM can try providing explicit paths itself.
         }
       }
 
+      const summarizeConfig =
+        this.context.config.getSummarizeToolOutputConfig();
       const executionError = result.error
         ? {
             error: {
@@ -469,182 +913,64 @@ export class ShellToolInvocation extends BaseToolInvocation<
             },
           }
         : {};
+      if (summarizeConfig && summarizeConfig[SHELL_TOOL_NAME]) {
+        const summary = await summarizeToolOutput(
+          this.context.config,
+          { model: 'summarizer-shell' },
+          llmContent,
+          this.context.geminiClient,
+          signal,
+        );
+        return {
+          llmContent: summary,
+          returnDisplay,
+          ...executionError,
+        };
+      }
 
       return {
         llmContent,
-        returnDisplay: returnDisplayMessage,
+        returnDisplay,
+        data,
         ...executionError,
       };
     } finally {
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      signal.removeEventListener('abort', onAbort);
+      timeoutController.signal.removeEventListener('abort', onAbort);
+      try {
+        await fsPromises.unlink(tempFilePath);
+      } catch {
+        // Ignore errors during unlink
       }
     }
   }
-
-  private addCoAuthorToGitCommit(command: string): string {
-    // Check if co-author feature is enabled
-    const gitCoAuthorSettings = this.config.getGitCoAuthor();
-
-    if (!gitCoAuthorSettings.enabled) {
-      return command;
-    }
-
-    // Check if this is a git commit command (anywhere in the command, e.g., after "cd /path &&")
-    const gitCommitPattern = /\bgit\s+commit\b/;
-    if (!gitCommitPattern.test(command)) {
-      return command;
-    }
-
-    // Define the co-author line using configuration
-    const coAuthor = `
-
-Co-authored-by: ${gitCoAuthorSettings.name} <${gitCoAuthorSettings.email}>`;
-
-    // Handle different git commit patterns:
-    // Match -m "message" or -m 'message', including combined flags like -am
-    // Use separate patterns to avoid ReDoS (catastrophic backtracking)
-    //
-    // Pattern breakdown:
-    //   -[a-zA-Z]*m  matches -m, -am, -nm, etc. (combined short flags)
-    //   \s+          matches whitespace after the flag
-    //   [^"\\]       matches any char except double-quote and backslash
-    //   \\.          matches escape sequences like \" or \\
-    //   (?:...|...)* matches normal chars or escapes, repeated
-    const doubleQuotePattern = /(-[a-zA-Z]*m\s+)"((?:[^"\\]|\\.)*)"/;
-    const singleQuotePattern = /(-[a-zA-Z]*m\s+)'((?:[^'\\]|\\.)*)'/;
-    const doubleMatch = command.match(doubleQuotePattern);
-    const singleMatch = command.match(singleQuotePattern);
-    const match = doubleMatch ?? singleMatch;
-    const quote = doubleMatch ? '"' : "'";
-
-    if (match) {
-      const [fullMatch, prefix, existingMessage] = match;
-      const newMessage = existingMessage + coAuthor;
-      const replacement = prefix + quote + newMessage + quote;
-
-      return command.replace(fullMatch, replacement);
-    }
-
-    // If no -m flag found, the command might open an editor
-    // In this case, we can't easily modify it, so return as-is
-    return command;
-  }
-}
-
-function getShellToolDescription(): string {
-  const isWindows = os.platform() === 'win32';
-  const executionWrapper = isWindows
-    ? 'cmd.exe /c <command>'
-    : 'bash -c <command>';
-  const processGroupNote = isWindows
-    ? ''
-    : '\n  - Command is executed as a subprocess that leads its own process group. Command process group can be terminated as `kill -- -PGID` or signaled as `kill -s SIGNAL -- -PGID`.';
-
-  return `Executes a given shell command (as \`${executionWrapper}\`) in a persistent shell session with optional timeout, ensuring proper handling and security measures.
-
-IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
-
-**Usage notes**:
-- The command argument is required.
-- You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 120000ms (2 minutes).
-- It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
-
-- Avoid using run_shell_command with the \`find\`, \`grep\`, \`cat\`, \`head\`, \`tail\`, \`sed\`, \`awk\`, or \`echo\` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
-  - File search: Use ${ToolNames.GLOB} (NOT find or ls)
-  - Content search: Use ${ToolNames.GREP} (NOT grep or rg)
-  - Read files: Use ${ToolNames.READ_FILE} (NOT cat/head/tail)
-  - Edit files: Use ${ToolNames.EDIT} (NOT sed/awk)
-  - Write files: Use ${ToolNames.WRITE_FILE} (NOT echo >/cat <<EOF)
-  - Communication: Output text directly (NOT echo/printf)
-- When issuing multiple commands:
-  - If the commands are independent and can run in parallel, make multiple run_shell_command tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two run_shell_command tool calls in parallel.
-  - If the commands depend on each other and must run sequentially, use a single run_shell_command call with '&&' to chain them together (e.g., \`git add . && git commit -m "message" && git push\`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before run_shell_command for git operations, or git add before git commit), run these operations sequentially instead.
-  - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail
-  - DO NOT use newlines to separate commands (newlines are ok in quoted strings)
-- Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of \`cd\`. You may use \`cd\` if the User explicitly requests it.
-  <good-example>
-  pytest /foo/bar/tests
-  </good-example>
-  <bad-example>
-  cd /foo/bar && pytest tests
-  </bad-example>
-
-**Background vs Foreground Execution:**
-- You should decide whether commands should run in background or foreground based on their nature:
-- Use background execution (is_background: true) for:
-  - Long-running development servers: \`npm run start\`, \`npm run dev\`, \`yarn dev\`, \`bun run start\`
-  - Build watchers: \`npm run watch\`, \`webpack --watch\`
-  - Database servers: \`mongod\`, \`mysql\`, \`redis-server\`
-  - Web servers: \`python -m http.server\`, \`php -S localhost:8000\`
-  - Any command expected to run indefinitely until manually stopped
-${processGroupNote}
-- Use foreground execution (is_background: false) for:
-  - One-time commands: \`ls\`, \`cat\`, \`grep\`
-  - Build commands: \`npm run build\`, \`make\`
-  - Installation commands: \`npm install\`, \`pip install\`
-  - Git operations: \`git commit\`, \`git push\`
-  - Test runs: \`npm test\`, \`pytest\`
-`;
-}
-
-function getCommandDescription(): string {
-  const cmd_substitution_warning =
-    '\n*** WARNING: Command substitution using $(), `` ` ``, <(), or >() is not allowed for security reasons.';
-  if (os.platform() === 'win32') {
-    return (
-      'Exact command to execute as `cmd.exe /c <command>`' +
-      cmd_substitution_warning
-    );
-  } else {
-    return (
-      'Exact bash command to execute as `bash -c <command>`' +
-      cmd_substitution_warning
-    );
-  }
-}
 
 export class ShellTool extends BaseDeclarativeTool<
   ShellToolParams,
   ToolResult
 > {
-  static Name: string = ToolNames.SHELL;
+  static readonly Name = SHELL_TOOL_NAME;
 
-  constructor(private readonly config: Config) {
+  constructor(
+    private readonly context: AgentLoopContext,
+    messageBus: MessageBus,
+  ) {
+    void initializeShellParsers().catch(() => {
+      // Errors are surfaced when parsing commands.
+    });
+    const definition = getShellDefinition(
+      context.config.getEnableInteractiveShell(),
+      context.config.getEnableShellOutputEfficiency(),
+      context.config.getSandboxEnabled(),
+    );
     super(
       ShellTool.Name,
-      ToolDisplayNames.SHELL,
-      getShellToolDescription(),
+      'Shell',
+      definition.base.description!,
       Kind.Execute,
-      {
-        type: 'object',
-        properties: {
-          command: {
-            type: 'string',
-            description: getCommandDescription(),
-          },
-          is_background: {
-            type: 'boolean',
-            description:
-              'Optional: Whether to run the command in background. If not specified, defaults to false (foreground execution). Explicitly set to true for long-running processes like development servers, watchers, or daemons that should continue running without blocking further commands.',
-          },
-          timeout: {
-            type: 'number',
-            description: 'Optional timeout in milliseconds (max 600000)',
-          },
-          description: {
-            type: 'string',
-            description:
-              'Brief description of the command for the user. Be specific and concise. Ideally a single sentence. Can be up to 3 sentences for clarity. No line breaks.',
-          },
-          directory: {
-            type: 'string',
-            description:
-              '(OPTIONAL) The absolute path of the directory to run the command in. If not provided, the project root directory is used. Must be a directory within the workspace and must already exist.',
-          },
-        },
-        required: ['command'],
-      },
+      definition.base.parametersJsonSchema,
+      messageBus,
       false, // output is not markdown
       true, // output can be updated
     );
@@ -653,59 +979,41 @@ export class ShellTool extends BaseDeclarativeTool<
   protected override validateToolParamValues(
     params: ShellToolParams,
   ): string | null {
-    // NOTE: Permission checks (command substitution, read-only detection, PM rules)
-    // are now handled at L3 (getDefaultPermission) and L4 (PM override) in
-    // coreToolScheduler. This method only performs pure parameter validation.
     if (!params.command.trim()) {
       return 'Command cannot be empty.';
     }
-    if (getCommandRoots(params.command).length === 0) {
-      return 'Could not identify command root to obtain permission from user.';
-    }
-    if (params.timeout !== undefined) {
-      if (
-        typeof params.timeout !== 'number' ||
-        !Number.isInteger(params.timeout)
-      ) {
-        return 'Timeout must be an integer number of milliseconds.';
-      }
-      if (params.timeout <= 0) {
-        return 'Timeout must be a positive number.';
-      }
-      if (params.timeout > 600000) {
-        return 'Timeout cannot exceed 600000ms (10 minutes).';
-      }
-    }
-    if (params.directory) {
-      if (!path.isAbsolute(params.directory)) {
-        return 'Directory must be an absolute path.';
-      }
 
-      const userSkillsDirs = this.config.storage.getUserSkillsDirs();
-      const resolvedDirectoryPath = path.resolve(params.directory);
-      const isWithinUserSkills = isSubpaths(
-        userSkillsDirs,
-        resolvedDirectoryPath,
+    if (params.dir_path) {
+      const resolvedPath = path.resolve(
+        this.context.config.getTargetDir(),
+        params.dir_path,
       );
-      if (isWithinUserSkills) {
-        return `Explicitly running shell commands from within the user skills directory is not allowed. Please use absolute paths for command parameter instead.`;
-      }
-
-      const workspaceDirs = this.config.getWorkspaceContext().getDirectories();
-      const isWithinWorkspace = workspaceDirs.some((wsDir) =>
-        params.directory!.startsWith(wsDir),
-      );
-
-      if (!isWithinWorkspace) {
-        return `Directory '${params.directory}' is not within any of the registered workspace directories.`;
-      }
+      return this.context.config.validatePathAccess(resolvedPath);
     }
     return null;
   }
 
   protected createInvocation(
     params: ShellToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ): ToolInvocation<ShellToolParams, ToolResult> {
-    return new ShellToolInvocation(this.config, params);
+    return new ShellToolInvocation(
+      this.context,
+      params,
+      messageBus,
+      _toolName,
+      _toolDisplayName,
+    );
+  }
+
+  override getSchema(modelId?: string) {
+    const definition = getShellDefinition(
+      this.context.config.getEnableInteractiveShell(),
+      this.context.config.getEnableShellOutputEfficiency(),
+      this.context.config.getSandboxEnabled(),
+    );
+    return resolveToolDeclaration(definition, modelId);
   }
 }

@@ -6,24 +6,42 @@
 
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
+import { z } from 'zod';
+import {
+  type Config,
+  formatCheckpointDisplayList,
+  getToolCallDataSchema,
+  getTruncatedCheckpointNames,
+  performRestore,
+  type ToolCallData,
+} from '@google/gemini-cli-core';
 import {
   type CommandContext,
   type SlashCommand,
   type SlashCommandActionReturn,
   CommandKind,
 } from './types.js';
-import type { Config } from '@apex-code/apex-core';
-import { t } from '../../i18n/index.js';
+import type { HistoryItem } from '../types.js';
+
+const HistoryItemSchema = z
+  .object({
+    type: z.string(),
+    id: z.number(),
+  })
+  .passthrough();
+
+const ToolCallDataSchema = getToolCallDataSchema(HistoryItemSchema);
 
 async function restoreAction(
   context: CommandContext,
   args: string,
 ): Promise<void | SlashCommandActionReturn> {
   const { services, ui } = context;
-  const { config, git: gitService } = services;
+  const { agentContext, git: gitService } = services;
   const { addItem, loadHistory } = ui;
 
-  const checkpointDir = config?.storage.getProjectTempCheckpointsDir();
+  const checkpointDir =
+    agentContext?.config.storage.getProjectTempCheckpointsDir();
 
   if (!checkpointDir) {
     return {
@@ -47,15 +65,7 @@ async function restoreAction(
           content: 'No restorable tool calls found.',
         };
       }
-      const truncatedFiles = jsonFiles.map((file) => {
-        const components = file.split('.');
-        if (components.length <= 1) {
-          return file;
-        }
-        components.pop();
-        return components.join('.');
-      });
-      const fileList = truncatedFiles.join('\n');
+      const fileList = formatCheckpointDisplayList(jsonFiles);
       return {
         type: 'message',
         messageType: 'info',
@@ -75,33 +85,41 @@ async function restoreAction(
 
     const filePath = path.join(checkpointDir, selectedFile);
     const data = await fs.readFile(filePath, 'utf-8');
-    const toolCallData = JSON.parse(data);
+    const parseResult = ToolCallDataSchema.safeParse(JSON.parse(data));
 
-    if (toolCallData.history) {
-      if (!loadHistory) {
-        // This should not happen
-        return {
-          type: 'message',
-          messageType: 'error',
-          content: 'loadHistory function is not available.',
-        };
+    if (!parseResult.success) {
+      return {
+        type: 'message',
+        messageType: 'error',
+        content: `Checkpoint file is invalid: ${parseResult.error.message}`,
+      };
+    }
+
+    // We safely cast here because:
+    // 1. ToolCallDataSchema strictly validates the existence of 'history' as an array and 'id'/'type' on each item.
+    // 2. We trust that files valid according to this schema (written by useGeminiStream) contain the full HistoryItem structure.
+    const toolCallData = parseResult.data as ToolCallData<
+      HistoryItem[],
+      Record<string, unknown>
+    >;
+
+    const actionStream = performRestore(toolCallData, gitService);
+
+    for await (const action of actionStream) {
+      if (action.type === 'message') {
+        addItem(
+          {
+            type: action.messageType,
+            text: action.content,
+          },
+          Date.now(),
+        );
+      } else if (action.type === 'load_history' && loadHistory) {
+        loadHistory(action.history);
+        if (action.clientHistory) {
+          agentContext!.geminiClient?.setHistory(action.clientHistory);
+        }
       }
-      loadHistory(toolCallData.history);
-    }
-
-    if (toolCallData.clientHistory) {
-      await config?.getGeminiClient()?.setHistory(toolCallData.clientHistory);
-    }
-
-    if (toolCallData.commitHash) {
-      await gitService?.restoreProjectFromSnapshot(toolCallData.commitHash);
-      addItem(
-        {
-          type: 'info',
-          text: 'Restored project to the state before the tool call.',
-        },
-        Date.now(),
-      );
     }
 
     return {
@@ -123,17 +141,17 @@ async function completion(
   _partialArg: string,
 ): Promise<string[]> {
   const { services } = context;
-  const { config } = services;
-  const checkpointDir = config?.storage.getProjectTempCheckpointsDir();
+  const { agentContext } = services;
+  const checkpointDir =
+    agentContext?.config.storage.getProjectTempCheckpointsDir();
   if (!checkpointDir) {
     return [];
   }
   try {
     const files = await fs.readdir(checkpointDir);
-    return files
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => file.replace('.json', ''));
-  } catch (_err) {
+    const jsonFiles = files.filter((file) => file.endsWith('.json'));
+    return getTruncatedCheckpointNames(jsonFiles);
+  } catch {
     return [];
   }
 }
@@ -151,6 +169,7 @@ export const restoreCommand = (config: Config | null): SlashCommand | null => {
       );
     },
     kind: CommandKind.BUILT_IN,
+    autoExecute: true,
     action: restoreAction,
     completion,
   };

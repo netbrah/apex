@@ -9,53 +9,104 @@ if (process.env['NO_COLOR'] !== undefined) {
   delete process.env['NO_COLOR'];
 }
 
-import {
-  mkdir,
-  readdir,
-  rm,
-  readFile,
-  writeFile,
-  unlink,
-} from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { mkdir, readdir, rm, readFile } from 'node:fs/promises';
+import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as os from 'node:os';
-
-import {
-  APEX_CONFIG_DIR,
-  DEFAULT_CONTEXT_FILENAME,
-} from '../packages/core/src/tools/memoryTool.js';
+import { canUseRipgrep } from '../packages/core/src/tools/ripGrep.js';
+import { disableMouseTracking } from '@google/gemini-cli-core';
+import { createServer, type Server } from 'node:http';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
 const integrationTestsDir = join(rootDir, '.integration-tests');
 let runDir = ''; // Make runDir accessible in teardown
-let sdkE2eRunDir = ''; // SDK E2E test run directory
+let fixtureServer: Server | undefined;
 
-const memoryFilePath = join(
-  os.homedir(),
-  APEX_CONFIG_DIR,
-  DEFAULT_CONTEXT_FILENAME,
-);
-let originalMemoryContent: string | null = null;
+const FIXTURE_PORT = 18923;
+const FIXTURE_DIR = join(__dirname, 'test-fixtures');
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+};
+
+async function startFixtureServer(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer(async (req, res) => {
+      const urlPath = req.url?.split('?')[0] || '/';
+      const relativePath = urlPath === '/' ? 'index.html' : urlPath;
+      const filePath = join(FIXTURE_DIR, relativePath);
+
+      if (!filePath.startsWith(FIXTURE_DIR)) {
+        res.writeHead(403, { 'Content-Type': 'text/html' });
+        res.end('<h1>403 Forbidden</h1>');
+        return;
+      }
+
+      try {
+        const content = await readFile(filePath);
+        const ext = extname(filePath);
+        res.writeHead(200, {
+          'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+        });
+        res.end(content);
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end('<h1>404 Not Found</h1>');
+      }
+    });
+
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(
+          `Port ${FIXTURE_PORT} in use, trying ${FIXTURE_PORT + 1}...`,
+        );
+        server.listen(FIXTURE_PORT + 1, '127.0.0.1');
+      } else {
+        reject(err);
+      }
+    });
+
+    server.on('listening', () => {
+      const addr = server.address();
+      const port = typeof addr === 'object' && addr ? addr.port : FIXTURE_PORT;
+      fixtureServer = server;
+      console.log(`Test fixture server listening on http://127.0.0.1:${port}`);
+      resolve(port);
+    });
+
+    server.listen(FIXTURE_PORT, '127.0.0.1');
+  });
+}
 
 export async function setup() {
-  try {
-    originalMemoryContent = await readFile(memoryFilePath, 'utf-8');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw e;
-    }
-    // File doesn't exist, which is fine.
-  }
-
-  // Setup for CLI integration tests
   runDir = join(integrationTestsDir, `${Date.now()}`);
   await mkdir(runDir, { recursive: true });
 
-  // Setup for SDK E2E tests (separate directory with prefix)
-  sdkE2eRunDir = join(integrationTestsDir, `sdk-e2e-${Date.now()}`);
-  await mkdir(sdkE2eRunDir, { recursive: true });
+  // Set the home directory to the test run directory to avoid conflicts
+  // with the user's local config.
+  process.env['HOME'] = runDir;
+  if (process.platform === 'win32') {
+    process.env['USERPROFILE'] = runDir;
+  }
+  // We also need to set the config dir explicitly, since the code might
+  // construct the path before the HOME env var is set.
+  process.env['GEMINI_CONFIG_DIR'] = join(runDir, '.gemini');
+
+  // Download ripgrep to avoid race conditions in parallel tests
+  const available = await canUseRipgrep();
+  if (!available) {
+    throw new Error('Failed to download ripgrep binary');
+  }
+
+  // Start the test fixture server
+  const port = await startFixtureServer();
+  process.env['TEST_FIXTURE_PORT'] = String(port);
 
   // Clean up old test runs, but keep the latest few for debugging
   try {
@@ -92,14 +143,11 @@ export async function setup() {
     console.error('Error cleaning up old test runs:', e);
   }
 
-  // Environment variables for CLI integration tests
   process.env['INTEGRATION_TEST_FILE_DIR'] = runDir;
-  process.env['APEX_INTEGRATION_TEST'] = 'true';
+  process.env['GEMINI_CLI_INTEGRATION_TEST'] = 'true';
+  // Force file storage to avoid keychain prompts/hangs in CI, especially on macOS
+  process.env['GEMINI_FORCE_FILE_STORAGE'] = 'true';
   process.env['TELEMETRY_LOG_FILE'] = join(runDir, 'telemetry.log');
-
-  // Environment variables for SDK E2E tests
-  process.env['E2E_TEST_FILE_DIR'] = sdkE2eRunDir;
-  process.env['TEST_CLI_PATH'] = join(rootDir, 'dist/cli.js');
 
   if (process.env['KEEP_OUTPUT']) {
     console.log(`Keeping output for test run in: ${runDir}`);
@@ -113,24 +161,25 @@ export async function setup() {
 }
 
 export async function teardown() {
-  // Cleanup the CLI test run directory unless KEEP_OUTPUT is set
+  // Stop the fixture server
+  if (fixtureServer) {
+    await new Promise<void>((resolve) => {
+      fixtureServer!.close(() => resolve());
+    });
+    fixtureServer = undefined;
+  }
+
+  // Disable mouse tracking
+  if (process.stdout.isTTY) {
+    disableMouseTracking();
+  }
+
+  // Cleanup the test run directory unless KEEP_OUTPUT is set
   if (process.env['KEEP_OUTPUT'] !== 'true' && runDir) {
-    await rm(runDir, { recursive: true, force: true });
-  }
-
-  // Cleanup the SDK E2E test run directory unless KEEP_OUTPUT is set
-  if (process.env['KEEP_OUTPUT'] !== 'true' && sdkE2eRunDir) {
-    await rm(sdkE2eRunDir, { recursive: true, force: true });
-  }
-
-  if (originalMemoryContent !== null) {
-    await mkdir(dirname(memoryFilePath), { recursive: true });
-    await writeFile(memoryFilePath, originalMemoryContent, 'utf-8');
-  } else {
     try {
-      await unlink(memoryFilePath);
-    } catch {
-      // File might not exist if the test failed before creating it.
+      await rm(runDir, { recursive: true, force: true });
+    } catch (e) {
+      console.warn('Failed to clean up test run directory:', e);
     }
   }
 }

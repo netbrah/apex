@@ -4,22 +4,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback } from 'react';
 import type React from 'react';
+import { useCallback } from 'react';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { ShellExecutionService } from '@apex-code/apex-core';
-import { keyToAnsi, type Key } from '../hooks/keyToAnsi.js';
-import { keyMatchers, Command } from '../keyMatchers.js';
+import { ShellExecutionService } from '@google/gemini-cli-core';
+import { keyToAnsi, type Key } from '../key/keyToAnsi.js';
+import { ACTIVE_SHELL_MAX_LINES } from '../constants.js';
+import { Command } from '../key/keyMatchers.js';
+import { useKeyMatchers } from '../hooks/useKeyMatchers.js';
 
 export interface ShellInputPromptProps {
   activeShellPtyId: number | null;
   focus?: boolean;
+  scrollPageSize?: number;
 }
 
 export const ShellInputPrompt: React.FC<ShellInputPromptProps> = ({
   activeShellPtyId,
   focus = true,
+  scrollPageSize = ACTIVE_SHELL_MAX_LINES,
 }) => {
+  const keyMatchers = useKeyMatchers();
   const handleShellInputSubmit = useCallback(
     (input: string) => {
       if (activeShellPtyId) {
@@ -32,29 +37,51 @@ export const ShellInputPrompt: React.FC<ShellInputPromptProps> = ({
   const handleInput = useCallback(
     (key: Key) => {
       if (!focus || !activeShellPtyId) {
-        return;
+        return false;
       }
-      // Don't forward Ctrl+F to the PTY — it's used to toggle shell focus.
-      // Without this, the raw ^F control character gets written to the shell.
-      if (keyMatchers[Command.TOGGLE_SHELL_INPUT_FOCUS](key)) {
-        return;
-      }
-      if (key.ctrl && key.shift && key.name === 'up') {
-        ShellExecutionService.scrollPty(activeShellPtyId, -1);
-        return;
+      // Allow background shell toggle to bubble up
+      if (keyMatchers[Command.TOGGLE_BACKGROUND_SHELL](key)) {
+        return false;
       }
 
-      if (key.ctrl && key.shift && key.name === 'down') {
+      // Allow Shift+Tab to bubble up for focus navigation
+      if (keyMatchers[Command.UNFOCUS_SHELL_INPUT](key)) {
+        return false;
+      }
+
+      if (keyMatchers[Command.SCROLL_UP](key)) {
+        ShellExecutionService.scrollPty(activeShellPtyId, -1);
+        return true;
+      }
+      if (keyMatchers[Command.SCROLL_DOWN](key)) {
         ShellExecutionService.scrollPty(activeShellPtyId, 1);
-        return;
+        return true;
+      }
+      // TODO: Check pty service actually scrolls (request)[https://github.com/google-gemini/gemini-cli/pull/17438/changes/c9fdaf8967da0036bfef43592fcab5a69537df35#r2776479023].
+      if (keyMatchers[Command.PAGE_UP](key)) {
+        ShellExecutionService.scrollPty(activeShellPtyId, -scrollPageSize);
+        return true;
+      }
+      if (keyMatchers[Command.PAGE_DOWN](key)) {
+        ShellExecutionService.scrollPty(activeShellPtyId, scrollPageSize);
+        return true;
       }
 
       const ansiSequence = keyToAnsi(key);
       if (ansiSequence) {
         handleShellInputSubmit(ansiSequence);
+        return true;
       }
+
+      return false;
     },
-    [focus, handleShellInputSubmit, activeShellPtyId],
+    [
+      focus,
+      handleShellInputSubmit,
+      activeShellPtyId,
+      scrollPageSize,
+      keyMatchers,
+    ],
   );
 
   useKeypress(handleInput, { isActive: focus });

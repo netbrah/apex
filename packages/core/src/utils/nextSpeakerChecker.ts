@@ -5,13 +5,11 @@
  */
 
 import type { Content } from '@google/genai';
-import { DEFAULT_CODER_MODEL } from '../config/models.js';
+import type { BaseLlmClient } from '../core/baseLlmClient.js';
 import type { GeminiChat } from '../core/geminiChat.js';
 import { isFunctionResponse } from './messageInspectors.js';
-import type { Config } from '../config/config.js';
-import { createDebugLogger } from './debugLogger.js';
-
-const debugLogger = createDebugLogger('NEXT_SPEAKER');
+import { debugLogger } from './debugLogger.js';
+import { LlmRole } from '../telemetry/types.js';
 
 const CHECK_PROMPT = `Analyze *only* the content and structure of your immediately preceding response (your last turn in the conversation history). Based *strictly* on that response, determine who should logically speak next: the 'user' or the 'model' (you).
 **Decision Rules (apply in order):**
@@ -44,7 +42,7 @@ export interface NextSpeakerResponse {
 
 export async function checkNextSpeaker(
   chat: GeminiChat,
-  config: Config,
+  baseLlmClient: BaseLlmClient,
   abortSignal: AbortSignal,
   promptId: string,
 ): Promise<NextSpeakerResponse | null> {
@@ -89,7 +87,6 @@ export async function checkNextSpeaker(
     lastComprehensiveMessage.parts &&
     lastComprehensiveMessage.parts.length === 0
   ) {
-    lastComprehensiveMessage.parts.push({ text: '' });
     return {
       reasoning:
         'The last message was a filler model message with no content (nothing for user to act on), model should speak next.',
@@ -112,12 +109,14 @@ export async function checkNextSpeaker(
   ];
 
   try {
-    const parsedResponse = (await config.getBaseLlmClient().generateJson({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    const parsedResponse = (await baseLlmClient.generateJson({
+      modelConfigKey: { model: 'next-speaker-checker' },
       contents,
       schema: RESPONSE_SCHEMA,
-      model: config.getModel() || DEFAULT_CODER_MODEL,
       abortSignal,
       promptId,
+      role: LlmRole.UTILITY_NEXT_SPEAKER,
     })) as unknown as NextSpeakerResponse;
 
     if (

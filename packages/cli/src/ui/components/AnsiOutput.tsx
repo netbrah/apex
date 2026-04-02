@@ -5,46 +5,71 @@
  */
 
 import type React from 'react';
-import { Text } from 'ink';
-import type {
-  AnsiLine,
-  AnsiOutput,
-  AnsiToken,
-} from '@apex-code/apex-core';
+import { Box, Text } from 'ink';
+import type { AnsiLine, AnsiOutput, AnsiToken } from '@google/gemini-cli-core';
 
 const DEFAULT_HEIGHT = 24;
 
 interface AnsiOutputProps {
   data: AnsiOutput;
   availableTerminalHeight?: number;
+  width: number;
+  maxLines?: number;
+  disableTruncation?: boolean;
 }
 
 export const AnsiOutputText: React.FC<AnsiOutputProps> = ({
   data,
   availableTerminalHeight,
+  width,
+  maxLines,
+  disableTruncation,
 }) => {
-  const lastLines = data.slice(
-    -(availableTerminalHeight && availableTerminalHeight > 0
+  const availableHeightLimit =
+    availableTerminalHeight && availableTerminalHeight > 0
       ? availableTerminalHeight
-      : DEFAULT_HEIGHT),
+      : undefined;
+
+  const numLinesRetained =
+    availableHeightLimit !== undefined && maxLines !== undefined
+      ? Math.min(availableHeightLimit, maxLines)
+      : (availableHeightLimit ?? maxLines ?? DEFAULT_HEIGHT);
+
+  const lastLines = Array.isArray(data)
+    ? disableTruncation
+      ? data
+      : numLinesRetained === 0
+        ? []
+        : data.slice(-numLinesRetained)
+    : [];
+  return (
+    <Box flexDirection="column" width={width} flexShrink={0} overflow="hidden">
+      {(lastLines as AnsiLine[]).map((line: AnsiLine, lineIndex: number) => (
+        <Box key={lineIndex} height={1} overflow="hidden">
+          <AnsiLineText line={line} />
+        </Box>
+      ))}
+    </Box>
   );
-  return lastLines.map((line: AnsiLine, lineIndex: number) => (
-    <Text key={lineIndex}>
-      {line.length > 0
-        ? line.map((token: AnsiToken, tokenIndex: number) => (
-            <Text
-              key={tokenIndex}
-              color={token.inverse ? token.bg : token.fg}
-              backgroundColor={token.inverse ? token.fg : token.bg}
-              dimColor={token.dim}
-              bold={token.bold}
-              italic={token.italic}
-              underline={token.underline}
-            >
-              {token.text}
-            </Text>
-          ))
-        : null}
-    </Text>
-  ));
 };
+
+export const AnsiLineText: React.FC<{ line: AnsiLine }> = ({ line }) => (
+  <Text>
+    {line.length > 0
+      ? line.map((token: AnsiToken, tokenIndex: number) => (
+          <Text
+            key={tokenIndex}
+            color={token.fg}
+            backgroundColor={token.bg}
+            inverse={token.inverse}
+            dimColor={token.dim}
+            bold={token.bold}
+            italic={token.italic}
+            underline={token.underline}
+          >
+            {token.text}
+          </Text>
+        ))
+      : null}
+  </Text>
+);

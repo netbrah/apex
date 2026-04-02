@@ -17,6 +17,8 @@ eslint.config.js
 **/generated
 gha-creds-*.json
 junit.xml
+.gemini-linters/
 Thumbs.db
-packages/vscode-ide-companion/schemas/settings.schema.json
-packages/cli/src/services/insight/templates/insightTemplate.ts
+.pytest_cache
+**/SKILL.md
+packages/sdk/test-data/*.json

@@ -1,140 +1,411 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { createElement } from 'react';
 import type {
   SlashCommand,
-  SlashCommandActionReturn,
   CommandContext,
-  MessageActionReturn,
+  OpenCustomDialogActionReturn,
 } from './types.js';
 import { CommandKind } from './types.js';
-import { t } from '../../i18n/index.js';
-import type { HookRegistryEntry } from '@apex-code/apex-core';
+import type {
+  HookRegistryEntry,
+  MessageActionReturn,
+} from '@google/gemini-cli-core';
+import { getErrorMessage } from '@google/gemini-cli-core';
+import { SettingScope, isLoadableSettingScope } from '../../config/settings.js';
+import { enableHook, disableHook } from '../../utils/hookSettings.js';
+import { renderHookActionFeedback } from '../../utils/hookUtils.js';
+import { HooksDialog } from '../components/HooksDialog.js';
 
 /**
- * Format hook source for display
+ * Display a formatted list of hooks with their status in a dialog
  */
-function formatHookSource(source: string): string {
-  switch (source) {
-    case 'project':
-      return t('Project');
-    case 'user':
-      return t('User');
-    case 'system':
-      return t('System');
-    case 'extensions':
-      return t('Extension');
-    default:
-      return source;
+function panelAction(
+  context: CommandContext,
+): MessageActionReturn | OpenCustomDialogActionReturn {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Config not loaded.',
+    };
   }
+
+  const hookSystem = config.getHookSystem();
+  const allHooks = hookSystem?.getAllHooks() || [];
+
+  return {
+    type: 'custom_dialog',
+    component: createElement(HooksDialog, {
+      hooks: allHooks,
+      onClose: () => context.ui.removeComponent(),
+    }),
+  };
 }
 
 /**
- * Format hook status for display
+ * Enable a hook by name
  */
-function formatHookStatus(enabled: boolean): string {
-  return enabled ? t('✓ Enabled') : t('✗ Disabled');
+async function enableAction(
+  context: CommandContext,
+  args: string,
+): Promise<void | MessageActionReturn> {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Config not loaded.',
+    };
+  }
+
+  const hookSystem = config.getHookSystem();
+  if (!hookSystem) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Hook system is not enabled.',
+    };
+  }
+
+  const hookName = args.trim();
+  if (!hookName) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Usage: /hooks enable <hook-name>',
+    };
+  }
+
+  const settings = context.services.settings;
+  const result = enableHook(settings, hookName);
+
+  if (result.status === 'success') {
+    hookSystem.setHookEnabled(hookName, true);
+  }
+
+  const feedback = renderHookActionFeedback(
+    result,
+    (label, path) => `${label} (${path})`,
+  );
+
+  return {
+    type: 'message',
+    messageType: result.status === 'error' ? 'error' : 'info',
+    content: feedback,
+  };
 }
 
-const listCommand: SlashCommand = {
-  name: 'list',
-  get description() {
-    return t('List all configured hooks');
-  },
-  kind: CommandKind.BUILT_IN,
-  action: async (
-    context: CommandContext,
-    _args: string,
-  ): Promise<MessageActionReturn> => {
-    const { config } = context.services;
-    if (!config) {
-      return {
-        type: 'message',
-        messageType: 'error',
-        content: t('Config not loaded.'),
-      };
-    }
+/**
+ * Disable a hook by name
+ */
+async function disableAction(
+  context: CommandContext,
+  args: string,
+): Promise<void | MessageActionReturn> {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Config not loaded.',
+    };
+  }
 
-    const hookSystem = config.getHookSystem();
-    if (!hookSystem) {
-      return {
-        type: 'message',
-        messageType: 'info',
-        content: t(
-          'Hooks are not enabled. Enable hooks in settings to use this feature.',
-        ),
-      };
-    }
+  const hookSystem = config.getHookSystem();
+  if (!hookSystem) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Hook system is not enabled.',
+    };
+  }
 
-    const registry = hookSystem.getRegistry();
-    const allHooks = registry.getAllHooks();
+  const hookName = args.trim();
+  if (!hookName) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Usage: /hooks disable <hook-name>',
+    };
+  }
 
-    if (allHooks.length === 0) {
-      return {
-        type: 'message',
-        messageType: 'info',
-        content: t(
-          'No hooks configured. Add hooks in your settings.json file.',
-        ),
-      };
-    }
+  const settings = context.services.settings;
+  const scope = settings.workspace ? SettingScope.Workspace : SettingScope.User;
 
-    // Group hooks by event
-    const hooksByEvent = new Map<string, HookRegistryEntry[]>();
-    for (const hook of allHooks) {
-      const eventName = hook.eventName;
-      if (!hooksByEvent.has(eventName)) {
-        hooksByEvent.set(eventName, []);
+  const result = disableHook(settings, hookName, scope);
+
+  if (result.status === 'success') {
+    hookSystem.setHookEnabled(hookName, false);
+  }
+
+  const feedback = renderHookActionFeedback(
+    result,
+    (label, path) => `${label} (${path})`,
+  );
+
+  return {
+    type: 'message',
+    messageType: result.status === 'error' ? 'error' : 'info',
+    content: feedback,
+  };
+}
+
+/**
+ * Completion function for enabled hook names (to be disabled)
+ */
+function completeEnabledHookNames(
+  context: CommandContext,
+  partialArg: string,
+): string[] {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) return [];
+
+  const hookSystem = config.getHookSystem();
+  if (!hookSystem) return [];
+
+  const allHooks = hookSystem.getAllHooks();
+  return allHooks
+    .filter((hook) => hook.enabled)
+    .map((hook) => getHookDisplayName(hook))
+    .filter((name) => name.startsWith(partialArg));
+}
+
+/**
+ * Completion function for disabled hook names (to be enabled)
+ */
+function completeDisabledHookNames(
+  context: CommandContext,
+  partialArg: string,
+): string[] {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) return [];
+
+  const hookSystem = config.getHookSystem();
+  if (!hookSystem) return [];
+
+  const allHooks = hookSystem.getAllHooks();
+  return allHooks
+    .filter((hook) => !hook.enabled)
+    .map((hook) => getHookDisplayName(hook))
+    .filter((name) => name.startsWith(partialArg));
+}
+
+/**
+ * Get a display name for a hook
+ */
+function getHookDisplayName(hook: HookRegistryEntry): string {
+  return hook.config.name || hook.config.command || 'unknown-hook';
+}
+
+/**
+ * Enable all hooks by clearing the disabled list
+ */
+async function enableAllAction(
+  context: CommandContext,
+): Promise<void | MessageActionReturn> {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Config not loaded.',
+    };
+  }
+
+  const hookSystem = config.getHookSystem();
+  if (!hookSystem) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Hook system is not enabled.',
+    };
+  }
+
+  const settings = context.services.settings;
+  const allHooks = hookSystem.getAllHooks();
+
+  if (allHooks.length === 0) {
+    return {
+      type: 'message',
+      messageType: 'info',
+      content: 'No hooks configured.',
+    };
+  }
+
+  const disabledHooks = allHooks.filter((hook) => !hook.enabled);
+  if (disabledHooks.length === 0) {
+    return {
+      type: 'message',
+      messageType: 'info',
+      content: 'All hooks are already enabled.',
+    };
+  }
+
+  try {
+    const scopes = [SettingScope.Workspace, SettingScope.User];
+    for (const scope of scopes) {
+      if (isLoadableSettingScope(scope)) {
+        settings.setValue(scope, 'hooksConfig.disabled', []);
       }
-      hooksByEvent.get(eventName)!.push(hook);
     }
 
-    let output = `**Configured Hooks (${allHooks.length} total)**\n\n`;
-
-    for (const [eventName, hooks] of hooksByEvent) {
-      output += `### ${eventName}\n`;
-      for (const hook of hooks) {
-        const name = hook.config.name || hook.config.command || 'unnamed';
-        const source = formatHookSource(hook.source);
-        const status = formatHookStatus(hook.enabled);
-        const matcher = hook.matcher ? ` (matcher: ${hook.matcher})` : '';
-        output += `- **${name}** [${source}] ${status}${matcher}\n`;
-      }
-      output += '\n';
+    for (const hook of disabledHooks) {
+      const hookName = getHookDisplayName(hook);
+      hookSystem.setHookEnabled(hookName, true);
     }
 
     return {
       type: 'message',
       messageType: 'info',
-      content: output,
+      content: `Enabled ${disabledHooks.length} hook(s) successfully.`,
     };
-  },
+  } catch (error) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: `Failed to enable hooks: ${getErrorMessage(error)}`,
+    };
+  }
+}
+
+/**
+ * Disable all hooks by adding all hooks to the disabled list
+ */
+async function disableAllAction(
+  context: CommandContext,
+): Promise<void | MessageActionReturn> {
+  const agentContext = context.services.agentContext;
+  const config = agentContext?.config;
+  if (!config) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Config not loaded.',
+    };
+  }
+
+  const hookSystem = config.getHookSystem();
+  if (!hookSystem) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: 'Hook system is not enabled.',
+    };
+  }
+
+  const settings = context.services.settings;
+  const allHooks = hookSystem.getAllHooks();
+
+  if (allHooks.length === 0) {
+    return {
+      type: 'message',
+      messageType: 'info',
+      content: 'No hooks configured.',
+    };
+  }
+
+  const enabledHooks = allHooks.filter((hook) => hook.enabled);
+  if (enabledHooks.length === 0) {
+    return {
+      type: 'message',
+      messageType: 'info',
+      content: 'All hooks are already disabled.',
+    };
+  }
+
+  try {
+    const allHookNames = allHooks.map((hook) => getHookDisplayName(hook));
+    const scope = settings.workspace
+      ? SettingScope.Workspace
+      : SettingScope.User;
+    settings.setValue(scope, 'hooksConfig.disabled', allHookNames);
+
+    for (const hook of enabledHooks) {
+      const hookName = getHookDisplayName(hook);
+      hookSystem.setHookEnabled(hookName, false);
+    }
+
+    return {
+      type: 'message',
+      messageType: 'info',
+      content: `Disabled ${enabledHooks.length} hook(s) successfully.`,
+    };
+  } catch (error) {
+    return {
+      type: 'message',
+      messageType: 'error',
+      content: `Failed to disable hooks: ${getErrorMessage(error)}`,
+    };
+  }
+}
+
+const panelCommand: SlashCommand = {
+  name: 'panel',
+  altNames: ['list', 'show'],
+  description: 'Display all registered hooks with their status',
+  kind: CommandKind.BUILT_IN,
+  autoExecute: true,
+  action: panelAction,
+};
+
+const enableCommand: SlashCommand = {
+  name: 'enable',
+  description: 'Enable a hook by name',
+  kind: CommandKind.BUILT_IN,
+  autoExecute: true,
+  action: enableAction,
+  completion: completeDisabledHookNames,
+};
+
+const disableCommand: SlashCommand = {
+  name: 'disable',
+  description: 'Disable a hook by name',
+  kind: CommandKind.BUILT_IN,
+  autoExecute: true,
+  action: disableAction,
+  completion: completeEnabledHookNames,
+};
+
+const enableAllCommand: SlashCommand = {
+  name: 'enable-all',
+  altNames: ['enableall'],
+  description: 'Enable all disabled hooks',
+  kind: CommandKind.BUILT_IN,
+  autoExecute: true,
+  action: enableAllAction,
+};
+
+const disableAllCommand: SlashCommand = {
+  name: 'disable-all',
+  altNames: ['disableall'],
+  description: 'Disable all enabled hooks',
+  kind: CommandKind.BUILT_IN,
+  autoExecute: true,
+  action: disableAllAction,
 };
 
 export const hooksCommand: SlashCommand = {
   name: 'hooks',
-  get description() {
-    return t('Manage Apex hooks');
-  },
+  description: 'Manage hooks',
   kind: CommandKind.BUILT_IN,
-  action: async (
-    context: CommandContext,
-    args: string,
-  ): Promise<SlashCommandActionReturn> => {
-    // In interactive mode, open the hooks dialog
-    const executionMode = context.executionMode ?? 'interactive';
-    if (executionMode === 'interactive') {
-      return {
-        type: 'dialog',
-        dialog: 'hooks',
-      };
-    }
-
-    // In non-interactive mode, list hooks
-    const result = await listCommand.action?.(context, args);
-    return result ?? { type: 'message', messageType: 'info', content: '' };
-  },
+  subCommands: [
+    panelCommand,
+    enableCommand,
+    disableCommand,
+    enableAllCommand,
+    disableAllCommand,
+  ],
+  action: (context: CommandContext) => panelCommand.action!(context, ''),
 };

@@ -6,10 +6,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { helpCommand } from './helpCommand.js';
-import { type CommandContext } from './types.js';
+import { CommandKind, type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import { MessageType } from '../types.js';
-import { CommandKind } from './types.js';
 
 describe('helpCommand', () => {
   let mockContext: CommandContext;
@@ -40,13 +39,12 @@ describe('helpCommand', () => {
         type: MessageType.HELP,
         timestamp: expect.any(Date),
       }),
-      expect.any(Number),
     );
   });
 
   it('should have the correct command properties', () => {
     expect(helpCommand.name).toBe('help');
     expect(helpCommand.kind).toBe(CommandKind.BUILT_IN);
-    expect(helpCommand.description).toBe('for help on Apex');
+    expect(helpCommand.description).toBe('For help on gemini-cli');
   });
 });

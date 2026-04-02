@@ -1,11 +1,17 @@
-import { Storage } from '../config/storage.js';
-import path from 'node:path';
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import {
   EXTENSION_SETTINGS_FILENAME,
   EXTENSIONS_CONFIG_FILENAME,
 } from './variables.js';
-import * as fs from 'node:fs';
+import { Storage, homedir } from '@google/gemini-cli-core';
 
 export class ExtensionStorage {
   private readonly extensionName: string;
@@ -30,21 +36,10 @@ export class ExtensionStorage {
   }
 
   static getUserExtensionsDir(): string {
-    const homeDir = os.homedir();
-    // Fallback for test environments where os.homedir might be mocked to return undefined
-    if (!homeDir) {
-      const tmpDir = os.tmpdir();
-      if (!tmpDir) {
-        // Ultimate fallback when both os.homedir and os.tmpdir are mocked
-        return '/tmp/.apex/extensions';
-      }
-      return path.join(tmpDir, '.apex', 'extensions');
-    }
-    const storage = new Storage(homeDir);
-    return storage.getExtensionsDir();
+    return new Storage(homedir()).getExtensionsDir();
   }
 
   static async createTmpDir(): Promise<string> {
-    return await fs.promises.mkdtemp(path.join(os.tmpdir(), 'qwen-extension'));
+    return fs.promises.mkdtemp(path.join(os.tmpdir(), 'gemini-extension'));
   }
 }

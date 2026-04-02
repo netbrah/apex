@@ -5,25 +5,27 @@
  */
 
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import * as Diff from 'diff';
+import { WRITE_FILE_TOOL_NAME, WRITE_FILE_DISPLAY_NAME } from './tool-names.js';
 import type { Config } from '../config/config.js';
-import { ApprovalMode } from '../config/config.js';
-import type {
-  FileDiff,
-  ToolCallConfirmationDetails,
-  ToolEditConfirmationDetails,
-  ToolInvocation,
-  ToolLocation,
-  ToolResult,
-} from './tools.js';
-import type { PermissionDecision } from '../permissions/types.js';
+
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
-  ToolConfirmationOutcome,
+  type FileDiff,
+  type ToolCallConfirmationDetails,
+  type ToolEditConfirmationDetails,
+  type ToolInvocation,
+  type ToolLocation,
+  type ToolResult,
+  type ToolConfirmationOutcome,
+  type PolicyUpdateOptions,
 } from './tools.js';
+import { buildFilePathArgsPattern } from '../policy/utils.js';
 import { ToolErrorType } from './tool-error.js';
 import {
   FileEncoding,
@@ -33,8 +35,10 @@ import {
 import type { LineEnding } from '../services/fileSystemService.js';
 import { makeRelative, shortenPath } from '../utils/paths.js';
 import { getErrorMessage, isNodeError } from '../utils/errors.js';
+import { ensureCorrectFileContent } from '../utils/editCorrector.js';
+import { detectLineEnding } from '../utils/textUtils.js';
 import { DEFAULT_DIFF_OPTIONS, getDiffStat } from './diffOptions.js';
-import { ToolNames, ToolDisplayNames } from './tool-names.js';
+import { getDiffContextSnippet } from './diff-utils.js';
 import type {
   ModifiableDeclarativeTool,
   ModifyContext,
@@ -43,14 +47,15 @@ import { IdeClient } from '../ide/ide-client.js';
 import { logFileOperation } from '../telemetry/loggers.js';
 import { FileOperationEvent } from '../telemetry/types.js';
 import { FileOperation } from '../telemetry/metrics.js';
-import {
-  getSpecificMimeType,
-  fileExists as isFilefileExists,
-} from '../utils/fileUtils.js';
+import { getSpecificMimeType } from '../utils/fileUtils.js';
 import { getLanguageFromFilePath } from '../utils/language-detection.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('WRITE_FILE');
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { WRITE_FILE_DEFINITION } from './definitions/coreTools.js';
+import { resolveToolDeclaration } from './definitions/resolver.js';
+import { detectOmissionPlaceholders } from './omissionPlaceholderDetector.js';
+import { isGemini3Model } from '../config/models.js';
+import { discoverJitContext, appendJitContext } from './jit-context.js';
 
 /**
  * Parameters for the WriteFile tool
@@ -77,62 +82,151 @@ export interface WriteFileToolParams {
   ai_proposed_content?: string;
 }
 
+export function isWriteFileToolParams(
+  args: unknown,
+): args is WriteFileToolParams {
+  if (typeof args !== 'object' || args === null) {
+    return false;
+  }
+  return (
+    'file_path' in args &&
+    typeof args.file_path === 'string' &&
+    'content' in args &&
+    typeof args.content === 'string'
+  );
+}
+
+interface GetCorrectedFileContentResult {
+  originalContent: string;
+  correctedContent: string;
+  fileExists: boolean;
+  error?: { message: string; code?: string };
+}
+
+export async function getCorrectedFileContent(
+  config: Config,
+  filePath: string,
+  proposedContent: string,
+  abortSignal: AbortSignal,
+): Promise<GetCorrectedFileContentResult> {
+  let originalContent = '';
+  let fileExists = false;
+  let correctedContent = proposedContent;
+
+  try {
+    originalContent = await config
+      .getFileSystemService()
+      .readTextFile(filePath);
+    fileExists = true; // File exists and was read
+  } catch (err) {
+    if (isNodeError(err) && err.code === 'ENOENT') {
+      fileExists = false;
+      originalContent = '';
+    } else {
+      // File exists but could not be read (permissions, etc.)
+      fileExists = true; // Mark as existing but problematic
+      originalContent = ''; // Can't use its content
+      const error = {
+        message: getErrorMessage(err),
+        code: isNodeError(err) ? err.code : undefined,
+      };
+      // Return early as we can't proceed with content correction meaningfully
+      return { originalContent, correctedContent, fileExists, error };
+    }
+  }
+
+  const aggressiveUnescape = !isGemini3Model(config.getActiveModel());
+
+  correctedContent = await ensureCorrectFileContent(
+    proposedContent,
+    config.getBaseLlmClient(),
+    abortSignal,
+    config.getDisableLLMCorrection(),
+    aggressiveUnescape,
+  );
+
+  return { originalContent, correctedContent, fileExists };
+}
+
 class WriteFileToolInvocation extends BaseToolInvocation<
   WriteFileToolParams,
   ToolResult
 > {
+  private readonly resolvedPath: string;
+
   constructor(
     private readonly config: Config,
     params: WriteFileToolParams,
+    messageBus: MessageBus,
+    toolName?: string,
+    displayName?: string,
   ) {
-    super(params);
+    super(
+      params,
+      messageBus,
+      toolName,
+      displayName,
+      undefined,
+      undefined,
+      true,
+      () => this.config.getApprovalMode(),
+    );
+
+    if (this.config.isPlanMode()) {
+      const safeFilename = path.basename(this.params.file_path);
+      this.resolvedPath = path.join(
+        this.config.storage.getPlansDir(),
+        safeFilename,
+      );
+    } else {
+      this.resolvedPath = path.resolve(
+        this.config.getTargetDir(),
+        this.params.file_path,
+      );
+    }
   }
 
   override toolLocations(): ToolLocation[] {
-    return [{ path: this.params.file_path }];
+    return [{ path: this.resolvedPath }];
+  }
+
+  override getPolicyUpdateOptions(
+    _outcome: ToolConfirmationOutcome,
+  ): PolicyUpdateOptions | undefined {
+    return {
+      argsPattern: buildFilePathArgsPattern(this.params.file_path),
+    };
   }
 
   override getDescription(): string {
     const relativePath = makeRelative(
-      this.params.file_path,
+      this.resolvedPath,
       this.config.getTargetDir(),
     );
     return `Writing to ${shortenPath(relativePath)}`;
   }
 
-  /**
-   * Write operations always need user confirmation.
-   */
-  override async getDefaultPermission(): Promise<PermissionDecision> {
-    return 'ask';
-  }
+  protected override async getConfirmationDetails(
+    abortSignal: AbortSignal,
+  ): Promise<ToolCallConfirmationDetails | false> {
+    const correctedContentResult = await getCorrectedFileContent(
+      this.config,
+      this.resolvedPath,
+      this.params.content,
+      abortSignal,
+    );
 
-  /**
-   * Constructs the write-file diff confirmation details.
-   */
-  override async getConfirmationDetails(
-    _abortSignal: AbortSignal,
-  ): Promise<ToolCallConfirmationDetails> {
-    let originalContent = '';
-    const fileExists = await isFilefileExists(this.params.file_path);
-    if (fileExists) {
-      try {
-        const { content } = await this.config
-          .getFileSystemService()
-          .readTextFile({ path: this.params.file_path });
-        originalContent = content;
-      } catch (err) {
-        throw new Error(
-          `Error reading existing file for confirmation: ${getErrorMessage(err)}`,
-        );
-      }
+    if (correctedContentResult.error) {
+      // If file exists but couldn't be read, we can't show a diff for confirmation.
+      return false;
     }
 
+    const { originalContent, correctedContent } = correctedContentResult;
     const relativePath = makeRelative(
-      this.params.file_path,
+      this.resolvedPath,
       this.config.getTargetDir(),
     );
-    const fileName = path.basename(this.params.file_path);
+    const fileName = path.basename(this.resolvedPath);
 
     const fileDiff = Diff.createPatch(
       fileName,
@@ -143,28 +237,23 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       DEFAULT_DIFF_OPTIONS,
     );
 
-    const approvalMode = this.config.getApprovalMode();
     const ideClient = await IdeClient.getInstance();
     const ideConfirmation =
-      this.config.getIdeMode() &&
-      ideClient.isDiffingEnabled() &&
-      approvalMode !== ApprovalMode.AUTO_EDIT &&
-      approvalMode !== ApprovalMode.YOLO
-        ? ideClient.openDiff(this.params.file_path, this.params.content)
+      this.config.getIdeMode() && ideClient.isDiffingEnabled()
+        ? ideClient.openDiff(this.resolvedPath, correctedContent)
         : undefined;
 
     const confirmationDetails: ToolEditConfirmationDetails = {
       type: 'edit',
       title: `Confirm Write: ${shortenPath(relativePath)}`,
       fileName,
-      filePath: this.params.file_path,
+      filePath: this.resolvedPath,
       fileDiff,
       originalContent,
-      newContent: this.params.content,
-      onConfirm: async (outcome: ToolConfirmationOutcome) => {
-        if (outcome === ToolConfirmationOutcome.ProceedAlways) {
-          this.config.setApprovalMode(ApprovalMode.AUTO_EDIT);
-        }
+      newContent: correctedContent,
+      onConfirm: async (_outcome: ToolConfirmationOutcome) => {
+        // Mode transitions (e.g. AUTO_EDIT) and policy updates are now
+        // handled centrally by the scheduler.
 
         if (ideConfirmation) {
           const result = await ideConfirmation;
@@ -178,53 +267,40 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     return confirmationDetails;
   }
 
-  async execute(_abortSignal: AbortSignal): Promise<ToolResult> {
-    const { file_path, content, ai_proposed_content, modified_by_user } =
-      this.params;
+  async execute(abortSignal: AbortSignal): Promise<ToolResult> {
+    const validationError = this.config.validatePathAccess(this.resolvedPath);
+    if (validationError) {
+      return {
+        llmContent: validationError,
+        returnDisplay: 'Error: Path not in workspace.',
+        error: {
+          message: validationError,
+          type: ToolErrorType.PATH_NOT_IN_WORKSPACE,
+        },
+      };
+    }
 
-    let fileExists = await isFilefileExists(file_path);
-    let originalContent = '';
-    let useBOM = false;
-    let detectedEncoding: string | undefined;
-    let detectedLineEnding: LineEnding | undefined;
-    const dirName = path.dirname(file_path);
-    if (fileExists) {
-      try {
-        const fileInfo = await this.config
-          .getFileSystemService()
-          .readTextFile({ path: file_path });
-        if (fileInfo._meta?.bom !== undefined) {
-          useBOM = fileInfo._meta.bom;
-        } else {
-          useBOM =
-            fileInfo.content.length > 0 &&
-            fileInfo.content.codePointAt(0) === 0xfeff;
-        }
-        detectedEncoding = fileInfo._meta?.encoding || 'utf-8';
-        detectedLineEnding = detectLineEnding(fileInfo.content);
-        originalContent = fileInfo.content;
-        fileExists = true; // File exists and was read
-      } catch (err) {
-        if (isNodeError(err) && err.code === 'ENOENT') {
-          fileExists = false;
-        } else {
-          const error = {
-            message: getErrorMessage(err),
-            code: isNodeError(err) ? err.code : undefined,
-          };
-          const errorMsg = error.code
-            ? `Error checking existing file '${file_path}': ${error.message} (${error.code})`
-            : `Error checking existing file: ${error.message}`;
-          return {
-            llmContent: errorMsg,
-            returnDisplay: errorMsg,
-            error: {
-              message: errorMsg,
-              type: ToolErrorType.FILE_WRITE_FAILURE,
-            },
-          };
-        }
-      }
+    const { content, ai_proposed_content, modified_by_user } = this.params;
+    const correctedContentResult = await getCorrectedFileContent(
+      this.config,
+      this.resolvedPath,
+      content,
+      abortSignal,
+    );
+
+    if (correctedContentResult.error) {
+      const errDetails = correctedContentResult.error;
+      const errorMsg = errDetails.code
+        ? `Error checking existing file '${this.resolvedPath}': ${errDetails.message} (${errDetails.code})`
+        : `Error checking existing file: ${errDetails.message}`;
+      return {
+        llmContent: errorMsg,
+        returnDisplay: errorMsg,
+        error: {
+          message: errorMsg,
+          type: ToolErrorType.FILE_WRITE_FAILURE,
+        },
+      };
     }
 
     if (!fileExists) {
@@ -244,18 +320,29 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     }
 
     try {
-      await this.config.getFileSystemService().writeTextFile({
-        path: file_path,
-        content,
-        _meta: {
-          bom: useBOM,
-          encoding: detectedEncoding,
-          lineEnding: detectedLineEnding,
-        },
-      });
+      const dirName = path.dirname(this.resolvedPath);
+      try {
+        await fsPromises.access(dirName);
+      } catch {
+        await fsPromises.mkdir(dirName, { recursive: true });
+      }
+
+      let finalContent = fileContent;
+      const useCRLF =
+        !isNewFile && originalContent
+          ? detectLineEnding(originalContent) === '\r\n'
+          : os.EOL === '\r\n';
+
+      if (useCRLF) {
+        finalContent = finalContent.replace(/\r?\n/g, '\r\n');
+      }
+
+      await this.config
+        .getFileSystemService()
+        .writeTextFile(this.resolvedPath, finalContent);
 
       // Generate diff for display result
-      const fileName = path.basename(file_path);
+      const fileName = path.basename(this.resolvedPath);
       // If there was a readError, originalContent in correctedContentResult is '',
       // but for the diff, we want to show the original content as it was before the write if possible.
       // However, if it was unreadable, currentContentForDiff will be empty.
@@ -279,9 +366,9 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       );
 
       const llmSuccessMessageParts = [
-        !fileExists
-          ? `Successfully created and wrote to new file: ${file_path}.`
-          : `Successfully overwrote file: ${file_path}.`,
+        isNewFile
+          ? `Successfully created and wrote to new file: ${this.resolvedPath}.`
+          : `Successfully overwrote file: ${this.resolvedPath}.`,
       ];
       if (modified_by_user) {
         llmSuccessMessageParts.push(
@@ -289,21 +376,27 @@ class WriteFileToolInvocation extends BaseToolInvocation<
         );
       }
 
-      // Log file operation for telemetry (without diff_stat to avoid double-counting)
-      const mimetype = getSpecificMimeType(file_path);
-      const programmingLanguage = getLanguageFromFilePath(file_path);
-      const extension = path.extname(file_path);
-      const operation = !fileExists
-        ? FileOperation.CREATE
-        : FileOperation.UPDATE;
+      // Return a diff of the file before and after the write so that the agent
+      // can avoid the need to spend a turn doing a verification read.
+      const snippet = getDiffContextSnippet(
+        isNewFile ? '' : originalContent,
+        finalContent,
+        5,
+      );
+      llmSuccessMessageParts.push(`Here is the updated code:\n${snippet}`);
 
-      const lineCount = content.split('\n').length;
+      // Log file operation for telemetry (without diff_stat to avoid double-counting)
+      const mimetype = getSpecificMimeType(this.resolvedPath);
+      const programmingLanguage = getLanguageFromFilePath(this.resolvedPath);
+      const extension = path.extname(this.resolvedPath);
+      const operation = isNewFile ? FileOperation.CREATE : FileOperation.UPDATE;
+
       logFileOperation(
         this.config,
         new FileOperationEvent(
-          WriteFileTool.Name,
+          WRITE_FILE_TOOL_NAME,
           operation,
-          lineCount,
+          fileContent.split('\n').length,
           mimetype,
           extension,
           programmingLanguage,
@@ -313,13 +406,25 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       const displayResult: FileDiff = {
         fileDiff,
         fileName,
-        originalContent,
-        newContent: content,
+        filePath: this.resolvedPath,
+        originalContent: correctedContentResult.originalContent,
+        newContent: correctedContentResult.correctedContent,
         diffStat,
+        isNewFile,
       };
 
+      // Discover JIT subdirectory context for the written file path
+      const jitContext = await discoverJitContext(
+        this.config,
+        this.resolvedPath,
+      );
+      let llmContent = llmSuccessMessageParts.join(' ');
+      if (jitContext) {
+        llmContent = appendJitContext(llmContent, jitContext);
+      }
+
       return {
-        llmContent: llmSuccessMessageParts.join(' '),
+        llmContent,
         returnDisplay: displayResult,
       };
     } catch (error) {
@@ -329,23 +434,23 @@ class WriteFileToolInvocation extends BaseToolInvocation<
 
       if (isNodeError(error)) {
         // Handle specific Node.js errors with their error codes
-        errorMsg = `Error writing to file '${file_path}': ${error.message} (${error.code})`;
+        errorMsg = `Error writing to file '${this.resolvedPath}': ${error.message} (${error.code})`;
 
         // Log specific error types for better debugging
         if (error.code === 'EACCES') {
-          errorMsg = `Permission denied writing to file: ${file_path} (${error.code})`;
+          errorMsg = `Permission denied writing to file: ${this.resolvedPath} (${error.code})`;
           errorType = ToolErrorType.PERMISSION_DENIED;
         } else if (error.code === 'ENOSPC') {
-          errorMsg = `No space left on device: ${file_path} (${error.code})`;
+          errorMsg = `No space left on device: ${this.resolvedPath} (${error.code})`;
           errorType = ToolErrorType.NO_SPACE_LEFT;
         } else if (error.code === 'EISDIR') {
-          errorMsg = `Target is a directory, not a file: ${file_path} (${error.code})`;
+          errorMsg = `Target is a directory, not a file: ${this.resolvedPath} (${error.code})`;
           errorType = ToolErrorType.TARGET_IS_DIRECTORY;
         }
 
         // Include stack trace in debug mode for better troubleshooting
         if (this.config.getDebugMode() && error.stack) {
-          debugLogger.debug('Write file error stack:', error.stack);
+          debugLogger.error('Write file error stack:', error.stack);
         }
       } else if (error instanceof Error) {
         errorMsg = `Error writing to file: ${error.message}`;
@@ -372,31 +477,21 @@ export class WriteFileTool
   extends BaseDeclarativeTool<WriteFileToolParams, ToolResult>
   implements ModifiableDeclarativeTool<WriteFileToolParams>
 {
-  static readonly Name: string = ToolNames.WRITE_FILE;
+  static readonly Name = WRITE_FILE_TOOL_NAME;
 
-  constructor(private readonly config: Config) {
+  constructor(
+    private readonly config: Config,
+    messageBus: MessageBus,
+  ) {
     super(
       WriteFileTool.Name,
-      ToolDisplayNames.WRITE_FILE,
-      `Writes content to a specified file in the local filesystem.
-
-      The user has the ability to modify \`content\`. If modified, this will be stated in the response.`,
+      WRITE_FILE_DISPLAY_NAME,
+      WRITE_FILE_DEFINITION.base.description!,
       Kind.Edit,
-      {
-        properties: {
-          file_path: {
-            description:
-              "The absolute path to the file to write to (e.g., '/home/user/project/file.txt'). Relative paths are not supported.",
-            type: 'string',
-          },
-          content: {
-            description: 'The content to write to the file.',
-            type: 'string',
-          },
-        },
-        required: ['file_path', 'content'],
-        type: 'object',
-      },
+      WRITE_FILE_DEFINITION.base.parametersJsonSchema,
+      messageBus,
+      true,
+      false,
     );
   }
 
@@ -409,21 +504,29 @@ export class WriteFileTool
       return `Missing or empty "file_path"`;
     }
 
-    if (!path.isAbsolute(filePath)) {
-      return `File path must be absolute: ${filePath}`;
+    const resolvedPath = path.resolve(this.config.getTargetDir(), filePath);
+
+    const validationError = this.config.validatePathAccess(resolvedPath);
+    if (validationError) {
+      return validationError;
     }
 
     try {
-      if (fs.existsSync(filePath)) {
-        const stats = fs.lstatSync(filePath);
+      if (fs.existsSync(resolvedPath)) {
+        const stats = fs.lstatSync(resolvedPath);
         if (stats.isDirectory()) {
-          return `Path is a directory, not a file: ${filePath}`;
+          return `Path is a directory, not a file: ${resolvedPath}`;
         }
       }
     } catch (statError: unknown) {
-      return `Error accessing path properties for validation: ${filePath}. Reason: ${
+      return `Error accessing path properties for validation: ${resolvedPath}. Reason: ${
         statError instanceof Error ? statError.message : String(statError)
       }`;
+    }
+
+    const omissionPlaceholders = detectOmissionPlaceholders(params.content);
+    if (omissionPlaceholders.length > 0) {
+      return "`content` contains an omission placeholder (for example 'rest of methods ...'). Provide complete file content.";
     }
 
     return null;
@@ -431,8 +534,19 @@ export class WriteFileTool
 
   protected createInvocation(
     params: WriteFileToolParams,
+    messageBus: MessageBus,
   ): ToolInvocation<WriteFileToolParams, ToolResult> {
-    return new WriteFileToolInvocation(this.config, params);
+    return new WriteFileToolInvocation(
+      this.config,
+      params,
+      messageBus ?? this.messageBus,
+      this.name,
+      this.displayName,
+    );
+  }
+
+  override getSchema(modelId?: string) {
+    return resolveToolDeclaration(WRITE_FILE_DEFINITION, modelId);
   }
 
   getModifyContext(

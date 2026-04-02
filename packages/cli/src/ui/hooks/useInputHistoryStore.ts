@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { debugLogger } from '@google/gemini-cli-core';
 import { useState, useCallback } from 'react';
-import { createDebugLogger } from '@apex-code/apex-core';
 
 interface Logger {
   getPreviousUserMessages(): Promise<string[]>;
@@ -16,8 +16,6 @@ export interface UseInputHistoryStoreReturn {
   addInput: (input: string) => void;
   initializeFromLogger: (logger: Logger | null) => Promise<void>;
 }
-
-const debugLogger = createDebugLogger('INPUT_HISTORY_STORE');
 
 /**
  * Hook for independently managing input history.

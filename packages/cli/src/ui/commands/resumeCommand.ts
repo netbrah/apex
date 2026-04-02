@@ -1,21 +1,28 @@
 /**
  * @license
- * Copyright 2025 Apex
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SlashCommand, SlashCommandActionReturn } from './types.js';
+import type {
+  OpenDialogActionReturn,
+  CommandContext,
+  SlashCommand,
+} from './types.js';
 import { CommandKind } from './types.js';
-import { t } from '../../i18n/index.js';
+import { chatResumeSubCommands } from './chatCommand.js';
 
 export const resumeCommand: SlashCommand = {
   name: 'resume',
+  description: 'Browse auto-saved conversations and manage chat checkpoints',
   kind: CommandKind.BUILT_IN,
-  get description() {
-    return t('Resume a previous session');
-  },
-  action: async (): Promise<SlashCommandActionReturn> => ({
+  autoExecute: true,
+  action: async (
+    _context: CommandContext,
+    _args: string,
+  ): Promise<OpenDialogActionReturn> => ({
     type: 'dialog',
-    dialog: 'resume',
+    dialog: 'sessionBrowser',
   }),
+  subCommands: chatResumeSubCommands,
 };

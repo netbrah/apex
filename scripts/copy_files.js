@@ -26,7 +26,7 @@ import path from 'node:path';
 const sourceDir = path.join('src');
 const targetDir = path.join('dist', 'src');
 
-const extensionsToCopy = ['.md', '.json', '.sb', '.ansi'];
+const extensionsToCopy = ['.md', '.json', '.sb', '.toml', '.cs', '.exe'];
 
 function copyFilesRecursive(source, target, rootSourceDir) {
   if (!fs.existsSync(target)) {
@@ -62,7 +62,7 @@ if (!fs.existsSync(sourceDir)) {
   process.exit(1);
 }
 
-copyFilesRecursive(sourceDir, targetDir, sourceDir);
+copyFilesRecursive(sourceDir, targetDir);
 
 // Copy example extensions into the bundle.
 const packageName = path.basename(process.cwd());
@@ -81,6 +81,15 @@ if (packageName === 'cli') {
   );
   if (fs.existsSync(examplesSource)) {
     fs.cpSync(examplesSource, examplesTarget, { recursive: true });
+  }
+}
+
+// Copy built-in skills for the core package.
+if (packageName === 'core') {
+  const builtinSkillsSource = path.join(sourceDir, 'skills', 'builtin');
+  const builtinSkillsTarget = path.join(targetDir, 'skills', 'builtin');
+  if (fs.existsSync(builtinSkillsSource)) {
+    fs.cpSync(builtinSkillsSource, builtinSkillsTarget, { recursive: true });
   }
 }
 

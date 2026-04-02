@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { parseAndFormatApiError } from './errorParsing.js';
+import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
 import { AuthType } from '../core/contentGenerator.js';
 import type { StructuredError } from '../core/turn.js';
 
@@ -27,7 +28,7 @@ describe('parseAndFormatApiError', () => {
     const result = parseAndFormatApiError(errorMessage, undefined);
     expect(result).toContain('[API Error: Rate limit exceeded');
     expect(result).toContain(
-      'Possible quota limitations in place or slow response times detected. Please wait and try again later.',
+      'Possible quota limitations in place or slow response times detected. Switching to the gemini-2.5-flash model',
     );
   });
 
