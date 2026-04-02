@@ -1,10 +1,10 @@
-# Installation Guide for Qwen Code with Source Tracking
+# Installation Guide for APEX with Source Tracking
 
-This guide describes how to install Node.js and Qwen Code with source information tracking.
+This guide describes how to install Node.js and APEX with source information tracking.
 
 ## Overview
 
-The installation scripts automate the process of installing Node.js (if not present or below version 20) and Qwen Code, while capturing and storing the installation source information for analytics and tracking purposes.
+The installation scripts automate the process of installing Node.js (if not present or below version 20) and APEX, while capturing and storing the installation source information for analytics and tracking purposes.
 
 ## Installation Scripts
 
@@ -21,8 +21,8 @@ We provide platform-specific installation scripts:
 
 - Checks for existing Node.js installation and version
 - Installs Node.js 20+ if needed using NVM
-- Installs Qwen Code globally with source information
-- Stores the source information in `~/.qwen/source.json`
+- Installs APEX globally with source information
+- Stores the source information in `~/.apex/source.json`
 
 #### Usage:
 
@@ -46,10 +46,10 @@ sh install-qwen-with-source.sh --help
 
 #### How it Works:
 
-1. The script accepts a `--source` parameter to specify where Qwen Code is being installed from
+1. The script accepts a `--source` parameter to specify where APEX is being installed from
 2. It installs Node.js if needed
-3. It installs Qwen Code globally
-4. It creates `~/.qwen/source.json` with the specified source information
+3. It installs APEX globally
+4. It creates `~/.apex/source.json` with the specified source information
 
 #### Important Notes:
 
@@ -61,7 +61,7 @@ source ~/.bashrc  # For bash users
 source ~/.zshrc   # For zsh users
 ```
 
-This is required to load the newly installed Node.js and Qwen Code into your PATH.
+This is required to load the newly installed Node.js and APEX into your PATH.
 
 #### Prerequisites:
 
@@ -76,13 +76,13 @@ This is required to load the newly installed Node.js and Qwen Code into your PAT
 
 - Checks for existing Node.js installation and version (requires version 18+)
 - Automatically downloads and installs Node.js 24 LTS if not present or version is too low
-- Installs Qwen Code globally with source information
+- Installs APEX globally with source information
 - Stores the source information in `%USERPROFILE%\.qwen\source.json`
 
 #### Prerequisites:
 
 - **PowerShell (Administrator)**: The script must be run in PowerShell with Administrator privileges
-- Internet connection for downloading Node.js and Qwen Code
+- Internet connection for downloading Node.js and APEX
 
 #### Usage:
 
@@ -115,10 +115,10 @@ This is required to load the newly installed Node.js and Qwen Code into your PAT
 
 #### How it Works:
 
-1. The script accepts a `--source` or `-s` parameter to specify where Qwen Code is being installed from
+1. The script accepts a `--source` or `-s` parameter to specify where APEX is being installed from
 2. It checks if Node.js is already installed and if the version is 18 or higher
 3. If Node.js is not installed or version is too low, it automatically downloads and installs Node.js 24 LTS
-4. It installs Qwen Code globally using npm
+4. It installs APEX globally using npm
 5. It creates `%USERPROFILE%\.qwen\source.json` with the specified source information
 
 #### Why Administrator Privileges are Required:
@@ -131,13 +131,13 @@ This is required to load the newly installed Node.js and Qwen Code into your PAT
 
 ### Overview
 
-This feature implements the ability to capture and store the installation source of the Qwen Code package. The source information is used for analytics and tracking purposes.
+This feature implements the ability to capture and store the installation source of the APEX package. The source information is used for analytics and tracking purposes.
 
 ### Storage Location
 
 The installation source is stored in a separate file at:
 
-- **Unix/Linux/macOS**: `~/.qwen/source.json`
+- **Unix/Linux/macOS**: `~/.apex/source.json`
 - **Windows**: `%USERPROFILE%\.qwen\source.json` (equivalent to `C:\Users\{username}\.qwen\source.json`)
 
 ### File Format
@@ -153,7 +153,7 @@ The `source.json` file contains:
 ### How the Source Information is Used
 
 1. **Telemetry Tracking**: The source information is included in RUM (Real User Monitoring) telemetry logs
-2. **Analytics**: Helps understand how users are discovering and installing Qwen Code
+2. **Analytics**: Helps understand how users are discovering and installing APEX
 3. **Distribution Analysis**: Tracks which distribution channels are most popular
 
 ### Technical Implementation
@@ -170,7 +170,7 @@ After installation and restarting your terminal (or sourcing your shell configur
 **Linux/macOS:**
 
 ```bash
-cat ~/.qwen/source.json
+cat ~/.apex/source.json
 ```
 
 **Windows:**
@@ -193,13 +193,13 @@ curl -qL https://www.npmjs.com/install.sh | sh
 ### NPM Installation
 
 ```bash
-npm install -g @qwen-code/qwen-code@latest
+npm install -g @apex/apex@latest
 ```
 
 ### Homebrew (macOS, Linux)
 
 ```bash
-brew install qwen-code
+brew install apex
 ```
 
 ## Troubleshooting
@@ -227,7 +227,7 @@ sh install-qwen-with-source.sh --source github
 
 **Linux/macOS:**
 
-- Ensure NVM is installed: `curl -o- https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install_nvm.sh | bash`
+- Ensure NVM is installed: `curl -o- https://apex-assets.oss-cn-hangzhou.aliyuncs.com/installation/install_nvm.sh | bash`
 - Restart your terminal or run: `source ~/.bashrc`
 
 **Windows:**
@@ -244,7 +244,7 @@ You may need administrative privileges for global npm installation:
 
 ## Notes
 
-- The scripts require internet access to download Node.js and Qwen Code
+- The scripts require internet access to download Node.js and APEX
 - Administrative privileges may be required for global npm installation
 - The installation source is stored locally and used for tracking purposes only
 - If the source file is missing or invalid, the application continues to work normally

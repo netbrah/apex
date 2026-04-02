@@ -34,30 +34,27 @@ function getProjectHash(projectRoot) {
 
 const projectHash = getProjectHash(projectRoot);
 
-// User-level .gemini directory in home
-const USER_GEMINI_DIR = path.join(os.homedir(), '.qwen');
-// Project-level .gemini directory in the workspace
-const WORKSPACE_QWEN_DIR = path.join(projectRoot, '.qwen');
+// User-level .apex directory in home
+const USER_APEX_DIR = path.join(os.homedir(), '.apex');
+// Project-level .apex directory in the workspace
+const WORKSPACE_APEX_DIR = path.join(projectRoot, '.apex');
 
-// Telemetry artifacts are stored in a hashed directory under the user's ~/.qwen/tmp
-export const OTEL_DIR = path.join(USER_GEMINI_DIR, 'tmp', projectHash, 'otel');
+// Telemetry artifacts are stored in a hashed directory under the user's ~/.apex/tmp
+export const OTEL_DIR = path.join(USER_APEX_DIR, 'tmp', projectHash, 'otel');
 export const BIN_DIR = path.join(OTEL_DIR, 'bin');
 
-// Workspace settings remain in the project's .gemini directory
+// Workspace settings remain in the project's .apex directory
 export const WORKSPACE_SETTINGS_FILE = path.join(
-  WORKSPACE_QWEN_DIR,
+  WORKSPACE_APEX_DIR,
   'settings.json',
 );
 
 export function getJson(url) {
-  const tmpFile = path.join(
-    os.tmpdir(),
-    `qwen-code-releases-${Date.now()}.json`,
-  );
+  const tmpFile = path.join(os.tmpdir(), `apex-releases-${Date.now()}.json`);
   try {
     const result = spawnSync(
       'curl',
-      ['-sL', '-H', 'User-Agent: qwen-code-dev-script', '-o', tmpFile, url],
+      ['-sL', '-H', 'User-Agent: apex-dev-script', '-o', tmpFile, url],
       { stdio: 'pipe', encoding: 'utf-8' },
     );
     if (result.status !== 0) {
@@ -261,7 +258,7 @@ export async function ensureBinary(
   }
 
   const downloadUrl = asset.browser_download_url;
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qwen-code-telemetry-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-telemetry-'));
   const archivePath = path.join(tmpDir, asset.name);
 
   try {

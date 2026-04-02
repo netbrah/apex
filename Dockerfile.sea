@@ -1,9 +1,9 @@
-# Dockerfile.sea — Build qwen-code SEA binary for linux/amd64
+# Dockerfile.sea — Build apex SEA binary for linux/amd64
 #
 # Usage:
 #   docker buildx build --platform linux/amd64 -f Dockerfile.sea -o type=local,dest=.bin/ .
 #
-# Output: .bin/qwen-code-linux-amd64
+# Output: .bin/apex-linux-amd64
 FROM node:22.15.0 AS builder
 
 WORKDIR /build
@@ -17,4 +17,4 @@ RUN npm run bundle
 RUN BUNDLE_NATIVE_MODULES=false node scripts/build_binary.js
 
 FROM scratch AS output
-COPY --from=builder /build/dist/binary/linux-x64/qwen-code /qwen-code-linux-amd64
+COPY --from=builder /build/dist/binary/linux-x64/apex /apex-linux-amd64

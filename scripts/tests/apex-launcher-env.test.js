@@ -28,7 +28,7 @@ describe('apex-launcher-env', () => {
 
     expect(proxyKey).toBe('user=palanisd&key=abc123');
     expect(model).toBe(DEFAULT_APEX_MODEL);
-    expect(env.QWEN_CODE_HOME).toBe('/tmp/apex');
+    expect(env.APEX_HOME).toBe('/tmp/apex');
     expect(env.OPENAI_COMPATIBLE_ENDPOINT).toBe(DEFAULT_PROXY_ENDPOINT);
     expect(env.OPENAI_API_KEY).toBe('user=palanisd&key=abc123');
     expect(env.ANTHROPIC_API_KEY).toBe('user=palanisd&key=abc123');

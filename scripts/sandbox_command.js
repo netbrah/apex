@@ -32,24 +32,24 @@ const argv = yargs(hideBin(process.argv)).option('q', {
   default: false,
 }).argv;
 
-let qwenSandbox = process.env.QWEN_SANDBOX;
+let sandboxMode = process.env.APEX_SANDBOX;
 
-if (!qwenSandbox) {
-  const userSettingsFile = join(os.homedir(), '.qwen', 'settings.json');
+if (!sandboxMode) {
+  const userSettingsFile = join(os.homedir(), '.apex', 'settings.json');
   if (existsSync(userSettingsFile)) {
     const settings = JSON.parse(
       stripJsonComments(readFileSync(userSettingsFile, 'utf-8')),
     );
     if (settings.sandbox) {
-      qwenSandbox = settings.sandbox;
+      sandboxMode = settings.sandbox;
     }
   }
 }
 
-if (!qwenSandbox) {
+if (!sandboxMode) {
   let currentDir = process.cwd();
   while (true) {
-    const qwenEnv = join(currentDir, '.qwen', '.env');
+    const qwenEnv = join(currentDir, '.apex', '.env');
     const regularEnv = join(currentDir, '.env');
     if (existsSync(qwenEnv)) {
       dotenv.config({ path: qwenEnv, quiet: true });
@@ -64,10 +64,10 @@ if (!qwenSandbox) {
     }
     currentDir = parentDir;
   }
-  qwenSandbox = process.env.QWEN_SANDBOX;
+  sandboxMode = process.env.APEX_SANDBOX;
 }
 
-qwenSandbox = (qwenSandbox || '').toLowerCase();
+sandboxMode = (sandboxMode || '').toLowerCase();
 
 const commandExists = (cmd) => {
   // Use 'where.exe' (not 'where') on Windows because PowerShell aliases
@@ -90,23 +90,23 @@ const commandExists = (cmd) => {
 };
 
 let command = '';
-if (['1', 'true'].includes(qwenSandbox)) {
+if (['1', 'true'].includes(sandboxMode)) {
   if (commandExists('docker')) {
     command = 'docker';
   } else if (commandExists('podman')) {
     command = 'podman';
   } else {
     console.error(
-      'ERROR: install docker or podman or specify command in QWEN_SANDBOX',
+      'ERROR: install docker or podman or specify command in APEX_SANDBOX',
     );
     process.exit(1);
   }
-} else if (qwenSandbox && !['0', 'false'].includes(qwenSandbox)) {
-  if (commandExists(qwenSandbox)) {
-    command = qwenSandbox;
+} else if (sandboxMode && !['0', 'false'].includes(sandboxMode)) {
+  if (commandExists(sandboxMode)) {
+    command = sandboxMode;
   } else {
     console.error(
-      `ERROR: missing sandbox command '${qwenSandbox}' (from QWEN_SANDBOX)`,
+      `ERROR: missing sandbox command '${sandboxMode}' (from APEX_SANDBOX)`,
     );
     process.exit(1);
   }

@@ -1,5 +1,5 @@
 /**
- * Build a Node.js Single Executable Application (SEA) for qwen-code.
+ * Build a Node.js Single Executable Application (SEA) for apex.
  *
  * Expects npm run build && npm run bundle to have already run (Dockerfile
  * handles this).  Reads the bundled output from dist/, generates a SEA
@@ -52,7 +52,7 @@ function runCommand(command, args, options = {}) {
 
 const sha256 = (content) => createHash('sha256').update(content).digest('hex');
 
-console.log('=== qwen-code SEA binary build ===');
+console.log('=== apex SEA binary build ===');
 
 // --- Verify dist/cli.js exists (produced by prior npm run bundle) ---
 const cliJsPath = join(distDir, 'cli.js');
@@ -186,7 +186,7 @@ console.log(`Target: ${targetName}`);
 const targetDir = join(seaOutputDir, targetName);
 mkdirSync(targetDir, { recursive: true });
 
-const binaryName = platform === 'win32' ? 'qwen-code.exe' : 'qwen-code';
+const binaryName = platform === 'win32' ? 'apex.exe' : 'apex';
 const targetBinaryPath = join(targetDir, binaryName);
 
 console.log(`Copying node binary to ${targetBinaryPath}...`);

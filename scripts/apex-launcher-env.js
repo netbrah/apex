@@ -54,8 +54,8 @@ export function buildApexRuntimeEnv({
   const rbVersion = versions.rb || env.RB_VERSION || 'latest';
   const citVersion = versions.cit || env.CIT_VERSION || 'latest';
 
-  if (!env.QWEN_CODE_HOME) {
-    env.QWEN_CODE_HOME = apexHome;
+  if (!env.APEX_HOME) {
+    env.APEX_HOME = apexHome;
   }
 
   if (!env.OPENAI_COMPATIBLE_ENDPOINT) {

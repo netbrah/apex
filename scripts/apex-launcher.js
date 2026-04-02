@@ -48,8 +48,6 @@ if (!hasCliModelArg(args)) {
   args.push('--model', runtime.model);
 }
 
-runtime.env.QWEN_CODE_BRAND = runtime.env.QWEN_CODE_BRAND || 'APEX';
-
 const child = spawn(process.execPath, [cliEntry, ...args], {
   stdio: 'inherit',
   env: runtime.env,

@@ -98,7 +98,7 @@ console.log('\n✅ All bundle assets copied to dist/');
  * Copy prebuilt native tree-sitter bindings from OpenGrok sidecar checkout.
  *
  * This enables native AST parsing (including perl) without requiring local
- * native compilation in the qwen-code workspace.
+ * native compilation in the apex workspace.
  */
 function copyTreeSitterBindings() {
   const sourceBindingsDir = getTreeSitterBindingsSourceDir();
