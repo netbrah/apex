@@ -15,15 +15,91 @@ const MIN_TOOL_CONTENT_CHARS = 500;
 type AnthropicMessageParam = Anthropic.MessageParam;
 type AnthropicContentBlockParam = Anthropic.ContentBlockParam;
 
+/** Fixed token estimate for base64 image content (Anthropic's documented ~1600 tokens per image). */
+const BASE64_IMAGE_TOKEN_ESTIMATE = 1600;
+
+/**
+ * Estimates tokens for a single content block, handling different content types
+ * to avoid massively overestimating base64 image content.
+ */
+function estimateContentBlockTokens(block: AnthropicContentBlockParam): number {
+  switch (block.type) {
+    case 'image': {
+      // Base64 images have a fixed token cost in Anthropic (~1600 tokens),
+      // not proportional to their serialized size.
+      return BASE64_IMAGE_TOKEN_ESTIMATE;
+    }
+    case 'text': {
+      return Math.ceil(
+        ((block as Anthropic.TextBlockParam).text?.length ?? 0) / 3,
+      );
+    }
+    case 'tool_use': {
+      // Estimate based on the text portions (name + JSON input), skip any binary data
+      const toolUse = block as Anthropic.ToolUseBlockParam;
+      const inputStr = JSON.stringify(toolUse.input ?? {});
+      const nameLen = (toolUse.name ?? '').length;
+      return Math.ceil((nameLen + inputStr.length) / 3) + 10; // +10 for overhead
+    }
+    case 'tool_result': {
+      const toolResult = block as Anthropic.ToolResultBlockParam;
+      const content = toolResult.content;
+      if (typeof content === 'string') {
+        return Math.ceil(content.length / 3);
+      }
+      if (Array.isArray(content)) {
+        return content.reduce(
+          (
+            sum: number,
+            inner: Anthropic.TextBlockParam | Anthropic.ImageBlockParam,
+          ) => {
+            if (inner.type === 'image')
+              return sum + BASE64_IMAGE_TOKEN_ESTIMATE;
+            return (
+              sum +
+              Math.ceil(
+                ((inner as Anthropic.TextBlockParam).text?.length ?? 0) / 3,
+              )
+            );
+          },
+          0,
+        );
+      }
+      return 10; // minimal overhead for empty tool results
+    }
+    default: {
+      // Fallback: serialize and estimate, but this path shouldn't hit base64 images
+      return Math.ceil(JSON.stringify(block).length / 3);
+    }
+  }
+}
+
 function estimateTokens(
   messages: AnthropicMessageParam[],
   system: string | Anthropic.TextBlockParam[] | undefined,
   tools?: unknown,
 ): number {
-  const msgLen = JSON.stringify(messages).length;
+  let total = 0;
+
+  for (const msg of messages) {
+    // Per-message overhead (role, etc.)
+    total += 4;
+    if (typeof msg.content === 'string') {
+      total += Math.ceil(msg.content.length / 3);
+    } else if (Array.isArray(msg.content)) {
+      for (const block of msg.content) {
+        total += estimateContentBlockTokens(
+          block as AnthropicContentBlockParam,
+        );
+      }
+    }
+  }
+
   const sysLen = system ? JSON.stringify(system).length : 0;
   const toolLen = tools ? JSON.stringify(tools).length : 0;
-  return Math.ceil((msgLen + sysLen + toolLen) / 3);
+  total += Math.ceil((sysLen + toolLen) / 3);
+
+  return total;
 }
 
 /**
@@ -139,5 +215,42 @@ export function trimAnthropicMessagesForContextBudget(
     estimate = estimateTokens(trimmed, system, tools);
   }
 
+  // Validate strict user/assistant alternation required by the Anthropic API.
+  // Message-dropping may have left consecutive same-role messages.
+  ensureAlternation(trimmed);
+
   return { messages: trimmed, system };
+}
+
+/**
+ * Ensures strict user/assistant alternation by merging consecutive
+ * same-role messages. Anthropic rejects requests where two adjacent
+ * messages share the same role.
+ */
+function ensureAlternation(messages: AnthropicMessageParam[]): void {
+  let i = 1;
+  while (i < messages.length) {
+    if (messages[i].role === messages[i - 1].role) {
+      // Merge messages[i] into messages[i-1]
+      const prev = messages[i - 1];
+      const curr = messages[i];
+
+      const prevBlocks =
+        typeof prev.content === 'string'
+          ? [{ type: 'text' as const, text: prev.content }]
+          : (prev.content as AnthropicContentBlockParam[]);
+      const currBlocks =
+        typeof curr.content === 'string'
+          ? [{ type: 'text' as const, text: curr.content }]
+          : (curr.content as AnthropicContentBlockParam[]);
+
+      messages[i - 1] = {
+        role: prev.role,
+        content: [...prevBlocks, ...currBlocks],
+      };
+      messages.splice(i, 1);
+    } else {
+      i++;
+    }
+  }
 }

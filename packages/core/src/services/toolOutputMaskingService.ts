@@ -7,6 +7,7 @@
 import type { Content, Part } from '@google/genai';
 import path from 'node:path';
 import * as fsPromises from 'node:fs/promises';
+import crypto from 'node:crypto';
 import { estimateTokenCountSync } from '../utils/tokenCalculation.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import type { Config } from '../config/config.js';
@@ -64,6 +65,12 @@ export class ToolOutputMaskingService {
       ? history.length - 2
       : history.length - 1;
 
+    // When protectLatestTurn is true and there's only one message,
+    // scanStartIdx is -1 — there's nothing to mask, so return early.
+    if (scanStartIdx < 0) {
+      return { newHistory: history, maskedCount: 0, tokensSaved: 0 };
+    }
+
     for (let i = scanStartIdx; i >= 0; i--) {
       const content = history[i];
       const parts = content.parts || [];
@@ -119,7 +126,10 @@ export class ToolOutputMaskingService {
       `[ToolOutputMasking] Triggering masking. Prunable tool tokens: ${totalPrunableTokens.toLocaleString()} (> ${maskingConfig.minPrunableTokensThreshold.toLocaleString()})`,
     );
 
-    const newHistory = [...history];
+    // Deep-clone the content records being modified to avoid mutating shared references.
+    // A shallow array copy ([...history]) would still share Content object references
+    // with the caller, making in-place reads of `.parts` fragile.
+    const newHistory = history.map((content) => structuredClone(content));
     let actualTokensSaved = 0;
     let toolOutputsDir: string;
     try {
@@ -134,7 +144,9 @@ export class ToolOutputMaskingService {
       }
       await fsPromises.mkdir(toolOutputsDir, { recursive: true });
     } catch (fsErr) {
-      debugLogger.warn(`[ToolOutputMasking] FS setup failed, skipping: ${fsErr}`);
+      debugLogger.warn(
+        `[ToolOutputMasking] FS setup failed, skipping: ${fsErr}`,
+      );
       return { newHistory: history, maskedCount: 0, tokensSaved: 0 };
     }
 
@@ -149,15 +161,18 @@ export class ToolOutputMaskingService {
       const callId = part.functionResponse.id || Date.now().toString();
       const safeToolName = sanitizeFilenamePart(toolName).toLowerCase();
       const safeCallId = sanitizeFilenamePart(callId).toLowerCase();
-      const fileName = `${safeToolName}_${safeCallId}_${Math.random()
-        .toString(36)
-        .substring(7)}.txt`;
+      const fileName = `${safeToolName}_${safeCallId}_${crypto.randomUUID()}.txt`;
       const filePath = path.join(toolOutputsDir, fileName);
 
       try {
-        await fsPromises.writeFile(filePath, content, { encoding: 'utf-8', mode: 0o600 });
+        await fsPromises.writeFile(filePath, content, {
+          encoding: 'utf-8',
+          mode: 0o600,
+        });
       } catch {
-        debugLogger.warn(`[ToolOutputMasking] Failed to write ${filePath}, skipping`);
+        debugLogger.warn(
+          `[ToolOutputMasking] Failed to write ${filePath}, skipping`,
+        );
         continue;
       }
 

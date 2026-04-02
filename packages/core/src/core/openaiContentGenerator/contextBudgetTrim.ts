@@ -12,101 +12,65 @@ export const CONTEXT_BUDGET_TRIM_SKIP_THRESHOLD = 1_000_000;
 const CONTEXT_BUDGET_RATIO = 0.7;
 const MIN_TOOL_CONTENT_CHARS = 500;
 
-function hasAssistantContent(
-  content: OpenAI.Chat.ChatCompletionAssistantMessageParam['content'],
-): boolean {
+/** Fixed token estimate for base64 image content (~1600 tokens per image). */
+const BASE64_IMAGE_TOKEN_ESTIMATE = 1600;
+
+/**
+ * Estimates tokens for an OpenAI message, handling different content types
+ * to avoid massively overestimating base64 image content.
+ */
+function estimateMessageTokens(
+  msg: OpenAI.Chat.ChatCompletionMessageParam,
+): number {
+  // Per-message overhead (role, name, etc.)
+  let tokens = 4;
+
+  const content = (msg as { content?: unknown }).content;
   if (typeof content === 'string') {
-    return content.trim().length > 0;
-  }
-  if (Array.isArray(content)) {
-    return content.length > 0;
-  }
-  return false;
-}
-
-function cleanOrphanedToolCallsAfterTrim(
-  messages: OpenAI.Chat.ChatCompletionMessageParam[],
-): OpenAI.Chat.ChatCompletionMessageParam[] {
-  const cleaned: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-  const toolCallIds = new Set<string>();
-  const toolResponseIds = new Set<string>();
-
-  // First pass: collect tool call and tool response IDs.
-  for (const message of messages) {
-    if (
-      message.role === 'assistant' &&
-      'tool_calls' in message &&
-      message.tool_calls
-    ) {
-      for (const toolCall of message.tool_calls) {
-        if (toolCall.id) {
-          toolCallIds.add(toolCall.id);
-        }
+    tokens += Math.ceil(content.length / 3);
+  } else if (Array.isArray(content)) {
+    for (const part of content) {
+      const p = part as Record<string, unknown>;
+      if (p['type'] === 'image_url') {
+        // Base64 images have a fixed token cost, not proportional to serialized size
+        tokens += BASE64_IMAGE_TOKEN_ESTIMATE;
+      } else if (p['type'] === 'text') {
+        tokens += Math.ceil(((p['text'] as string) ?? '').length / 3);
+      } else {
+        tokens += Math.ceil(JSON.stringify(p).length / 3);
       }
-    } else if (
-      message.role === 'tool' &&
-      'tool_call_id' in message &&
-      message.tool_call_id
-    ) {
-      toolResponseIds.add(message.tool_call_id);
     }
   }
 
-  // Second pass: filter out tool calls/responses that lost their counterpart.
-  for (const message of messages) {
-    if (
-      message.role === 'assistant' &&
-      'tool_calls' in message &&
-      message.tool_calls
-    ) {
-      const validToolCalls = message.tool_calls.filter(
-        (toolCall) => toolCall.id && toolResponseIds.has(toolCall.id),
-      );
-
-      if (validToolCalls.length > 0) {
-        const cleanedMessage = { ...message };
-        (
-          cleanedMessage as OpenAI.Chat.ChatCompletionMessageParam & {
-            tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
-          }
-        ).tool_calls = validToolCalls;
-        cleaned.push(cleanedMessage);
-      } else if (hasAssistantContent(message.content)) {
-        const cleanedMessage = { ...message };
-        delete (
-          cleanedMessage as OpenAI.Chat.ChatCompletionMessageParam & {
-            tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
-          }
-        ).tool_calls;
-        cleaned.push(cleanedMessage);
+  // Account for tool_calls in assistant messages
+  const toolCalls = (msg as { tool_calls?: unknown[] }).tool_calls;
+  if (Array.isArray(toolCalls)) {
+    for (const tc of toolCalls) {
+      const call = tc as Record<string, unknown>;
+      const fn = call['function'] as Record<string, string> | undefined;
+      if (fn) {
+        tokens +=
+          Math.ceil(
+            ((fn['name'] ?? '').length + (fn['arguments'] ?? '').length) / 3,
+          ) + 10;
       }
-      continue;
     }
-
-    if (
-      message.role === 'tool' &&
-      'tool_call_id' in message &&
-      message.tool_call_id
-    ) {
-      if (toolCallIds.has(message.tool_call_id)) {
-        cleaned.push(message);
-      }
-      continue;
-    }
-
-    cleaned.push(message);
   }
 
-  return cleaned;
+  return tokens;
 }
 
 function estimateTokens(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   tools?: unknown,
 ): number {
-  const msgLen = JSON.stringify(messages).length;
+  let total = 0;
+  for (const msg of messages) {
+    total += estimateMessageTokens(msg);
+  }
   const toolLen = tools ? JSON.stringify(tools).length : 0;
-  return Math.ceil((msgLen + toolLen) / 3);
+  total += Math.ceil(toolLen / 3);
+  return total;
 }
 
 /**
@@ -183,5 +147,52 @@ export function trimMessagesForContextBudget(
     estimate = estimateTokens(trimmed, tools);
   }
 
-  return cleanOrphanedToolCallsAfterTrim(trimmed);
+  // Clean up orphaned tool_call references: after dropping tool messages,
+  // assistant messages may reference tool_call IDs that no longer have
+  // corresponding tool results, causing OpenAI to return errors.
+  removeOrphanedToolCalls(trimmed);
+
+  return trimmed;
+}
+
+/**
+ * Scans for assistant messages with tool_calls whose IDs don't have
+ * corresponding tool result messages, and removes the orphaned tool_calls.
+ * If all tool_calls on an assistant message are orphaned, drops the entire message.
+ */
+function removeOrphanedToolCalls(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+): void {
+  // Collect all tool result IDs present in the conversation
+  const presentToolResultIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.role === 'tool') {
+      const toolMsg = msg as OpenAI.Chat.ChatCompletionToolMessageParam;
+      if (toolMsg.tool_call_id) {
+        presentToolResultIds.add(toolMsg.tool_call_id);
+      }
+    }
+  }
+
+  // Walk backwards so splice indices stay valid
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'assistant') continue;
+
+    const assistantMsg = msg as OpenAI.Chat.ChatCompletionAssistantMessageParam;
+    if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0)
+      continue;
+
+    const validCalls = assistantMsg.tool_calls.filter((tc) =>
+      presentToolResultIds.has(tc.id),
+    );
+
+    if (validCalls.length === 0) {
+      // All tool_calls are orphaned — drop the entire assistant message
+      messages.splice(i, 1);
+    } else if (validCalls.length < assistantMsg.tool_calls.length) {
+      // Some tool_calls are orphaned — keep only the valid ones
+      assistantMsg.tool_calls = validCalls;
+    }
+  }
 }
