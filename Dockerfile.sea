@@ -12,8 +12,9 @@ COPY . .
 
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
 RUN npm install fast-xml-parser --no-save 2>/dev/null || true
+RUN npm install tree-sitter tree-sitter-c tree-sitter-cpp tree-sitter-python node-gyp-build --no-save 2>/dev/null || true
 RUN npm run build
-RUN npm run bundle
+RUN TREE_SITTER_NODE_MODULES_DIR=/build/node_modules npm run bundle
 RUN BUNDLE_NATIVE_MODULES=false node scripts/build_binary.js
 
 FROM scratch AS output

@@ -190,10 +190,29 @@ const binaryName = platform === 'win32' ? 'apex.exe' : 'apex';
 const targetBinaryPath = join(targetDir, binaryName);
 
 console.log(`Copying node binary to ${targetBinaryPath}...`);
-copyFileSync(process.execPath, targetBinaryPath);
 
-// Remove existing signature (Linux is a no-op)
 if (platform === 'darwin') {
+  // macOS: universal binaries have the SEA fuse in each arch slice, causing
+  // postject to fail with "Multiple occurrences". Extract the native slice.
+  const lipoCheck = spawnSync('lipo', ['-info', process.execPath], {
+    encoding: 'utf8',
+  });
+  const isUniversal =
+    lipoCheck.stdout && lipoCheck.stdout.includes('Architectures in the');
+  if (isUniversal) {
+    console.log(`Universal binary detected — extracting ${arch} slice`);
+    const rc = spawnSync(
+      'lipo',
+      ['-extract', arch, process.execPath, '-output', targetBinaryPath],
+      { stdio: 'inherit' },
+    );
+    if (rc.status !== 0) {
+      console.error('lipo extract failed');
+      process.exit(1);
+    }
+  } else {
+    copyFileSync(process.execPath, targetBinaryPath);
+  }
   try {
     spawnSync('codesign', ['--remove-signature', targetBinaryPath], {
       stdio: 'ignore',
@@ -201,6 +220,8 @@ if (platform === 'darwin') {
   } catch (_e) {
     /* best effort */
   }
+} else {
+  copyFileSync(process.execPath, targetBinaryPath);
 }
 
 // --- Inject SEA blob ---
@@ -223,6 +244,11 @@ try {
 
   runCommand('npx', args);
   console.log('Injection successful.');
+
+  if (platform === 'darwin') {
+    console.log('Ad-hoc signing binary for macOS...');
+    spawnSync('codesign', ['-s', '-', targetBinaryPath], { stdio: 'inherit' });
+  }
 } catch (e) {
   console.error('Postject failed:', e.message);
   process.exit(1);

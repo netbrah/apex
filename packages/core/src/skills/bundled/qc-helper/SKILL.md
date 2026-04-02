@@ -27,22 +27,18 @@ Use this index to locate the right document for the user's question. Load only t
 
 ### Getting Started
 
-| Topic             | Doc Path                  |
-| ----------------- | ------------------------- |
-| Product overview  | `docs/overview.md`        |
-| Quick start guide | `docs/quickstart.md`      |
-| Common workflows  | `docs/common-workflow.md` |
+| Topic            | Doc Path                  |
+| ---------------- | ------------------------- |
+| Common workflows | `docs/common-workflow.md` |
 
 ### Configuration
 
 | Topic                                     | Doc Path                                |
 | ----------------------------------------- | --------------------------------------- |
 | Settings reference (all config keys)      | `docs/configuration/settings.md`        |
-| Authentication setup                      | `docs/configuration/auth.md`            |
 | Model providers (OpenAI-compatible, etc.) | `docs/configuration/model-providers.md` |
 | .apexignore file                          | `docs/configuration/apex-ignore.md`     |
 | Themes                                    | `docs/configuration/themes.md`          |
-| Memory                                    | `docs/configuration/memory.md`          |
 | Trusted folders                           | `docs/configuration/trusted-folders.md` |
 
 ### Features
@@ -61,6 +57,7 @@ Use this index to locate the right document for the user's question. Load only t
 | Token caching                               | `docs/features/token-caching.md` |
 | Language / i18n                             | `docs/features/language.md`      |
 | Arena mode                                  | `docs/features/arena.md`         |
+| Hooks                                       | `docs/features/hooks.md`         |
 
 ### IDE Integration
 
@@ -69,7 +66,6 @@ Use this index to locate the right document for the user's question. Load only t
 | VS Code integration     | `docs/integration-vscode.md`                 |
 | Zed IDE integration     | `docs/integration-zed.md`                    |
 | JetBrains integration   | `docs/integration-jetbrains.md`              |
-| GitHub Actions          | `docs/integration-github-action.md`          |
 | IDE companion spec      | `docs/ide-integration/ide-companion-spec.md` |
 | IDE integration details | `docs/ide-integration/ide-integration.md`    |
 
@@ -83,12 +79,11 @@ Use this index to locate the right document for the user's question. Load only t
 
 ### Reference & Support
 
-| Topic                      | Doc Path                               |
-| -------------------------- | -------------------------------------- |
-| Keyboard shortcuts         | `docs/reference/keyboard-shortcuts.md` |
-| Troubleshooting            | `docs/support/troubleshooting.md`      |
-| Uninstall guide            | `docs/support/Uninstall.md`            |
-| Terms of service & privacy | `docs/support/tos-privacy.md`          |
+| Topic              | Doc Path                               |
+| ------------------ | -------------------------------------- |
+| Keyboard shortcuts | `docs/reference/keyboard-shortcuts.md` |
+| Troubleshooting    | `docs/support/troubleshooting.md`      |
+| Uninstall guide    | `docs/support/Uninstall.md`            |
 
 ---
 

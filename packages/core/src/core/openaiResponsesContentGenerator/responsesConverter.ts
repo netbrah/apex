@@ -318,7 +318,7 @@ export function convertGeminiContentsToResponsesInput(
         if (role === 'assistant' && part.text) {
           items.push({
             type: 'reasoning',
-            id: '',
+            id: `rs_synth_${callIdCounter++}`,
             encrypted_content: '',
             summary: [{ type: 'summary_text', text: part.text }],
           } as ResponsesApiReasoningItem);
@@ -335,6 +335,9 @@ export function convertGeminiContentsToResponsesInput(
               parsed['type'] === 'compaction' ||
               parsed['type'] === 'reasoning'
             ) {
+              if (!parsed['id']) {
+                parsed['id'] = `rs_compact_${callIdCounter++}`;
+              }
               items.push(parsed as unknown as ResponsesApiInputItem);
               continue;
             }
@@ -351,7 +354,7 @@ export function convertGeminiContentsToResponsesInput(
 
       if ('functionCall' in part && part.functionCall) {
         const callId =
-          part.functionCall.id ?? `call_${Date.now()}_${callIdCounter++}`;
+          part.functionCall.id || `call_${Date.now()}_${callIdCounter++}`;
         items.push({
           type: 'function_call',
           call_id: callId,
@@ -370,7 +373,7 @@ export function convertGeminiContentsToResponsesInput(
         }
         items.push({
           type: 'function_call_output',
-          call_id: fr.id ?? '',
+          call_id: fr.id || `call_${Date.now()}_${callIdCounter++}`,
           output,
         } as ResponsesApiFunctionCallOutputItem);
       }

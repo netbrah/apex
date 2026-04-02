@@ -41,9 +41,9 @@ if (!fs.existsSync(vendorDir)) {
   process.exit(1);
 }
 
-const bundledDocsDir = path.join(distDir, 'bundled', 'qc-helper', 'docs');
-if (!fs.existsSync(bundledDocsDir)) {
-  console.error(`Error: Bundled docs not found at ${bundledDocsDir}`);
+const bundledSkillsDir = path.join(distDir, 'bundled');
+if (!fs.existsSync(bundledSkillsDir)) {
+  console.error(`Error: Bundled skills not found at ${bundledSkillsDir}`);
   console.error('Please run "npm run bundle" first');
   process.exit(1);
 }
@@ -170,6 +170,7 @@ const distPackageJson = {
     'apex',
     'postinstall.js',
     'bin',
+    '*.vsix',
   ],
   scripts: {
     postinstall: 'node postinstall.js',

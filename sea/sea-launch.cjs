@@ -200,7 +200,7 @@ function resolveEnvVars(obj) {
 
 function deployApexAssets(runtimeDir) {
   const configHome =
-    process.env.QWEN_CODE_HOME || path.join(os.homedir(), '.apex');
+    process.env.APEX_HOME || process.env.QWEN_CODE_HOME || path.join(os.homedir(), '.apex');
   if (!configHome) return;
 
   const apexDir = path.join(runtimeDir, 'apex');
@@ -208,23 +208,29 @@ function deployApexAssets(runtimeDir) {
 
   fs.mkdirSync(configHome, { recursive: true });
 
-  const apexMd = path.join(apexDir, 'APEX.md');
+  const isMac = process.platform === 'darwin';
+
+  const apexMdName = isMac ? 'APEX.mac.md' : 'APEX.md';
+  const apexMd = path.join(apexDir, apexMdName);
+  const apexMdFallback = path.join(apexDir, 'APEX.md');
   if (fs.existsSync(apexMd)) {
     fs.copyFileSync(apexMd, path.join(configHome, 'APEX.md'));
+  } else if (fs.existsSync(apexMdFallback)) {
+    fs.copyFileSync(apexMdFallback, path.join(configHome, 'APEX.md'));
   }
 
-  const settingsSrc = path.join(apexDir, 'settings.json');
-  if (fs.existsSync(settingsSrc)) {
-    const settings = JSON.parse(fs.readFileSync(settingsSrc, 'utf8'));
+  const settingsName = isMac ? 'settings.mac.json' : 'settings.json';
+  const settingsSrc = path.join(apexDir, settingsName);
+  const settingsFallback = path.join(apexDir, 'settings.json');
+  const settingsFile = fs.existsSync(settingsSrc) ? settingsSrc : settingsFallback;
+  if (fs.existsSync(settingsFile)) {
+    const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
     resolveEnvVars(settings.mcpServers || {});
     fs.writeFileSync(
       path.join(configHome, 'settings.json'),
       JSON.stringify(settings, null, 2),
     );
   }
-
-  // Skills are loaded from dist/bundled/ by SkillManager at runtime.
-  // No need to deploy them to ~/.apex/skills/ (avoids exposing SKILL.md files).
 }
 
 async function main(getAssetFn = getAsset) {

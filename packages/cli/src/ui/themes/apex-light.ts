@@ -28,7 +28,7 @@ const apexLightColors: ColorsTheme = {
 };
 
 export const ApexLight: Theme = new Theme(
-  'Qwen Light',
+  'Apex Light',
   'light',
   {
     hljs: {

@@ -33,6 +33,7 @@ export function trustedFoldersPayload(workspaceRoot) {
 export function detectPreferredCaBundle({ apexHome, fileExists }) {
   const candidates = [
     join(apexHome, 'ca-bundle.pem'),
+    '/etc/ssl/cert.pem',
     '/etc/pki/tls/certs/ca-bundle.crt',
     '/etc/ssl/certs/ca-certificates.crt',
   ];

@@ -108,6 +108,32 @@ class VsCodeInstaller implements IdeInstaller {
     this.vsCodeCommand = findVsCodeCommand(platform);
   }
 
+  private findBundledVsix(): string | null {
+    const candidates = [
+      // Relative to cli.js (npm install / npm link / SEA runtime)
+      path.join(
+        path.dirname(process.argv[1] || ''),
+        'apex-vscode-ide-companion-1.0.0.vsix',
+      ),
+      // Relative to this file (dev mode)
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'vscode-ide-companion',
+        'apex-vscode-ide-companion-1.0.0.vsix',
+      ),
+      // APEX_HOME
+      path.join(
+        process.env['APEX_HOME'] || path.join(os.homedir(), '.apex'),
+        'apex-vscode-ide-companion-1.0.0.vsix',
+      ),
+    ];
+    return candidates.find((c) => fs.existsSync(c)) ?? null;
+  }
+
   async install(): Promise<InstallResult> {
     const commandPath = await this.vsCodeCommand;
     if (!commandPath) {
@@ -118,9 +144,32 @@ class VsCodeInstaller implements IdeInstaller {
     }
 
     const isWindows = process.platform === 'win32';
+    const cmd = isWindows ? `"${commandPath}"` : commandPath;
+
+    // Try bundled .vsix first (works offline / behind firewall)
+    const vsixPath = this.findBundledVsix();
+    if (vsixPath) {
+      try {
+        const result = child_process.spawnSync(
+          cmd,
+          ['--install-extension', vsixPath, '--force'],
+          { stdio: 'pipe', shell: isWindows },
+        );
+        if (result.status === 0) {
+          return {
+            success: true,
+            message: `${this.ideInfo.displayName} companion extension was installed successfully.`,
+          };
+        }
+      } catch {
+        // Fall through to marketplace install
+      }
+    }
+
+    // Fall back to marketplace
     try {
       const result = child_process.spawnSync(
-        isWindows ? `"${commandPath}"` : commandPath,
+        cmd,
         ['--install-extension', 'netapp.apex-vscode-ide-companion', '--force'],
         { stdio: 'pipe', shell: isWindows },
       );

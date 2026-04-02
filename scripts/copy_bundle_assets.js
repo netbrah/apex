@@ -83,13 +83,30 @@ const apexAssetsDir = join(root, 'apex-assets');
 if (existsSync(apexAssetsDir)) {
   const apexDestDir = join(distDir, 'apex');
   mkdirSync(apexDestDir, { recursive: true });
-  for (const file of ['APEX.md', 'settings.json']) {
+  for (const file of [
+    'APEX.md',
+    'APEX.mac.md',
+    'settings.json',
+    'settings.mac.json',
+  ]) {
     const src = join(apexAssetsDir, file);
     if (existsSync(src)) {
       copyFileSync(src, join(apexDestDir, file));
       console.log(`Copied ${file} to dist/apex/`);
     }
   }
+}
+
+// Copy VS Code companion extension (.vsix) if present
+const vsixSrc = join(
+  root,
+  'packages',
+  'vscode-ide-companion',
+  'apex-vscode-ide-companion-1.0.0.vsix',
+);
+if (existsSync(vsixSrc)) {
+  copyFileSync(vsixSrc, join(distDir, 'apex-vscode-ide-companion-1.0.0.vsix'));
+  console.log('Copied VS Code companion extension to dist/');
 }
 
 console.log('\n✅ All bundle assets copied to dist/');
@@ -208,6 +225,7 @@ function getTreeSitterNodeModulesSourceDir() {
   const home = process.env.HOME || homedir();
   const candidates = [
     process.env.TREE_SITTER_NODE_MODULES_DIR,
+    join(root, 'node_modules'),
     join(home, 'Projects', 'opengrokmcp', 'node_modules'),
     join(home, 'Projects', 'opengrokmcp', 'vscode-mastra', 'node_modules'),
     join(home, 'Projects', 'agent_tasks', 'opengrokmcp', 'node_modules'),

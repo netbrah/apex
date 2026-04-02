@@ -76,10 +76,10 @@ export function IdeIntegrationNudge({
     : isExtensionPreInstalled
       ? `If you select Yes, the CLI will connect to your ${
           ideName ?? 'editor'
-        } and have access to your open files and display diffs directly.`
-      : `If you select Yes, we'll install an extension that allows the CLI to access your open files and display diffs directly in ${
+        } for session viewing and file navigation.`
+      : `If you select Yes, we'll install a companion extension for ${
           ideName ?? 'your editor'
-        }.`;
+        } that provides a session viewer, chat history browser, and file navigation panel.`;
 
   return (
     <Box
