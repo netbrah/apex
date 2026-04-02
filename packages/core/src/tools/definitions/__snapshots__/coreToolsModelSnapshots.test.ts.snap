@@ -217,7 +217,7 @@ exports[`coreTools snapshots for specific models > Model: gemini-2.5-pro > snaps
         "type": "string",
       },
       "respect_gemini_ignore": {
-        "description": "Optional: Whether to respect .geminiignore patterns when finding files. Defaults to true.",
+        "description": "Optional: Whether to respect .apexignore patterns when finding files. Defaults to true.",
         "type": "boolean",
       },
       "respect_git_ignore": {
@@ -379,10 +379,10 @@ exports[`coreTools snapshots for specific models > Model: gemini-2.5-pro > snaps
         "type": "string",
       },
       "file_filtering_options": {
-        "description": "Optional: Whether to respect ignore patterns from .gitignore or .geminiignore",
+        "description": "Optional: Whether to respect ignore patterns from .gitignore or .apexignore",
         "properties": {
           "respect_gemini_ignore": {
-            "description": "Optional: Whether to respect .geminiignore patterns when listing files. Defaults to true.",
+            "description": "Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.",
             "type": "boolean",
           },
           "respect_git_ignore": {
@@ -460,10 +460,10 @@ Use this tool when the user's query implies needing the content of several files
         "type": "array",
       },
       "file_filtering_options": {
-        "description": "Whether to respect ignore patterns from .gitignore or .geminiignore",
+        "description": "Whether to respect ignore patterns from .gitignore or .apexignore",
         "properties": {
           "respect_gemini_ignore": {
-            "description": "Optional: Whether to respect .geminiignore patterns when listing files. Defaults to true.",
+            "description": "Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.",
             "type": "boolean",
           },
           "respect_git_ignore": {
@@ -1047,7 +1047,7 @@ exports[`coreTools snapshots for specific models > Model: gemini-3-pro-preview >
         "type": "string",
       },
       "respect_gemini_ignore": {
-        "description": "Optional: Whether to respect .geminiignore patterns when finding files. Defaults to true.",
+        "description": "Optional: Whether to respect .apexignore patterns when finding files. Defaults to true.",
         "type": "boolean",
       },
       "respect_git_ignore": {
@@ -1209,10 +1209,10 @@ exports[`coreTools snapshots for specific models > Model: gemini-3-pro-preview >
         "type": "string",
       },
       "file_filtering_options": {
-        "description": "Optional: Whether to respect ignore patterns from .gitignore or .geminiignore",
+        "description": "Optional: Whether to respect ignore patterns from .gitignore or .apexignore",
         "properties": {
           "respect_gemini_ignore": {
-            "description": "Optional: Whether to respect .geminiignore patterns when listing files. Defaults to true.",
+            "description": "Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.",
             "type": "boolean",
           },
           "respect_git_ignore": {
@@ -1290,10 +1290,10 @@ Use this tool when the user's query implies needing the content of several files
         "type": "array",
       },
       "file_filtering_options": {
-        "description": "Whether to respect ignore patterns from .gitignore or .geminiignore",
+        "description": "Whether to respect ignore patterns from .gitignore or .apexignore",
         "properties": {
           "respect_gemini_ignore": {
-            "description": "Optional: Whether to respect .geminiignore patterns when listing files. Defaults to true.",
+            "description": "Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.",
             "type": "boolean",
           },
           "respect_git_ignore": {

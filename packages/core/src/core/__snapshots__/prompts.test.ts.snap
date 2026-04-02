@@ -40,7 +40,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -217,7 +217,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -513,7 +513,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -690,7 +690,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -807,10 +807,10 @@ Operate using a **Research -> Strategy -> Execution** lifecycle. For the Executi
 - **Help Command:** The user can use '/help' to display help information.
 - **Feedback:** To report a bug or provide feedback, please use the /bug command.
 
-# Contextual Instructions (GEMINI.md)
+# Contextual Instructions (APEX.md)
 The following content is loaded from local and global configuration files.
 **Context Precedence:**
-- **Global (~/.gemini/):** foundational user preferences. Apply these broadly.
+- **Global (~/.apex/):** foundational user preferences. Apply these broadly.
 - **Extensions:** supplementary knowledge and capabilities.
 - **Workspace Root:** workspace-wide mandates. Supersedes global preferences.
 - **Sub-directories:** highly specific overrides. These rules supersede all others for files within their scope.
@@ -865,7 +865,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -992,7 +992,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -1592,7 +1592,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -1763,7 +1763,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -1925,7 +1925,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -2087,7 +2087,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -2245,7 +2245,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -2403,7 +2403,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -2555,7 +2555,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -2712,7 +2712,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -2899,7 +2899,7 @@ Use 'read_file' to understand context and validate any assumptions you may have.
 6. **Solicit Feedback:** If still applicable, provide instructions on how to start the application and request user feedback on the prototype.
 
 # TASK MANAGEMENT PROTOCOL
-You are operating with a persistent file-based task tracking system located at \`/mock/.gemini/tmp/session/tracker\`. You must adhere to the following rules:
+You are operating with a persistent file-based task tracking system located at \`/mock/.apex/tmp/session/tracker\`. You must adhere to the following rules:
 
 1.  **NO IN-MEMORY LISTS**: Do not maintain a mental list of tasks or write markdown checkboxes in the chat. Use the provided tools (\`tracker_create_task\`, \`tracker_list_tasks\`, \`tracker_update_task\`) for all state management.
 2.  **IMMEDIATE DECOMPOSITION**: Upon receiving a task, evaluate its functional complexity and scope. If the request involves more than a single atomic modification, or necessitates research before execution, you MUST immediately decompose it into discrete entries using \`tracker_create_task\`.
@@ -2995,7 +2995,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -3079,7 +3079,7 @@ Operate using a **Research -> Strategy -> Execution** lifecycle. For the Executi
 5. **Solicit Feedback:** Provide instructions on how to start the application and request user feedback on the prototype.
 
 # TASK MANAGEMENT PROTOCOL
-You are operating with a persistent file-based task tracking system located at \`/mock/.gemini/tmp/session/tracker\`. You must adhere to the following rules:
+You are operating with a persistent file-based task tracking system located at \`/mock/.apex/tmp/session/tracker\`. You must adhere to the following rules:
 
 1.  **NO IN-MEMORY LISTS**: Do not maintain a mental list of tasks or write markdown checkboxes in the chat. Use the provided tools (\`tracker_create_task\`, \`tracker_list_tasks\`, \`tracker_update_task\`) for all state management.
 2.  **IMMEDIATE DECOMPOSITION**: Upon receiving a task, evaluate its functional complexity and scope. If the request involves more than a single atomic modification, or necessitates research before execution, you MUST immediately decompose it into discrete entries using \`tracker_create_task\`.
@@ -3406,7 +3406,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -3564,7 +3564,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -3834,7 +3834,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
@@ -3992,7 +3992,7 @@ Use the following guidelines to optimize your search and read patterns.
 </examples>
 
 ## Engineering Standards
-- **Contextual Precedence:** Instructions found in \`GEMINI.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
+- **Contextual Precedence:** Instructions found in \`APEX.md\` files are foundational mandates. They take absolute precedence over the general workflows and tool defaults described in this system prompt.
 - **Conventions & Style:** Rigorously adhere to existing workspace conventions, architectural patterns, and style (naming, formatting, typing, commenting). During the research phase, analyze surrounding files, tests, and configuration to ensure your changes are seamless, idiomatic, and consistent with the local context. Never compromise idiomatic quality or completeness (e.g., proper declarations, type safety, documentation) to minimize tool calls; all supporting changes required by local conventions are part of a surgical update.
 - **Types, warnings and linters:** NEVER use hacks like disabling or suppressing warnings or bypassing the type system (i.e.: casts in TypeScript) unless explicitly instructed to by the user. Instead, use idiomatic language features (e.g.: type guard functions).
 - **Libraries/Frameworks:** NEVER assume a library/framework is available. Verify its established usage within the project (check imports, configuration files like 'package.json', 'Cargo.toml', 'requirements.txt', etc.) before employing it.
