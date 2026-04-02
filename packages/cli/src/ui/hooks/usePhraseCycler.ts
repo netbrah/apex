@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { ThoughtSummary } from '@apex-code/apex-core';
-import { t, ta } from '../../i18n/index.js';
+import { t } from '../../i18n/index.js';
 import {
   APEX_LOADING_PHRASES,
   LOADING_PHRASE_ROTATION_MS,
@@ -34,10 +34,7 @@ export const usePhraseCycler = (
     if (customPhrases && customPhrases.length > 0) {
       return customPhrases;
     }
-    const translatedPhrases = ta('WITTY_LOADING_PHRASES');
-    return translatedPhrases.length > 0
-      ? translatedPhrases
-      : WITTY_LOADING_PHRASES;
+    return WITTY_LOADING_PHRASES;
   }, [customPhrases]);
 
   const [currentLoadingPhrase, setCurrentLoadingPhrase] = useState(

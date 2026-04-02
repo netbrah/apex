@@ -219,18 +219,9 @@ function deployApexAssets(runtimeDir) {
     fs.copyFileSync(apexMdFallback, path.join(configHome, 'APEX.md'));
   }
 
-  const settingsName = isMac ? 'settings.mac.json' : 'settings.json';
-  const settingsSrc = path.join(apexDir, settingsName);
-  const settingsFallback = path.join(apexDir, 'settings.json');
-  const settingsFile = fs.existsSync(settingsSrc) ? settingsSrc : settingsFallback;
-  if (fs.existsSync(settingsFile)) {
-    const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
-    resolveEnvVars(settings.mcpServers || {});
-    fs.writeFileSync(
-      path.join(configHome, 'settings.json'),
-      JSON.stringify(settings, null, 2),
-    );
-  }
+  // Settings deployment is handled by npm postinstall (postinstall-apex.js)
+  // and the npm launcher (apex-launcher.js). The SEA launcher no longer
+  // deploys settings to avoid clobbering user customizations on every launch.
 }
 
 async function main(getAssetFn = getAsset) {
