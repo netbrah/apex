@@ -4,13 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const apexAsciiLogo = `
- █████╗ ██████╗ ███████╗██╗  ██╗
-██╔══██╗██╔══██╗██╔════╝╚██╗██╔╝
-███████║██████╔╝█████╗   ╚███╔╝
-██╔══██║██╔═══╝ ██╔══╝   ██╔██╗
-██║  ██║██║     ███████╗██╔╝ ██╗
-╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝
+// Auto-generated feather logo from apex-icon-transparent.png
+// ascii-image-converter --braille --width 25 --threshold 128 --color
+export const shortAsciiLogo = `
+     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣴⣶⣿⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣷⣿⣿⣿⠟⠁⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣼⣿⣿⡿⣫⣿⡷⠖⠃⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⠀⢀⡄⣾⣿⣿⣿⠟⣫⣾⣿⣿⠿⠂⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⢿⠟⣡⠞⠛⠋⠻⠇⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⣶⣾⣿⡿⠁⡠⠾⠿⠟⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⠀⣸⣫⣿⣶⣿⠿⠶⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠀⠀⡠⠞⠛⠻⠷⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+     ⠀⠀⠀⠐⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 `;
-
-export const shortAsciiLogo = apexAsciiLogo;
