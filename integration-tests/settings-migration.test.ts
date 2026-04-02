@@ -56,7 +56,7 @@ describe('settings-migration', () => {
   ) => {
     const qwenDir = join(
       (testRig as unknown as { testDir: string }).testDir,
-      '.qwen',
+      '.apex',
     );
     writeFileSync(
       join(qwenDir, 'settings.json'),
@@ -70,7 +70,7 @@ describe('settings-migration', () => {
   const readSettingsFile = (testRig: TestRig): Record<string, unknown> => {
     const qwenDir = join(
       (testRig as unknown as { testDir: string }).testDir,
-      '.qwen',
+      '.apex',
     );
     const content = readFileSync(join(qwenDir, 'settings.json'), 'utf-8');
     return JSON.parse(content) as Record<string, unknown>;

@@ -122,7 +122,7 @@ export interface SDKSystemMessage {
   model?: string;
   permission_mode?: string;
   slash_commands?: string[];
-  qwen_code_version?: string;
+  apex_version?: string;
   output_style?: string;
   agents?: string[];
   skills?: string[];
@@ -236,12 +236,7 @@ export type PermissionMode = 'default' | 'plan' | 'auto-edit' | 'yolo';
  * Authentication types supported by the CLI.
  * Aligns with CLI's --auth-type parameter.
  */
-export type AuthType =
-  | 'openai'
-  | 'anthropic'
-  | 'qwen-oauth'
-  | 'gemini'
-  | 'vertex-ai';
+export type AuthType = 'openai' | 'anthropic' | 'gemini' | 'vertex-ai';
 
 /**
  * TODO: Align with `ToolCallConfirmationDetails`

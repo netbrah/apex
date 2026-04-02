@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { query, isSDKSystemMessage, type SDKMessage } from '@qwen-code/sdk';
+import { query, isSDKSystemMessage, type SDKMessage } from '@apex-code/sdk';
 import {
   SDKTestHelper,
   createSharedTestOptions,

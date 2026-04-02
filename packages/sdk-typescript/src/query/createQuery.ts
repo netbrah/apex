@@ -26,7 +26,7 @@ export function query({
   options = {},
 }: {
   /**
-   * The prompt to send to the Qwen Code CLI process.
+   * The prompt to send to the APEX CLI process.
    * - `string` for single-turn query,
    * - `AsyncIterable<SDKUserMessage>` for multi-turn query.
    *
@@ -42,7 +42,7 @@ export function query({
 
   const isSingleTurn = typeof prompt === 'string';
 
-  const pathToQwenExecutable = options.pathToQwenExecutable;
+  const pathToApexExecutable = options.pathToApexExecutable;
 
   const abortController = options.abortController ?? new AbortController();
 
@@ -51,7 +51,7 @@ export function query({
   const resolvedSystemPrompt = resolveSystemPromptOption(options.systemPrompt);
 
   const transport = new ProcessTransport({
-    pathToQwenExecutable,
+    pathToApexExecutable,
     spawnInfo,
     cwd: options.cwd,
     model: options.model,
@@ -152,9 +152,9 @@ function validateOptions(options: QueryOptions): SpawnInfo | undefined {
   }
 
   try {
-    return prepareSpawnInfo(options.pathToQwenExecutable);
+    return prepareSpawnInfo(options.pathToApexExecutable);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid pathToQwenExecutable: ${errorMessage}`);
+    throw new Error(`Invalid pathToApexExecutable: ${errorMessage}`);
   }
 }

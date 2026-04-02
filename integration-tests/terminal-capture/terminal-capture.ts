@@ -229,7 +229,7 @@ export class TerminalCapture {
    * const t = await TerminalCapture.create({
    *   theme: 'dracula',
    *   chrome: true,
-   *   title: 'qwen-code',
+   *   title: 'apex',
    * });
    * ```
    */

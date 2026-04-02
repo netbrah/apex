@@ -10,7 +10,7 @@ import type { SpawnInfo } from '../utils/cliPath.js';
 export type { PermissionMode, AuthType };
 
 export type TransportOptions = {
-  pathToQwenExecutable?: string;
+  pathToApexExecutable?: string;
   spawnInfo?: SpawnInfo;
   cwd?: string;
   model?: string;
@@ -202,7 +202,7 @@ export interface QueryOptions {
 
   /**
    * The AI model to use for the query session.
-   * This takes precedence over the environment variables `OPENAI_MODEL` and `QWEN_MODEL`
+   * This takes precedence over the environment variables `OPENAI_MODEL` and `APEX_MODEL`
    * @example 'qwen-max', 'qwen-plus', 'qwen-turbo'
    */
   model?: string;
@@ -228,7 +228,7 @@ export interface QueryOptions {
    * @example 'qwen'
    * @example './packages/cli/index.ts'
    */
-  pathToQwenExecutable?: string;
+  pathToApexExecutable?: string;
 
   /**
    * Environment variables to pass to the Qwen CLI process.
@@ -241,7 +241,7 @@ export interface QueryOptions {
    *
    * - `string`: fully overrides the main session system prompt
    * - `{ type: 'preset', preset: 'qwen_code', append?: string }`:
-   *   uses Qwen Code's built-in prompt as the base and optionally appends extra
+   *   uses APEX's built-in prompt as the base and optionally appends extra
    *   instructions for the main session
    */
   systemPrompt?: QuerySystemPrompt;
@@ -418,10 +418,6 @@ export interface QueryOptions {
   /**
    * Authentication type for the AI service.
    * - 'openai': Use OpenAI-compatible authentication
-   * - 'qwen-oauth': Use Qwen OAuth authentication
-   *
-   * Though we support 'qwen-oauth', it's not recommended to use it in the SDK.
-   * Because the credentials are stored in `~/.qwen` and may need to refresh periodically.
    */
   authType?: AuthType;
 

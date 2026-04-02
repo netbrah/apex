@@ -10,7 +10,7 @@ import {
   isSDKAssistantMessage,
   type SDKPartialAssistantMessage,
   type TextBlock,
-} from '@qwen-code/sdk';
+} from '@apex-code/sdk';
 import { SDKTestHelper, createSharedTestOptions } from './test-helper.js';
 
 const SHARED_TEST_OPTIONS = createSharedTestOptions();

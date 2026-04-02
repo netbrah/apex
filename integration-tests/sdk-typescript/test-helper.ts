@@ -21,12 +21,12 @@ import type {
   ContentBlock,
   TextBlock,
   ToolUseBlock,
-} from '@qwen-code/sdk';
+} from '@apex-code/sdk';
 import {
   isSDKAssistantMessage,
   isSDKSystemMessage,
   isSDKResultMessage,
-} from '@qwen-code/sdk';
+} from '@apex-code/sdk';
 
 // ============================================================================
 // Core Test Helper Class
@@ -34,11 +34,11 @@ import {
 
 export interface SDKTestHelperOptions {
   /**
-   * Optional settings for .qwen/settings.json
+   * Optional settings for .apex/settings.json
    */
   settings?: Record<string, unknown>;
   /**
-   * Whether to create .qwen/settings.json
+   * Whether to create .apex/settings.json
    */
   createQwenConfig?: boolean;
   /**
@@ -79,9 +79,9 @@ export class SDKTestHelper {
 
     await mkdir(this.testDir, { recursive: true });
 
-    // Optionally create .qwen/settings.json for CLI configuration
+    // Optionally create .apex/settings.json for CLI configuration
     if (options.createQwenConfig !== false) {
-      const qwenDir = join(this.testDir, '.qwen');
+      const qwenDir = join(this.testDir, '.apex');
       await mkdir(qwenDir, { recursive: true });
 
       const optionsSettings = options.settings ?? {};
@@ -1009,7 +1009,7 @@ export function createSharedTestOptions(
   }
 
   return {
-    pathToQwenExecutable: TEST_CLI_PATH,
+    pathToApexExecutable: TEST_CLI_PATH,
     ...overrides,
   };
 }

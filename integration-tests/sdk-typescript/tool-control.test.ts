@@ -18,7 +18,7 @@ import {
   isSDKResultMessage,
   type SDKMessage,
   type SDKUserMessage,
-} from '@qwen-code/sdk';
+} from '@apex-code/sdk';
 import {
   SDKTestHelper,
   extractText,

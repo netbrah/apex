@@ -17,7 +17,7 @@ import {
   isSDKAssistantMessage,
   isSDKSystemMessage,
   type SDKMessage,
-} from '@qwen-code/sdk';
+} from '@apex-code/sdk';
 import {
   SDKTestHelper,
   extractText,
@@ -438,12 +438,8 @@ describe('Configuration Options (E2E)', () => {
       }
     });
 
-    // Skip - qwen-oauth requires user interaction which is not possible in CI environments
-    it.skip('should accept authType: qwen-oauth', async () => {
-      // Note: qwen-oauth requires credentials in ~/.qwen and user interaction
-      // Without credentials, the auth process will timeout waiting for user
-      // This test verifies the option is accepted and passed correctly to CLI
-
+    // Skip - gemini requires GEMINI_API_KEY which is not available in CI environments
+    it.skip('should accept authType: gemini', async () => {
       const stderrMessages: string[] = [];
 
       const q = query({
@@ -451,7 +447,7 @@ describe('Configuration Options (E2E)', () => {
         options: {
           ...SHARED_TEST_OPTIONS,
           cwd: testDir,
-          authType: 'qwen-oauth',
+          authType: 'gemini',
           debug: true,
           logLevel: 'debug',
           stderr: (msg: string) => {

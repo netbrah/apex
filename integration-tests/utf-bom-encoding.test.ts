@@ -134,7 +134,7 @@ d('BOM end-to-end integration', () => {
     const filename = 'bom-test.js';
     writeFileSync(join(dir, filename), fileWithBOM);
 
-    // Ask Qwen Code to edit the file
+    // Ask APEX to edit the file
     const prompt = `edit the file ${filename} to change the return value from "hello" to "world"`;
     await rig.run(prompt);
     await rig.waitForToolCall('edit_file');
@@ -163,7 +163,7 @@ d('BOM end-to-end integration', () => {
     const filename = 'bom-overwrite.js';
     writeFileSync(join(dir, filename), fileWithBOM);
 
-    // Ask Qwen Code to overwrite the file with new content
+    // Ask APEX to overwrite the file with new content
     const prompt = `overwrite the file ${filename} with: const y = 2;\n// new content`;
     await rig.run(prompt);
     await rig.waitForToolCall('write_file');
@@ -195,7 +195,7 @@ describe('BOM with defaultFileEncoding configuration', () => {
 
     const filename = 'new-file-with-bom.js';
 
-    // Ask Qwen Code to create a new file
+    // Ask APEX to create a new file
     const prompt = `create a new file called ${filename} with content: const greeting = "hello";`;
     await rigWithBOM.run(prompt);
     await rigWithBOM.waitForToolCall('write_file');

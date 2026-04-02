@@ -154,7 +154,7 @@ export class TestRig {
   // Get timeout based on environment
   getDefaultTimeout() {
     if (env['CI']) return 60000; // 1 minute in CI
-    if (env['QWEN_SANDBOX']) return 30000; // 30s in containers
+    if (env['APEX_SANDBOX']) return 30000; // 30s in containers
     return 15000; // 15s locally
   }
 
@@ -168,7 +168,7 @@ export class TestRig {
     mkdirSync(this.testDir, { recursive: true });
 
     // Create a settings file to point the CLI to the local collector
-    const qwenDir = join(this.testDir, '.qwen');
+    const qwenDir = join(this.testDir, '.apex');
     mkdirSync(qwenDir, { recursive: true });
     // In sandbox mode, use an absolute path for telemetry inside the container
     // The container mounts the test directory at the same path as the host
@@ -181,7 +181,7 @@ export class TestRig {
         otlpEndpoint: '',
         outfile: telemetryPath,
       },
-      sandbox: env.QWEN_SANDBOX !== 'false' ? env.QWEN_SANDBOX : false,
+      sandbox: env.APEX_SANDBOX !== 'false' ? env.APEX_SANDBOX : false,
       ...options.settings, // Allow tests to override/add settings
     };
     writeFileSync(
@@ -206,7 +206,7 @@ export class TestRig {
   }
 
   /**
-   * The command and args to use to invoke Qwen Code CLI. Allows us to switch
+   * The command and args to use to invoke APEX CLI. Allows us to switch
    * between using the bundled gemini.js (the default) and using the installed
    * 'qwen' (used to verify npm bundles).
    */
@@ -301,7 +301,7 @@ export class TestRig {
           // Filter out telemetry output when running with Podman
           // Podman seems to output telemetry to stdout even when writing to file
           let result = stdout;
-          if (env['QWEN_SANDBOX'] === 'podman') {
+          if (env['APEX_SANDBOX'] === 'podman') {
             // Remove telemetry JSON objects from output
             // They are multi-line JSON objects that start with { and contain telemetry fields
             const lines = result.split(EOL);
@@ -487,7 +487,7 @@ export class TestRig {
         return logs.some(
           (logData) =>
             logData.attributes &&
-            logData.attributes['event.name'] === `qwen-code.${eventName}`,
+            logData.attributes['event.name'] === `apex.${eventName}`,
         );
       },
       timeout,
@@ -661,7 +661,7 @@ export class TestRig {
                 }
               } else if (
                 obj.attributes &&
-                obj.attributes['event.name'] === 'qwen-code.tool_call'
+                obj.attributes['event.name'] === 'apex.tool_call'
               ) {
                 logs.push({
                   timestamp: obj.attributes['event.timestamp'],
@@ -727,7 +727,7 @@ export class TestRig {
   readToolLogs() {
     // For Podman, first check if telemetry file exists and has content
     // If not, fall back to parsing from stdout
-    if (env['QWEN_SANDBOX'] === 'podman') {
+    if (env['APEX_SANDBOX'] === 'podman') {
       // Try reading from file first
       const logFilePath = join(this.testDir!, 'telemetry.log');
 
@@ -767,7 +767,7 @@ export class TestRig {
       // Look for tool call logs
       if (
         logData.attributes &&
-        logData.attributes['event.name'] === 'qwen-code.tool_call'
+        logData.attributes['event.name'] === 'apex.tool_call'
       ) {
         const toolName = logData.attributes.function_name;
         logs.push({
@@ -789,7 +789,7 @@ export class TestRig {
     const apiRequests = logs.filter(
       (logData) =>
         logData.attributes &&
-        logData.attributes['event.name'] === 'qwen-code.api_request',
+        logData.attributes['event.name'] === 'apex.api_request',
     );
     return apiRequests.pop() || null;
   }
@@ -800,7 +800,7 @@ export class TestRig {
       if (logData.scopeMetrics) {
         for (const scopeMetric of logData.scopeMetrics) {
           for (const metric of scopeMetric.metrics) {
-            if (metric.descriptor.name === `qwen-code.${metricName}`) {
+            if (metric.descriptor.name === `apex.${metricName}`) {
               return metric;
             }
           }

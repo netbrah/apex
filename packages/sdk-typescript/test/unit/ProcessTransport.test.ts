@@ -59,7 +59,7 @@ function createMockChildProcess(
     connected: false,
     stdio: [mockStdin, mockStdout, mockStderr, null, null],
     spawnargs: [],
-    spawnfile: 'qwen',
+    spawnfile: 'apex',
     channel: null,
     ...overrides,
   }) as unknown as ChildProcess & EventEmitter;
@@ -110,7 +110,7 @@ describe('ProcessTransport', () => {
       connected: false,
       stdio: [mockStdin, mockStdout, mockStderr, null, null],
       spawnargs: [],
-      spawnfile: 'qwen',
+      spawnfile: 'apex',
       channel: null,
     }) as unknown as ChildProcess & EventEmitter;
   });
@@ -122,15 +122,15 @@ describe('ProcessTransport', () => {
   describe('Construction and Initialization', () => {
     it('should create transport with required options', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -138,7 +138,7 @@ describe('ProcessTransport', () => {
       expect(transport).toBeDefined();
       expect(transport.isReady).toBe(true);
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining([
           '--input-format',
           'stream-json',
@@ -153,15 +153,15 @@ describe('ProcessTransport', () => {
 
     it('should build CLI arguments correctly with all options', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         model: 'qwen-max',
         permissionMode: 'auto-edit',
         maxSessionTurns: 10,
@@ -173,7 +173,7 @@ describe('ProcessTransport', () => {
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining([
           '--input-format',
           'stream-json',
@@ -198,22 +198,22 @@ describe('ProcessTransport', () => {
 
     it('should pass systemPrompt through --system-prompt', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         systemPrompt: 'You are a test system prompt.',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining([
           '--system-prompt',
           'You are a test system prompt.',
@@ -224,22 +224,22 @@ describe('ProcessTransport', () => {
 
     it('should pass appendSystemPrompt through --append-system-prompt', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         appendSystemPrompt: 'Be extra concise.',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining(['--append-system-prompt', 'Be extra concise.']),
         expect.any(Object),
       );
@@ -247,15 +247,15 @@ describe('ProcessTransport', () => {
 
     it('should pass both systemPrompt and appendSystemPrompt when provided', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         systemPrompt: 'Override prompt',
         appendSystemPrompt: 'Append prompt',
       };
@@ -263,7 +263,7 @@ describe('ProcessTransport', () => {
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining([
           '--system-prompt',
           'Override prompt',
@@ -276,22 +276,22 @@ describe('ProcessTransport', () => {
 
     it('should include --resume argument when provided', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         resume: '123e4567-e89b-12d3-a456-426614174000',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining([
           '--resume',
           '123e4567-e89b-12d3-a456-426614174000',
@@ -302,22 +302,22 @@ describe('ProcessTransport', () => {
 
     it('should include --session-id argument when sessionId is provided without resume', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         sessionId: '123e4567-e89b-12d3-a456-426614174000',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.arrayContaining([
           '--session-id',
           '123e4567-e89b-12d3-a456-426614174000',
@@ -328,17 +328,17 @@ describe('ProcessTransport', () => {
 
     it('should throw if aborted before initialization', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const abortController = new AbortController();
       abortController.abort();
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -350,23 +350,23 @@ describe('ProcessTransport', () => {
 
     it('should use provided AbortController', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const abortController = new AbortController();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           signal: abortController.signal,
@@ -376,21 +376,21 @@ describe('ProcessTransport', () => {
 
     it('should create default AbortController if not provided', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           signal: expect.any(AbortSignal),
@@ -402,15 +402,15 @@ describe('ProcessTransport', () => {
   describe('Lifecycle Management', () => {
     it('should spawn subprocess during construction', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -420,15 +420,15 @@ describe('ProcessTransport', () => {
 
     it('should set isReady to true after successful initialization', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -438,15 +438,15 @@ describe('ProcessTransport', () => {
 
     it('should set isReady to false on process error', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -459,15 +459,15 @@ describe('ProcessTransport', () => {
 
     it('should close subprocess gracefully with SIGTERM', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -481,15 +481,15 @@ describe('ProcessTransport', () => {
       vi.useFakeTimers();
 
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -505,15 +505,15 @@ describe('ProcessTransport', () => {
 
     it('should be idempotent when calling close() multiple times', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -527,15 +527,15 @@ describe('ProcessTransport', () => {
 
     it('should wait for process exit in waitForExit()', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -549,15 +549,15 @@ describe('ProcessTransport', () => {
 
     it('should reject waitForExit() on non-zero exit code', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -573,15 +573,15 @@ describe('ProcessTransport', () => {
 
     it('should reject waitForExit() on signal termination', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -597,16 +597,16 @@ describe('ProcessTransport', () => {
 
     it('should reject waitForExit() with AbortError when aborted', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const abortController = new AbortController();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -624,10 +624,10 @@ describe('ProcessTransport', () => {
   describe('Message Reading', () => {
     it('should read JSON Lines from stdout', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
@@ -643,7 +643,7 @@ describe('ProcessTransport', () => {
       });
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -667,17 +667,17 @@ describe('ProcessTransport', () => {
 
     it('should throw if reading from transport without stdout', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const processWithoutStdout = createMockChildProcess({ stdout: null });
       mockSpawn.mockReturnValue(processWithoutStdout);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -693,15 +693,15 @@ describe('ProcessTransport', () => {
   describe('Message Writing', () => {
     it('should write message to stdin', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -714,15 +714,15 @@ describe('ProcessTransport', () => {
 
     it('should throw if writing before transport is ready', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -736,15 +736,15 @@ describe('ProcessTransport', () => {
 
     it('should throw if writing to closed transport', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -759,16 +759,16 @@ describe('ProcessTransport', () => {
 
     it('should throw if writing when aborted', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const abortController = new AbortController();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -784,15 +784,15 @@ describe('ProcessTransport', () => {
 
     it('should throw when writing to ended stream', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -804,17 +804,17 @@ describe('ProcessTransport', () => {
 
     it('should throw if writing to terminated process', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const terminatedProcess = createMockChildProcess({ exitCode: 1 });
       mockSpawn.mockReturnValue(terminatedProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -826,15 +826,15 @@ describe('ProcessTransport', () => {
 
     it('should throw if process has exit error', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -851,15 +851,15 @@ describe('ProcessTransport', () => {
   describe('Error Handling', () => {
     it('should set exitError on process error', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -873,15 +873,15 @@ describe('ProcessTransport', () => {
 
     it('should set exitError on process close with non-zero code', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -896,15 +896,15 @@ describe('ProcessTransport', () => {
 
     it('should set exitError on process close with signal', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -919,16 +919,16 @@ describe('ProcessTransport', () => {
 
     it('should set AbortError when process aborted', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const abortController = new AbortController();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -943,15 +943,15 @@ describe('ProcessTransport', () => {
 
     it('should not set exitError on clean exit', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -965,17 +965,17 @@ describe('ProcessTransport', () => {
   describe('Resource Cleanup', () => {
     it('should register cleanup on parent process exit', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const processOnSpy = vi.spyOn(process, 'on');
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -987,17 +987,17 @@ describe('ProcessTransport', () => {
 
     it('should remove event listeners on close', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const processOffSpy = vi.spyOn(process, 'off');
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1011,10 +1011,10 @@ describe('ProcessTransport', () => {
 
     it('should register abort listener', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
@@ -1025,7 +1025,7 @@ describe('ProcessTransport', () => {
       );
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -1041,10 +1041,10 @@ describe('ProcessTransport', () => {
 
     it('should remove abort listener on close', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
@@ -1055,7 +1055,7 @@ describe('ProcessTransport', () => {
       );
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -1073,15 +1073,15 @@ describe('ProcessTransport', () => {
 
     it('should end stdin on close', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1097,22 +1097,22 @@ describe('ProcessTransport', () => {
   describe('Working Directory', () => {
     it('should spawn process in specified cwd', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         cwd: '/custom/path',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           cwd: '/custom/path',
@@ -1122,21 +1122,21 @@ describe('ProcessTransport', () => {
 
     it('should default to process.cwd() if not specified', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           cwd: process.cwd(),
@@ -1148,15 +1148,15 @@ describe('ProcessTransport', () => {
   describe('Environment Variables', () => {
     it('should pass environment variables to subprocess', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         env: {
           CUSTOM_VAR: 'custom_value',
         },
@@ -1165,7 +1165,7 @@ describe('ProcessTransport', () => {
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           env: expect.objectContaining({
@@ -1177,21 +1177,21 @@ describe('ProcessTransport', () => {
 
     it('should inherit parent env by default', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           env: expect.objectContaining(process.env),
@@ -1201,15 +1201,15 @@ describe('ProcessTransport', () => {
 
     it('should merge custom env with parent env', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         env: {
           CUSTOM_VAR: 'custom_value',
         },
@@ -1218,7 +1218,7 @@ describe('ProcessTransport', () => {
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           env: expect.objectContaining({
@@ -1233,22 +1233,22 @@ describe('ProcessTransport', () => {
   describe('Debug and Stderr Handling', () => {
     it('should pipe stderr when debug is true', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         debug: true,
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -1258,23 +1258,23 @@ describe('ProcessTransport', () => {
 
     it('should pipe stderr when stderr callback is provided', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const stderrCallback = vi.fn();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         stderr: stderrCallback,
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -1284,22 +1284,22 @@ describe('ProcessTransport', () => {
 
     it('should ignore stderr when debug is false and no callback', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         debug: false,
       };
 
       new ProcessTransport(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'ignore'],
@@ -1309,16 +1309,16 @@ describe('ProcessTransport', () => {
 
     it('should call stderr callback when data is received', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const stderrCallback = vi.fn();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         stderr: stderrCallback,
         debug: true, // Enable debug to ensure stderr data is logged
       };
@@ -1340,15 +1340,15 @@ describe('ProcessTransport', () => {
   describe('Stream Access', () => {
     it('should provide access to stdin via getInputStream()', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1358,15 +1358,15 @@ describe('ProcessTransport', () => {
 
     it('should provide access to stdout via getOutputStream()', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1376,15 +1376,15 @@ describe('ProcessTransport', () => {
 
     it('should allow ending input via endInput()', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1400,17 +1400,17 @@ describe('ProcessTransport', () => {
   describe('Edge Cases', () => {
     it('should handle process that exits immediately', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const immediateExitProcess = createMockChildProcess({ exitCode: 0 });
       mockSpawn.mockReturnValue(immediateExitProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1420,17 +1420,17 @@ describe('ProcessTransport', () => {
 
     it('should handle waitForExit() when process already exited', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const exitedProcess = createMockChildProcess({ exitCode: 0 });
       mockSpawn.mockReturnValue(exitedProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1440,17 +1440,17 @@ describe('ProcessTransport', () => {
 
     it('should handle close() when process is already killed', async () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const killedProcess = createMockChildProcess({ killed: true });
       mockSpawn.mockReturnValue(killedProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1460,17 +1460,17 @@ describe('ProcessTransport', () => {
 
     it('should handle endInput() when stdin is null', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const processWithoutStdin = createMockChildProcess({ stdin: null });
       mockSpawn.mockReturnValue(processWithoutStdin);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1480,17 +1480,17 @@ describe('ProcessTransport', () => {
 
     it('should return undefined for getInputStream() when stdin is null', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const processWithoutStdin = createMockChildProcess({ stdin: null });
       mockSpawn.mockReturnValue(processWithoutStdin);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1500,17 +1500,17 @@ describe('ProcessTransport', () => {
 
     it('should return undefined for getOutputStream() when stdout is null', () => {
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
 
       const processWithoutStdout = createMockChildProcess({ stdout: null });
       mockSpawn.mockReturnValue(processWithoutStdout);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       const transport = new ProcessTransport(options);
@@ -1531,7 +1531,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1543,15 +1543,15 @@ describe('ProcessTransport', () => {
     it('should use spawn when FORK_MODE is not set', () => {
       // process.env.FORK_MODE is not set
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1571,7 +1571,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1598,7 +1598,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1623,7 +1623,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         debug: true,
       };
 
@@ -1651,7 +1651,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1677,7 +1677,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1704,7 +1704,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         env: { CUSTOM_VAR: 'value' },
       };
 
@@ -1733,7 +1733,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         cwd: '/custom/workdir',
       };
 
@@ -1760,7 +1760,7 @@ describe('ProcessTransport', () => {
 
       const abortController = new AbortController();
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
         abortController,
       };
 
@@ -1778,15 +1778,15 @@ describe('ProcessTransport', () => {
     it('should fallback to spawn for native type when FORK_MODE=1', () => {
       process.env.FORK_MODE = '1';
       mockPrepareSpawnInfo.mockReturnValue({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
       mockSpawn.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);
@@ -1794,7 +1794,7 @@ describe('ProcessTransport', () => {
       // Native type should fallback to spawn, not fork
       expect(mockFork).not.toHaveBeenCalled();
       expect(mockSpawn).toHaveBeenCalledWith(
-        'qwen',
+        'apex',
         expect.any(Array),
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'ignore'],
@@ -1813,7 +1813,7 @@ describe('ProcessTransport', () => {
       mockFork.mockReturnValue(mockChildProcess);
 
       const options: TransportOptions = {
-        pathToQwenExecutable: 'qwen',
+        pathToApexExecutable: 'apex',
       };
 
       new ProcessTransport(options);

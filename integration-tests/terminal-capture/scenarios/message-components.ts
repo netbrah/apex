@@ -13,7 +13,7 @@ import type { ScenarioConfig } from '../scenario-runner.js';
 export default {
   name: 'message-components',
   spawn: ['node', 'dist/cli.js', '--yolo'],
-  terminal: { title: 'qwen-code', cwd: '../../..' },
+  terminal: { title: 'apex', cwd: '../../..' },
   flow: [
     // Test info message via /skills command (instant, no streaming)
     { type: '/skills' },

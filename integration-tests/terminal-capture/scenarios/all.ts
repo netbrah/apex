@@ -4,7 +4,7 @@ export default [
   {
     name: '/about',
     spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: { title: 'qwen-code', cwd: '../../..' },
+    terminal: { title: 'apex', cwd: '../../..' },
     flow: [
       { type: 'Hi, can you help me understand this codebase?' },
       { type: '/about' },
@@ -13,7 +13,7 @@ export default [
   {
     name: '/context',
     spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: { title: 'qwen-code', cwd: '../../..' },
+    terminal: { title: 'apex', cwd: '../../..' },
     flow: [
       { type: 'How do you understand this project?' },
       { type: '/context' },
@@ -23,7 +23,7 @@ export default [
   {
     name: '/export (tab select)',
     spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: { title: 'qwen-code', cwd: '../../..' },
+    terminal: { title: 'apex', cwd: '../../..' },
     flow: [
       { type: 'Please give me a brief introduction about yourself.' },
       { type: '/export' },
@@ -35,7 +35,7 @@ export default [
   {
     name: '/auth',
     spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: { title: 'qwen-code', cwd: '../../..' },
+    terminal: { title: 'apex', cwd: '../../..' },
     flow: [
       { type: '/auth' },
       { key: 'ArrowDown' }, // Select API Key

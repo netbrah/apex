@@ -47,7 +47,7 @@ export class ProcessTransport implements Transport {
 
       const spawnInfo =
         this.options.spawnInfo ??
-        prepareSpawnInfo(this.options.pathToQwenExecutable);
+        prepareSpawnInfo(this.options.pathToApexExecutable);
 
       const stderrMode =
         this.options.debug || this.options.stderr ? 'pipe' : 'ignore';

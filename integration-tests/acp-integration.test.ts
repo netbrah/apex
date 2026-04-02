@@ -14,8 +14,8 @@ import { TestRig } from './test-helper.js';
 const REQUEST_TIMEOUT_MS = 60_000;
 const INITIAL_PROMPT = 'Create a quick note (smoke test).';
 const IS_SANDBOX =
-  process.env['QWEN_SANDBOX'] &&
-  process.env['QWEN_SANDBOX']!.toLowerCase() !== 'false';
+  process.env['APEX_SANDBOX'] &&
+  process.env['APEX_SANDBOX']!.toLowerCase() !== 'false';
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
@@ -403,16 +403,17 @@ function setupAcpTest(
         };
       };
 
-      // Choose a qwen-oauth model to trigger auth-required path deterministically.
-      const qwenOauthModel = newSession.models.availableModels.find((model) =>
-        model.modelId.includes('qwen-oauth'),
+      // Choose a model requiring auth that isn't currently authenticated
+      // to trigger the auth-required error path deterministically.
+      const geminiModel = newSession.models.availableModels.find((model) =>
+        model.modelId.includes('gemini'),
       );
-      expect(qwenOauthModel).toBeDefined();
+      expect(geminiModel).toBeDefined();
       await expect(
         sendRequest('session/set_config_option', {
           sessionId: newSession.sessionId,
           configId: 'model',
-          value: qwenOauthModel!.modelId,
+          value: geminiModel!.modelId,
         }),
       ).rejects.toMatchObject({
         response: {
@@ -627,7 +628,7 @@ function setupAcpTest(
       expect(initCommand?.description).toBeTruthy();
 
       // Note: We don't test /init execution here because it triggers a complex
-      // multi-step process (listing files, reading up to 10 files, generating QWEN.md)
+      // multi-step process (listing files, reading up to 10 files, generating APEX.md)
       // that can take 30-60+ seconds, exceeding the request timeout.
       // The slash command execution path is tested via simpler prompts in other tests.
     } catch (e) {

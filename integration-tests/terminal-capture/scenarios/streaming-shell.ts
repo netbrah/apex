@@ -8,7 +8,7 @@ import type { ScenarioConfig } from '../scenario-runner.js';
 export default {
   name: 'streaming-shell',
   spawn: ['node', 'dist/cli.js', '--yolo'],
-  terminal: { title: 'qwen-code', cwd: '../../..' },
+  terminal: { title: 'apex', cwd: '../../..' },
   flow: [
     {
       type: 'Run this command: bash integration-tests/terminal-capture/scenarios/progress.sh',

@@ -93,10 +93,10 @@ describe('CLI Path Utilities', () => {
         const result = prepareSpawnInfo('qwen');
 
         expect(result).toEqual({
-          command: 'qwen',
+          command: 'apex',
           args: [],
           type: 'native',
-          originalInput: 'qwen',
+          originalInput: 'apex',
         });
       });
 
@@ -389,10 +389,10 @@ describe('CLI Path Utilities', () => {
       const result = prepareSpawnInfo('qwen');
 
       expect(result).toEqual({
-        command: 'qwen',
+        command: 'apex',
         args: [],
         type: 'native',
-        originalInput: 'qwen',
+        originalInput: 'apex',
       });
     });
 

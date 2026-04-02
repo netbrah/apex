@@ -35,7 +35,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // Use built SDK bundle for e2e tests
-      '@qwen-code/sdk': resolve(
+      '@apex-code/sdk': resolve(
         __dirname,
         '../packages/sdk-typescript/dist/index.mjs',
       ),

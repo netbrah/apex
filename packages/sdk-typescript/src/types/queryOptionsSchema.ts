@@ -138,7 +138,7 @@ export const QueryOptionsSchema = z
   .object({
     cwd: z.string().optional(),
     model: z.string().optional(),
-    pathToQwenExecutable: z.string().optional(),
+    pathToApexExecutable: z.string().optional(),
     env: z.record(z.string(), z.string()).optional(),
     systemPrompt: z
       .union([
@@ -165,9 +165,7 @@ export const QueryOptionsSchema = z
     coreTools: z.array(z.string()).optional(),
     excludeTools: z.array(z.string()).optional(),
     allowedTools: z.array(z.string()).optional(),
-    authType: z
-      .enum(['openai', 'anthropic', 'qwen-oauth', 'gemini', 'vertex-ai'])
-      .optional(),
+    authType: z.enum(['openai', 'anthropic', 'gemini', 'vertex-ai']).optional(),
     agents: z
       .array(
         z.custom<SubagentConfig>(

@@ -15,7 +15,7 @@ import {
   isSDKResultMessage,
   type TextBlock,
   type SDKUserMessage,
-} from '@qwen-code/sdk';
+} from '@apex-code/sdk';
 import {
   SDKTestHelper,
   createSharedTestOptions,
@@ -430,7 +430,7 @@ describe('AbortController and Process Lifecycle (E2E)', () => {
         const q = query({
           prompt: 'Hello world',
           options: {
-            pathToQwenExecutable: '/nonexistent/path/to/cli',
+            pathToApexExecutable: '/nonexistent/path/to/cli',
             debug: false,
           },
         });
@@ -446,7 +446,7 @@ describe('AbortController and Process Lifecycle (E2E)', () => {
         expect(error instanceof Error).toBe(true);
         expect((error as Error).message).toBeDefined();
         expect((error as Error).message).toContain(
-          'Invalid pathToQwenExecutable',
+          'Invalid pathToApexExecutable',
         );
       }
     });
