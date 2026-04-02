@@ -64,7 +64,7 @@ const MOCK_DATA: InsightData = {
   qualitative: {
     impressiveWorkflows: {
       intro:
-        "You're a highly active Qwen Code user with 314 sessions over 67 days, achieving strong results in test creation, PR workflows, and debugging with a 68% success rate on clear tasks.",
+        "You're a highly active APEX user with 314 sessions over 67 days, achieving strong results in test creation, PR workflows, and debugging with a 68% success rate on clear tasks.",
       impressive_workflows: [
         {
           title: 'Comprehensive Test Creation Workflow',
@@ -196,20 +196,20 @@ const MOCK_DATA: InsightData = {
             '## Code Review Standards\n- Always check for test coverage when reviewing new features\n- Flag missing error handling in async functions\n- Prefer focused PRs over large multi-file changes',
           why: 'Code review friction showed issues with subagent failures and excessive exploration on large PRs',
           prompt_scaffold:
-            'Create new ## Code Review Standards section in QWEN.md',
+            'Create new ## Code Review Standards section in APEX.md',
         },
         {
           addition:
             '## Testing Conventions\n- Use vi.mock() for module mocks before vi.mocked() for function mocking\n- Always wrap components with required providers (e.g., KeypressProvider) in tests\n- Run tests after modifying related files to catch issues early',
           why: 'Multiple test sessions had buggy mock implementation issues that required iterative fixes',
           prompt_scaffold:
-            'Create new ## Testing Conventions section in QWEN.md',
+            'Create new ## Testing Conventions section in APEX.md',
         },
         {
           addition:
             '## PR Workflow\n- Always read and apply PR template before creating PR content\n- Use English as default language for PR descriptions unless specified otherwise',
           why: 'One session created empty PR initially, another required English specification - both are repetitive clarifications',
-          prompt_scaffold: 'Create new ## PR Workflow section in QWEN.md',
+          prompt_scaffold: 'Create new ## PR Workflow section in APEX.md',
         },
       ],
       features_to_try: [
@@ -219,7 +219,7 @@ const MOCK_DATA: InsightData = {
           why_for_you:
             'You have 6 feature requests and 3+ PR creation sessions - these repetitive workflows would benefit from /pr, /review, /test commands',
           example_code:
-            'Create .qwen/skills/pr/SKILL.md:\n```\nCreate a PR using the template at .github/PULL_REQUEST_TEMPLATE.md\n- Summarize commits since main\n- Use English language\n- Include test coverage notes\n```',
+            'Create .apex/skills/pr/SKILL.md:\n```\nCreate a PR using the template at .github/PULL_REQUEST_TEMPLATE.md\n- Summarize commits since main\n- Use English language\n- Include test coverage notes\n```',
         },
         {
           feature: 'Custom Skills',
@@ -227,7 +227,7 @@ const MOCK_DATA: InsightData = {
           why_for_you:
             'You had 2 test creation sessions with mock implementation issues - a /test skill would ensure consistent patterns',
           example_code:
-            'Create .qwen/skills/test/SKILL.md:\n```\nGenerate Vitest tests for the specified file:\n- Use vi.mock() for modules before vi.mocked()\n- Include provider wrappers as needed\n- Run tests after generation to verify\n```',
+            'Create .apex/skills/test/SKILL.md:\n```\nGenerate Vitest tests for the specified file:\n- Use vi.mock() for modules before vi.mocked()\n- Include provider wrappers as needed\n- Run tests after generation to verify\n```',
         },
         {
           feature: 'Custom Skills',
@@ -235,7 +235,7 @@ const MOCK_DATA: InsightData = {
           why_for_you:
             'You had 3 code review sessions where the code-reviewer subagent failed - a manual /review skill would be more reliable',
           example_code:
-            'Create .qwen/skills/review/SKILL.md:\n```\nReview code for:\n1. Test coverage for new features\n2. Error handling in async functions\n3. Security implications\n4. Breaking changes\n```',
+            'Create .apex/skills/review/SKILL.md:\n```\nReview code for:\n1. Test coverage for new features\n2. Error handling in async functions\n3. Security implications\n4. Breaking changes\n```',
         },
         {
           feature: 'Headless Mode',
@@ -271,7 +271,7 @@ const MOCK_DATA: InsightData = {
           detail:
             "You've created multiple PRs and tests with similar patterns each time. Creating /pr and /test skills would ensure consistency (English language, proper templates, correct mock patterns) and save time across your 314 sessions.",
           copyable_prompt:
-            'Create .qwen/skills/pr/SKILL.md with your PR template requirements, then just type /pr',
+            'Create .apex/skills/pr/SKILL.md with your PR template requirements, then just type /pr',
         },
         {
           title: 'Improve Session Completion Rate',
@@ -285,19 +285,19 @@ const MOCK_DATA: InsightData = {
         {
           title: 'Preempt Common Issues',
           suggestion:
-            'Add testing conventions to QWEN.md to avoid iterative mock fixes',
+            'Add testing conventions to APEX.md to avoid iterative mock fixes',
           detail:
-            '5 buggy_code friction points mostly came from test mock implementation issues. Documenting your testing patterns in QWEN.md would help Qwen generate correct tests on the first attempt.',
+            '5 buggy_code friction points mostly came from test mock implementation issues. Documenting your testing patterns in APEX.md would help the AI generate correct tests on the first attempt.',
           copyable_prompt:
-            "Add to QWEN.md: 'When generating tests, use vi.mock() before vi.mocked() and always include required providers'",
+            "Add to APEX.md: 'When generating tests, use vi.mock() before vi.mocked() and always include required providers'",
         },
       ],
     },
     interactionStyle: {
       narrative:
-        'Your interaction pattern shows **high-frequency, low-intensity engagement** with Qwen Code. With 314 sessions over just 68 days (averaging 4-5 sessions daily) and 58% of analyzed sessions being "warmup_minimal," you treat Qwen as a readily-available assistant you check in with frequently but often don\'t have specific tasks ready. You say "hi" or "nihao" and wait to see what happens, suggesting you keep Qwen accessible as a background tool rather than planning extensive work sessions.\n\nWhen you do have actual work, you\'re **iterative and feedback-driven rather than specification-heavy**. Examples: when creating PRs, you accepted an initial implementation that created empty content, then reported the issue for Qwen to fix; when implementing ESC cancellation support, you tested the code, discovered the signal wasn\'t being passed through, and reported the specific bug for correction; when requesting tests for DataProcessor, you worked through multiple rounds of fixing mock implementation issues. You don\'t provide exhaustive upfront requirements—you point Qwen at a problem, see what it produces, and course-correct.\n\n**You trust Qwen to explore autonomously but intervene when things go wrong.** Your tool usage (209 read_file calls, 166 shell commands, 98 edits) shows you let Qwen investigate and modify freely. The friction data reveals low rejection rates (0 user_rejected_action, 0 excessive_changes) and zero misunderstood requests, indicating you give Qwen space to work. However, 5 instances of buggy code required your feedback to fix, and you clearly communicate specific issues when they arise ("abort() was called but execution didn\'t stop"). You\'re a collaborative debugger who provides precise problem descriptions rather than vague complaints.',
+        'Your interaction pattern shows **high-frequency, low-intensity engagement** with APEX. With 314 sessions over just 68 days (averaging 4-5 sessions daily) and 58% of analyzed sessions being "warmup_minimal," you treat Qwen as a readily-available assistant you check in with frequently but often don\'t have specific tasks ready. You say "hi" or "nihao" and wait to see what happens, suggesting you keep Qwen accessible as a background tool rather than planning extensive work sessions.\n\nWhen you do have actual work, you\'re **iterative and feedback-driven rather than specification-heavy**. Examples: when creating PRs, you accepted an initial implementation that created empty content, then reported the issue for Qwen to fix; when implementing ESC cancellation support, you tested the code, discovered the signal wasn\'t being passed through, and reported the specific bug for correction; when requesting tests for DataProcessor, you worked through multiple rounds of fixing mock implementation issues. You don\'t provide exhaustive upfront requirements—you point Qwen at a problem, see what it produces, and course-correct.\n\n**You trust Qwen to explore autonomously but intervene when things go wrong.** Your tool usage (209 read_file calls, 166 shell commands, 98 edits) shows you let Qwen investigate and modify freely. The friction data reveals low rejection rates (0 user_rejected_action, 0 excessive_changes) and zero misunderstood requests, indicating you give Qwen space to work. However, 5 instances of buggy code required your feedback to fix, and you clearly communicate specific issues when they arise ("abort() was called but execution didn\'t stop"). You\'re a collaborative debugger who provides precise problem descriptions rather than vague complaints.',
       key_pattern:
-        'You use Qwen Code as a high-frequency, low-commitment tool with iterative feedback loops—many brief check-ins with "hi" or minimal interaction, and when real work happens, you prefer to test implementations and report specific issues for correction rather than providing comprehensive upfront specifications.',
+        'You use APEX as a high-frequency, low-commitment tool with iterative feedback loops—many brief check-ins with "hi" or minimal interaction, and when real work happens, you prefer to test implementations and report specific issues for correction rather than providing comprehensive upfront specifications.',
     },
     atAGlance: {
       whats_working:

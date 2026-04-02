@@ -38,7 +38,7 @@ export OPENAI_BASE_URL="<your-openai-compatible-endpoint>"
 # Optional overrides (defaults shown):
 export PROXY_GPT_MODEL="gpt-4.1-mini"
 export PROXY_CLAUDE_MODEL="claude-sonnet-4.6"
-export QWEN_BINARY="qwen"   # or absolute path to built binary
+export APEX_BINARY="apex"   # or absolute path to built binary
 ```
 
 For the NetApp proxy URL specifically: it lives in `feat/apex-embed-assets` AGENTS.md.
@@ -115,7 +115,7 @@ export OPENAI_BASE_URL="<your-openai-compatible-endpoint>"
 # Optional overrides (defaults shown):
 export PROXY_GPT_MODEL="gpt-4.1-mini"
 export PROXY_CLAUDE_MODEL="claude-sonnet-4.6"
-export QWEN_BINARY="qwen"   # or absolute path to built binary
+export APEX_BINARY="apex"   # or absolute path to built binary
 ```
 
 For the NetApp proxy URL specifically: it lives in `feat/apex-embed-assets` AGENTS.md.
@@ -160,13 +160,13 @@ tests skip automatically. `npm run test` and `npm run preflight` are always safe
 
 ## Project Overview
 
-**Qwen Code** is an open-source AI agent for the terminal, optimized for [Qwen3-Coder](https://github.com/QwenLM/Qwen3-Coder). It helps developers understand large codebases, automate tedious work, and ship faster.
+**APEX** is an open-source AI agent for the terminal, optimized for [Qwen3-Coder](https://github.com/QwenLM/Qwen3-Coder). It helps developers understand large codebases, automate tedious work, and ship faster.
 
 This project is based on [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) with adaptations to better support Qwen-Coder models.
 
 ### Key Features
 
-- **OpenAI-compatible, OAuth free tier**: Use an OpenAI-compatible API, or sign in with Qwen OAuth to get 1,000 free requests/day
+- **OpenAI-compatible, OAuth free tier**: Use an OpenAI-compatible API, or sign in with OpenAI-compatible API to get 1,000 free requests/day
 - **Agentic workflow, feature-rich**: Rich built-in tools (Skills, SubAgents, Plan Mode) for a full agentic workflow
 - **Terminal-first, IDE-friendly**: Built for developers who live in the command line, with optional integration for VS Code, Zed, and JetBrains IDEs
 
@@ -202,7 +202,7 @@ This project is based on [Google Gemini CLI](https://github.com/google-gemini/ge
 
 ### Package Details
 
-#### `@qwen-code/qwen-code` (packages/cli/)
+#### `@apex/apex` (packages/cli/)
 
 The main CLI package providing:
 
@@ -212,7 +212,7 @@ The main CLI package providing:
 - Configuration management
 - Command system (`/help`, `/clear`, `/compress`, etc.)
 
-#### `@qwen-code/qwen-code-core` (packages/core/)
+#### `@apex/apex-core` (packages/core/)
 
 Core library containing:
 
@@ -236,8 +236,8 @@ Core library containing:
 
 ```bash
 # Clone and install
-git clone https://github.com/QwenLM/qwen-code.git
-cd qwen-code
+git clone https://github.com/netbrah/apex.git
+cd apex
 npm install
 ```
 
@@ -332,7 +332,7 @@ npm run typecheck
 import { something } from './utils/something.js';
 
 // Between packages - use package names
-import { Config } from '@qwen-code/qwen-code-core';
+import { Config } from '@apex/apex-core';
 ```
 
 ### Testing Patterns
@@ -365,14 +365,14 @@ Task delegation framework:
 Hierarchical configuration loading:
 
 1. Default values
-2. User settings (`~/.qwen/settings.json`)
-3. Project settings (`.qwen/settings.json`)
+2. User settings (`~/.apex/settings.json`)
+3. Project settings (`.apex/settings.json`)
 4. Environment variables
 5. CLI flags
 
 ### Authentication Methods
 
-1. **Qwen OAuth** (recommended): Browser-based OAuth flow
+1. **OpenAI-compatible API** (recommended): Browser-based OAuth flow
 2. **OpenAI-compatible API**: Via `OPENAI_API_KEY` environment variable
 
 Environment variables for API mode:
@@ -408,7 +408,7 @@ DEBUG=1 qwen
 
 ## Documentation
 
-- User documentation: <https://qwenlm.github.io/qwen-code-docs/>
+- User documentation: <https://qwenlm.github.io/apex-docs/>
 - Local docs development:
 
   ```bash
@@ -450,7 +450,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines. Key points:
 - `/compress` - Compress history to save tokens
 - `/stats` - Show session information
 - `/bug` - Submit bug report
-- `/exit` or `/quit` - Exit Qwen Code
+- `/exit` or `/quit` - Exit APEX
 
 ---
 
@@ -459,9 +459,9 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines. Key points:
 ```
 feat/apex-embed-assets  ← YOU ARE HERE (NetApp APEX distribution)
         ↑ rebase
-      dev                ← public engine (netbrah/qwen-code, open-source)
+      dev                ← public engine (netbrah/apex, open-source)
         ↑ merge upstreams
-  QwenLM/qwen-code  +  google-gemini/gemini-cli
+  netbrah/apex  +  google-gemini/gemini-cli
 ```
 
 **Internal format**: Google `@google/genai` Content[] types (lingua franca — every wire converts to/from this)
@@ -482,8 +482,8 @@ feat/apex-embed-assets  ← YOU ARE HERE (NetApp APEX distribution)
 
 | Path                                               | Content                                                                     | Why Proprietary                                        |
 | -------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `.qwen/settings.json`                              | Corp MCP servers (mastra-search, reviewboard), Anthropic auth, model config | Has netapp.com email, corp MCP binary paths            |
-| `.qwen/APEX.md`                                    | Operator protocol (Delta/APEX wingman doctrine)                             | Corp identity, internal comms style                    |
+| `.apex/settings.json`                              | Corp MCP servers (mastra-search, reviewboard), Anthropic auth, model config | Has netapp.com email, corp MCP binary paths            |
+| `.apex/APEX.md`                                    | Operator protocol (Delta/APEX wingman doctrine)                             | Corp identity, internal comms style                    |
 | `.bin/ontap-apex`                                  | Hermetic launcher script                                                    | Corp deployment, env var setup                         |
 | `scripts/postinstall-apex.js`                      | Downloads MCP server binaries to `~/.apex/bin/`                             | `@netapp/seclab-apex` npm package                      |
 | `scripts/publish-artifacts.js`                     | Pushes to Artifactory                                                       | Corp Artifactory URL                                   |
@@ -622,7 +622,7 @@ describe('MyFeature', () => {
 });
 
 // Mock HTTP (for converter tests)
-import { createMockContentGenerator } from '@qwen-code/test-utils';
+import { createMockContentGenerator } from '@apex/test-utils';
 
 // Mock file system
 import { vol } from 'memfs';

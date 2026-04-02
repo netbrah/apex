@@ -129,7 +129,7 @@ import {
   HookDefinition,
   HookExecutionResult,
   HookExecutionPlan,
-} from '@qwen-code/core/hooks/types';
+} from '@apex/core/hooks/types';
 ```
 
 **关键类型说明**:
@@ -199,7 +199,7 @@ import {
   HookEventName,
   HookConfig,
   HooksConfigSource,
-} from '@qwen-code/core/hooks/types';
+} from '@apex/core/hooks/types';
 
 async function renderHooksList(hooks: HookUIDetail[]): Promise<void> {
   const items = hooks.map((hook, index) => ({
@@ -223,7 +223,7 @@ async function renderHooksList(hooks: HookUIDetail[]): Promise<void> {
 ### 5.3 Hook 详情渲染
 
 ```typescript
-import { HookConfig, HooksConfigSource } from '@qwen-code/core/hooks/types';
+import { HookConfig, HooksConfigSource } from '@apex/core/hooks/types';
 
 const SOURCE_DISPLAY_MAP: Record<HooksConfigSource, string> = {
   [HooksConfigSource.Project]: 'Local Settings',
@@ -287,7 +287,7 @@ async function renderHookDetail(hook: HookUIDetail): Promise<void> {
 ### 5.4 Hook 提示信息配置
 
 ```typescript
-import { HookEventName } from '@qwen-code/core/hooks/types';
+import { HookEventName } from '@apex/core/hooks/types';
 
 const HOOK_DESCRIPTIONS: Record<string, HookUIDetail> = {
   [HookEventName.Stop]: {

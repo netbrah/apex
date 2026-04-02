@@ -14,7 +14,7 @@
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "env": {
-        "QWEN_SANDBOX": "false"
+        "APEX_SANDBOX": "false"
       }
     },
     {
@@ -86,7 +86,7 @@
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "env": {
-        "QWEN_SANDBOX": "false"
+        "APEX_SANDBOX": "false"
       }
     },
     {
@@ -107,7 +107,7 @@
       "internalConsoleOptions": "neverOpen",
       "skipFiles": ["<node_internals>/**"],
       "env": {
-        "QWEN_SANDBOX": "false"
+        "APEX_SANDBOX": "false"
       }
     },
     {

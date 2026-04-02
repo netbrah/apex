@@ -1,5 +1,5 @@
 {
-  "name": "@qwen-code/cli-export-html",
+  "name": "@apex-code/cli-export-html",
   "private": true,
   "type": "module",
   "scripts": {

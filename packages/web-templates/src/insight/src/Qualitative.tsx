@@ -55,7 +55,7 @@ export function NavToc() {
   return (
     <nav className="nav-toc">
       <a href="#section-work">What You Work On</a>
-      <a href="#section-usage">How You Use Qwen Code</a>
+      <a href="#section-usage">How You Use APEX</a>
       <a href="#section-wins">Impressive Things</a>
       <a href="#section-friction">Where Things Go Wrong</a>
       <a href="#section-features">Features to Try</a>
@@ -151,7 +151,7 @@ export function InteractionStyle({
         id="section-usage"
         className="text-xl font-semibold text-slate-900 mt-8 mb-4"
       >
-        How You Use Qwen Code
+        How You Use APEX
       </h2>
       <div className="narrative">
         <p>
@@ -522,9 +522,9 @@ function QwenMdAdditionsSection({
 
   return (
     <div className="qwen-md-section">
-      <h3>Suggested QWEN.md Additions</h3>
+      <h3>Suggested APEX.md Additions</h3>
       <p className="text-xs text-slate-500 mb-3">
-        Just copy this into Qwen Code to add it to your QWEN.md.
+        Just copy this into Apex to add it to your APEX.md.
       </p>
 
       <div className="qwen-md-actions" style={{ marginBottom: '12px' }}>
@@ -572,17 +572,17 @@ export function Improvements({
         id="section-features"
         className="text-xl font-semibold text-slate-900 mt-8 mb-4"
       >
-        Existing Qwen Code Features to Try
+        Existing APEX Features to Try
       </h2>
 
-      {/* QWEN.md Additions */}
+      {/* APEX.md Additions */}
       {Array.isArray(improvements.Qwen_md_additions) &&
         improvements.Qwen_md_additions.length > 0 && (
           <QwenMdAdditionsSection additions={improvements.Qwen_md_additions} />
         )}
 
       <p className="text-xs text-slate-500 mb-3">
-        Just copy this into Qwen Code and it&apos;ll set it up for you.
+        Just copy this into APEX and it&apos;ll set it up for you.
       </p>
 
       {/* Features to Try */}
@@ -614,10 +614,10 @@ export function Improvements({
         id="section-patterns"
         className="text-xl font-semibold text-slate-900 mt-8 mb-4"
       >
-        New Ways to Use Qwen Code
+        New Ways to Use APEX
       </h2>
       <p className="text-xs text-slate-500 mb-3">
-        Just copy this into Qwen Code and it&apos;ll walk you through it.
+        Just copy this into APEX and it&apos;ll walk you through it.
       </p>
 
       <div className="patterns-section">
@@ -632,7 +632,7 @@ export function Improvements({
                 <MarkdownText>{pat.detail}</MarkdownText>
               </div>
               <div className="copyable-prompt-section">
-                <div className="prompt-label">Paste into Qwen Code:</div>
+                <div className="prompt-label">Paste into APEX:</div>
                 <div className="copyable-prompt-row">
                   <code className="copyable-prompt">{pat.copyable_prompt}</code>
                   <CopyButton text={pat.copyable_prompt} />
@@ -680,7 +680,7 @@ export function FutureOpportunities({
                 <MarkdownText>{opp.how_to_try}</MarkdownText>
               </div>
               <div className="pattern-prompt">
-                <div className="prompt-label">Paste into Qwen Code:</div>
+                <div className="prompt-label">Paste into APEX:</div>
                 <div
                   style={{
                     display: 'flex',

@@ -32,7 +32,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      name: 'QwenCodeWebUI',
+      name: 'ApexWebUI',
       formats: ['es', 'cjs', 'umd'],
       fileName: (format) => {
         if (format === 'es') return 'index.js';

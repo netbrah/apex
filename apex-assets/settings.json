@@ -25,7 +25,7 @@
     }
   },
   "context": {
-    "fileName": ["APEX.md", "QWEN.md", "AGENTS.md"]
+    "fileName": ["APEX.md", "AGENTS.md"]
   },
   "ide": {
     "hasSeenNudge": false

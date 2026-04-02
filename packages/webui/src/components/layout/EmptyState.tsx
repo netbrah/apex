@@ -37,7 +37,7 @@ export interface EmptyStateProps {
  * ```tsx
  * <EmptyState
  *   isAuthenticated={true}
- *   appName="Qwen Code"
+ *   appName="APEX"
  * />
  * ```
  */
@@ -45,7 +45,7 @@ export const EmptyState: FC<EmptyStateProps> = ({
   isAuthenticated = false,
   loadingMessage,
   logoUrl,
-  appName = 'Qwen Code',
+  appName = 'APEX',
 }) => {
   const platform = usePlatform();
 

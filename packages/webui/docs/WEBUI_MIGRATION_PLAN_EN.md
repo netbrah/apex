@@ -14,7 +14,7 @@ For excellent software engineering architecture, we need to unify and reuse UI c
 
 ### 1.2 Goals
 
-1. Extract components from `vscode-ide-companion/src/webview/` into an independent `@qwen-code/webui` package
+1. Extract components from `vscode-ide-companion/src/webview/` into an independent `@apex/webui` package
 2. Establish a layered architecture: Pure UI components + Business UI components
 3. Use Vite + Storybook for development and component showcase
 4. Abstract platform capabilities through Platform Context for cross-platform reuse
@@ -112,7 +112,7 @@ webview/
 ### 3.2 Platform Context Design
 
 ```typescript
-// @qwen-code/webui/src/context/PlatformContext.ts
+// @apex/webui/src/context/PlatformContext.ts
 interface PlatformContext {
   // Message communication
   postMessage: (message: unknown) => void;
@@ -161,7 +161,7 @@ export default defineConfig({
 ### 4.2 Tailwind Preset Solution
 
 ```javascript
-// @qwen-code/webui/tailwind.preset.js
+// @apex/webui/tailwind.preset.js
 module.exports = {
   theme: {
     extend: {
@@ -176,11 +176,8 @@ module.exports = {
 
 // Consumer's tailwind.config.js
 module.exports = {
-  presets: [require('@qwen-code/webui/tailwind.preset')],
-  content: [
-    './src/**/*.{ts,tsx}',
-    './node_modules/@qwen-code/webui/dist/**/*.js',
-  ],
+  presets: [require('@apex/webui/tailwind.preset')],
+  content: ['./src/**/*.{ts,tsx}', './node_modules/@apex/webui/dist/**/*.js'],
 };
 ```
 
@@ -252,7 +249,7 @@ packages/webui/
 ### 6.2 Migration Workflow
 
 ```
-Developer ──► @qwen-code/webui ──► vscode-ide-companion
+Developer ──► @apex/webui ──► vscode-ide-companion
   │              │                      │
   │   1. Copy component to webui        │
   │   2. Add Story for verification     │
@@ -272,8 +269,8 @@ Developer ──► @qwen-code/webui ──► vscode-ide-companion
 export { FileIcon } from './FileIcons.js';
 
 // After: Update import
-import { FileIcon } from '@qwen-code/webui';
-// or import { FileIcon } from '@qwen-code/webui/icons';
+import { FileIcon } from '@apex/webui';
+// or import { FileIcon } from '@apex/webui/icons';
 ```
 
 ---
@@ -329,7 +326,7 @@ import { FileIcon } from '@qwen-code/webui';
 
 1. **Tailwind Class Name Tree Shaking**
    - Problem: Tailwind class names may be removed after library bundling
-   - Solution: Consumer's `content` config needs to include `node_modules/@qwen-code/webui`
+   - Solution: Consumer's `content` config needs to include `node_modules/@apex/webui`
 
 2. **CSS Variable Scope**
    - Problem: Variables like `var(--app-primary)` need to be defined by consumers
@@ -385,7 +382,7 @@ Each migration task completion requires:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  1. Develop/Modify Component                                     │
-│     └── Edit files in @qwen-code/webui/src/                     │
+│     └── Edit files in @apex/webui/src/                     │
 │                                                                  │
 │  2. Debug with Storybook                                         │
 │     └── npm run storybook (port 6006)                           │
@@ -397,7 +394,7 @@ Each migration task completion requires:
 │     └── Outputs: dist/index.js, dist/index.cjs, dist/index.d.ts │
 │                                                                  │
 │  4. Use in VSCode Extension                                      │
-│     └── import { Component } from '@qwen-code/webui'            │
+│     └── import { Component } from '@apex/webui'            │
 │     └── No UI code modifications in vscode-ide-companion        │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -422,7 +419,7 @@ npm run typecheck
 
 ### 10.3 Key Principles
 
-1. **Single Source of Truth**: All UI components live in `@qwen-code/webui`
+1. **Single Source of Truth**: All UI components live in `@apex/webui`
 2. **Storybook First**: Debug and validate components in Storybook before integration
 3. **No UI Code in Consumers**: `vscode-ide-companion` only imports and uses components
 4. **Platform Abstraction**: Use `PlatformContext` for platform-specific behaviors
