@@ -14,7 +14,7 @@ const useTerminalSizeMock = vi.mocked(useTerminalSize.useTerminalSize);
 
 const defaultProps = {
   version: '1.0.0',
-  authDisplayType: AuthDisplayType.QWEN_OAUTH,
+  authDisplayType: AuthDisplayType.API_KEY,
   model: 'qwen-coder-plus',
   workingDirectory: '/home/user/projects/test',
 };
@@ -24,15 +24,15 @@ describe('<Header />', () => {
     useTerminalSizeMock.mockReturnValue({ columns: 120, rows: 24 });
   });
 
-  it('renders the ASCII logo on wide terminal', () => {
+  it('renders the braille logo on wide terminal', () => {
     const { lastFrame } = render(<Header {...defaultProps} />);
-    expect(lastFrame()).toContain('██╔═══██╗');
+    expect(lastFrame()).toContain('⢀⣤⣴⣶⣿');
   });
 
-  it('hides the ASCII logo on narrow terminal', () => {
+  it('hides the logo on narrow terminal', () => {
     useTerminalSizeMock.mockReturnValue({ columns: 60, rows: 24 });
     const { lastFrame } = render(<Header {...defaultProps} />);
-    expect(lastFrame()).not.toContain('██╔═══██╗');
+    expect(lastFrame()).not.toContain('⢀⣤⣴⣶⣿');
     expect(lastFrame()).toContain('>_ Apex');
   });
 

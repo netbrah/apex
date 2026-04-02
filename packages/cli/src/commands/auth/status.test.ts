@@ -66,11 +66,13 @@ describe('showAuthStatus', () => {
   });
 
   it('should show API Key status when configured', async () => {
+    process.env['OPENAI_API_KEY'] = 'test-openai-key';
+
     vi.mocked(loadSettings).mockReturnValue(
       createMockSettings({
         security: {
           auth: {
-            selectedType: AuthType.QWEN_OAUTH,
+            selectedType: AuthType.USE_OPENAI,
           },
         },
       }),
@@ -80,12 +82,6 @@ describe('showAuthStatus', () => {
 
     expect(writeStdoutLine).toHaveBeenCalledWith(
       expect.stringContaining('API Key'),
-    );
-    expect(writeStdoutLine).toHaveBeenCalledWith(
-      expect.stringContaining('Free tier'),
-    );
-    expect(writeStdoutLine).toHaveBeenCalledWith(
-      expect.stringContaining('1,000 requests/day'),
     );
     expect(process.exit).toHaveBeenCalledWith(0);
   });

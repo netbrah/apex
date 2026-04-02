@@ -55,7 +55,7 @@ const getLocalePath = (
 
 // Language detection
 export function detectSystemLanguage(): SupportedLanguage {
-  const envLang = process.env['QWEN_CODE_LANG'] || process.env['LANG'];
+  const envLang = process.env['APEX_LANG'] || process.env['LANG'];
   if (envLang) {
     for (const lang of SUPPORTED_LANGUAGES) {
       if (envLang.startsWith(lang.code)) return lang.code;

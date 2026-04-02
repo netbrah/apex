@@ -98,7 +98,7 @@ function isSEABinary(): boolean {
 function getNodeMemoryArgs(isDebugMode: boolean): string[] {
   // SEA binaries can't be relaunched with V8 flags via argv — they'd be
   // parsed as CLI arguments by yargs. Skip memory tuning entirely.
-  if (isSEABinary() || process.env['QWEN_CODE_NO_RELAUNCH']) {
+  if (isSEABinary() || process.env['APEX_NO_RELAUNCH']) {
     return [];
   }
 

@@ -16,9 +16,9 @@ const startupTips: Tip[] = [
   'Start a fresh idea with /clear or /new; the previous session stays available in history.',
   'Use /bug to submit issues to the maintainers when something goes off.',
   'Switch auth type quickly with /auth.',
-  `You can run any shell commands from ${process.env['QWEN_CODE_BRAND'] || 'Apex'} using ! (e.g. !ls).`,
+  `You can run any shell commands from ${'Apex'} using ! (e.g. !ls).`,
   'Type / to open the command popup; Tab autocompletes slash commands and saved prompts.',
-  `You can resume a previous conversation by running ${process.env['QWEN_CODE_BRAND']?.toLowerCase() || 'apex'} --continue or ${process.env['QWEN_CODE_BRAND']?.toLowerCase() || 'apex'} --resume.`,
+  `You can resume a previous conversation by running ${'apex'} --continue or ${'apex'} --resume.`,
   process.platform === 'win32'
     ? 'You can switch permission mode quickly with Tab or /approval-mode.'
     : 'You can switch permission mode quickly with Shift+Tab or /approval-mode.',

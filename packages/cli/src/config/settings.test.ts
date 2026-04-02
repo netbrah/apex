@@ -480,7 +480,7 @@ describe('Settings Loading and Merging', () => {
       );
       const userSettingsContent = {
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-        model: { name: 'qwen-coder' },
+        model: { name: 'apexr' },
       };
       (fs.readFileSync as Mock).mockImplementation(
         (p: fs.PathOrFileDescriptor) => {
@@ -522,7 +522,7 @@ describe('Settings Loading and Merging', () => {
       );
       const legacySettingsContent = {
         theme: 'dark',
-        model: 'qwen-coder',
+        model: 'apexr',
       };
       (fs.readFileSync as Mock).mockImplementation(
         (p: fs.PathOrFileDescriptor) => {
@@ -551,7 +551,7 @@ describe('Settings Loading and Merging', () => {
           theme: 'dark',
         },
         model: {
-          name: 'qwen-coder',
+          name: 'apexr',
         },
       };
       (fs.readFileSync as Mock).mockImplementation(
@@ -580,7 +580,7 @@ describe('Settings Loading and Merging', () => {
           theme: 'dark',
         },
         model: {
-          name: 'qwen-coder',
+          name: 'apexr',
         },
       };
       (fs.readFileSync as Mock).mockImplementation(
@@ -606,7 +606,7 @@ describe('Settings Loading and Merging', () => {
 
       expect(writtenContent[SETTINGS_VERSION_KEY]).toBe(SETTINGS_VERSION);
       expect(writtenContent.ui?.theme).toBe('dark');
-      expect(writtenContent.model?.name).toBe('qwen-coder');
+      expect(writtenContent.model?.name).toBe('apexr');
       // Verify writeWithBackupSync was called by checking temp file write
       expect(fs.writeFileSync).toHaveBeenCalled();
     });
@@ -618,7 +618,7 @@ describe('Settings Loading and Merging', () => {
       // Edge case: model already in V2 format (object), but autoAccept in V1 format
       const partiallyMigratedContent = {
         model: {
-          name: 'qwen-coder',
+          name: 'apexr',
         },
         autoAccept: false, // V1 key
       };
@@ -638,7 +638,7 @@ describe('Settings Loading and Merging', () => {
       const writtenContent = JSON.parse(writeCall[1] as string);
 
       // Model should remain as an object, not double-nested
-      expect(writtenContent.model).toEqual({ name: 'qwen-coder' });
+      expect(writtenContent.model).toEqual({ name: 'apexr' });
       // autoAccept should be migrated to tools.autoAccept
       expect(writtenContent.tools?.autoAccept).toBe(false);
       // Version field should be added
@@ -2082,16 +2082,16 @@ describe('Settings Loading and Merging', () => {
       delete process.env['TEST_PORT'];
     });
 
-    describe('when QWEN_CODE_SYSTEM_SETTINGS_PATH is set', () => {
+    describe('when APEX_SYSTEM_SETTINGS_PATH is set', () => {
       const MOCK_ENV_SYSTEM_SETTINGS_PATH = '/mock/env/system/settings.json';
 
       beforeEach(() => {
-        process.env['QWEN_CODE_SYSTEM_SETTINGS_PATH'] =
+        process.env['APEX_SYSTEM_SETTINGS_PATH'] =
           MOCK_ENV_SYSTEM_SETTINGS_PATH;
       });
 
       afterEach(() => {
-        delete process.env['QWEN_CODE_SYSTEM_SETTINGS_PATH'];
+        delete process.env['APEX_SYSTEM_SETTINGS_PATH'];
       });
 
       it('should load system settings from the path specified in the environment variable', () => {
@@ -2763,7 +2763,7 @@ describe('Settings Loading and Merging', () => {
         // but other fields in V1 format
         const partiallyMigrated = {
           model: {
-            name: 'qwen-coder',
+            name: 'apexr',
           },
           autoAccept: false, // V1 key
         };
@@ -2775,7 +2775,7 @@ describe('Settings Loading and Merging', () => {
         const partiallyMigratedWithVersion = {
           [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
           model: {
-            name: 'qwen-coder',
+            name: 'apexr',
           },
           autoAccept: false, // This would look like V1 but version says it's V2
         };

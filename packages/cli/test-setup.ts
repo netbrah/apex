@@ -11,8 +11,8 @@ if (process.env['NO_COLOR'] !== undefined) {
 
 // Avoid writing per-session debug log files during CLI tests.
 // Individual tests can still opt in by overriding this env var explicitly.
-if (process.env['QWEN_DEBUG_LOG_FILE'] === undefined) {
-  process.env['QWEN_DEBUG_LOG_FILE'] = '0';
+if (process.env['APEX_DEBUG_LOG_FILE'] === undefined) {
+  process.env['APEX_DEBUG_LOG_FILE'] = '0';
 }
 
 import './src/test-utils/customMatchers.js';

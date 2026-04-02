@@ -18,7 +18,11 @@ import { SettingScope } from '../../config/settings.js';
 
 const MOCK_OPENAI_MODELS = [
   { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Latest GPT model' },
-  { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Efficient GPT model' },
+  {
+    id: 'gpt-4.1-mini',
+    label: 'GPT-4.1 Mini',
+    description: 'Efficient GPT model',
+  },
 ];
 
 vi.mock('../hooks/useKeypress.js', () => ({
@@ -130,9 +134,7 @@ describe('<ModelDialog />', () => {
     const props = mockedSelect.mock.calls[0][0];
     expect(props.items).toHaveLength(MOCK_OPENAI_MODELS.length);
     // coder-model is the only model and it has vision capability
-    expect(props.items[0].value).toBe(
-      `${AuthType.USE_OPENAI}::${'gpt-4.1'}`,
-    );
+    expect(props.items[0].value).toBe(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
     expect(props.showNumbers).toBe(true);
   });
 
@@ -150,9 +152,7 @@ describe('<ModelDialog />', () => {
     expect(mockGetModel).toHaveBeenCalled();
     // Calculate expected index dynamically based on model list
     const qwenModels = MOCK_OPENAI_MODELS;
-    const expectedIndex = qwenModels.findIndex(
-      (m) => m.id === 'gpt-4.1',
-    );
+    const expectedIndex = qwenModels.findIndex((m) => m.id === 'gpt-4.1');
     expect(mockedSelect).toHaveBeenCalledWith(
       expect.objectContaining({
         initialIndex: expectedIndex,
@@ -221,7 +221,6 @@ describe('<ModelDialog />', () => {
     expect(mockConfig?.switchModel).toHaveBeenCalledWith(
       AuthType.USE_OPENAI,
       'gpt-4.1',
-      undefined,
     );
     expect(mockSettings.setValue).toHaveBeenCalledWith(
       SettingScope.User,
@@ -267,11 +266,7 @@ describe('<ModelDialog />', () => {
     const childOnSelect = mockedSelect.mock.calls[0][0].onSelect;
     await childOnSelect(`${AuthType.USE_OPENAI}::${'gpt-4.1'}`);
 
-    expect(switchModel).toHaveBeenCalledWith(
-      AuthType.USE_OPENAI,
-      'gpt-4.1',
-      undefined,
-    );
+    expect(switchModel).toHaveBeenCalledWith(AuthType.USE_OPENAI, 'gpt-4.1');
     expect(mockSettings.setValue).toHaveBeenCalledWith(
       SettingScope.User,
       'model.name',
@@ -388,9 +383,7 @@ describe('<ModelDialog />', () => {
     expect(mockedSelect).toHaveBeenCalledTimes(2);
     // Calculate expected index for 'gpt-4.1' dynamically
     const qwenModels = MOCK_OPENAI_MODELS;
-    const expectedCoderIndex = qwenModels.findIndex(
-      (m) => m.id === 'gpt-4.1',
-    );
+    const expectedCoderIndex = qwenModels.findIndex((m) => m.id === 'gpt-4.1');
     expect(mockedSelect.mock.calls[1][0].initialIndex).toBe(expectedCoderIndex);
   });
 });

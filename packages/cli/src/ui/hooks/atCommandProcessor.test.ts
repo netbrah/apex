@@ -521,8 +521,8 @@ describe('handleAtCommand', () => {
     });
   });
 
-  describe('qwen-ignore filtering', () => {
-    it('should skip qwen-ignored files in @ commands', async () => {
+  describe('apex-ignore filtering', () => {
+    it('should skip apex-ignored files in @ commands', async () => {
       await createTestFile(
         path.join(testRootDir, '.apexignore'),
         'build/output.js',
@@ -546,7 +546,7 @@ describe('handleAtCommand', () => {
         shouldProceed: true,
       });
       expect(mockOnDebugMessage).toHaveBeenCalledWith(
-        `Path ${apexIgnoredFile} is qwen-ignored and will be skipped.`,
+        `Path ${apexIgnoredFile} is apex-ignored and will be skipped.`,
       );
       expect(mockOnDebugMessage).toHaveBeenCalledWith(
         `Ignored 1 files:\nQwen-ignored: ${apexIgnoredFile}`,
@@ -584,7 +584,7 @@ describe('handleAtCommand', () => {
     });
   });
 
-  it('should handle mixed qwen-ignored and valid files', async () => {
+  it('should handle mixed apex-ignored and valid files', async () => {
     await createTestFile(
       path.join(testRootDir, '.apexignore'),
       'dist/bundle.js',
@@ -618,7 +618,7 @@ describe('handleAtCommand', () => {
       shouldProceed: true,
     });
     expect(mockOnDebugMessage).toHaveBeenCalledWith(
-      `Path ${apexIgnoredFile} is qwen-ignored and will be skipped.`,
+      `Path ${apexIgnoredFile} is apex-ignored and will be skipped.`,
     );
     expect(mockOnDebugMessage).toHaveBeenCalledWith(
       `Ignored 1 files:\nQwen-ignored: ${apexIgnoredFile}`,

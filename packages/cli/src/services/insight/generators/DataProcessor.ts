@@ -6,10 +6,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import {
-  read as readJsonlFile,
-  createDebugLogger,
-} from '@apex-code/apex-core';
+import { read as readJsonlFile, createDebugLogger } from '@apex-code/apex-core';
 import pLimit from 'p-limit';
 import type {
   InsightData,
@@ -133,7 +130,7 @@ export class DataProcessor {
           type: 'object',
           additionalProperties: { type: 'number' },
         },
-        Qwen_helpfulness: {
+        APEX_helpfulness: {
           type: 'string',
           enum: [
             'unhelpful',
@@ -183,7 +180,7 @@ export class DataProcessor {
         'goal_categories',
         'outcome',
         'user_satisfaction_counts',
-        'Qwen_helpfulness',
+        'APEX_helpfulness',
         'session_type',
         'friction_counts',
         'friction_detail',

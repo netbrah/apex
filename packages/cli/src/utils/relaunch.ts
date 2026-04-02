@@ -29,7 +29,7 @@ export async function relaunchAppInChildProcess(
   additionalNodeArgs: string[],
   additionalScriptArgs: string[],
 ) {
-  if (process.env['QWEN_CODE_NO_RELAUNCH']) {
+  if (process.env['APEX_NO_RELAUNCH']) {
     return;
   }
 
@@ -46,7 +46,7 @@ export async function relaunchAppInChildProcess(
       ...additionalScriptArgs,
       ...scriptArgs,
     ];
-    const newEnv = { ...process.env, QWEN_CODE_NO_RELAUNCH: 'true' };
+    const newEnv = { ...process.env, APEX_NO_RELAUNCH: 'true' };
 
     // The parent process should not be reading from stdin while the child is running.
     process.stdin.pause();

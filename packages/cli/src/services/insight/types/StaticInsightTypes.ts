@@ -50,7 +50,7 @@ export interface SessionFacets {
     | 'not_achieved'
     | 'unclear_from_transcript';
   user_satisfaction_counts: Record<string, number>;
-  Qwen_helpfulness:
+  APEX_helpfulness:
     | 'unhelpful'
     | 'slightly_helpful'
     | 'moderately_helpful'

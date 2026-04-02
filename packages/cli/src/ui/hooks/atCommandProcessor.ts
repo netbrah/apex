@@ -221,7 +221,7 @@ export async function handleAtCommand({
           ? 'ignored by both git and qwen'
           : reason === 'git'
             ? 'git-ignored'
-            : 'qwen-ignored';
+            : 'apex-ignored';
       onDebugMessage(`Path ${pathName} is ${reasonText} and will be skipped.`);
       continue;
     }

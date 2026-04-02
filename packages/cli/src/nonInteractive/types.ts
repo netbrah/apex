@@ -1,8 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type {
-  SubagentConfig,
-  McpToolProgressData,
-} from '@apex-code/apex-core';
+import type { SubagentConfig, McpToolProgressData } from '@apex-code/apex-core';
 
 /**
  * Annotation for attaching metadata to content blocks
@@ -143,7 +140,7 @@ export interface CLISystemMessage {
   model?: string;
   permission_mode?: string;
   slash_commands?: string[];
-  qwen_code_version?: string;
+  apex_version?: string;
   output_style?: string;
   agents?: string[];
   skills?: string[];

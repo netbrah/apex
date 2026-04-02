@@ -5,83 +5,30 @@
  */
 
 import { type ColorsTheme, Theme } from './theme.js';
-import type { SemanticColors } from './semantic-tokens.js';
+import { darkSemanticColors } from './semantic-tokens.js';
 
 const apexDarkColors: ColorsTheme = {
   type: 'dark',
-  Background: '#0a0a0f',
-  Foreground: '#c8c8d4',
-  LightBlue: '#38bdf8',
-  AccentBlue: '#38bdf8',
-  AccentPurple: '#7dd3fc',
-  AccentCyan: '#22d3ee',
-  AccentGreen: '#4ade80',
-  AccentYellow: '#d4a27a',
-  AccentRed: '#ef4444',
-  AccentYellowDim: '#92600a',
-  AccentRedDim: '#7f1d1d',
-  DiffAdded: '#1a2e1a',
-  DiffRemoved: '#2e1a1a',
-  Comment: '#4a4a5e',
-  Gray: '#4a4a5e',
-  GradientColors: ['#f0a0b8', '#e84060', '#6090e0', '#9070c0'],
-};
-
-const apexDarkSemanticColors: SemanticColors = {
-  text: {
-    primary: '#c8c8d4',
-    secondary: '#7a7a8e',
-    link: '#38bdf8',
-    accent: '#c4b5fd',
-    code: '#38bdf8',
-  },
-  background: {
-    primary: '#0a0a0f',
-    diff: {
-      added: '#1a2e1a',
-      removed: '#2e1a1a',
-    },
-  },
-  border: {
-    default: '#2d2d3f',
-    focused: '#d4a27a',
-  },
-  ui: {
-    comment: '#4a4a5e',
-    symbol: '#22d3ee',
-    gradient: ['#f0a0b8', '#e84060', '#6090e0', '#9070c0'],
-  },
-  status: {
-    error: '#ef4444',
-    success: '#4ade80',
-    warning: '#d4a27a',
-    errorDim: '#7f1d1d',
-    warningDim: '#92600a',
-  },
-  surface: {
-    canvas: '#0a0a0f',
-    panel: '#12121a',
-    panelMuted: '#0e0e16',
-    overlay: '#1a1a28',
-  },
-  interactive: {
-    hover: '#1e1e2a',
-    active: '#2a2a3c',
-    selected: '#38bdf8',
-  },
-  badge: {
-    info: '#38bdf8',
-    tool: '#22d3ee',
-    agent: '#7dd3fc',
-  },
-  prompt: {
-    prefix: '#d4a27a',
-    placeholder: '#4a4a5e',
-  },
+  Background: '#0b0e14',
+  Foreground: '#bfbdb6',
+  LightBlue: '#59C2FF',
+  AccentBlue: '#39BAE6',
+  AccentPurple: '#D2A6FF',
+  AccentCyan: '#95E6CB',
+  AccentGreen: '#AAD94C',
+  AccentYellow: '#FFD700',
+  AccentRed: '#F26D78',
+  AccentYellowDim: '#8B7530',
+  AccentRedDim: '#8B3A4A',
+  DiffAdded: '#AAD94C',
+  DiffRemoved: '#F26D78',
+  Comment: '#646A71',
+  Gray: '#3D4149',
+  GradientColors: ['#FFD700', '#da7959'],
 };
 
 export const ApexDark: Theme = new Theme(
-  'Apex Dark',
+  'Qwen Dark',
   'dark',
   {
     hljs: {
@@ -121,9 +68,6 @@ export const ApexDark: Theme = new Theme(
     'hljs-type': {
       color: apexDarkColors.AccentBlue,
     },
-    'hljs-built_in': {
-      color: apexDarkColors.AccentCyan,
-    },
     'hljs-attribute': {
       color: apexDarkColors.AccentYellow,
     },
@@ -140,7 +84,7 @@ export const ApexDark: Theme = new Theme(
       color: apexDarkColors.AccentYellow,
     },
     'hljs-template-variable': {
-      color: apexDarkColors.AccentPurple,
+      color: apexDarkColors.AccentYellow,
     },
     'hljs-comment': {
       color: apexDarkColors.Comment,
@@ -156,18 +100,6 @@ export const ApexDark: Theme = new Theme(
     'hljs-meta': {
       color: apexDarkColors.AccentYellow,
     },
-    'hljs-number': {
-      color: apexDarkColors.AccentPurple,
-    },
-    'hljs-regexp': {
-      color: apexDarkColors.AccentCyan,
-    },
-    'hljs-class': {
-      color: apexDarkColors.AccentBlue,
-    },
-    'hljs-params': {
-      color: apexDarkColors.Foreground,
-    },
     'hljs-doctag': {
       fontWeight: 'bold',
     },
@@ -177,22 +109,7 @@ export const ApexDark: Theme = new Theme(
     'hljs-emphasis': {
       fontStyle: 'italic',
     },
-    'hljs-section': {
-      color: apexDarkColors.AccentYellow,
-    },
-    'hljs-tag': {
-      color: apexDarkColors.LightBlue,
-    },
-    'hljs-selector-tag': {
-      color: apexDarkColors.AccentYellow,
-    },
-    'hljs-selector-id': {
-      color: apexDarkColors.AccentYellow,
-    },
-    'hljs-selector-class': {
-      color: apexDarkColors.AccentYellow,
-    },
   },
   apexDarkColors,
-  apexDarkSemanticColors,
+  darkSemanticColors,
 );

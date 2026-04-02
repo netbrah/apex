@@ -121,7 +121,7 @@ export async function handleQwenAuth(
     );
 
     if (command === 'api-key') {
-      await handleQwenOAuth(config, settings);
+      await handleApiKeyAuth(config, settings);
     } else if (command === 'coding-plan') {
       await handleCodePlanAuth(config, settings, options);
     }
@@ -136,23 +136,22 @@ export async function handleQwenAuth(
 }
 
 /**
- * Handles API Key authentication
+ * Handles API Key authentication via OpenAI-compatible API
  */
-async function handleQwenOAuth(
+async function handleApiKeyAuth(
   config: Config,
   settings: LoadedSettings,
 ): Promise<void> {
   writeStdoutLine(t('Starting API Key authentication...'));
 
   try {
-    await config.refreshAuth(AuthType.QWEN_OAUTH);
+    await config.refreshAuth(AuthType.USE_OPENAI);
 
-    // Persist the auth type
     const authTypeScope = getPersistScopeForModelSelection(settings);
     settings.setValue(
       authTypeScope,
       'security.auth.selectedType',
-      AuthType.QWEN_OAUTH,
+      AuthType.USE_OPENAI,
     );
 
     writeStdoutLine(t('Successfully authenticated with API Key.'));
@@ -168,7 +167,7 @@ async function handleQwenOAuth(
 }
 
 /**
- * Handles API Key authentication
+ * Handles Coding Plan authentication
  */
 async function handleCodePlanAuth(
   config: Config,
@@ -264,9 +263,7 @@ async function handleCodePlanAuth(
     // Refresh auth with the new configuration
     await config.refreshAuth(AuthType.USE_OPENAI);
 
-    writeStdoutLine(
-      t('Successfully authenticated with API Key.'),
-    );
+    writeStdoutLine(t('Successfully authenticated with API Key.'));
   } catch (error) {
     writeStderrLine(
       t('Failed to authenticate with Coding Plan: {{error}}', {
@@ -409,15 +406,9 @@ export async function showAuthStatus(): Promise<void> {
     if (!selectedType) {
       writeStdoutLine(t('⚠️  No authentication method configured.\n'));
       writeStdoutLine(t('Run one of the following commands to get started:\n'));
+      writeStdoutLine(t('  apex auth api-key     - Authenticate with API Key'));
       writeStdoutLine(
-        t(
-          '  apex auth api-key     - Authenticate with API Key',
-        ),
-      );
-      writeStdoutLine(
-        t(
-          '  apex auth coding-plan      - Authenticate with API Key\n',
-        ),
+        t('  apex auth coding-plan      - Authenticate with API Key\n'),
       );
       writeStdoutLine(t('Or simply run:'));
       writeStdoutLine(
@@ -427,12 +418,7 @@ export async function showAuthStatus(): Promise<void> {
     }
 
     // Display status based on auth type
-    if (selectedType === AuthType.QWEN_OAUTH) {
-      writeStdoutLine(t('✓ Authentication Method: API Key'));
-      writeStdoutLine(t('  Type: Free tier'));
-      writeStdoutLine(t('  Limit: Up to 1,000 requests/day'));
-      writeStdoutLine(t('  Models: Available models\n'));
-    } else if (selectedType === AuthType.USE_OPENAI) {
+    if (selectedType === AuthType.USE_OPENAI) {
       // Check for Coding Plan configuration
       const codingPlanRegion = mergedSettings.codingPlan?.region;
       const codingPlanVersion = mergedSettings.codingPlan?.version;
@@ -444,9 +430,7 @@ export async function showAuthStatus(): Promise<void> {
         !!mergedSettings.env?.[CODING_PLAN_ENV_KEY];
 
       if (hasApiKey) {
-        writeStdoutLine(
-          t('✓ Authentication Method: API Key'),
-        );
+        writeStdoutLine(t('✓ Authentication Method: API Key'));
 
         if (codingPlanRegion) {
           const regionDisplay =
@@ -472,11 +456,7 @@ export async function showAuthStatus(): Promise<void> {
 
         writeStdoutLine(t('  Status: API key configured\n'));
       } else {
-        writeStdoutLine(
-          t(
-            '⚠️  Authentication Method: API Key (Incomplete)',
-          ),
-        );
+        writeStdoutLine(t('⚠️  Authentication Method: API Key (Incomplete)'));
         writeStdoutLine(
           t('  Issue: API key not found in environment or settings\n'),
         );

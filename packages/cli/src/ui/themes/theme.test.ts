@@ -88,7 +88,7 @@ describe('themeManager.loadCustomThemes', () => {
     themeManager.loadCustomThemes({ 'Legacy Custom Theme': legacyTheme });
     const result = themeManager.getTheme('Legacy Custom Theme')!;
 
-    // Should use DEFAULT_THEME (QwenDark) values for missing fields
+    // Should use DEFAULT_THEME (ApexDark) values for missing fields
     expect(result.colors.DiffAdded).toBe('#1a2e1a');
     expect(result.colors.DiffRemoved).toBe('#2e1a1a');
     expect(result.colors.AccentBlue).toBe(legacyTheme.AccentBlue);

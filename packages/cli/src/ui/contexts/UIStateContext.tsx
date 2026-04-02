@@ -17,7 +17,7 @@ import type {
   SettingInputRequest,
   PluginChoiceRequest,
 } from '../types.js';
-import type { QwenAuthState } from '../hooks/useQwenAuth.js';
+import type { ApexAuthState } from '../hooks/useApexAuth.js';
 import type { CommandContext, SlashCommand } from '../commands/types.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type {
@@ -47,7 +47,7 @@ export interface UIState {
   isAuthDialogOpen: boolean;
   pendingAuthType: AuthType | undefined;
   // API Key state
-  qwenAuthState: QwenAuthState;
+  apexAuthState: ApexAuthState;
   editorError: string | null;
   isEditorDialogOpen: boolean;
   debugMessage: string;

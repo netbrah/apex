@@ -11,8 +11,7 @@ if (process.env['NO_COLOR'] !== undefined) {
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ApexDark } from './apex-dark.js';
-import { QwenDark } from './qwen-dark.js';
-import { QwenLight } from './qwen-light.js';
+import { ApexLight } from './apex-light.js';
 import { themeManager, DEFAULT_THEME } from './theme-manager.js';
 import { createCustomTheme } from './theme.js';
 import type { CustomTheme } from './theme.js';
@@ -155,8 +154,8 @@ describe('blendWithAlpha', () => {
 });
 
 describe('Existing themes get derived V2 tokens', () => {
-  it('QwenDark should have auto-derived surface group', () => {
-    const sc = QwenDark.semanticColors;
+  it('ApexDark should have auto-derived surface group', () => {
+    const sc = ApexDark.semanticColors;
     expect(sc.surface).toBeDefined();
     expect(sc.surface!.canvas).toBeTruthy();
     expect(sc.surface!.panel).toBeTruthy();
@@ -164,8 +163,8 @@ describe('Existing themes get derived V2 tokens', () => {
     expect(sc.surface!.overlay).toBeTruthy();
   });
 
-  it('QwenLight should have auto-derived surface group', () => {
-    const sc = QwenLight.semanticColors;
+  it('ApexLight should have auto-derived surface group', () => {
+    const sc = ApexLight.semanticColors;
     expect(sc.surface).toBeDefined();
     expect(sc.surface!.canvas).toBeTruthy();
     expect(sc.surface!.panel).toBeTruthy();
@@ -173,24 +172,24 @@ describe('Existing themes get derived V2 tokens', () => {
     expect(sc.surface!.overlay).toBeTruthy();
   });
 
-  it('QwenDark should have auto-derived interactive group', () => {
-    const sc = QwenDark.semanticColors;
+  it('ApexDark should have auto-derived interactive group', () => {
+    const sc = ApexDark.semanticColors;
     expect(sc.interactive).toBeDefined();
     expect(sc.interactive!.hover).toBeTruthy();
     expect(sc.interactive!.active).toBeTruthy();
     expect(sc.interactive!.selected).toBeTruthy();
   });
 
-  it('QwenLight should have auto-derived badge group', () => {
-    const sc = QwenLight.semanticColors;
+  it('ApexLight should have auto-derived badge group', () => {
+    const sc = ApexLight.semanticColors;
     expect(sc.badge).toBeDefined();
     expect(sc.badge!.info).toBeTruthy();
     expect(sc.badge!.tool).toBeTruthy();
     expect(sc.badge!.agent).toBeTruthy();
   });
 
-  it('QwenDark should have auto-derived prompt group', () => {
-    const sc = QwenDark.semanticColors;
+  it('ApexDark should have auto-derived prompt group', () => {
+    const sc = ApexDark.semanticColors;
     expect(sc.prompt).toBeDefined();
     expect(sc.prompt!.prefix).toBeTruthy();
     expect(sc.prompt!.placeholder).toBeTruthy();

@@ -38,7 +38,7 @@ function parseDefaultAuthType(
 }
 
 // Main menu option type
-type MainOption = typeof AuthType.QWEN_OAUTH | 'CODING_PLAN' | 'API_KEY';
+type MainOption = 'CODING_PLAN' | 'API_KEY';
 
 // View level for navigation
 type ViewLevel = 'main' | 'region-select' | 'api-key-input' | 'custom-info';
@@ -107,7 +107,7 @@ export function AuthDialog(): React.JSX.Element {
   ];
 
   // Map an AuthType to the corresponding main menu option.
-  // QWEN_OAUTH maps directly; any other auth type maps to CODING_PLAN only
+  // OAuth maps directly; any other auth type maps to CODING_PLAN only
   // if the current config actually uses a Coding Plan baseUrl+envKey,
   // otherwise it maps to API_KEY.
   const contentGenConfig = config.getContentGeneratorConfig();
@@ -118,7 +118,6 @@ export function AuthDialog(): React.JSX.Element {
     ) !== false;
 
   const authTypeToMainOption = (authType: AuthType): MainOption => {
-    if (authType === AuthType.QWEN_OAUTH) return AuthType.QWEN_OAUTH;
     if (authType === AuthType.USE_OPENAI && isCurrentlyCodingPlan)
       return 'CODING_PLAN';
     return 'API_KEY';
@@ -138,9 +137,9 @@ export function AuthDialog(): React.JSX.Element {
         return item.value === authTypeToMainOption(currentAuthType);
       }
 
-      // Priority 3: QWEN_DEFAULT_AUTH_TYPE env var
+      // Priority 3: APEX_DEFAULT_AUTH_TYPE env var
       const defaultAuthType = parseDefaultAuthType(
-        process.env['QWEN_DEFAULT_AUTH_TYPE'],
+        process.env['APEX_DEFAULT_AUTH_TYPE'],
       );
       if (defaultAuthType) {
         return item.value === authTypeToMainOption(defaultAuthType);

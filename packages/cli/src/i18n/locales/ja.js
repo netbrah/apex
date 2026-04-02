@@ -390,8 +390,8 @@ export default {
   'No hook events found.': 'フックイベントが見つかりません。',
   '{{count}} hook configured': '{{count}} 件のフックが設定されています',
   '{{count}} hooks configured': '{{count}} 件のフックが設定されています',
-  'This menu is read-only. To add or modify hooks, edit settings.json directly or ask Qwen Code.':
-    'このメニューは読み取り専用です。フックを追加または変更するには、settings.json を直接編集するか、Qwen Code に尋ねてください。',
+  'This menu is read-only. To add or modify hooks, edit settings.json directly or ask APEX.':
+    'このメニューは読み取り専用です。フックを追加または変更するには、settings.json を直接編集するか、APEX に尋ねてください。',
   'Enter to select · Esc to cancel': 'Enter で選択 · Esc でキャンセル',
   // Hooks - Detail Step
   'Exit codes:': '終了コード：',
@@ -428,8 +428,7 @@ export default {
   'When notifications are sent': '通知送信時',
   'When the user submits a prompt': 'ユーザーがプロンプトを送信した時',
   'When a new session is started': '新しいセッションが開始された時',
-  'Right before Qwen Code concludes its response':
-    'Qwen Code が応答を終了する直前',
+  'Right before APEX concludes its response': 'APEX が応答を終了する直前',
   'When a subagent (Agent tool call) is started':
     'サブエージェント（Agent ツール呼び出し）が開始された時',
   'Right before a subagent concludes its response':
@@ -943,7 +942,7 @@ export default {
   'You must select an auth method to proceed. Press Ctrl+C again to exit.':
     '続行するには認証方法を選択してください。Ctrl+C をもう一度押すと終了します',
   'Terms of Services and Privacy Notice': '利用規約とプライバシー通知',
-  'Qwen OAuth': 'OAuth',
+  'OpenAI-compatible API': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
     '無料 \u00B7 1日最大1,000リクエスト \u00B7 設定済みモデル',
   'Login with QwenChat account to use daily free quota.': 'OAuthでログイン',
@@ -959,25 +958,27 @@ export default {
     'ログインに失敗しました。メッセージ: {{message}}',
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     '認証は {{enforcedType}} に強制されていますが、現在 {{currentType}} を使用しています',
-  'Qwen OAuth authentication timed out. Please try again.':
+  'OpenAI-compatible API authentication timed out. Please try again.':
     'OAuth認証がタイムアウトしました。再度お試しください',
-  'Qwen OAuth authentication cancelled.': 'OAuth認証がキャンセルされました',
-  'Qwen OAuth Authentication': 'OAuth認証',
+  'OpenAI-compatible API authentication cancelled.':
+    'OAuth認証がキャンセルされました',
+  'OpenAI-compatible API Authentication': 'OAuth認証',
   'Please visit this URL to authorize:':
     '認証するには以下のURLにアクセスしてください:',
   'Or scan the QR code below:': 'または以下のQRコードをスキャン:',
   'Waiting for authorization': '認証を待っています',
   'Time remaining:': '残り時間:',
   '(Press ESC or CTRL+C to cancel)': '(ESC または CTRL+C でキャンセル)',
-  'Qwen OAuth Authentication Timeout': 'OAuth認証タイムアウト',
+  'OpenAI-compatible API Authentication Timeout': 'OAuth認証タイムアウト',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'OAuthトークンが期限切れです({{seconds}}秒以上)。認証方法を再度選択してください',
   'Press any key to return to authentication type selection.':
     '認証タイプ選択に戻るには任意のキーを押してください',
-  'Waiting for Qwen OAuth authentication...': 'OAuth認証を待っています...',
-  'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
+  'Waiting for OpenAI-compatible API authentication...':
+    'OAuth認証を待っています...',
+  'Note: Your existing API key in settings.json will not be cleared when using OpenAI-compatible API. You can switch back to OpenAI authentication later if needed.':
     '注: OAuthを使用しても、settings.json内の既存のAPIキーはクリアされません。必要に応じて後でOpenAI認証に切り替えることができます',
-  'Note: Your existing API key will not be cleared when using Qwen OAuth.':
+  'Note: Your existing API key will not be cleared when using OpenAI-compatible API.':
     '注: OAuthを使用しても、既存のAPIキーはクリアされません。',
   'Authentication timed out. Please try again.':
     '認証がタイムアウトしました。再度お試しください',
@@ -987,8 +988,8 @@ export default {
     '認証に失敗しました。メッセージ: {{message}}',
   'Authenticated successfully with {{authType}} credentials.':
     '{{authType}} 認証情報で正常に認証されました',
-  'Invalid QWEN_DEFAULT_AUTH_TYPE value: "{{value}}". Valid values are: {{validValues}}':
-    '無効な QWEN_DEFAULT_AUTH_TYPE 値: "{{value}}"。有効な値: {{validValues}}',
+  'Invalid APEX_DEFAULT_AUTH_TYPE value: "{{value}}". Valid values are: {{validValues}}':
+    '無効な APEX_DEFAULT_AUTH_TYPE 値: "{{value}}"。有効な値: {{validValues}}',
   'OpenAI Configuration Required': 'OpenAI設定が必要です',
   'Please enter your OpenAI configuration. You can get an API key from':
     'OpenAI設定を入力してください。APIキーは以下から取得できます',
@@ -1373,7 +1374,7 @@ export default {
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
     'OAuth または Alibaba Cloud Coding Plan で認証情報を設定する',
-  'Authenticate using Qwen OAuth': 'OAuth で認証する',
+  'Authenticate using OpenAI-compatible API': 'OAuth で認証する',
   'Authenticate using Alibaba Cloud Coding Plan':
     'Alibaba Cloud Coding Plan で認証する',
   'Region for Coding Plan (china/global)':
@@ -1381,10 +1382,11 @@ export default {
   'API key for Coding Plan': 'Coding Plan の API キー',
   'Show current authentication status': '現在の認証ステータスを表示',
   'Authentication completed successfully.': '認証が正常に完了しました。',
-  'Starting Qwen OAuth authentication...': 'OAuth 認証を開始しています...',
-  'Successfully authenticated with Qwen OAuth.':
+  'Starting OpenAI-compatible API authentication...':
+    'OAuth 認証を開始しています...',
+  'Successfully authenticated with OpenAI-compatible API.':
     'OAuth での認証に成功しました。',
-  'Failed to authenticate with Qwen OAuth: {{error}}':
+  'Failed to authenticate with OpenAI-compatible API: {{error}}':
     'OAuth での認証に失敗しました: {{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     'Alibaba Cloud Coding Plan 認証を処理しています...',
@@ -1405,14 +1407,14 @@ export default {
     '⚠️  認証方法が設定されていません。\n',
   'Run one of the following commands to get started:\n':
     '以下のコマンドのいずれかを実行して開始してください:\n',
-  '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  apex auth qwen-oauth     - OAuth で認証（無料）',
+  '  apex auth openai     - Authenticate with OpenAI-compatible API (free tier)':
+    '  apex auth openai     - OAuth で認証（無料）',
   '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
     '  apex auth coding-plan      - Alibaba Cloud Coding Plan で認証\n',
   'Or simply run:': 'または以下を実行:',
   '  apex auth                - Interactive authentication setup\n':
     '  apex auth                - インタラクティブ認証セットアップ\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ 認証方法: OAuth',
+  '✓ Authentication Method: OpenAI-compatible API': '✓ 認証方法: OAuth',
   '  Type: Free tier': '  タイプ: 無料プラン',
   '  Limit: Up to 1,000 requests/day': '  制限: 1日最大1,000リクエスト',
   '  Models: Qwen latest models\n': '  モデル: 設定済みモデル\n',

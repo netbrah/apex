@@ -18,7 +18,6 @@ import { useTerminalSize } from '../hooks/useTerminalSize.js';
  * Simplified representation of authentication method shown to users.
  */
 export enum AuthDisplayType {
-  QWEN_OAUTH = 'API Key',
   CODING_PLAN = 'Coding Plan',
   API_KEY = 'API Key',
   UNKNOWN = 'Unknown',
@@ -137,7 +136,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Title line: >_ Brand (v{version}) */}
         <Text>
           <Text bold color={theme.prompt?.prefix ?? theme.text.accent}>
-            &gt;_ {process.env['QWEN_CODE_BRAND'] || 'Apex'}
+            &gt;_ {'Apex'}
           </Text>
           <Text color={theme.text.secondary}> (v{version})</Text>
         </Text>

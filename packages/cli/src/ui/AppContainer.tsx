@@ -454,7 +454,7 @@ export const AppContainer = (props: AppContainerProps) => {
     isAuthDialogOpen,
     isAuthenticating,
     pendingAuthType,
-    qwenAuthState,
+    apexAuthState,
     handleAuthSelect,
     handleCodingPlanSubmit,
     handleAlibabaStandardSubmit,
@@ -1482,7 +1482,7 @@ export const AppContainer = (props: AppContainerProps) => {
       isAuthDialogOpen,
       pendingAuthType,
       // API Key state
-      qwenAuthState,
+      apexAuthState,
       editorError,
       isEditorDialogOpen,
       debugMessage,
@@ -1584,7 +1584,7 @@ export const AppContainer = (props: AppContainerProps) => {
       isAuthDialogOpen,
       pendingAuthType,
       // API Key state
-      qwenAuthState,
+      apexAuthState,
       editorError,
       isEditorDialogOpen,
       debugMessage,

@@ -73,8 +73,7 @@ vi.mock('../ui/utils/computeStats.js', () => ({
 }));
 
 vi.mock('@apex-code/apex-core', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@apex-code/apex-core')>();
+  const actual = await importOriginal<typeof import('@apex-code/apex-core')>();
   return {
     ...actual,
     getMCPServerStatus: vi.fn(),
@@ -542,7 +541,7 @@ describe('buildSystemMessage', () => {
       model: 'test-model',
       permission_mode: 'auto',
       slash_commands: ['commit', 'compress', 'init', 'summary'],
-      qwen_code_version: '1.0.0',
+      apex_version: '1.0.0',
       agents: [],
     });
   });
@@ -592,7 +591,7 @@ describe('buildSystemMessage', () => {
       ['init', 'summary'],
     );
 
-    expect(result.qwen_code_version).toBe('unknown');
+    expect(result.apex_version).toBe('unknown');
   });
 
   it('should only include allowed built-in commands and all file commands', async () => {

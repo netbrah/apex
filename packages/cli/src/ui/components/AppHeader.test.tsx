@@ -29,7 +29,7 @@ const createSettings = (options?: { hideTips?: boolean }): LoadedSettings =>
 const createMockConfig = (overrides = {}) => ({
   getContentGeneratorConfig: vi.fn(() => ({ authType: undefined })),
   getModel: vi.fn(() => 'gemini-pro'),
-  getTargetDir: vi.fn(() => '/projects/qwen-code'),
+  getTargetDir: vi.fn(() => '/projects/apex'),
   getMcpServers: vi.fn(() => ({})),
   getBlockedMcpServers: vi.fn(() => []),
   getDebugMode: vi.fn(() => false),
@@ -71,7 +71,7 @@ const renderWithProviders = (
 describe('<AppHeader />', () => {
   it('shows the working directory', () => {
     const { lastFrame } = renderWithProviders(createMockUIState());
-    expect(lastFrame()).toContain('/projects/qwen-code');
+    expect(lastFrame()).toContain('/projects/apex');
   });
 
   it('hides the header when screen reader is enabled', () => {
@@ -81,7 +81,7 @@ describe('<AppHeader />', () => {
       createMockConfig({ getScreenReader: vi.fn(() => true) }),
     );
     // When screen reader is enabled, header is not rendered
-    expect(lastFrame()).not.toContain('/projects/qwen-code');
+    expect(lastFrame()).not.toContain('/projects/apex');
     expect(lastFrame()).not.toContain('Apex');
   });
 
@@ -89,6 +89,6 @@ describe('<AppHeader />', () => {
     const { lastFrame } = renderWithProviders(createMockUIState());
     expect(lastFrame()).toContain('>_ Apex');
     expect(lastFrame()).toContain('gemini-pro');
-    expect(lastFrame()).toContain('/projects/qwen-code');
+    expect(lastFrame()).toContain('/projects/apex');
   });
 });

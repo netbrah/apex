@@ -609,8 +609,8 @@ export default {
   'No hook events found.': 'Nenhum evento de hook encontrado.',
   '{{count}} hook configured': '{{count}} hook configurado',
   '{{count}} hooks configured': '{{count}} hooks configurados',
-  'This menu is read-only. To add or modify hooks, edit settings.json directly or ask Qwen Code.':
-    'Este menu é somente leitura. Para adicionar ou modificar hooks, edite settings.json diretamente ou pergunte ao Qwen Code.',
+  'This menu is read-only. To add or modify hooks, edit settings.json directly or ask APEX.':
+    'Este menu é somente leitura. Para adicionar ou modificar hooks, edite settings.json diretamente ou pergunte ao APEX.',
   'Enter to select · Esc to cancel':
     'Enter para selecionar · Esc para cancelar',
   // Hooks - Detail Step
@@ -648,8 +648,8 @@ export default {
   'When notifications are sent': 'Quando notificações são enviadas',
   'When the user submits a prompt': 'Quando o usuário envia um prompt',
   'When a new session is started': 'Quando uma nova sessão é iniciada',
-  'Right before Qwen Code concludes its response':
-    'Logo antes do Qwen Code concluir sua resposta',
+  'Right before APEX concludes its response':
+    'Logo antes do APEX concluir sua resposta',
   'When a subagent (Agent tool call) is started':
     'Quando um subagente (chamada de ferramenta Agent) é iniciado',
   'Right before a subagent concludes its response':
@@ -1227,7 +1227,7 @@ export default {
     'Você deve selecionar um método de autenticação para prosseguir. Pressione Ctrl+C novamente para sair.',
   'Terms of Services and Privacy Notice':
     'Termos de Serviço e Aviso de Privacidade',
-  'Qwen OAuth': 'OAuth',
+  'OpenAI-compatible API': 'OAuth',
   'Free \u00B7 Up to 1,000 requests/day \u00B7 Qwen latest models':
     'Gratuito \u00B7 Até 1.000 solicitações/dia \u00B7 Modelos configurados',
   'Login with QwenChat account to use daily free quota.': 'Login com OAuth',
@@ -1243,25 +1243,27 @@ export default {
     'Falha ao fazer login. Mensagem: {{message}}',
   'Authentication is enforced to be {{enforcedType}}, but you are currently using {{currentType}}.':
     'A autenticação é forçada para {{enforcedType}}, mas você está usando {{currentType}} no momento.',
-  'Qwen OAuth authentication timed out. Please try again.':
+  'OpenAI-compatible API authentication timed out. Please try again.':
     'A autenticação OAuth expirou. Tente novamente.',
-  'Qwen OAuth authentication cancelled.': 'Autenticação OAuth cancelada.',
-  'Qwen OAuth Authentication': 'Autenticação OAuth',
+  'OpenAI-compatible API authentication cancelled.':
+    'Autenticação OAuth cancelada.',
+  'OpenAI-compatible API Authentication': 'Autenticação OAuth',
   'Please visit this URL to authorize:': 'Visite esta URL para autorizar:',
   'Or scan the QR code below:': 'Ou escaneie o código QR abaixo:',
   'Waiting for authorization': 'Aguardando autorização',
   'Time remaining:': 'Tempo restante:',
   '(Press ESC or CTRL+C to cancel)': '(Pressione ESC ou CTRL+C para cancelar)',
-  'Qwen OAuth Authentication Timeout': 'Tempo Limite de Autenticação OAuth',
+  'OpenAI-compatible API Authentication Timeout':
+    'Tempo Limite de Autenticação OAuth',
   'OAuth token expired (over {{seconds}} seconds). Please select authentication method again.':
     'Token OAuth expirado (mais de {{seconds}} segundos). Selecione o método de autenticação novamente.',
   'Press any key to return to authentication type selection.':
     'Pressione qualquer tecla para retornar à seleção do tipo de autenticação.',
-  'Waiting for Qwen OAuth authentication...':
+  'Waiting for OpenAI-compatible API authentication...':
     'Aguardando autenticação OAuth...',
-  'Note: Your existing API key in settings.json will not be cleared when using Qwen OAuth. You can switch back to OpenAI authentication later if needed.':
+  'Note: Your existing API key in settings.json will not be cleared when using OpenAI-compatible API. You can switch back to OpenAI authentication later if needed.':
     'Nota: Sua chave de API existente no settings.json não será limpa ao usar OAuth. Você pode voltar para a autenticação do OpenAI mais tarde, se necessário.',
-  'Note: Your existing API key will not be cleared when using Qwen OAuth.':
+  'Note: Your existing API key will not be cleared when using OpenAI-compatible API.':
     'Nota: Sua chave de API existente não será limpa ao usar OAuth.',
   'Authentication timed out. Please try again.':
     'A autenticação expirou. Tente novamente.',
@@ -1287,8 +1289,8 @@ export default {
     'Falha ao autenticar. Mensagem: {{message}}',
   'Authenticated successfully with {{authType}} credentials.':
     'Autenticado com sucesso com credenciais {{authType}}.',
-  'Invalid QWEN_DEFAULT_AUTH_TYPE value: "{{value}}". Valid values are: {{validValues}}':
-    'Valor QWEN_DEFAULT_AUTH_TYPE inválido: "{{value}}". Valores válidos são: {{validValues}}',
+  'Invalid APEX_DEFAULT_AUTH_TYPE value: "{{value}}". Valid values are: {{validValues}}':
+    'Valor APEX_DEFAULT_AUTH_TYPE inválido: "{{value}}". Valores válidos são: {{validValues}}',
   'OpenAI Configuration Required': 'Configuração do OpenAI Necessária',
   'Please enter your OpenAI configuration. You can get an API key from':
     'Insira sua configuração do OpenAI. Você pode obter uma chave de API de',
@@ -1868,7 +1870,7 @@ export default {
   // ============================================================================
   'Configure Qwen authentication information with Qwen-OAuth or Alibaba Cloud Coding Plan':
     'Configurar autenticação com OAuth ou Alibaba Cloud Coding Plan',
-  'Authenticate using Qwen OAuth': 'Autenticar usando OAuth',
+  'Authenticate using OpenAI-compatible API': 'Autenticar usando OAuth',
   'Authenticate using Alibaba Cloud Coding Plan':
     'Autenticar usando Alibaba Cloud Coding Plan',
   'Region for Coding Plan (china/global)':
@@ -1877,10 +1879,11 @@ export default {
   'Show current authentication status': 'Mostrar status atual de autenticação',
   'Authentication completed successfully.':
     'Autenticação concluída com sucesso.',
-  'Starting Qwen OAuth authentication...': 'Iniciando autenticação OAuth...',
-  'Successfully authenticated with Qwen OAuth.':
+  'Starting OpenAI-compatible API authentication...':
+    'Iniciando autenticação OAuth...',
+  'Successfully authenticated with OpenAI-compatible API.':
     'Autenticado com sucesso via OAuth.',
-  'Failed to authenticate with Qwen OAuth: {{error}}':
+  'Failed to authenticate with OpenAI-compatible API: {{error}}':
     'Falha ao autenticar com OAuth: {{error}}',
   'Processing Alibaba Cloud Coding Plan authentication...':
     'Processando autenticação Alibaba Cloud Coding Plan...',
@@ -1901,14 +1904,15 @@ export default {
     '⚠️  Nenhum método de autenticação configurado.\n',
   'Run one of the following commands to get started:\n':
     'Execute um dos seguintes comandos para começar:\n',
-  '  apex auth qwen-oauth     - Authenticate with Qwen OAuth (free tier)':
-    '  apex auth qwen-oauth     - Autenticar com OAuth (gratuito)',
+  '  apex auth openai     - Authenticate with OpenAI-compatible API (free tier)':
+    '  apex auth openai     - Autenticar com OAuth (gratuito)',
   '  apex auth coding-plan      - Authenticate with Alibaba Cloud Coding Plan\n':
     '  apex auth coding-plan      - Autenticar com Alibaba Cloud Coding Plan\n',
   'Or simply run:': 'Ou simplesmente execute:',
   '  apex auth                - Interactive authentication setup\n':
     '  apex auth                - Configuração interativa de autenticação\n',
-  '✓ Authentication Method: Qwen OAuth': '✓ Método de autenticação: OAuth',
+  '✓ Authentication Method: OpenAI-compatible API':
+    '✓ Método de autenticação: OAuth',
   '  Type: Free tier': '  Tipo: Gratuito',
   '  Limit: Up to 1,000 requests/day': '  Limite: Até 1.000 solicitações/dia',
   '  Models: Qwen latest models\n': '  Modelos: Modelos configurados\n',

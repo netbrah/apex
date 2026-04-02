@@ -1,21 +1,21 @@
 // Stub: API Key removed in Apex
-export interface QwenAuthState {
+export interface ApexAuthState {
   deviceAuth: unknown;
   authStatus: string | null;
   authMessage: string | null;
   isQwenAuthenticating: boolean;
 }
 
-export function useQwenAuth(..._args: unknown[]) {
-  const qwenAuthState: QwenAuthState = {
+export function useApexAuth(..._args: unknown[]) {
+  const apexAuthState: ApexAuthState = {
     deviceAuth: null,
     authStatus: null,
     authMessage: null,
     isQwenAuthenticating: false,
   };
   return {
-    ...qwenAuthState,
-    qwenAuthState,
+    ...apexAuthState,
+    apexAuthState,
     startQwenAuth: (..._args: unknown[]) => {},
     cancelQwenAuth: () => {},
   };

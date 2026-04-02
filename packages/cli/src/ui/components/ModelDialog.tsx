@@ -323,14 +323,7 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
           modelId = idx >= 0 ? selected.slice(idx + sep.length) : selected;
         }
 
-        await config.switchModel(
-          selectedAuthType,
-          modelId,
-          selectedAuthType !== authType &&
-            selectedAuthType === AuthType.QWEN_OAUTH
-            ? { requireCachedCredentials: true }
-            : undefined,
-        );
+        await config.switchModel(selectedAuthType, modelId);
 
         if (!isRuntime) {
           const event = new ModelSlashCommandEvent(modelId);
@@ -426,18 +419,14 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
               highlightedEntry.model.contextWindowSize,
             )}
           />
-          {highlightedEntry.authType !== AuthType.QWEN_OAUTH && (
-            <>
-              <DetailRow
-                label="Base URL"
-                value={highlightedEntry.model.baseUrl ?? t('(default)')}
-              />
-              <DetailRow
-                label="API Key"
-                value={highlightedEntry.model.envKey ?? t('(not set)')}
-              />
-            </>
-          )}
+          <DetailRow
+            label="Base URL"
+            value={highlightedEntry.model.baseUrl ?? t('(default)')}
+          />
+          <DetailRow
+            label="API Key"
+            value={highlightedEntry.model.envKey ?? t('(not set)')}
+          />
         </Box>
       )}
 

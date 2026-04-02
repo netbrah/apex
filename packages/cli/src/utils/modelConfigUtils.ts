@@ -46,10 +46,6 @@ export interface ResolvedCliGenerationConfig {
 }
 
 export function getAuthTypeFromEnv(): AuthType | undefined {
-  if (process.env['QWEN_OAUTH']) {
-    return AuthType.QWEN_OAUTH;
-  }
-
   if (
     process.env['OPENAI_API_KEY'] &&
     (process.env['OPENAI_MODEL'] || process.env['OPENAI_BASE_URL'])
@@ -79,7 +75,7 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
  * Unified resolver for CLI generation config.
  *
  * Precedence (for OpenAI auth):
- * - model: argv.model > OPENAI_MODEL > QWEN_MODEL > settings.model.name
+ * - model: argv.model > OPENAI_MODEL > settings.model.name
  * - apiKey: argv.openaiApiKey > OPENAI_API_KEY > settings.security.auth.apiKey
  * - baseUrl: argv.openaiBaseUrl > OPENAI_BASE_URL > settings.security.auth.baseUrl
  *

@@ -55,18 +55,17 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });
 
-    it('should return undefined when OpenAI env vars are incomplete', () => {
+    it('should return USE_OPENAI when only API key and model are set', () => {
       process.env['OPENAI_API_KEY'] = 'test-key';
       process.env['OPENAI_MODEL'] = 'gpt-4';
-      // Missing OPENAI_BASE_URL
 
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });
 
-    it('should return QWEN_OAUTH when QWEN_OAUTH is set', () => {
-      process.env['QWEN_OAUTH'] = 'true';
+    it('should return undefined when OpenAI env vars are incomplete', () => {
+      process.env['OPENAI_API_KEY'] = 'test-key';
 
-      expect(getAuthTypeFromEnv()).toBe(AuthType.QWEN_OAUTH);
+      expect(getAuthTypeFromEnv()).toBeUndefined();
     });
 
     it('should return USE_GEMINI when Gemini env vars are set', () => {
@@ -105,22 +104,17 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_ANTHROPIC);
     });
 
-    it('should return undefined when Anthropic env vars are incomplete', () => {
+    it('should return USE_ANTHROPIC when only API key and model are set', () => {
       process.env['ANTHROPIC_API_KEY'] = 'test-key';
       process.env['ANTHROPIC_MODEL'] = 'claude-3';
-      // Missing ANTHROPIC_BASE_URL
 
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_ANTHROPIC);
     });
 
-    it('should prioritize QWEN_OAUTH over other auth types when explicitly set', () => {
-      process.env['QWEN_OAUTH'] = 'true';
-      process.env['OPENAI_API_KEY'] = 'test-key';
-      process.env['OPENAI_MODEL'] = 'gpt-4';
-      process.env['OPENAI_BASE_URL'] = 'https://api.openai.com';
+    it('should return undefined when Anthropic env vars are incomplete', () => {
+      process.env['ANTHROPIC_API_KEY'] = 'test-key';
 
-      // QWEN_OAUTH is checked first, so it should be returned even when other auth vars are set
-      expect(getAuthTypeFromEnv()).toBe(AuthType.QWEN_OAUTH);
+      expect(getAuthTypeFromEnv()).toBeUndefined();
     });
 
     it('should return undefined when no auth env vars are set', () => {
