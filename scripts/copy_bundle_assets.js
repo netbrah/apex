@@ -77,6 +77,26 @@ if (existsSync(bundledSkillsDir)) {
   );
 }
 
+// Copy bundled agents so they are available at runtime.
+// SubagentManager looks for bundled agents at dist/bundled-agents/.
+const bundledAgentsDir = join(
+  root,
+  'packages',
+  'core',
+  'src',
+  'subagents',
+  'bundled-agents',
+);
+if (existsSync(bundledAgentsDir)) {
+  const destBundledAgentsDir = join(distDir, 'bundled-agents');
+  copyRecursiveSync(bundledAgentsDir, destBundledAgentsDir);
+  console.log('Copied bundled agents to dist/bundled-agents/');
+} else {
+  console.warn(
+    `Warning: Bundled agents directory not found at ${bundledAgentsDir}`,
+  );
+}
+
 // Copy APEX persona/config assets if present.
 // Skills are sourced only from packages/core/src/skills/bundled.
 const apexAssetsDir = join(root, 'apex-assets');

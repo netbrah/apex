@@ -5,8 +5,10 @@
  */
 
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { fileURLToPath } from 'url';
 // Note: yaml package would need to be added as a dependency
 // For now, we'll use a simple YAML parser implementation
 import {
@@ -52,9 +54,14 @@ export class SubagentManager {
   private readonly validator: SubagentValidator;
   private subagentsCache: Map<SubagentLevel, SubagentConfig[]> | null = null;
   private readonly changeListeners: Set<() => void> = new Set();
+  private readonly bundledAgentsDir: string;
 
   constructor(private readonly config: Config) {
     this.validator = new SubagentValidator();
+    this.bundledAgentsDir = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'bundled-agents',
+    );
   }
 
   addChangeListener(listener: () => void): () => void {
@@ -160,6 +167,8 @@ export class SubagentManager {
     if (level) {
       // Search only the specified level
       if (level === 'builtin') {
+        const bundled = await this.loadBundledAgent(name);
+        if (bundled) return bundled;
         return BuiltinAgentRegistry.getBuiltinAgent(name);
       }
 
@@ -205,7 +214,11 @@ export class SubagentManager {
       return extensionConfig;
     }
 
-    // Try built-in agents as fallback
+    // Try bundled agents from disk, then hardcoded registry as fallback
+    const bundledConfig = await this.loadBundledAgent(name);
+    if (bundledConfig) {
+      return bundledConfig;
+    }
     return BuiltinAgentRegistry.getBuiltinAgent(name);
   }
 
@@ -788,9 +801,18 @@ export class SubagentManager {
   private async listSubagentsAtLevel(
     level: SubagentLevel,
   ): Promise<SubagentConfig[]> {
-    // Handle built-in agents
+    // Handle built-in agents: load from bundled-agents/ dir first,
+    // then fill in any missing agents from the hardcoded registry.
     if (level === 'builtin') {
-      return BuiltinAgentRegistry.getBuiltinAgents();
+      const bundledAgents = await this.loadBundledAgentsFromDir();
+      const registryAgents = BuiltinAgentRegistry.getBuiltinAgents();
+      const seenNames = new Set(bundledAgents.map((a) => a.name.toLowerCase()));
+      for (const agent of registryAgents) {
+        if (!seenNames.has(agent.name.toLowerCase())) {
+          bundledAgents.push(agent);
+        }
+      }
+      return bundledAgents;
     }
 
     if (level === 'extension') {
@@ -834,6 +856,58 @@ export class SubagentManager {
       // Directory doesn't exist or can't be read
       return [];
     }
+  }
+
+  /**
+   * Loads all bundled agents from the bundled-agents/ directory.
+   * Returns an empty array if the directory does not exist.
+   */
+  private async loadBundledAgentsFromDir(): Promise<SubagentConfig[]> {
+    if (!fsSync.existsSync(this.bundledAgentsDir)) {
+      debugLogger.debug(
+        `Bundled agents directory not found: ${this.bundledAgentsDir}`,
+      );
+      return [];
+    }
+
+    debugLogger.debug(`Loading bundled agents from: ${this.bundledAgentsDir}`);
+
+    try {
+      const files = await fs.readdir(this.bundledAgentsDir);
+      const agents: SubagentConfig[] = [];
+
+      for (const file of files) {
+        if (!file.endsWith('.md')) continue;
+        const filePath = path.join(this.bundledAgentsDir, file);
+        try {
+          const content = await fs.readFile(filePath, 'utf8');
+          const config = parseSubagentContent(
+            content,
+            filePath,
+            'builtin',
+            this.validator,
+          );
+          agents.push({ ...config, isBuiltin: true });
+        } catch (error) {
+          debugLogger.warn(`Failed to parse bundled agent ${file}: ${error}`);
+        }
+      }
+
+      debugLogger.debug(`Loaded ${agents.length} bundled agents`);
+      return agents;
+    } catch (error) {
+      debugLogger.warn(`Failed to read bundled agents dir: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Loads a single bundled agent by name from the bundled-agents/ directory.
+   */
+  private async loadBundledAgent(name: string): Promise<SubagentConfig | null> {
+    const agents = await this.loadBundledAgentsFromDir();
+    const lowerName = name.toLowerCase();
+    return agents.find((a) => a.name.toLowerCase() === lowerName) || null;
   }
 
   /**

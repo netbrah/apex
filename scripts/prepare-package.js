@@ -48,6 +48,13 @@ if (!fs.existsSync(bundledSkillsDir)) {
   process.exit(1);
 }
 
+const bundledAgentsDir = path.join(distDir, 'bundled-agents');
+if (!fs.existsSync(bundledAgentsDir)) {
+  console.error(`Error: Bundled agents not found at ${bundledAgentsDir}`);
+  console.error('Please run "npm run bundle" first');
+  process.exit(1);
+}
+
 // Copy README and LICENSE
 console.log('Copying documentation files...');
 const filesToCopy = ['README.md', 'LICENSE'];
@@ -167,6 +174,7 @@ const distPackageJson = {
     'LICENSE',
     'locales',
     'bundled',
+    'bundled-agents',
     'apex',
     'postinstall.js',
     'bin',
