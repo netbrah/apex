@@ -95,7 +95,7 @@ describe('OpenRouterOpenAICompatibleProvider', () => {
 
       // Should include User-Agent from parent
       expect(headers['User-Agent']).toBe(
-        `QwenCode/1.0.0 (${process.platform}; ${process.arch})`,
+        `APEX/1.0.0 (${process.platform}; ${process.arch})`,
       );
     });
 
@@ -103,8 +103,8 @@ describe('OpenRouterOpenAICompatibleProvider', () => {
       const headers = provider.buildHeaders();
 
       expect(headers).toEqual({
-        'User-Agent': `QwenCode/1.0.0 (${process.platform}; ${process.arch})`,
-        'HTTP-Referer': 'https://github.com/QwenLM/qwen-code.git',
+        'User-Agent': `APEX/1.0.0 (${process.platform}; ${process.arch})`,
+        'HTTP-Referer': 'https://github.com/netbrah/apex.git',
         'X-OpenRouter-Title': 'Apex',
       });
     });
@@ -124,7 +124,7 @@ describe('OpenRouterOpenAICompatibleProvider', () => {
 
       expect(headers).toEqual({
         'User-Agent': 'ParentAgent/1.0.0',
-        'HTTP-Referer': 'https://github.com/QwenLM/qwen-code.git', // OpenRouter-specific value should override
+        'HTTP-Referer': 'https://github.com/netbrah/apex.git', // OpenRouter-specific value should override
         'X-OpenRouter-Title': 'Apex',
       });
 
@@ -140,7 +140,7 @@ describe('OpenRouterOpenAICompatibleProvider', () => {
         `QwenCode/unknown (${process.platform}; ${process.arch})`,
       );
       expect(headers['HTTP-Referer']).toBe(
-        'https://github.com/QwenLM/qwen-code.git',
+        'https://github.com/netbrah/apex.git',
       );
       expect(headers['X-OpenRouter-Title']).toBe('Apex');
     });
@@ -213,7 +213,7 @@ describe('OpenRouterOpenAICompatibleProvider', () => {
       // Should have both parent and OpenRouter-specific headers
       expect(headers['User-Agent']).toBeDefined(); // From parent
       expect(headers['HTTP-Referer']).toBe(
-        'https://github.com/QwenLM/qwen-code.git',
+        'https://github.com/netbrah/apex.git',
       ); // OpenRouter-specific
       expect(headers['X-OpenRouter-Title']).toBe('Apex'); // OpenRouter-specific
     });

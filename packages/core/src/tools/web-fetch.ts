@@ -19,7 +19,7 @@ import type {
 } from './tools.js';
 import type { PermissionDecision } from '../permissions/types.js';
 import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
-import { DEFAULT_QWEN_MODEL } from '../config/models.js';
+import { DEFAULT_CODER_MODEL } from '../config/models.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
 import { createDebugLogger, type DebugLogger } from '../utils/debugLogger.js';
 
@@ -117,7 +117,7 @@ ${textContent}
             'Be concise and accurate. Respond only with the requested information.',
         },
         signal,
-        this.config.getModel() || DEFAULT_QWEN_MODEL,
+        this.config.getModel() || DEFAULT_CODER_MODEL,
       );
       const resultText = getResponseText(result) || '';
 

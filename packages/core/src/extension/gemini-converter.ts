@@ -5,7 +5,7 @@
  */
 
 /**
- * Converter for Gemini extensions to Qwen Code format.
+ * Converter for Gemini extensions to APEX format.
  */
 
 import * as fs from 'node:fs';
@@ -28,11 +28,11 @@ export interface GeminiExtensionConfig {
 }
 
 /**
- * Converts a Gemini extension config to Qwen Code format.
+ * Converts a Gemini extension config to APEX format.
  * @param extensionDir Path to the Gemini extension directory
  * @returns Qwen ExtensionConfig
  */
-export function convertGeminiToQwenConfig(
+export function convertGeminiToApexConfig(
   extensionDir: string,
 ): ExtensionConfig {
   const configFilePath = path.join(extensionDir, 'gemini-extension.json');
@@ -58,7 +58,7 @@ export function convertGeminiToQwenConfig(
 }
 
 /**
- * Converts a complete Gemini extension package to Qwen Code format.
+ * Converts a complete Gemini extension package to APEX format.
  * Creates a new temporary directory with:
  * 1. Converted apex-extension.json
  * 2. Commands converted from TOML to MD
@@ -70,7 +70,7 @@ export function convertGeminiToQwenConfig(
 export async function convertGeminiExtensionPackage(
   extensionDir: string,
 ): Promise<{ config: ExtensionConfig; convertedDir: string }> {
-  const geminiConfig = convertGeminiToQwenConfig(extensionDir);
+  const geminiConfig = convertGeminiToApexConfig(extensionDir);
 
   // Create temporary directory for converted extension
   const tmpDir = await ExtensionStorage.createTmpDir();

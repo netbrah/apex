@@ -122,11 +122,9 @@ describe('extension tests', () => {
   let userExtensionsDir: string;
 
   beforeEach(() => {
-    tempHomeDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'qwen-code-test-home-'),
-    );
+    tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-test-home-'));
     tempWorkspaceDir = fs.mkdtempSync(
-      path.join(tempHomeDir, 'qwen-code-test-workspace-'),
+      path.join(tempHomeDir, 'apex-test-workspace-'),
     );
     userExtensionsDir = path.join(tempHomeDir, EXTENSIONS_DIRECTORY_NAME);
     fs.mkdirSync(userExtensionsDir, { recursive: true });

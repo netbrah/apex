@@ -292,8 +292,8 @@ ${testRootDir}${path.sep}
     });
   });
 
-  describe('with qwenignore', () => {
-    it('should ignore qwenignore files by default', async () => {
+  describe('with apexignore', () => {
+    it('should ignore apexignore files by default', async () => {
       await fsPromises.writeFile(
         nodePath.join(testRootDir, '.apexignore'),
         'ignored.txt\nnode_modules/\n.apex/\n!/.apex/config.yaml',

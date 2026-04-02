@@ -153,7 +153,7 @@ export function performVariableReplacement(extensionPath: string): void {
           '!{$1}',
         );
 
-        // Replace references to ".claude" directory with ".qwen" in markdown files
+        // Replace references to ".claude" directory with ".apex" in markdown files
         // Only match path references (e.g., ~/.claude/, $HOME/.claude, ./.claude/)
         // Avoid matching URLs, comments, or string literals containing .claude
         const updatedMdContent = syntaxUpdatedContent.replace(
@@ -209,7 +209,7 @@ export function performVariableReplacement(extensionPath: string): void {
           '.message.parts | map(select(has("text")))',
         );
 
-        // Replace references to ".claude" directory with ".qwen" in shell scripts
+        // Replace references to ".claude" directory with ".apex" in shell scripts
         // Only match path references (e.g., ~/.claude/, $HOME/.claude, ./.claude/)
         // Avoid matching URLs, comments, or string literals containing .claude
         const finalScriptContent = adaptedScriptContent.replace(

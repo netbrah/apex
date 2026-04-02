@@ -41,7 +41,7 @@ export interface LSToolParams {
    */
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_qwen_ignore?: boolean;
+    respect_apex_ignore?: boolean;
   };
 }
 
@@ -204,7 +204,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
             this.config.getFileFilteringOptions().respectGitIgnore ??
             DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
           respectApexIgnore:
-            this.params.file_filtering_options?.respect_qwen_ignore ??
+            this.params.file_filtering_options?.respect_apex_ignore ??
             this.config.getFileFilteringOptions().respectApexIgnore ??
             DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
         });
@@ -266,7 +266,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
         ignoredMessages.push(`${gitIgnoredCount} git-ignored`);
       }
       if (apexIgnoredCount > 0) {
-        ignoredMessages.push(`${apexIgnoredCount} qwen-ignored`);
+        ignoredMessages.push(`${apexIgnoredCount} apex-ignored`);
       }
       if (ignoredMessages.length > 0) {
         resultMessage += `\n\n(${ignoredMessages.join(', ')})`;
@@ -331,7 +331,7 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
                   'Optional: Whether to respect .gitignore patterns when listing files. Only available in git repositories. Defaults to true.',
                 type: 'boolean',
               },
-              respect_qwen_ignore: {
+              respect_apex_ignore: {
                 description:
                   'Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.',
                 type: 'boolean',

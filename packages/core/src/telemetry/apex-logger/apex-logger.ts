@@ -151,7 +151,7 @@ export class ApexLogger {
 
   private constructor(config: Config) {
     this.config = config;
-    this.debugLogger = createDebugLogger('QWEN_LOGGER');
+    this.debugLogger = createDebugLogger('APEX_LOGGER');
     this.events = new FixedDeque<RumEvent>(Array, MAX_EVENTS);
     this.installationManager = new InstallationManager();
     this.userId = this.generateUserId();
@@ -273,7 +273,7 @@ export class ApexLogger {
       },
       view: {
         id: this.sessionId || this.config?.getSessionId(),
-        name: 'qwen-code-cli',
+        name: 'apex-cli',
       },
       os: osMetadata,
 
@@ -289,7 +289,7 @@ export class ApexLogger {
           ? { channel: this.config.getChannel() }
           : {}),
       },
-      _v: `qwen-code@${version}`,
+      _v: `apex@${version}`,
     } as RumPayload;
   }
 

@@ -79,13 +79,13 @@ describe('telemetry/config helpers', () => {
         useCollector: false,
       };
       const env = {
-        QWEN_TELEMETRY_ENABLED: '1',
-        QWEN_TELEMETRY_TARGET: 'gcp',
-        QWEN_TELEMETRY_OTLP_ENDPOINT: 'http://env:4317',
-        QWEN_TELEMETRY_OTLP_PROTOCOL: 'http',
-        QWEN_TELEMETRY_LOG_PROMPTS: 'true',
-        QWEN_TELEMETRY_OUTFILE: 'env.log',
-        QWEN_TELEMETRY_USE_COLLECTOR: 'true',
+        APEX_TELEMETRY_ENABLED: '1',
+        APEX_TELEMETRY_TARGET: 'gcp',
+        APEX_TELEMETRY_OTLP_ENDPOINT: 'http://env:4317',
+        APEX_TELEMETRY_OTLP_PROTOCOL: 'http',
+        APEX_TELEMETRY_LOG_PROMPTS: 'true',
+        APEX_TELEMETRY_OUTFILE: 'env.log',
+        APEX_TELEMETRY_USE_COLLECTOR: 'true',
       } as Record<string, string>;
       const argv = {
         telemetry: false,
@@ -133,7 +133,7 @@ describe('telemetry/config helpers', () => {
     });
 
     it('throws on unknown protocol values', async () => {
-      const env = { QWEN_TELEMETRY_OTLP_PROTOCOL: 'unknown' } as Record<
+      const env = { APEX_TELEMETRY_OTLP_PROTOCOL: 'unknown' } as Record<
         string,
         string
       >;
@@ -143,7 +143,7 @@ describe('telemetry/config helpers', () => {
     });
 
     it('throws on unknown target values', async () => {
-      const env = { QWEN_TELEMETRY_TARGET: 'unknown' } as Record<
+      const env = { APEX_TELEMETRY_TARGET: 'unknown' } as Record<
         string,
         string
       >;

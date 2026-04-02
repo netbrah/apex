@@ -36,7 +36,7 @@ export class ExtensionStorage {
       const tmpDir = os.tmpdir();
       if (!tmpDir) {
         // Ultimate fallback when both os.homedir and os.tmpdir are mocked
-        return '/tmp/.qwen/extensions';
+        return '/tmp/.apex/extensions';
       }
       return path.join(tmpDir, '.apex', 'extensions');
     }

@@ -19,7 +19,6 @@ import type {
   ContentGenerator,
   ContentGeneratorConfig,
 } from '../core/contentGenerator.js';
-import { DEFAULT_DASHSCOPE_BASE_URL } from '../core/openaiContentGenerator/constants.js';
 import {
   AuthType,
   createContentGenerator,
@@ -122,7 +121,7 @@ vi.mock('../tools/memoryTool', () => ({
   getCurrentGeminiMdFilename: vi.fn(() => 'APEX.md'), // Mock the original filename
   getAllGeminiMdFilenames: vi.fn(() => ['APEX.md', 'AGENTS.md']),
   DEFAULT_CONTEXT_FILENAME: 'APEX.md',
-  QWEN_CONFIG_DIR: '.apex',
+  APEX_CONFIG_DIR: '.apex',
 }));
 
 vi.mock('../core/contentGenerator.js');
@@ -416,54 +415,6 @@ describe('Server Config (config.ts)', () => {
       expect(
         config.getGeminiClient().stripThoughtsFromHistory,
       ).not.toHaveBeenCalledWith();
-    });
-  });
-
-  describe('model switching optimization (QWEN_OAUTH)', () => {
-    it('should switch qwen-oauth model in-place without refreshing auth when safe', async () => {
-      const config = new Config(baseParams);
-
-      const mockContentConfig: ContentGeneratorConfig = {
-        authType: AuthType.QWEN_OAUTH,
-        model: 'coder-model',
-        apiKey: 'QWEN_OAUTH_DYNAMIC_TOKEN',
-        baseUrl: DEFAULT_DASHSCOPE_BASE_URL,
-        timeout: 60000,
-        maxRetries: 3,
-      } as ContentGeneratorConfig;
-
-      vi.mocked(resolveContentGeneratorConfigWithSources).mockImplementation(
-        (_config, authType, generationConfig) => ({
-          config: {
-            ...mockContentConfig,
-            authType,
-            model: generationConfig?.model ?? mockContentConfig.model,
-          } as ContentGeneratorConfig,
-          sources: {},
-        }),
-      );
-      vi.mocked(createContentGenerator).mockResolvedValue({
-        generateContent: vi.fn(),
-        generateContentStream: vi.fn(),
-        countTokens: vi.fn(),
-        embedContent: vi.fn(),
-      } as unknown as ContentGenerator);
-
-      // Establish initial qwen-oauth content generator config/content generator.
-      await config.refreshAuth(AuthType.QWEN_OAUTH);
-
-      // Spy after initial refresh to ensure model switch does not re-trigger refreshAuth.
-      const refreshSpy = vi.spyOn(config, 'refreshAuth');
-
-      await config.switchModel(AuthType.QWEN_OAUTH, 'coder-model');
-
-      expect(config.getModel()).toBe('coder-model');
-      expect(refreshSpy).not.toHaveBeenCalled();
-      // Called once during initial refreshAuth + once during handleModelChange diffing.
-      expect(
-        vi.mocked(resolveContentGeneratorConfigWithSources),
-      ).toHaveBeenCalledTimes(2);
-      expect(vi.mocked(createContentGenerator)).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1417,7 +1368,7 @@ describe('Model Switching and Config Updates', () => {
     // Initialize with first model
     const initialConfig: ContentGeneratorConfig = {
       ['model']: 'qwen3-coder-plus',
-      ['authType']: AuthType.QWEN_OAUTH,
+      ['authType']: AuthType.USE_OPENAI,
       ['apiKey']: 'test-key',
       ['contextWindowSize']: 1_000_000,
       ['samplingParams']: { temperature: 0.7 },
@@ -1432,7 +1383,7 @@ describe('Model Switching and Config Updates', () => {
       },
     });
 
-    await config.refreshAuth(AuthType.QWEN_OAUTH);
+    await config.refreshAuth(AuthType.USE_OPENAI);
 
     // Verify initial config
     const contentGenConfig = config.getContentGeneratorConfig();
@@ -1442,7 +1393,7 @@ describe('Model Switching and Config Updates', () => {
     // Switch to a different model with different token limits
     const newConfig: ContentGeneratorConfig = {
       ['model']: 'qwen-max',
-      ['authType']: AuthType.QWEN_OAUTH,
+      ['authType']: AuthType.USE_OPENAI,
       ['apiKey']: 'test-key',
       ['contextWindowSize']: 128_000,
       ['samplingParams']: { temperature: 0.8 },
@@ -1467,7 +1418,7 @@ describe('Model Switching and Config Updates', () => {
           requiresRefresh: boolean,
         ) => Promise<void>;
       }
-    ).handleModelChange(AuthType.QWEN_OAUTH, false);
+    ).handleModelChange(AuthType.USE_OPENAI, false);
 
     // Verify all fields are updated
     const updatedConfig = config.getContentGeneratorConfig();
@@ -1486,13 +1437,13 @@ describe('Model Switching and Config Updates', () => {
     expect(sources['enableCacheControl']?.kind).toBe('settings');
   });
 
-  it('should trigger full refresh when switching to non-qwen-oauth provider', async () => {
+  it('should trigger full refresh when switching to different auth provider', async () => {
     const config = new Config(baseParams);
 
-    // Initialize with qwen-oauth
+    // Initialize with USE_OPENAI
     const initialConfig: ContentGeneratorConfig = {
       ['model']: 'qwen3-coder-plus',
-      ['authType']: AuthType.QWEN_OAUTH,
+      ['authType']: AuthType.USE_OPENAI,
       ['apiKey']: 'test-key',
       ['contextWindowSize']: 1_000_000,
     };
@@ -1502,7 +1453,7 @@ describe('Model Switching and Config Updates', () => {
       sources: {},
     });
 
-    await config.refreshAuth(AuthType.QWEN_OAUTH);
+    await config.refreshAuth(AuthType.USE_OPENAI);
 
     // Switch to different auth type (should trigger full refresh)
     const newConfig: ContentGeneratorConfig = {
@@ -1544,7 +1495,7 @@ describe('Model Switching and Config Updates', () => {
     // Initialize with config that has undefined token limits
     const initialConfig: ContentGeneratorConfig = {
       ['model']: 'qwen3-coder-plus',
-      ['authType']: AuthType.QWEN_OAUTH,
+      ['authType']: AuthType.USE_OPENAI,
       ['apiKey']: 'test-key',
       ['contextWindowSize']: undefined,
     };
@@ -1554,12 +1505,12 @@ describe('Model Switching and Config Updates', () => {
       sources: {},
     });
 
-    await config.refreshAuth(AuthType.QWEN_OAUTH);
+    await config.refreshAuth(AuthType.USE_OPENAI);
 
     // Switch to model with defined limits
     const newConfig: ContentGeneratorConfig = {
       ['model']: 'qwen-max',
-      ['authType']: AuthType.QWEN_OAUTH,
+      ['authType']: AuthType.USE_OPENAI,
       ['apiKey']: 'test-key',
       ['contextWindowSize']: 128_000,
     };
@@ -1576,7 +1527,7 @@ describe('Model Switching and Config Updates', () => {
           requiresRefresh: boolean,
         ) => Promise<void>;
       }
-    ).handleModelChange(AuthType.QWEN_OAUTH, false);
+    ).handleModelChange(AuthType.USE_OPENAI, false);
 
     // Verify limits are now defined
     const updatedConfig = config.getContentGeneratorConfig();

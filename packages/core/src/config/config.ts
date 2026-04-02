@@ -16,7 +16,8 @@ import { ProxyAgent, setGlobalDispatcher } from 'undici';
 import type {
   ContentGenerator,
   ContentGeneratorConfig,
-} from '../core/contentGenerator.js';
+
+  AuthType} from '../core/contentGenerator.js';
 import type { ContentGeneratorConfigSources } from '../core/contentGenerator.js';
 import type { MCPOAuthConfig } from '../mcp/oauth-provider.js';
 import type { ShellExecutionConfig } from '../services/shellExecutionService.js';
@@ -28,7 +29,6 @@ import { ArenaAgentClient } from '../agents/arena/ArenaAgentClient.js';
 import { BaseLlmClient } from '../core/baseLlmClient.js';
 import { GeminiClient } from '../core/client.js';
 import {
-  AuthType,
   createContentGenerator,
   resolveContentGeneratorConfigWithSources,
 } from '../core/contentGenerator.js';
@@ -122,7 +122,7 @@ import {
   DEFAULT_FILE_FILTERING_OPTIONS,
   DEFAULT_MEMORY_FILE_FILTERING_OPTIONS,
 } from './constants.js';
-import { DEFAULT_QWEN_EMBEDDING_MODEL } from './models.js';
+import { DEFAULT_EMBEDDING_MODEL } from './models.js';
 import { Storage } from './storage.js';
 import { ChatRecordingService } from '../services/chatRecordingService.js';
 import {
@@ -317,7 +317,7 @@ export interface AgentsCollabSettings {
   displayMode?: string;
   /** Arena-specific settings */
   arena?: {
-    /** Custom base directory for Arena worktrees (default: ~/.qwen/arena) */
+    /** Custom base directory for Arena worktrees (default: ~/.apex/arena) */
     worktreeBaseDir?: string;
     /** Preserve worktrees and state files after session ends */
     preserveArtifacts?: boolean;
@@ -621,7 +621,7 @@ export class Config {
     this.sessionData = params.sessionData;
     setDebugLogSession(this);
     this.debugLogger = createDebugLogger();
-    this.embeddingModel = params.embeddingModel ?? DEFAULT_QWEN_EMBEDDING_MODEL;
+    this.embeddingModel = params.embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
     this.fileSystemService = new StandardFileSystemService();
     this.sandbox = params.sandbox;
     this.targetDir = path.resolve(params.targetDir);
@@ -1314,7 +1314,7 @@ export class Config {
    *
    * For runtime models, the modelId should be in format `$runtime|${authType}|${modelId}`.
    * This triggers a refresh of the ContentGenerator when required (always on authType changes).
-   * For qwen-oauth model switches that are hot-update safe, this may update in place.
+   * For same-authType model switches that are hot-update safe, this may update in place.
    *
    * @param authType - Target authentication type
    * @param modelId - Target model ID (or `$runtime|${authType}|${modelId}` for runtime models)
@@ -2241,8 +2241,6 @@ export class Config {
     !this.sdkMode && (await registerCoreTool(ExitPlanModeTool, this));
     await registerCoreTool(WebFetchTool, this);
     // Conditionally register web search tool if web search provider is configured
-    // buildWebSearchConfig ensures qwen-oauth users get dashscope provider, so
-    // if tool is registered, config must exist
     if (this.getWebSearchConfig()) {
       await registerCoreTool(WebSearchTool, this);
     }

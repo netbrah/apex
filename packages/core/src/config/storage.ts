@@ -96,11 +96,11 @@ export class Storage {
    * Returns the base directory for all runtime output (temp files, debug logs,
    * session data, todos, insights, etc.).
    *
-   * Priority: QWEN_RUNTIME_DIR env var > setRuntimeBaseDir() value > getGlobalApexDir()
+   * Priority: APEX_RUNTIME_DIR env var > setRuntimeBaseDir() value > getGlobalApexDir()
    * @returns Absolute path to the runtime output base directory
    */
   static getRuntimeBaseDir(): string {
-    const envDir = process.env['QWEN_RUNTIME_DIR'];
+    const envDir = process.env['APEX_RUNTIME_DIR'];
     if (envDir) {
       return (
         Storage.resolveRuntimeBaseDir(envDir) ?? Storage.getGlobalApexDir()
@@ -118,8 +118,8 @@ export class Storage {
   }
 
   static getGlobalApexDir(): string {
-    if (process.env['QWEN_CODE_HOME']) {
-      return process.env['QWEN_CODE_HOME'];
+    if (process.env['APEX_HOME']) {
+      return process.env['APEX_HOME'];
     }
     const homeDir = os.homedir();
     if (!homeDir) {

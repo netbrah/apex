@@ -17,9 +17,9 @@ export * from './permissions/index.js';
 
 // Model configuration
 export {
-  DEFAULT_QWEN_MODEL,
-  DEFAULT_QWEN_FLASH_MODEL,
-  DEFAULT_QWEN_EMBEDDING_MODEL,
+  DEFAULT_CODER_MODEL,
+  DEFAULT_FLASH_MODEL,
+  DEFAULT_EMBEDDING_MODEL,
   MAINLINE_CODER_MODEL,
 } from './config/models.js';
 export {
@@ -38,7 +38,6 @@ export {
   type ModelProvidersConfig,
   type ModelSwitchMetadata,
   type OnModelChangeCallback,
-  QWEN_OAUTH_MODELS,
   resolveModelConfig,
   type ResolvedModelConfig,
   validateModelConfig,
@@ -241,7 +240,6 @@ export * from './utils/yaml-parser.js';
 // OAuth & Authentication
 // ============================================================================
 
-
 // ============================================================================
 // Testing Utilities
 // ============================================================================
@@ -265,9 +263,14 @@ export {
 } from './core/toolHookTriggers.js';
 
 // Stubs for removed Qwen OAuth (kept for backward compat with acpAgent)
-export function clearCachedCredentialFile(): void { /* no-op */ }
+export function clearCachedCredentialFile(): void {
+  /* no-op */
+}
 export type DeviceAuthorizationData = Record<string, unknown>;
-export const QwenOAuth2Event = { DEVICE_AUTH: 'device_auth', AuthUri: 'auth_uri' } as const;
+export const QwenOAuth2Event = {
+  DEVICE_AUTH: 'device_auth',
+  AuthUri: 'auth_uri',
+} as const;
 export type QwenOAuth2Event = typeof QwenOAuth2Event;
 export const qwenOAuth2Events = {
   on: (_event: string, _handler: (...args: unknown[]) => void) => {},

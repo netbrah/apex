@@ -99,7 +99,7 @@ export function isGenericQuotaExceededError(error: unknown): boolean {
   return false;
 }
 
-export function isQwenQuotaExceededError(error: unknown): boolean {
+export function isApexQuotaExceededError(error: unknown): boolean {
   // Match the specific Qwen free-tier quota error to distinguish it from
   // temporary throttling (429 due to concurrency) or paid account quota limits.
   if (typeof error !== 'object' || error === null) {

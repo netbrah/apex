@@ -58,7 +58,7 @@ import type {
 import { type AgentEventEmitter, AgentEventType } from './agent-events.js';
 import { AgentStatistics, type AgentStatsSummary } from './agent-statistics.js';
 import { AgentTool } from '../../tools/agent.js';
-import { DEFAULT_QWEN_MODEL } from '../../config/models.js';
+import { DEFAULT_CODER_MODEL } from '../../config/models.js';
 import { type ContextState, templateString } from './agent-headless.js';
 
 /**
@@ -383,7 +383,7 @@ export class AgentCore {
       const responseStream = await chat.sendMessageStream(
         this.modelConfig.model ||
           this.runtimeContext.getModel() ||
-          DEFAULT_QWEN_MODEL,
+          DEFAULT_CODER_MODEL,
         messageParams,
         promptId,
       );

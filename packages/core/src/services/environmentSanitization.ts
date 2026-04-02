@@ -98,8 +98,8 @@ export const DEFAULT_ALLOWLIST: ReadonlySet<string> = new Set([
   'GIT_AUTHOR_EMAIL',
   'GIT_COMMITTER_NAME',
   'GIT_COMMITTER_EMAIL',
-  // Qwen Code markers
-  'QWEN_CODE',
+  // Apex Code markers
+  'APEX_CODE',
   // Windows essentials
   'SYSTEMROOT',
   'WINDIR',

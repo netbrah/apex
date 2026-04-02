@@ -108,7 +108,7 @@ describe('environmentSanitization', () => {
         EDITOR: 'vim',
         CI: 'true',
         DEBUG: '1',
-        QWEN_CODE: '1',
+        APEX_CODE: '1',
       };
 
       const sanitized = sanitizeEnvironment(env);
@@ -240,13 +240,13 @@ describe('environmentSanitization', () => {
   });
 
   describe('regression: sandbox still functions after filtering', () => {
-    it('should always pass through QWEN_CODE marker', () => {
+    it('should always pass through APEX_CODE marker', () => {
       const env: NodeJS.ProcessEnv = {
-        QWEN_CODE: '1',
+        APEX_CODE: '1',
         OPENAI_API_KEY: 'sk-secret',
       };
       const sanitized = sanitizeEnvironment(env);
-      expect(sanitized['QWEN_CODE']).toBe('1');
+      expect(sanitized['APEX_CODE']).toBe('1');
     });
 
     it('should always pass through PATH', () => {

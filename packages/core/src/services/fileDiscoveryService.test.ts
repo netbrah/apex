@@ -69,7 +69,7 @@ describe('FileDiscoveryService', () => {
       await createTestFile('.apexignore', 'logs/');
     });
 
-    it('should filter out git-ignored and qwen-ignored files by default', () => {
+    it('should filter out git-ignored and apex-ignored files by default', () => {
       const files = [
         'src/index.ts',
         'node_modules/package/index.js',
@@ -161,7 +161,7 @@ describe('FileDiscoveryService', () => {
       ).toBe(false);
     });
 
-    it('should return true for qwen-ignored files', () => {
+    it('should return true for apex-ignored files', () => {
       const service = new FileDiscoveryService(projectRoot);
 
       expect(
@@ -169,7 +169,7 @@ describe('FileDiscoveryService', () => {
       ).toBe(true);
     });
 
-    it('should return false for non-qwen-ignored files', () => {
+    it('should return false for non-apex-ignored files', () => {
       const service = new FileDiscoveryService(projectRoot);
 
       expect(

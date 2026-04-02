@@ -65,9 +65,7 @@ export class DashScopeProvider extends BaseWebSearchProvider {
   }
 
   isAvailable(): boolean {
-    // DashScope provider is only available when auth type is QWEN_OAUTH
-    // This ensures it's only used when OAuth credentials are available
-    return this.config.authType === 'qwen-oauth';
+    return false;
   }
 
   /**
@@ -80,7 +78,7 @@ export class DashScopeProvider extends BaseWebSearchProvider {
     apiEndpoint: string;
   }> {
     const accessToken = this.config.apiKey || null;
-    const baseUrl = ('https://dashscope.aliyuncs.com').replace(/\/$/, '');
+    const baseUrl = 'https://dashscope.aliyuncs.com'.replace(/\/$/, '');
     const apiEndpoint = `${baseUrl}/api/v1/indices/plugin/web_search`;
     return { accessToken, apiEndpoint };
   }

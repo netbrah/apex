@@ -722,7 +722,7 @@ To help you check their settings, I can read their contents. Which one would you
 </example>
 `.trim();
 
-const qwenCoderToolCallExamples = `
+const apexCoderToolCallExamples = `
 # Examples (Illustrating Tone and Workflow)
 <example>
 user: 1 + 2
@@ -879,7 +879,7 @@ I found the following 'app.config' files:
 To help you check their settings, I can read their contents. Which one would you like to start with, or should I read all of them?
 </example>
 `.trim();
-const qwenVlToolCallExamples = `
+const apexVlToolCallExamples = `
 # Examples (Illustrating Tone and Workflow)
 <example>
 user: 1 + 2
@@ -984,9 +984,9 @@ function getToolCallExamples(model?: string): string {
   if (toolCallStyle) {
     switch (toolCallStyle.toLowerCase()) {
       case 'qwen-coder':
-        return qwenCoderToolCallExamples;
+        return apexCoderToolCallExamples;
       case 'qwen-vl':
-        return qwenVlToolCallExamples;
+        return apexVlToolCallExamples;
       case 'general':
         return generalToolCallExamples;
       default:
@@ -1001,15 +1001,15 @@ function getToolCallExamples(model?: string): string {
   if (model && model.length < 100) {
     // Match qwen*-coder patterns (e.g., qwen3-coder, qwen2.5-coder, qwen-coder)
     if (/qwen[^-]*-coder/i.test(model)) {
-      return qwenCoderToolCallExamples;
+      return apexCoderToolCallExamples;
     }
     // Match qwen*-vl patterns (e.g., qwen-vl, qwen2-vl, qwen3-vl)
     if (/qwen[^-]*-vl/i.test(model)) {
-      return qwenVlToolCallExamples;
+      return apexVlToolCallExamples;
     }
     // Match coder-model pattern (same as qwen3-coder)
     if (/coder-model/i.test(model)) {
-      return qwenCoderToolCallExamples;
+      return apexCoderToolCallExamples;
     }
   }
 
@@ -1280,7 +1280,7 @@ Find something genuinely interesting or amusing from the session summaries.`,
     \`\`\`
 
 3. **Headless Mode**: Run APEX non-interactively from scripts and CI/CD.
-   - How to use: \`qwen -p "fix lint errors"\`
+   - How to use: \`apex -p "fix lint errors"\`
    - Good for: CI/CD integration, batch code fixes, automated reviews
 
 4. **Task Agents**: APEX spawns focused sub-agents for complex exploration or parallel work.

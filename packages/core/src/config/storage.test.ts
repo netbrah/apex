@@ -42,21 +42,21 @@ describe('Storage – additional helpers', () => {
 });
 
 describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
-  const originalEnv = process.env['QWEN_RUNTIME_DIR'];
+  const originalEnv = process.env['APEX_RUNTIME_DIR'];
 
   beforeEach(() => {
     // Reset state before each test
     Storage.setRuntimeBaseDir(null);
-    delete process.env['QWEN_RUNTIME_DIR'];
+    delete process.env['APEX_RUNTIME_DIR'];
   });
 
   afterEach(() => {
     // Restore original env
     Storage.setRuntimeBaseDir(null);
     if (originalEnv !== undefined) {
-      process.env['QWEN_RUNTIME_DIR'] = originalEnv;
+      process.env['APEX_RUNTIME_DIR'] = originalEnv;
     } else {
-      delete process.env['QWEN_RUNTIME_DIR'];
+      delete process.env['APEX_RUNTIME_DIR'];
     }
   });
 
@@ -70,11 +70,11 @@ describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
     expect(Storage.getRuntimeBaseDir()).toBe(runtimeDir);
   });
 
-  it('env var QWEN_RUNTIME_DIR takes priority over setRuntimeBaseDir', () => {
+  it('env var APEX_RUNTIME_DIR takes priority over setRuntimeBaseDir', () => {
     const settingsDir = path.resolve('from-settings');
     const envDir = path.resolve('from-env');
     Storage.setRuntimeBaseDir(settingsDir);
-    process.env['QWEN_RUNTIME_DIR'] = envDir;
+    process.env['APEX_RUNTIME_DIR'] = envDir;
     expect(Storage.getRuntimeBaseDir()).toBe(envDir);
   });
 
@@ -90,8 +90,8 @@ describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
     expect(Storage.getRuntimeBaseDir()).toBe(expected);
   });
 
-  it('expands tilde (~) in QWEN_RUNTIME_DIR env var', () => {
-    process.env['QWEN_RUNTIME_DIR'] = '~/env-runtime';
+  it('expands tilde (~) in APEX_RUNTIME_DIR env var', () => {
+    process.env['APEX_RUNTIME_DIR'] = '~/env-runtime';
     const expected = path.join(os.homedir(), 'env-runtime');
     expect(Storage.getRuntimeBaseDir()).toBe(expected);
   });
@@ -124,8 +124,8 @@ describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
     expect(Storage.getRuntimeBaseDir()).toBe(expected);
   });
 
-  it('resolves relative paths in QWEN_RUNTIME_DIR env var', () => {
-    process.env['QWEN_RUNTIME_DIR'] = 'relative/env-path';
+  it('resolves relative paths in APEX_RUNTIME_DIR env var', () => {
+    process.env['APEX_RUNTIME_DIR'] = 'relative/env-path';
     const expected = path.resolve('relative/env-path');
     expect(Storage.getRuntimeBaseDir()).toBe(expected);
   });
@@ -158,19 +158,19 @@ describe('Storage – getRuntimeBaseDir / setRuntimeBaseDir', () => {
 });
 
 describe('Storage – runtime path methods use getRuntimeBaseDir', () => {
-  const originalEnv = process.env['QWEN_RUNTIME_DIR'];
+  const originalEnv = process.env['APEX_RUNTIME_DIR'];
 
   beforeEach(() => {
     Storage.setRuntimeBaseDir(null);
-    delete process.env['QWEN_RUNTIME_DIR'];
+    delete process.env['APEX_RUNTIME_DIR'];
   });
 
   afterEach(() => {
     Storage.setRuntimeBaseDir(null);
     if (originalEnv !== undefined) {
-      process.env['QWEN_RUNTIME_DIR'] = originalEnv;
+      process.env['APEX_RUNTIME_DIR'] = originalEnv;
     } else {
-      delete process.env['QWEN_RUNTIME_DIR'];
+      delete process.env['APEX_RUNTIME_DIR'];
     }
   });
 
@@ -240,93 +240,93 @@ describe('Storage – runtime path methods use getRuntimeBaseDir', () => {
   });
 });
 
-describe('Storage – config paths remain at ~/.qwen regardless of runtime dir', () => {
-  const originalEnv = process.env['QWEN_RUNTIME_DIR'];
-  const globalQwenDir = Storage.getGlobalApexDir();
+describe('Storage – config paths remain at ~/.apex regardless of runtime dir', () => {
+  const originalEnv = process.env['APEX_RUNTIME_DIR'];
+  const globalApexDir = Storage.getGlobalApexDir();
 
   beforeEach(() => {
     Storage.setRuntimeBaseDir(path.resolve('custom-runtime'));
-    process.env['QWEN_RUNTIME_DIR'] = path.resolve('env-runtime');
+    process.env['APEX_RUNTIME_DIR'] = path.resolve('env-runtime');
   });
 
   afterEach(() => {
     Storage.setRuntimeBaseDir(null);
     if (originalEnv !== undefined) {
-      process.env['QWEN_RUNTIME_DIR'] = originalEnv;
+      process.env['APEX_RUNTIME_DIR'] = originalEnv;
     } else {
-      delete process.env['QWEN_RUNTIME_DIR'];
+      delete process.env['APEX_RUNTIME_DIR'];
     }
   });
 
-  it('getGlobalSettingsPath still uses ~/.qwen', () => {
+  it('getGlobalSettingsPath still uses ~/.apex', () => {
     expect(Storage.getGlobalSettingsPath()).toBe(
-      path.join(globalQwenDir, 'settings.json'),
+      path.join(globalApexDir, 'settings.json'),
     );
   });
 
-  it('getInstallationIdPath still uses ~/.qwen', () => {
+  it('getInstallationIdPath still uses ~/.apex', () => {
     expect(Storage.getInstallationIdPath()).toBe(
-      path.join(globalQwenDir, 'installation_id'),
+      path.join(globalApexDir, 'installation_id'),
     );
   });
 
-  it('getGoogleAccountsPath still uses ~/.qwen', () => {
+  it('getGoogleAccountsPath still uses ~/.apex', () => {
     expect(Storage.getGoogleAccountsPath()).toBe(
-      path.join(globalQwenDir, 'google_accounts.json'),
+      path.join(globalApexDir, 'google_accounts.json'),
     );
   });
 
-  it('getMcpOAuthTokensPath still uses ~/.qwen', () => {
+  it('getMcpOAuthTokensPath still uses ~/.apex', () => {
     expect(Storage.getMcpOAuthTokensPath()).toBe(
-      path.join(globalQwenDir, 'mcp-oauth-tokens.json'),
+      path.join(globalApexDir, 'mcp-oauth-tokens.json'),
     );
   });
 
-  it('getOAuthCredsPath still uses ~/.qwen', () => {
+  it('getOAuthCredsPath still uses ~/.apex', () => {
     expect(Storage.getOAuthCredsPath()).toBe(
-      path.join(globalQwenDir, 'oauth_creds.json'),
+      path.join(globalApexDir, 'oauth_creds.json'),
     );
   });
 
-  it('getUserCommandsDir still uses ~/.qwen', () => {
+  it('getUserCommandsDir still uses ~/.apex', () => {
     expect(Storage.getUserCommandsDir()).toBe(
-      path.join(globalQwenDir, 'commands'),
+      path.join(globalApexDir, 'commands'),
     );
   });
 
-  it('getGlobalMemoryFilePath still uses ~/.qwen', () => {
+  it('getGlobalMemoryFilePath still uses ~/.apex', () => {
     expect(Storage.getGlobalMemoryFilePath()).toBe(
-      path.join(globalQwenDir, 'memory.md'),
+      path.join(globalApexDir, 'memory.md'),
     );
   });
 
-  it('getGlobalBinDir still uses ~/.qwen', () => {
-    expect(Storage.getGlobalBinDir()).toBe(path.join(globalQwenDir, 'bin'));
+  it('getGlobalBinDir still uses ~/.apex', () => {
+    expect(Storage.getGlobalBinDir()).toBe(path.join(globalApexDir, 'bin'));
   });
 
   it('getUserSkillsDirs still includes ~/.apex/skills', () => {
     const storage = new Storage('/tmp/project');
     const skillsDirs = storage.getUserSkillsDirs();
     expect(
-      skillsDirs.some((dir) => dir === path.join(globalQwenDir, 'skills')),
+      skillsDirs.some((dir) => dir === path.join(globalApexDir, 'skills')),
     ).toBe(true);
   });
 });
 
 describe('Storage – runtime base dir async context isolation', () => {
-  const originalEnv = process.env['QWEN_RUNTIME_DIR'];
+  const originalEnv = process.env['APEX_RUNTIME_DIR'];
 
   beforeEach(() => {
     Storage.setRuntimeBaseDir(null);
-    delete process.env['QWEN_RUNTIME_DIR'];
+    delete process.env['APEX_RUNTIME_DIR'];
   });
 
   afterEach(() => {
     Storage.setRuntimeBaseDir(null);
     if (originalEnv !== undefined) {
-      process.env['QWEN_RUNTIME_DIR'] = originalEnv;
+      process.env['APEX_RUNTIME_DIR'] = originalEnv;
     } else {
-      delete process.env['QWEN_RUNTIME_DIR'];
+      delete process.env['APEX_RUNTIME_DIR'];
     }
   });
 

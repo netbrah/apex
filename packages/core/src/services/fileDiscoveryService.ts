@@ -103,7 +103,7 @@ export class FileDiscoveryService {
   }
 
   /**
-   * Checks if a single file should be qwen-ignored
+   * Checks if a single file should be apex-ignored
    */
   shouldApexIgnoreFile(filePath: string): boolean {
     if (this.apexIgnoreFilter) {

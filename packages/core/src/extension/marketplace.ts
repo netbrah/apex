@@ -155,7 +155,7 @@ async function fetchGitHubMarketplaceConfig(
   // Primary: GitHub API (works for private repos, but has rate limits)
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/.claude-plugin/marketplace.json`;
   const apiHeaders: Record<string, string> = {
-    'User-Agent': 'qwen-code',
+    'User-Agent': 'apex',
     Accept: 'application/vnd.github.v3.raw',
   };
   if (token) {
@@ -168,7 +168,7 @@ async function fetchGitHubMarketplaceConfig(
   if (!content) {
     const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/.claude-plugin/marketplace.json`;
     const rawHeaders: Record<string, string> = {
-      'User-Agent': 'qwen-code',
+      'User-Agent': 'apex',
     };
     content = await fetchUrl(rawUrl, rawHeaders);
   }

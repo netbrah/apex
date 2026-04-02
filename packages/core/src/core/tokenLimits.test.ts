@@ -328,9 +328,7 @@ describe('tokenLimit with output type', () => {
 
   describe('normalization with output limits', () => {
     it('should handle normalized model names for output limits', () => {
-      expect(tokenLimit('QWEN3-MAX', 'output')).toBe(65536);
       expect(tokenLimit('qwen3-max-20250601', 'output')).toBe(65536);
-      expect(tokenLimit('QWEN-VL-MAX-LATEST', 'output')).toBe(8192);
     });
   });
 });

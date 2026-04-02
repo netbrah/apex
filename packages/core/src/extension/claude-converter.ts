@@ -5,7 +5,7 @@
  */
 
 /**
- * Converter for Claude Code plugins to Qwen Code format.
+ * Converter for Claude Code plugins to APEX format.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -155,31 +155,31 @@ function parseStringOrArray(value: unknown): string[] | undefined {
 }
 
 /**
- * Converts a Claude agent config to Qwen Code subagent format.
+ * Converts a Claude agent config to APEX subagent format.
  * @param claudeAgent Claude agent configuration
- * @returns Converted agent config compatible with Qwen Code SubagentConfig
+ * @returns Converted agent config compatible with APEX SubagentConfig
  */
 export function convertClaudeAgentConfig(
   claudeAgent: ClaudeAgentConfig,
 ): Record<string, unknown> {
   // Base config with required fields
-  const qwenAgent: Record<string, unknown> = {
+  const apexAgent: Record<string, unknown> = {
     name: claudeAgent.name,
     description: claudeAgent.description,
   };
 
   if (claudeAgent.color) {
-    qwenAgent['color'] = claudeAgent.color;
+    apexAgent['color'] = claudeAgent.color;
   }
 
   // Convert system prompt if present
   if (claudeAgent.systemPrompt) {
-    qwenAgent['systemPrompt'] = claudeAgent.systemPrompt;
+    apexAgent['systemPrompt'] = claudeAgent.systemPrompt;
   }
 
   // Convert tools using claudeBuildInToolsTransform
   if (claudeAgent.tools && claudeAgent.tools.length > 0) {
-    qwenAgent['tools'] = claudeBuildInToolsTransform(claudeAgent.tools);
+    apexAgent['tools'] = claudeBuildInToolsTransform(claudeAgent.tools);
   }
 
   // Convert model to modelConfig
@@ -187,27 +187,27 @@ export function convertClaudeAgentConfig(
     // Map Claude model names to Qwen model config
     // Claude uses: sonnet, opus, haiku, inherit
     // We preserve the model name for now, the actual mapping will be handled at runtime
-    qwenAgent['modelConfig'] = {
+    apexAgent['modelConfig'] = {
       model: claudeAgent.model === 'inherit' ? undefined : claudeAgent.model,
     };
   }
 
   // Preserve unsupported fields as-is for potential future compatibility
-  // These fields are not supported by Qwen Code SubagentConfig but we keep them
+  // These fields are not supported by APEX SubagentConfig but we keep them
   if (claudeAgent.permissionMode) {
-    qwenAgent['permissionMode'] = claudeAgent.permissionMode;
+    apexAgent['permissionMode'] = claudeAgent.permissionMode;
   }
   if (claudeAgent.hooks) {
-    qwenAgent['hooks'] = claudeAgent.hooks;
+    apexAgent['hooks'] = claudeAgent.hooks;
   }
   if (claudeAgent.skills && claudeAgent.skills.length > 0) {
-    qwenAgent['skills'] = claudeAgent.skills;
+    apexAgent['skills'] = claudeAgent.skills;
   }
   if (claudeAgent.disallowedTools && claudeAgent.disallowedTools.length > 0) {
-    qwenAgent['disallowedTools'] = claudeAgent.disallowedTools;
+    apexAgent['disallowedTools'] = claudeAgent.disallowedTools;
   }
 
-  return qwenAgent;
+  return apexAgent;
 }
 
 /**
@@ -259,11 +259,11 @@ async function convertAgentFiles(agentsDir: string): Promise<void> {
       };
 
       // Convert to Qwen format
-      const qwenAgent = convertClaudeAgentConfig(claudeAgent);
+      const apexAgent = convertClaudeAgentConfig(claudeAgent);
 
       // Build new frontmatter (excluding systemPrompt as it goes in body)
       const newFrontmatter: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(qwenAgent)) {
+      for (const [key, value] of Object.entries(apexAgent)) {
         if (key !== 'systemPrompt' && value !== undefined) {
           newFrontmatter[key] = value;
         }
@@ -271,7 +271,7 @@ async function convertAgentFiles(agentsDir: string): Promise<void> {
 
       // Write converted content back
       const newYaml = stringifyYaml(newFrontmatter);
-      const systemPrompt = (qwenAgent['systemPrompt'] as string) || body.trim();
+      const systemPrompt = (apexAgent['systemPrompt'] as string) || body.trim();
       const newContent = `---
 ${newYaml}
 ---
@@ -289,11 +289,11 @@ ${systemPrompt}
 }
 
 /**
- * Converts a Claude plugin config to Qwen Code format.
+ * Converts a Claude plugin config to APEX format.
  * @param claudeConfig Claude plugin configuration
  * @returns Qwen ExtensionConfig
  */
-export function convertClaudeToQwenConfig(
+export function convertClaudeToApexConfig(
   claudeConfig: ClaudePluginConfig,
 ): ExtensionConfig {
   // Validate required fields
@@ -345,7 +345,7 @@ export function convertClaudeToQwenConfig(
 }
 
 /**
- * Converts a complete Claude plugin package to Qwen Code format.
+ * Converts a complete Claude plugin package to APEX format.
  * Creates a new temporary directory with:
  * 1. Converted apex-extension.json
  * 2. Commands, skills, and agents collected to respective folders
@@ -513,7 +513,7 @@ export async function convertClaudePluginPackage(
     await convertAgentFiles(agentsDestDir);
 
     // Step 10: Convert to Qwen format config
-    const qwenConfig = convertClaudeToQwenConfig(mergedConfig);
+    const qwenConfig = convertClaudeToApexConfig(mergedConfig);
 
     // Step 11: Write apex-extension.json
     const qwenConfigPath = path.join(tmpDir, 'apex-extension.json');

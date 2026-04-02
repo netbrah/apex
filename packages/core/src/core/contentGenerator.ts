@@ -60,8 +60,6 @@ export enum AuthType {
   USE_GEMINI = 'gemini',
   USE_VERTEX_AI = 'vertex-ai',
   USE_ANTHROPIC = 'anthropic',
-  /** @deprecated Qwen OAuth removed in Apex — kept for backward compat */
-  QWEN_OAUTH = 'qwen-oauth',
 }
 
 /**
@@ -231,12 +229,7 @@ export function validateModelConfig(
 ): ModelConfigValidationResult {
   const errors: Error[] = [];
 
-  // QWEN_OAUTH uses dynamic tokens — no API key validation needed
-  if (config.authType === AuthType.QWEN_OAUTH) {
-    return { valid: true, errors: [] };
-  }
-
-  // API key is required for all other auth types
+  // API key is required for all auth types
   if (!config.apiKey) {
     if (isStrictModelProvider) {
       errors.push(
@@ -302,7 +295,7 @@ export function createContentGeneratorConfig(
 export async function createContentGenerator(
   generatorConfig: ContentGeneratorConfig,
   config: Config,
-  isInitialAuth?: boolean,
+  _isInitialAuth?: boolean,
 ): Promise<ContentGenerator> {
   const validation = validateModelConfig(generatorConfig, false);
   if (!validation.valid) {
@@ -329,7 +322,7 @@ export async function createContentGenerator(
       generatorConfig,
       config,
     );
-} else if (authType === AuthType.USE_ANTHROPIC) {
+  } else if (authType === AuthType.USE_ANTHROPIC) {
     const { createAnthropicContentGenerator } = await import(
       './anthropicContentGenerator/index.js'
     );

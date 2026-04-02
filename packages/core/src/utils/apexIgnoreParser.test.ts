@@ -20,7 +20,7 @@ describe('ApexIgnoreParser', () => {
   }
 
   beforeEach(async () => {
-    projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'qwenignore-test-'));
+    projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'apexignore-test-'));
   });
 
   afterEach(async () => {

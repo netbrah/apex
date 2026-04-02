@@ -24,7 +24,7 @@ export class FileTokenStorage extends BaseTokenStorage {
 
   private deriveEncryptionKey(): Buffer {
     const salt = `${os.hostname()}-${os.userInfo().username}-qwen-code`;
-    return crypto.scryptSync('qwen-code-oauth', salt, 32);
+    return crypto.scryptSync('apex-oauth', salt, 32);
   }
 
   private encrypt(text: string): string {
