@@ -92,9 +92,7 @@ sea-config.json
 
 # APEX overlay assets — deployed skill definitions (SKILL.md) and config.
 # Tracked on feat/apex-embed-assets; bundled into binary at build time.
-# apex-assets/
-apex-assets/debug/
-apex-assets/installation_id
+apex-assets/
 
 # Local scratch files
 *.md.bak
@@ -113,8 +111,7 @@ bsd_net/
 02-*.md
 token-banner-*.md
 
-# Apex assets — see line 93 (un-ignored on feat/apex-embed-assets)
-# apex-assets/
+# apex-assets/ tracked only on feat/apex-embed-assets (see line 95)
 
 # Symlink to external api-reference (local only)
 api-reference
