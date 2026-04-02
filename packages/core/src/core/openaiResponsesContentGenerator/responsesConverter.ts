@@ -21,7 +21,6 @@ import type {
   ResponsesApiMessageItem,
   ResponsesApiFunctionCallItem,
   ResponsesApiFunctionCallOutputItem,
-  ResponsesApiReasoningItem,
   ResponsesApiTool,
   ResponsesApiContentPart,
 } from './types.js';
@@ -315,13 +314,15 @@ export function convertGeminiContentsToResponsesInput(
       }
 
       if ('thought' in part && part.thought) {
+        // Reasoning summaries from prior turns cannot be sent back as
+        // 'reasoning' items — the API requires real encrypted content
+        // that it stored server-side. Convert to a plain assistant message.
         if (role === 'assistant' && part.text) {
           items.push({
-            type: 'reasoning',
-            id: `rs_synth_${callIdCounter++}`,
-            encrypted_content: '',
-            summary: [{ type: 'summary_text', text: part.text }],
-          } as ResponsesApiReasoningItem);
+            type: 'message',
+            role: 'assistant',
+            content: `[Reasoning: ${part.text}]`,
+          } as ResponsesApiMessageItem);
         }
         continue;
       }

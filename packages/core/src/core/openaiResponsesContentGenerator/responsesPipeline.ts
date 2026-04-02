@@ -169,21 +169,29 @@ export class ResponsesPipeline {
     // Drain pending encrypted items into input first
     if (this.state.pendingEncryptedItems.length > 0) {
       effectiveInput = [
-        ...this.state.pendingEncryptedItems.map((item) => item as unknown as ResponsesApiInputItem),
+        ...this.state.pendingEncryptedItems.map(
+          (item) => item as unknown as ResponsesApiInputItem,
+        ),
         ...effectiveInput,
       ];
       this.state.pendingEncryptedItems = [];
     }
 
-    // Encrypted content replay and previous_response_id require sticky routing.
-    // When infra doesn't support it, we still drain items but don't persist them.
+    // Encrypted content replay and previous_response_id require sticky routing
+    // (single deployment) or store=true support on the proxy. When infra doesn't
+    // support it, we drain items but don't persist them.
+    // TODO: NetApp LLM Proxy may add store=true support soon — when it does,
+    // set enableEncryptedContentReplay=true in model config and remove this drain.
     if (!this.config.enableEncryptedContentReplay) {
       this.state.pendingEncryptedItems = [];
     }
 
     // Use previous_response_id only when there are new items beyond what was already sent
     let previousResponseId: string | undefined;
-    if (this.state.lastResponseId && effectiveInput.length > this.state.lastInputItemCount) {
+    if (
+      this.state.lastResponseId &&
+      effectiveInput.length > this.state.lastInputItemCount
+    ) {
       previousResponseId = this.state.lastResponseId;
       effectiveInput = effectiveInput.slice(this.state.lastInputItemCount);
     }
@@ -194,7 +202,9 @@ export class ResponsesPipeline {
     const apiRequest: ResponsesApiRequest = {
       model: this.config.model,
       input: effectiveInput,
-      ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+      ...(previousResponseId
+        ? { previous_response_id: previousResponseId }
+        : {}),
       instructions,
       tools,
       tool_choice: 'auto',
