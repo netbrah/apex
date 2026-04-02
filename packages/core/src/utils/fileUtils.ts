@@ -390,45 +390,9 @@ export interface ProcessedFileReadResult {
   returnDisplay: string;
   error?: string; // Optional error message for the LLM if file processing failed
   errorType?: ToolErrorType; // Structured error type
-  originalLineCount?: number; // For text files, the total number of lines in the original file
   isTruncated?: boolean; // For text files, indicates if content was truncated
+  originalLineCount?: number; // For text files
   linesShown?: [number, number]; // For text files [startLine, endLine] (1-based for display)
-}
-
-/**
- * For media file types, returns the corresponding modality key.
- * Returns undefined for non-media types (text, binary, svg) which are always supported.
- */
-function mediaModalityKey(
-  fileType: 'image' | 'pdf' | 'audio' | 'video' | 'text' | 'binary' | 'svg',
-): keyof InputModalities | undefined {
-  if (
-    fileType === 'image' ||
-    fileType === 'pdf' ||
-    fileType === 'audio' ||
-    fileType === 'video'
-  ) {
-    return fileType;
-  }
-  return undefined;
-}
-
-/**
- * Build the same unsupported-modality message used by the converter,
- * so the LLM sees a consistent hint regardless of where the check fires.
- */
-function unsupportedModalityMessage(
-  modality: string,
-  displayName: string,
-): string {
-  let hint: string;
-  if (modality === 'pdf') {
-    hint =
-      'This model does not support PDF input directly. The read_file tool cannot extract PDF content either. To extract text from the PDF file, try using skills if applicable, or guide user to install pdf skill by running this slash command:\n/extensions install https://github.com/anthropics/skills:document-skills';
-  } else {
-    hint = `This model does not support ${modality} input. The read_file tool cannot process this type of file either. To handle this file, try using skills if applicable, or any tools installed at system wide, or let the user know you cannot process this type of file.`;
-  }
-  return `[Unsupported ${modality} file: "${displayName}". ${hint}]`;
 }
 
 /**
@@ -447,7 +411,6 @@ export async function processSingleFileContent(
   startLine?: number,
   endLine?: number,
 ): Promise<ProcessedFileReadResult> {
-  const rootDirectory = config.getTargetDir();
   try {
     if (!fs.existsSync(filePath)) {
       // Sync check is acceptable before async read
@@ -484,27 +447,6 @@ export async function processSingleFileContent(
     const relativePathForDisplay = path
       .relative(rootDirectory, filePath)
       .replace(/\\/g, '/');
-
-    const displayName = path.basename(filePath);
-
-    // Check modality support for media files using the resolved config
-    // (same source of truth the converter uses at API-call time).
-    const modality = mediaModalityKey(fileType);
-    if (modality) {
-      const modalities: InputModalities =
-        config.getContentGeneratorConfig()?.modalities ?? {};
-      if (!modalities[modality]) {
-        const message = unsupportedModalityMessage(modality, displayName);
-        debugLogger.warn(
-          `Model '${config.getModel()}' does not support ${modality} input. ` +
-            `Skipping file: ${relativePathForDisplay}`,
-        );
-        return {
-          llmContent: message,
-          returnDisplay: `Skipped ${fileType} file: ${relativePathForDisplay} (model doesn't support ${modality} input)`,
-        };
-      }
-    }
 
     switch (fileType) {
       case 'binary': {
@@ -552,36 +494,16 @@ export async function processSingleFileContent(
         const actualStart = Math.min(sliceStart, originalLineCount);
         const selectedLines = lines.slice(actualStart, sliceEnd);
 
-        // Apply character limit truncation
-        let llmContent = '';
-        let contentLengthTruncated = false;
-        let linesIncluded = 0;
-
-        if (Number.isFinite(configCharLimit)) {
-          const formattedLines: string[] = [];
-          let currentLength = 0;
-
-          for (const line of selectedLines) {
-            const sep = linesIncluded > 0 ? 1 : 0; // newline separator
-            linesIncluded++;
-
-            const projectedLength = currentLength + line.length + sep;
-            if (projectedLength <= configCharLimit) {
-              formattedLines.push(line);
-              currentLength = projectedLength;
-            } else {
-              // Truncate the current line to fit
-              const remaining = Math.max(
-                configCharLimit - currentLength - sep,
-                10,
-              );
-              formattedLines.push(
-                line.substring(0, remaining) + '... [truncated]',
-              );
-              contentLengthTruncated = true;
-              break;
-            }
+        let linesWereTruncatedInLength = false;
+        const formattedLines = selectedLines.map((line) => {
+          if (line.length > MAX_LINE_LENGTH_TEXT_FILE) {
+            linesWereTruncatedInLength = true;
+            return (
+              line.substring(0, MAX_LINE_LENGTH_TEXT_FILE) + '... [truncated]'
+            );
           }
+          return line;
+        });
 
         const isTruncated =
           actualStart > 0 ||
@@ -598,6 +520,8 @@ export async function processSingleFileContent(
           if (linesWereTruncatedInLength) {
             returnDisplay += ' (some lines were shortened)';
           }
+        } else if (linesWereTruncatedInLength) {
+          returnDisplay = `Read all ${originalLineCount} lines from ${relativePathForDisplay} (some lines were shortened)`;
         }
 
         return {
@@ -609,21 +533,11 @@ export async function processSingleFileContent(
         };
       }
       case 'image':
+      case 'pdf':
       case 'audio':
-      case 'video':
-      case 'pdf': {
+      case 'video': {
         const contentBuffer = await fs.promises.readFile(filePath);
         const base64Data = contentBuffer.toString('base64');
-        const base64SizeInMB = base64Data.length / (1024 * 1024);
-        // Use 9.9MB instead of 10MB to leave margin for small overhead (#1880)
-        if (base64SizeInMB > 9.9) {
-          return {
-            llmContent: `File exceeds the 10MB data URI limit after base64 encoding (${base64SizeInMB.toFixed(2)}MB encoded).`,
-            returnDisplay: `File exceeds the 10MB data URI limit after base64 encoding.`,
-            error: `File exceeds the 10MB data URI limit after base64 encoding: ${filePath} (${base64SizeInMB.toFixed(2)}MB encoded)`,
-            errorType: ToolErrorType.FILE_TOO_LARGE,
-          };
-        }
         return {
           llmContent: {
             inlineData: {

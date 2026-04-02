@@ -20,23 +20,6 @@ const AT_COMMAND_DETECT_REGEX = new RegExp(
 );
 
 /**
- * Common Windows console code pages (CP) used for encoding conversions.
- *
- * @remarks
- * - `UTF8` (65001): Unicode (UTF-8) — recommended for cross-language scripts.
- * - `GBK` (936): Simplified Chinese — default on most Chinese Windows systems.
- * - `BIG5` (950): Traditional Chinese.
- * - `LATIN1` (1252): Western European — default on many Western systems.
- */
-export const CodePage = {
-  UTF8: 65001,
-  GBK: 936,
-  BIG5: 950,
-  LATIN1: 1252,
-} as const;
-
-export type CodePage = (typeof CodePage)[keyof typeof CodePage];
-/**
  * Checks if a query string potentially represents an '@' command.
  * Returns true if the query contains any '@<path>' pattern that would be
  * recognised by the @ command processor, regardless of what character

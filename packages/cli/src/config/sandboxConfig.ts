@@ -50,7 +50,7 @@ function getSandboxCommand(
 
   // note environment variable takes precedence over argument (from command line or settings)
   const environmentConfiguredSandbox =
-    process.env['APEX_SANDBOX']?.toLowerCase().trim() ?? '';
+    process.env['GEMINI_SANDBOX']?.toLowerCase().trim() ?? '';
   sandbox =
     environmentConfiguredSandbox?.length > 0
       ? environmentConfiguredSandbox
@@ -112,8 +112,8 @@ function getSandboxCommand(
   // throw an error if user requested sandbox but no command was found
   if (sandbox === true) {
     throw new FatalSandboxError(
-      'APEX_SANDBOX is true but failed to determine command for sandbox; ' +
-        'install docker or podman or specify command in APEX_SANDBOX',
+      'GEMINI_SANDBOX is true but failed to determine command for sandbox; ' +
+        'install docker or podman or specify command in GEMINI_SANDBOX',
     );
   }
 

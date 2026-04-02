@@ -12,7 +12,6 @@ import {
   isSlashCommand,
   copyToClipboard,
   getUrlOpenCommand,
-  CodePage,
 } from './commandUtils.js';
 import type { Settings } from '../../config/settingsSchema.js';
 

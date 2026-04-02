@@ -16,6 +16,7 @@ import {
   type ServerGeminiToolCallRequestEvent,
 } from '../core/turn.js';
 import * as loggers from '../telemetry/loggers.js';
+import { LoopType } from '../telemetry/types.js';
 import { LoopDetectionService } from './loopDetectionService.js';
 import { createAvailabilityServiceMock } from '../availability/testUtils.js';
 

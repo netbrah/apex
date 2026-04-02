@@ -30,7 +30,6 @@ describe('SettingsSchema', () => {
         'mcp',
         'security',
         'advanced',
-        'webSearch',
       ];
 
       expectedSettings.forEach((setting) => {
@@ -249,7 +248,7 @@ describe('SettingsSchema', () => {
       ).toBe(false); // Experimental feature
       expect(getSettingsSchema().ui.properties.accessibility.showInDialog).toBe(
         false,
-      );
+      ); // Changed to false
       expect(
         getSettingsSchema().context.properties.fileFiltering.showInDialog,
       ).toBe(false); // Changed to false
@@ -270,14 +269,14 @@ describe('SettingsSchema', () => {
         },
         context: {
           includeDirectories: ['/path/to/dir'],
-          loadFromIncludeDirectories: true,
+          loadMemoryFromIncludeDirectories: true,
         },
       };
 
       // TypeScript should not complain about these properties
       expect(settings.ui?.theme).toBe('dark');
       expect(settings.context?.includeDirectories).toEqual(['/path/to/dir']);
-      expect(settings.context?.loadFromIncludeDirectories).toBe(true);
+      expect(settings.context?.loadMemoryFromIncludeDirectories).toBe(true);
     });
 
     it('should have includeDirectories setting in schema', () => {
@@ -295,7 +294,7 @@ describe('SettingsSchema', () => {
       ).toEqual([]);
     });
 
-    it('should have loadFromIncludeDirectories setting in schema', () => {
+    it('should have loadMemoryFromIncludeDirectories setting in schema', () => {
       expect(
         getSettingsSchema().context?.properties
           .loadMemoryFromIncludeDirectories,
@@ -333,7 +332,7 @@ describe('SettingsSchema', () => {
       expect(
         getSettingsSchema().security.properties.folderTrust.properties.enabled
           .showInDialog,
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it('should have debugKeystrokeLogging setting in schema', () => {

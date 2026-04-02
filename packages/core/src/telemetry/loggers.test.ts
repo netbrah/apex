@@ -27,7 +27,7 @@ import {
   logApiError,
   logApiRequest,
   logApiResponse,
-  logStartSession,
+  logCliConfiguration,
   logUserPrompt,
   logToolCall,
   logFlashFallback,
@@ -51,9 +51,6 @@ import {
   logOnboardingStart,
   logOnboardingSuccess,
 } from './loggers.js';
-import * as metrics from './metrics.js';
-import { ApexLogger } from './apex-logger/apex-logger.js';
-import * as sdk from './sdk.js';
 import { ToolCallDecision } from './tool-call-decision.js';
 import {
   EVENT_API_ERROR,
@@ -82,7 +79,6 @@ import {
   ApiErrorEvent,
   ApiRequestEvent,
   ApiResponseEvent,
-  FlashFallbackEvent,
   StartSessionEvent,
   ToolCallEvent,
   UserPromptEvent,
@@ -168,11 +164,11 @@ describe('loggers', () => {
   describe('logChatCompression', () => {
     beforeEach(() => {
       vi.spyOn(metrics, 'recordChatCompressionMetrics');
-      vi.spyOn(ApexLogger.prototype, 'logChatCompressionEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logChatCompressionEvent');
     });
 
-    it('logs the chat compression event to ApexLogger', () => {
-      const mockConfig = makeFakeConfig({ sessionId: 'test-session-id' });
+    it('logs the chat compression event to Clearcut', () => {
+      const mockConfig = makeFakeConfig();
 
       const event = makeChatCompressionEvent({
         tokens_before: 9001,
@@ -181,13 +177,13 @@ describe('loggers', () => {
 
       logChatCompression(mockConfig, event);
 
-      expect(ApexLogger.prototype.logChatCompressionEvent).toHaveBeenCalledWith(
-        event,
-      );
+      expect(
+        ClearcutLogger.prototype.logChatCompressionEvent,
+      ).toHaveBeenCalledWith(event);
     });
 
     it('records the chat compression event to OTEL', () => {
-      const mockConfig = makeFakeConfig({ sessionId: 'test-session-id' });
+      const mockConfig = makeFakeConfig();
 
       logChatCompression(
         mockConfig,
@@ -252,7 +248,7 @@ describe('loggers', () => {
       const mockConfig = baseMockConfig;
 
       const startSessionEvent = new StartSessionEvent(mockConfig);
-      logStartSession(mockConfig, startSessionEvent);
+      logCliConfiguration(mockConfig, startSessionEvent);
 
       await new Promise(process.nextTick);
       expect(mockLogger.emit).toHaveBeenCalledWith({
@@ -265,11 +261,13 @@ describe('loggers', () => {
           'event.timestamp': '2025-01-01T00:00:00.000Z',
           interactive: false,
           model: 'test-model',
+          embedding_model: 'test-embedding-model',
           sandbox_enabled: true,
           core_tools_enabled: 'ls,read-file',
           approval_mode: 'default',
-          truncate_tool_output_threshold: 25000,
-          truncate_tool_output_lines: 1000,
+          api_key_enabled: true,
+          vertex_ai_enabled: true,
+          log_user_prompts_enabled: true,
           file_filtering_respect_git_ignore: true,
           debug_mode: true,
           mcp_servers: 'test-server',
@@ -423,7 +421,6 @@ describe('loggers', () => {
         toolUsePromptTokenCount: 2,
       };
       const event = new ApiResponseEvent(
-        'test-response-id',
         'test-model',
         100,
         {
@@ -1133,7 +1130,6 @@ describe('loggers', () => {
     const cfg2 = {
       getSessionId: () => 'test-session-id',
       getTargetDir: () => 'target-dir',
-      getProjectRoot: () => '/test/project/root',
       getProxy: () => 'http://test.proxy.com:8080',
       getContentGeneratorConfig: () =>
         ({ model: 'test-model' }) as ContentGeneratorConfig,
@@ -1261,7 +1257,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           decision: ToolCallDecision.ACCEPT,
           prompt_id: 'prompt-id-1',
@@ -1409,7 +1404,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'error',
           success: false,
           decision: ToolCallDecision.REJECT,
           prompt_id: 'prompt-id-2',
@@ -1491,7 +1485,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           decision: ToolCallDecision.MODIFY,
           prompt_id: 'prompt-id-3',
@@ -1572,7 +1565,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           prompt_id: 'prompt-id-4',
           tool_type: 'native',
@@ -1652,7 +1644,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'error',
           success: false,
           error: 'test-error',
           'error.message': 'test-error',
@@ -1770,17 +1761,17 @@ describe('loggers', () => {
 
   describe('logMalformedJsonResponse', () => {
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logMalformedJsonResponseEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logMalformedJsonResponseEvent');
     });
 
     it('logs the event to Clearcut and OTEL', () => {
-      const mockConfig = makeFakeConfig({ sessionId: 'test-session-id' });
+      const mockConfig = makeFakeConfig();
       const event = new MalformedJsonResponseEvent('test-model');
 
       logMalformedJsonResponse(mockConfig, event);
 
       expect(
-        ApexLogger.prototype.logMalformedJsonResponseEvent,
+        ClearcutLogger.prototype.logMalformedJsonResponseEvent,
       ).toHaveBeenCalledWith(event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({

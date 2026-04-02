@@ -37,7 +37,6 @@ import {
 import { formatBytes } from '../utils/formatters.js';
 import type { AnsiOutput } from '../utils/terminalSerializer.js';
 import {
-  getCommandRoot,
   getCommandRoots,
   initializeShellParsers,
   stripShellWrapper,
@@ -57,15 +56,12 @@ import {
 } from '../sandbox/utils/proactivePermissions.js';
 
 export const OUTPUT_UPDATE_INTERVAL_MS = 1000;
-const DEFAULT_FOREGROUND_TIMEOUT_MS = 120000;
 
 // Delay so user does not see the output of the process before the process is moved to the background.
 const BACKGROUND_DELAY_MS = 200;
 
 export interface ShellToolParams {
   command: string;
-  is_background: boolean;
-  timeout?: number;
   description?: string;
   dir_path?: string;
   is_background?: boolean;
@@ -124,13 +120,6 @@ export class ShellToolInvocation extends BaseToolInvocation<
       details += `[in ${this.params.dir_path}]`;
     } else {
       details += `[current working directory ${process.cwd()}]`;
-    }
-    // append background indicator
-    if (this.params.is_background) {
-      description += ` [background]`;
-    } else if (this.params.timeout) {
-      // append timeout for foreground commands
-      description += ` [timeout: ${this.params.timeout}ms]`;
     }
     // append optional (description), replacing any line breaks with spaces
     if (this.params.description) {
@@ -424,17 +413,6 @@ export class ShellToolInvocation extends BaseToolInvocation<
       };
     }
 
-    const effectiveTimeout = this.params.is_background
-      ? undefined
-      : (this.params.timeout ?? DEFAULT_FOREGROUND_TIMEOUT_MS);
-
-    // Create combined signal with timeout for foreground execution
-    let combinedSignal = signal;
-    if (effectiveTimeout) {
-      const timeoutSignal = AbortSignal.timeout(effectiveTimeout);
-      combinedSignal = AbortSignal.any([signal, timeoutSignal]);
-    }
-
     const isWindows = os.platform() === 'win32';
     const tempFileName = `shell_pgrep_${crypto
       .randomBytes(6)
@@ -646,19 +624,6 @@ export class ShellToolInvocation extends BaseToolInvocation<
             debugLogger.error('missing pgrep output');
           }
         }
-
-        const bgPidMsg =
-          backgroundPIDs.length > 0
-            ? ` PIDs: ${backgroundPIDs.join(', ')}`
-            : pid
-              ? ` PID: ${pid}`
-              : '';
-        const killHint = ' (Use kill <pid> to stop)';
-
-        return {
-          llmContent: `Background command started.${bgPidMsg}${killHint}`,
-          returnDisplay: `Background command started.${bgPidMsg}${killHint}`,
-        };
       }
 
       let data: BackgroundExecutionData | undefined;
@@ -678,13 +643,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
         if (result.output.trim()) {
           llmContent += ` Below is the output before it was cancelled:\n${result.output}`;
         } else {
-          llmContent =
-            'Command was cancelled by user before it could complete.';
-          if (result.output.trim()) {
-            llmContent += ` Below is the output before it was cancelled:\n${result.output}`;
-          } else {
-            llmContent += ' There was no output before it was cancelled.';
-          }
+          llmContent += ' There was no output before it was cancelled.';
         }
       } else if (this.params.is_background || result.backgrounded) {
         llmContent = `Command moved to background (PID: ${result.pid}). Output hidden. Press Ctrl+B to view.`;
@@ -945,6 +904,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
       }
     }
   }
+}
 
 export class ShellTool extends BaseDeclarativeTool<
   ShellToolParams,

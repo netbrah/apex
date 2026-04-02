@@ -79,10 +79,10 @@ describe('ExtensionManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     tempHomeDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'apex-test-home-'),
+      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
     );
     tempWorkspaceDir = fs.mkdtempSync(
-      path.join(tempHomeDir, 'apex-test-workspace-'),
+      path.join(tempHomeDir, 'gemini-cli-test-workspace-'),
     );
     mockHomedir.mockReturnValue(tempHomeDir);
     userExtensionsDir = path.join(tempHomeDir, EXTENSIONS_DIRECTORY_NAME);

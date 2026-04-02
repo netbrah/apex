@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FunctionDeclaration, Part, PartListUnion } from '@google/genai';
+import type { FunctionDeclaration, PartListUnion } from '@google/genai';
 import { ToolErrorType } from './tool-error.js';
 import type { GrepMatch } from './grep-utils.js';
 import type { DiffUpdateResult } from '../ide/ide-client.js';
@@ -83,17 +83,7 @@ export interface ToolInvocation<
    * @param abortSignal An AbortSignal that can be used to cancel the confirmation request.
    * @returns A ToolCallConfirmationDetails object if confirmation is required, or false if not.
    */
-  getDefaultPermission(): Promise<PermissionDecision>;
-
-  /**
-   * Constructs the confirmation dialog details for this invocation.
-   * Only called when the final permission decision is `'ask'` and the user
-   * needs to be prompted interactively.
-   *
-   * @param abortSignal Signal to cancel the operation.
-   * @returns The confirmation details for the UI to display.
-   */
-  getConfirmationDetails(
+  shouldConfirmExecute(
     abortSignal: AbortSignal,
     forcedDecision?: ForcedToolDecision,
   ): Promise<ToolCallConfirmationDetails | false>;
@@ -540,10 +530,6 @@ export abstract class DeclarativeTool<
         this.parameterSchema,
       ),
     };
-  }
-
-  get isReadOnly(): boolean {
-    return (READ_ONLY_KINDS as readonly Kind[]).includes(this.kind);
   }
 
   /**
@@ -996,12 +982,6 @@ export interface ToolEditConfirmationDetails {
     outcome: ToolConfirmationOutcome,
     payload?: ToolConfirmationPayload,
   ) => Promise<void>;
-  /**
-   * When true, the UI should not show "Always allow" options (ProceedAlwaysProject/User).
-   * Set by coreToolScheduler when PM has an explicit 'ask' rule that would override
-   * any 'allow' rule the user might add.
-   */
-  hideAlwaysAllow?: boolean;
   fileName: string;
   filePath: string;
   fileDiff: string;
@@ -1075,8 +1055,6 @@ export interface ToolInfoConfirmationDetails {
   onConfirm: (outcome: ToolConfirmationOutcome) => Promise<void>;
   prompt: string;
   urls?: string[];
-  /** Permission rules for persistence, e.g. 'WebFetch(example.com)'. */
-  permissionRules?: string[];
 }
 
 export interface ToolAskUserConfirmationDetails {
@@ -1110,55 +1088,12 @@ export type ToolCallConfirmationDetails =
   | ToolAskUserConfirmationDetails
   | ToolExitPlanModeConfirmationDetails;
 
-export interface ToolPlanConfirmationDetails {
-  type: 'plan';
-  title: string;
-  /** @see ToolEditConfirmationDetails.hideAlwaysAllow */
-  hideAlwaysAllow?: boolean;
-  plan: string;
-  onConfirm: (
-    outcome: ToolConfirmationOutcome,
-    payload?: ToolConfirmationPayload,
-  ) => Promise<void>;
-}
-
-export interface ToolAskUserQuestionConfirmationDetails {
-  type: 'ask_user_question';
-  title: string;
-  questions: Array<{
-    question: string;
-    header: string;
-    options: Array<{
-      label: string;
-      description: string;
-    }>;
-    multiSelect: boolean;
-  }>;
-  metadata?: {
-    source?: string;
-  };
-  onConfirm: (
-    outcome: ToolConfirmationOutcome,
-    payload?: ToolConfirmationPayload,
-  ) => Promise<void>;
-}
-
-/**
- * TODO:
- * 1. support explicit denied outcome
- * 2. support proceed with modified input
- */
 export enum ToolConfirmationOutcome {
   ProceedOnce = 'proceed_once',
   ProceedAlways = 'proceed_always',
   ProceedAlwaysAndSave = 'proceed_always_and_save',
   ProceedAlwaysServer = 'proceed_always_server',
-  /** @deprecated Use ProceedAlwaysProject or ProceedAlwaysUser instead. */
   ProceedAlwaysTool = 'proceed_always_tool',
-  /** Persist the permission rule to the project settings (workspace scope). */
-  ProceedAlwaysProject = 'proceed_always_project',
-  /** Persist the permission rule to the user settings (user scope). */
-  ProceedAlwaysUser = 'proceed_always_user',
   ModifyWithEditor = 'modify_with_editor',
   Cancel = 'cancel',
 }

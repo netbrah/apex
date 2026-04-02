@@ -57,9 +57,8 @@ export interface ContentGenerator {
 }
 
 export enum AuthType {
-  USE_OPENAI = 'openai',
-  USE_OPENAI_RESPONSES = 'openai-responses',
-  USE_GEMINI = 'gemini',
+  LOGIN_WITH_GOOGLE = 'oauth-personal',
+  USE_GEMINI = 'gemini-api-key',
   USE_VERTEX_AI = 'vertex-ai',
   LEGACY_CLOUD_SHELL = 'cloud-shell',
   COMPUTE_ADC = 'compute-default-credentials',
@@ -93,21 +92,8 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
   return undefined;
 }
 
-/**
- * Supported input modalities for a model.
- * Omitted or false fields mean the model does not support that input type.
- */
-export type InputModalities = {
-  image?: boolean;
-  pdf?: boolean;
-  audio?: boolean;
-  video?: boolean;
-};
-
 export type ContentGeneratorConfig = {
   apiKey?: string;
-  apiKeyEnvKey?: string;
-  baseUrl?: string;
   vertexai?: boolean;
   authType?: AuthType;
   proxy?: string;
@@ -149,24 +135,21 @@ export async function createContentGeneratorConfig(
     return contentGeneratorConfig;
   }
 
-  // Preserve seed sources for fields that were passed in
-  const seedOrUnknown = (path: string): ContentGeneratorConfigSource =>
-    getSeedSource(seedSources, path) ?? { kind: 'unknown' };
+  if (authType === AuthType.USE_GEMINI && geminiApiKey) {
+    contentGeneratorConfig.apiKey = geminiApiKey;
+    contentGeneratorConfig.vertexai = false;
 
-  for (const field of PROVIDER_SOURCED_FIELDS) {
-    if (generationConfig && field in generationConfig && !sources[field]) {
-      setSource(sources, field, seedOrUnknown(field));
-    }
+    return contentGeneratorConfig;
   }
 
-  // Validate required fields based on authType. This does not perform any
-  // fallback resolution (resolution is handled by ModelConfigResolver).
-  const validation = validateModelConfig(
-    newContentGeneratorConfig as ContentGeneratorConfig,
-    strictModelProvider,
-  );
-  if (!validation.valid) {
-    throw new Error(validation.errors.map((e) => e.message).join('\n'));
+  if (
+    authType === AuthType.USE_VERTEX_AI &&
+    (googleApiKey || (googleCloudProject && googleCloudLocation))
+  ) {
+    contentGeneratorConfig.apiKey = googleApiKey;
+    contentGeneratorConfig.vertexai = true;
+
+    return contentGeneratorConfig;
   }
 
   if (authType === AuthType.GATEWAY) {
@@ -180,9 +163,9 @@ export async function createContentGeneratorConfig(
 }
 
 export async function createContentGenerator(
-  generatorConfig: ContentGeneratorConfig,
-  config: Config,
-  _isInitialAuth?: boolean,
+  config: ContentGeneratorConfig,
+  gcConfig: Config,
+  sessionId?: string,
 ): Promise<ContentGenerator> {
   const generator = await (async () => {
     if (gcConfig.fakeResponses) {

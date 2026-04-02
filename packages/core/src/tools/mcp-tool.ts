@@ -17,8 +17,6 @@ import {
   type ToolResult,
   type PolicyUpdateOptions,
 } from './tools.js';
-import type { PermissionDecision } from '../permissions/types.js';
-import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
 import type { CallableTool, FunctionCall, Part } from '@google/genai';
 import { ToolErrorType } from './tool-error.js';
 import type { MessageBus } from '../confirmation-bus/message-bus.js';
@@ -118,40 +116,6 @@ export function isMcpToolAnnotation(
 
 type ToolParams = Record<string, unknown>;
 
-/**
- * Minimal interface for the raw MCP Client's callTool method.
- * This avoids a direct import of @modelcontextprotocol/sdk in this file,
- * keeping the dependency contained in mcp-client.ts.
- */
-export interface McpDirectClient {
-  callTool(
-    params: { name: string; arguments?: Record<string, unknown> },
-    resultSchema?: unknown,
-    options?: {
-      onprogress?: (progress: {
-        progress: number;
-        total?: number;
-        message?: string;
-      }) => void;
-      timeout?: number;
-      signal?: AbortSignal;
-    },
-  ): Promise<McpCallToolResult>;
-}
-
-/** The result shape returned by MCP SDK Client.callTool(). */
-interface McpCallToolResult {
-  content?: Array<{
-    type: string;
-    text?: string;
-    data?: string;
-    mimeType?: string;
-    [key: string]: unknown;
-  }>;
-  isError?: boolean;
-  [key: string]: unknown;
-}
-
 // Discriminated union for MCP Content Blocks to ensure type safety.
 type McpTextBlock = {
   type: 'text';
@@ -190,6 +154,8 @@ export class DiscoveredMCPToolInvocation extends BaseToolInvocation<
   ToolParams,
   ToolResult
 > {
+  private static readonly allowlist: Set<string> = new Set();
+
   constructor(
     private readonly mcpTool: CallableTool,
     readonly serverName: string,
@@ -356,37 +322,11 @@ export class DiscoveredMCPToolInvocation extends BaseToolInvocation<
     }
 
     const transformedParts = transformMcpContentToParts(rawResponseParts);
-    const truncatedParts = await this.truncateTextParts(transformedParts);
 
     return {
-      llmContent: truncatedParts,
-      returnDisplay: getDisplayFromParts(truncatedParts),
+      llmContent: transformedParts,
+      returnDisplay: getStringifiedResultForDisplay(rawResponseParts),
     };
-  }
-
-  /**
-   * Truncates text parts in the transformed result if they exceed the
-   * configured threshold. Non-text parts (images, audio, etc.) are preserved.
-   */
-  private async truncateTextParts(parts: Part[]): Promise<Part[]> {
-    if (!this.cliConfig) {
-      return parts;
-    }
-
-    const result: Part[] = [];
-    for (const part of parts) {
-      if (part.text && !part.inlineData) {
-        const truncated = await truncateToolOutput(
-          this.cliConfig,
-          `mcp__${this.serverName}__${this.serverToolName}`,
-          part.text,
-        );
-        result.push({ text: truncated.content });
-      } else {
-        result.push(part);
-      }
-    }
-    return result;
   }
 
   getDescription(): string {
@@ -449,7 +389,7 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
         ),
       `${serverToolName} (${serverName} MCP Server)`,
       description,
-      annotations?.readOnlyHint === true ? Kind.Read : Kind.Other,
+      Kind.Other,
       parameterSchema,
       messageBus,
       true, // isOutputMarkdown
@@ -504,31 +444,6 @@ export class DiscoveredMCPTool extends BaseDeclarativeTool<
       this._toolAnnotations,
     );
   }
-}
-
-/**
- * Wraps a raw MCP CallToolResult into the Part[] format that the
- * existing transform/display functions expect. This bridges the gap
- * between the raw MCP SDK response and the @google/genai Part format.
- */
-function wrapMcpCallToolResultAsParts(
-  toolName: string,
-  result: {
-    content?: Array<{ [key: string]: unknown }>;
-    isError?: boolean;
-  },
-): Part[] {
-  const response = result.isError
-    ? { error: result, content: result.content }
-    : result;
-  return [
-    {
-      functionResponse: {
-        name: toolName,
-        response,
-      },
-    },
-  ];
 }
 
 function transformTextBlock(block: McpTextBlock): Part {
@@ -623,8 +538,12 @@ function transformMcpContentToParts(sdkResponse: Part[]): Part[] {
 }
 
 /**
- * Builds a human-readable display string from transformed Part[].
- * Text parts are shown directly; inline data is summarized by mime type.
+ * Processes the raw response from the MCP tool to generate a clean,
+ * human-readable string for display in the CLI. It summarizes non-text
+ * content and presents text directly.
+ *
+ * @param rawResponse The raw Part[] array from the GenAI SDK.
+ * @returns A formatted string representing the tool's output.
  */
 function getStringifiedResultForDisplay(rawResponse: Part[]): string {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
@@ -636,14 +555,27 @@ function getStringifiedResultForDisplay(rawResponse: Part[]): string {
     return '```json\n' + JSON.stringify(rawResponse, null, 2) + '\n```';
   }
 
-  const displayParts: string[] = [];
-  for (const part of parts) {
-    if (part.text !== undefined) {
-      displayParts.push(part.text);
-    } else if (part.inlineData) {
-      displayParts.push(`[${part.inlineData.mimeType}]`);
+  const displayParts = mcpContent.map((block: McpContentBlock): string => {
+    switch (block.type) {
+      case 'text':
+        return block.text;
+      case 'image':
+        return `[Image: ${block.mimeType}]`;
+      case 'audio':
+        return `[Audio: ${block.mimeType}]`;
+      case 'resource_link':
+        return `[Link to ${block.title || block.name}: ${block.uri}]`;
+      case 'resource':
+        if (block.resource?.text) {
+          return block.resource.text;
+        }
+        return `[Embedded Resource: ${
+          block.resource?.mimeType || 'unknown type'
+        }]`;
+      default:
+        return `[Unknown content type: ${(block as { type: string }).type}]`;
     }
-  }
+  });
 
   return displayParts.join('\n');
 }

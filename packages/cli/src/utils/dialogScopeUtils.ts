@@ -18,11 +18,7 @@ import { isInSettingsScope } from './settingsUtils.js';
 export const SCOPE_LABELS = {
   [SettingScope.User]: 'User Settings',
   [SettingScope.Workspace]: 'Workspace Settings',
-
-  // TODO: migrate system settings to user settings
-  // we don't want to save settings to system scope, it is a troublemaker
-  // comment it out for now.
-  // [SettingScope.System]: 'System Settings',
+  [SettingScope.System]: 'System Settings',
 } as const;
 
 /**
@@ -38,7 +34,7 @@ export function getScopeItems(): Array<{
       label: SCOPE_LABELS[SettingScope.Workspace],
       value: SettingScope.Workspace,
     },
-    // { label: SCOPE_LABELS[SettingScope.System], value: SettingScope.System },
+    { label: SCOPE_LABELS[SettingScope.System], value: SettingScope.System },
   ];
 }
 

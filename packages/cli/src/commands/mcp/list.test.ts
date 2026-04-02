@@ -100,10 +100,6 @@ describe('mcp list command', () => {
   let mockClient: MockClient;
   let mockExtensionManager: MockExtensionManager;
   let mockTransport: MockTransport;
-  let mockExtensionManager: {
-    refreshCache: vi.Mock;
-    getLoadedExtensions: vi.Mock;
-  };
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -123,11 +119,6 @@ describe('mcp list command', () => {
     };
     mockExtensionManager = {
       loadExtensions: vi.fn(),
-    };
-
-    mockExtensionManager = {
-      refreshCache: vi.fn().mockResolvedValue(undefined),
-      getLoadedExtensions: vi.fn().mockReturnValue([]),
     };
 
     MockedClient.mockImplementation(() => mockClient);

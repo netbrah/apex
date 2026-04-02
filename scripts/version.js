@@ -23,13 +23,11 @@ function writeJson(filePath, data) {
   writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
 }
 
-// 1. Get the version from the command line arguments.
+// 1. Get the version type from the command line arguments.
 const versionType = process.argv[2];
 if (!versionType) {
-  console.error('Error: No version specified.');
-  console.error(
-    'Usage: npm run version <version> (e.g., 1.2.3 or patch|minor|major|prerelease)',
-  );
+  console.error('Error: No version type specified.');
+  console.error('Usage: npm run version <patch|minor|major|prerelease>');
   process.exit(1);
 }
 
@@ -82,7 +80,7 @@ for (const workspaceName of workspacesToVersion) {
 const rootPackageJsonPath = resolve(process.cwd(), 'package.json');
 const newVersion = readJson(rootPackageJsonPath).version;
 
-// 5. Update the sandboxImageUri in the root package.json
+// 4. Update the sandboxImageUri in the root package.json
 const rootPackageJson = readJson(rootPackageJsonPath);
 if (rootPackageJson.config?.sandboxImageUri) {
   rootPackageJson.config.sandboxImageUri =
@@ -91,7 +89,7 @@ if (rootPackageJson.config?.sandboxImageUri) {
   writeJson(rootPackageJsonPath, rootPackageJson);
 }
 
-// 6. Update the sandboxImageUri in the cli package.json
+// 5. Update the sandboxImageUri in the cli package.json
 const cliPackageJsonPath = resolve(process.cwd(), 'packages/cli/package.json');
 const cliPackageJson = readJson(cliPackageJsonPath);
 if (cliPackageJson.config?.sandboxImageUri) {

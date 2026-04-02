@@ -18,6 +18,7 @@ import { act } from 'react';
 import { renderHookWithProviders } from '../../test-utils/render.js';
 import { waitFor } from '../../test-utils/async.js';
 import { useGeminiStream } from './useGeminiStream.js';
+import { useKeypress } from './useKeypress.js';
 import * as atCommandProcessor from './atCommandProcessor.js';
 import {
   useToolScheduler,
@@ -41,7 +42,6 @@ import {
   ApprovalMode,
   AuthType,
   GeminiEventType as ServerGeminiEventType,
-  SendMessageType,
   ToolErrorType,
   ToolConfirmationOutcome,
   MessageBusType,
@@ -1541,8 +1541,28 @@ describe('useGeminiStream', () => {
     expect(result.current.streamingState).toBe(StreamingState.Responding);
   });
 
-  describe('Cancellation', () => {
-    it('should cancel an in-progress stream when cancelOngoingRequest is called', async () => {
+  describe('User Cancellation', () => {
+    let keypressCallback: (key: any) => void;
+    const mockUseKeypress = useKeypress as Mock;
+
+    beforeEach(() => {
+      // Capture the callback passed to useKeypress
+      mockUseKeypress.mockImplementation((callback, options) => {
+        if (options.isActive) {
+          keypressCallback = callback;
+        } else {
+          keypressCallback = () => {};
+        }
+      });
+    });
+
+    const simulateEscapeKeyPress = () => {
+      act(() => {
+        keypressCallback({ name: 'escape' });
+      });
+    };
+
+    it('should cancel an in-progress stream when escape is pressed', async () => {
       const mockStream = (async function* () {
         yield { type: 'content', value: 'Part 1' };
         // Keep the stream open
@@ -1560,13 +1580,11 @@ describe('useGeminiStream', () => {
 
       // Wait for the first part of the response
       await waitFor(() => {
-        expect(mockSendMessageStream).toHaveBeenCalledTimes(1);
+        expect(result.current.streamingState).toBe(StreamingState.Responding);
       });
 
-      // Call cancelOngoingRequest directly
-      act(() => {
-        result.current.cancelOngoingRequest();
-      });
+      // Simulate escape key press
+      simulateEscapeKeyPress();
 
       // Verify cancellation message is added
       await waitFor(() => {
@@ -1580,7 +1598,7 @@ describe('useGeminiStream', () => {
       expect(result.current.streamingState).toBe(StreamingState.Idle);
     });
 
-    it('should call onCancelSubmit handler when cancelOngoingRequest is called', async () => {
+    it('should call onCancelSubmit handler when escape is pressed', async () => {
       const cancelSubmitSpy = vi.fn();
       const mockStream = (async function* () {
         yield { type: 'content', value: 'Part 1' };
@@ -1617,9 +1635,7 @@ describe('useGeminiStream', () => {
         result.current.submitQuery('test query');
       });
 
-      act(() => {
-        result.current.cancelOngoingRequest();
-      });
+      simulateEscapeKeyPress();
 
       expect(cancelSubmitSpy).toHaveBeenCalledWith(false);
     });
@@ -1670,10 +1686,8 @@ describe('useGeminiStream', () => {
 
       expect(result.current.streamingState).toBe(StreamingState.Idle);
 
-      // Call cancelOngoingRequest
-      act(() => {
-        result.current.cancelOngoingRequest();
-      });
+      // Simulate escape key press
+      simulateEscapeKeyPress();
 
       // No change should happen, no cancellation message
       expect(mockAddItem).not.toHaveBeenCalledWith(
@@ -1704,13 +1718,11 @@ describe('useGeminiStream', () => {
       });
 
       await waitFor(() => {
-        expect(mockSendMessageStream).toHaveBeenCalledTimes(1);
+        expect(result.current.streamingState).toBe(StreamingState.Responding);
       });
 
       // Cancel the request
-      act(() => {
-        result.current.cancelOngoingRequest();
-      });
+      simulateEscapeKeyPress();
 
       // Allow the stream to continue
       await act(async () => {
@@ -1756,9 +1768,7 @@ describe('useGeminiStream', () => {
       expect(result.current.streamingState).toBe(StreamingState.Responding);
 
       // Try to cancel
-      act(() => {
-        result.current.cancelOngoingRequest();
-      });
+      simulateEscapeKeyPress();
 
       // The cancel function should be called
       expect(mockCancelAllToolCalls).toHaveBeenCalled();
@@ -2330,7 +2340,7 @@ describe('useGeminiStream', () => {
     it('should call parseAndFormatApiError with the correct authType on stream initialization failure', async () => {
       // 1. Setup
       const mockError = new Error('Rate limit exceeded');
-      const mockAuthType = AuthType.USE_VERTEX_AI;
+      const mockAuthType = AuthType.LOGIN_WITH_GOOGLE;
       mockParseAndFormatApiError.mockClear();
       mockSendMessageStream.mockReturnValue(
         (async function* () {
@@ -2381,6 +2391,9 @@ describe('useGeminiStream', () => {
         expect(mockParseAndFormatApiError).toHaveBeenCalledWith(
           'Rate limit exceeded',
           mockAuthType,
+          undefined,
+          'gemini-2.5-pro',
+          'gemini-2.5-flash',
         );
       });
     });
@@ -3502,8 +3515,7 @@ describe('useGeminiStream', () => {
         await result.current.submitQuery('Test query');
       });
 
-      // Verify error message appears in pending history items (not via addItem,
-      // since errors with retry hints are now stored as pending items)
+      // Verify error message was added
       await waitFor(() => {
         expect(mockAddItem).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -3511,344 +3523,15 @@ describe('useGeminiStream', () => {
           }),
           expect.any(Number),
         );
-        expect(errorItem).toBeDefined();
       });
 
       // Verify parseAndFormatApiError was called
       expect(mockParseAndFormatApiError).toHaveBeenCalledWith(
         { message: 'Test error' },
         expect.any(String),
-      );
-    });
-
-    it('should clear static error when starting a new query', async () => {
-      // First, mock a stream that yields an error (static error without countdown)
-      mockSendMessageStream.mockReturnValueOnce(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.Error,
-            value: { error: { message: 'First error' } },
-          };
-        })(),
-      );
-
-      const { result } = renderHook(() =>
-        useGeminiStream(
-          new MockedGeminiClientClass(mockConfig),
-          [],
-          mockAddItem,
-          mockConfig,
-          mockLoadedSettings,
-          mockOnDebugMessage,
-          mockHandleSlashCommand,
-          false,
-          () => 'vscode' as EditorType,
-          () => {},
-          () => Promise.resolve(),
-          false,
-          () => {},
-          () => {},
-          () => {},
-          () => {},
-          80,
-          24,
-        ),
-      );
-
-      // Submit first query that will fail
-      await act(async () => {
-        await result.current.submitQuery('First query');
-      });
-
-      // Verify error appears in pending history items
-      await waitFor(() => {
-        const errorItem = result.current.pendingHistoryItems.find(
-          (item) => item.type === 'error',
-        );
-        expect(errorItem).toBeDefined();
-      });
-
-      // Now mock a successful stream for the second query
-      mockSendMessageStream.mockReturnValueOnce(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.Text,
-            value: 'Success response',
-          };
-        })(),
-      );
-
-      // Submit second query
-      await act(async () => {
-        await result.current.submitQuery('Second query');
-      });
-
-      // Verify the error is cleared (no longer in pending history items)
-      await waitFor(() => {
-        const errorItem = result.current.pendingHistoryItems.find(
-          (item) => item.type === 'error',
-        );
-        expect(errorItem).toBeUndefined();
-      });
-    });
-  });
-
-  describe('Concurrent Execution Prevention', () => {
-    it('should allow /btw slash commands while a main response is in progress', async () => {
-      let resolveFirstCall!: () => void;
-
-      const firstCallPromise = new Promise<void>((resolve) => {
-        resolveFirstCall = resolve;
-      });
-
-      const firstStream = (async function* () {
-        yield {
-          type: ServerGeminiEventType.Content,
-          value: 'First call content',
-        };
-        await firstCallPromise;
-      })();
-
-      mockSendMessageStream.mockImplementation(() => firstStream);
-      mockHandleSlashCommand.mockImplementation(async (command) => {
-        if (command === '/btw quick side question') {
-          return { type: 'handled' };
-        }
-        return false;
-      });
-
-      const { result } = renderTestHook();
-
-      let mainRequest!: Promise<void>;
-      await act(async () => {
-        mainRequest = result.current.submitQuery('First query');
-      });
-
-      try {
-        await waitFor(() => {
-          expect(mockSendMessageStream).toHaveBeenCalledTimes(1);
-          expect(result.current.streamingState).toBe(StreamingState.Responding);
-        });
-
-        await act(async () => {
-          await result.current.submitQuery('/btw quick side question');
-        });
-
-        expect(mockHandleSlashCommand).toHaveBeenCalledWith(
-          '/btw quick side question',
-        );
-        expect(mockSendMessageStream).toHaveBeenCalledTimes(1);
-      } finally {
-        resolveFirstCall();
-        await mainRequest;
-      }
-    });
-
-    it('should keep the main request cancellable after submitting /btw in parallel', async () => {
-      let resolveFirstCall!: () => void;
-      let mainAbortSignal: AbortSignal | undefined;
-
-      const firstCallPromise = new Promise<void>((resolve) => {
-        resolveFirstCall = resolve;
-      });
-
-      mockSendMessageStream.mockImplementation((_query, signal) => {
-        mainAbortSignal = signal;
-        return (async function* () {
-          yield {
-            type: ServerGeminiEventType.Content,
-            value: 'First call content',
-          };
-          await firstCallPromise;
-        })();
-      });
-      mockHandleSlashCommand.mockImplementation(async (command) => {
-        if (command === '/btw quick side question') {
-          return { type: 'handled' };
-        }
-        return false;
-      });
-
-      const { result } = renderTestHook();
-
-      let mainRequest!: Promise<void>;
-      await act(async () => {
-        mainRequest = result.current.submitQuery('First query');
-      });
-
-      try {
-        await waitFor(() => {
-          expect(mainAbortSignal).toBeDefined();
-          expect(result.current.streamingState).toBe(StreamingState.Responding);
-        });
-
-        await act(async () => {
-          await result.current.submitQuery('/btw quick side question');
-        });
-
-        act(() => {
-          result.current.cancelOngoingRequest();
-        });
-
-        expect(mainAbortSignal?.aborted).toBe(true);
-      } finally {
-        resolveFirstCall();
-        await mainRequest;
-      }
-    });
-
-    it('should prevent concurrent submitQuery calls', async () => {
-      let resolveFirstCall!: () => void;
-      let resolveSecondCall!: () => void;
-
-      const firstCallPromise = new Promise<void>((resolve) => {
-        resolveFirstCall = resolve;
-      });
-
-      const secondCallPromise = new Promise<void>((resolve) => {
-        resolveSecondCall = resolve;
-      });
-
-      // Mock a long-running stream for the first call
-      const firstStream = (async function* () {
-        yield {
-          type: ServerGeminiEventType.Content,
-          value: 'First call content',
-        };
-        await firstCallPromise; // Wait until we manually resolve
-        yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
-      })();
-
-      // Mock a stream for the second call (should not be used)
-      const secondStream = (async function* () {
-        yield {
-          type: ServerGeminiEventType.Content,
-          value: 'Second call content',
-        };
-        await secondCallPromise;
-        yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
-      })();
-
-      let callCount = 0;
-      mockSendMessageStream.mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          return firstStream;
-        } else {
-          return secondStream;
-        }
-      });
-
-      const { result } = renderTestHook();
-
-      // Start first call
-      const firstCallResult = act(async () => {
-        await result.current.submitQuery('First query');
-      });
-
-      // Wait a bit to ensure first call has started
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      // Try to start second call while first is still running
-      const secondCallResult = act(async () => {
-        await result.current.submitQuery('Second query');
-      });
-
-      // Resolve both calls
-      resolveFirstCall();
-      resolveSecondCall();
-
-      await Promise.all([firstCallResult, secondCallResult]);
-
-      // Verify only one call was made to sendMessageStream
-      expect(mockSendMessageStream).toHaveBeenCalledTimes(1);
-      expect(mockSendMessageStream).toHaveBeenCalledWith(
-        'First query',
-        expect.any(AbortSignal),
-        expect.any(String),
-        { type: SendMessageType.UserQuery },
-      );
-
-      // Verify only the first query was added to history
-      const userMessages = mockAddItem.mock.calls.filter(
-        (call) => call[0].type === MessageType.USER,
-      );
-      expect(userMessages).toHaveLength(1);
-      expect(userMessages[0][0].text).toBe('First query');
-    });
-
-    it('should allow subsequent calls after first call completes', async () => {
-      // Mock streams that complete immediately
-      mockSendMessageStream
-        .mockReturnValueOnce(
-          (async function* () {
-            yield {
-              type: ServerGeminiEventType.Content,
-              value: 'First response',
-            };
-            yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
-          })(),
-        )
-        .mockReturnValueOnce(
-          (async function* () {
-            yield {
-              type: ServerGeminiEventType.Content,
-              value: 'Second response',
-            };
-            yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
-          })(),
-        );
-
-      const { result } = renderTestHook();
-
-      // First call
-      await act(async () => {
-        await result.current.submitQuery('First query');
-      });
-
-      // Second call after first completes
-      await act(async () => {
-        await result.current.submitQuery('Second query');
-      });
-
-      // Both calls should have been made
-      expect(mockSendMessageStream).toHaveBeenCalledTimes(2);
-      expect(mockSendMessageStream).toHaveBeenNthCalledWith(
-        1,
-        'First query',
-        expect.any(AbortSignal),
-        expect.any(String),
-        { type: SendMessageType.UserQuery },
-      );
-      expect(mockSendMessageStream).toHaveBeenNthCalledWith(
-        2,
-        'Second query',
-        expect.any(AbortSignal),
-        expect.any(String),
-        { type: SendMessageType.UserQuery },
-      );
-    });
-
-    it('should reset execution flag even when query preparation fails', async () => {
-      const { result } = renderTestHook();
-
-      // First call with empty query (should fail in preparation)
-      await act(async () => {
-        await result.current.submitQuery('   '); // Empty trimmed query
-      });
-
-      // Second call should work normally
-      await act(async () => {
-        await result.current.submitQuery('Second query');
-      });
-
-      // Verify that only the second call was made (empty query is filtered out)
-      expect(mockSendMessageStream).toHaveBeenCalledTimes(1);
-      expect(mockSendMessageStream).toHaveBeenCalledWith(
-        'Second query',
-        expect.any(AbortSignal),
-        expect.any(String),
-        { type: SendMessageType.UserQuery },
+        undefined,
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
       );
     });
 
@@ -4556,264 +4239,5 @@ describe('useGeminiStream', () => {
       await userPromptCall![1]({ metadata: spanMetadata });
     });
     expect(spanMetadata.input).toBe('telemetry test query');
-  });
-
-  // --- New tests focused on recent modifications ---
-  describe('Loop Detection Confirmation', () => {
-    beforeEach(() => {
-      // Add mock for getLoopDetectionService to the config
-      const mockLoopDetectionService = {
-        disableForSession: vi.fn(),
-      };
-      mockConfig.getGeminiClient = vi.fn().mockReturnValue({
-        ...new MockedGeminiClientClass(mockConfig),
-        getLoopDetectionService: () => mockLoopDetectionService,
-      });
-    });
-
-    it('should set loopDetectionConfirmationRequest when LoopDetected event is received', async () => {
-      mockSendMessageStream.mockReturnValue(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.Content,
-            value: 'Some content',
-          };
-          yield {
-            type: ServerGeminiEventType.LoopDetected,
-          };
-        })(),
-      );
-
-      const { result } = renderTestHook();
-
-      await act(async () => {
-        await result.current.submitQuery('test query');
-      });
-
-      await waitFor(() => {
-        expect(result.current.loopDetectionConfirmationRequest).not.toBeNull();
-        expect(
-          typeof result.current.loopDetectionConfirmationRequest?.onComplete,
-        ).toBe('function');
-      });
-    });
-
-    it('should disable loop detection and show message when user selects "disable"', async () => {
-      const mockLoopDetectionService = {
-        disableForSession: vi.fn(),
-      };
-      const mockClient = {
-        ...new MockedGeminiClientClass(mockConfig),
-        getLoopDetectionService: () => mockLoopDetectionService,
-      };
-      mockConfig.getGeminiClient = vi.fn().mockReturnValue(mockClient);
-
-      mockSendMessageStream.mockReturnValueOnce(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.LoopDetected,
-          };
-        })(),
-      );
-
-      const { result } = renderTestHook([], mockClient);
-
-      await act(async () => {
-        await result.current.submitQuery('test query');
-      });
-
-      // Wait for confirmation request to be set
-      await waitFor(() => {
-        expect(result.current.loopDetectionConfirmationRequest).not.toBeNull();
-      });
-
-      // Simulate user selecting "disable"
-      await act(async () => {
-        result.current.loopDetectionConfirmationRequest?.onComplete({
-          userSelection: 'disable',
-        });
-      });
-
-      // Verify loop detection was disabled
-      expect(mockLoopDetectionService.disableForSession).toHaveBeenCalledTimes(
-        1,
-      );
-
-      // Verify confirmation request was cleared
-      expect(result.current.loopDetectionConfirmationRequest).toBeNull();
-
-      // Verify appropriate message was added
-      expect(mockAddItem).toHaveBeenCalledWith(
-        {
-          type: 'info',
-          text: 'Loop detection has been disabled for this session. Please try your request again.',
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should keep loop detection enabled and show message when user selects "keep"', async () => {
-      const mockLoopDetectionService = {
-        disableForSession: vi.fn(),
-      };
-      const mockClient = {
-        ...new MockedGeminiClientClass(mockConfig),
-        getLoopDetectionService: () => mockLoopDetectionService,
-      };
-      mockConfig.getGeminiClient = vi.fn().mockReturnValue(mockClient);
-
-      mockSendMessageStream.mockReturnValue(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.LoopDetected,
-          };
-        })(),
-      );
-
-      const { result } = renderTestHook();
-
-      await act(async () => {
-        await result.current.submitQuery('test query');
-      });
-
-      // Wait for confirmation request to be set
-      await waitFor(() => {
-        expect(result.current.loopDetectionConfirmationRequest).not.toBeNull();
-      });
-
-      // Simulate user selecting "keep"
-      await act(async () => {
-        result.current.loopDetectionConfirmationRequest?.onComplete({
-          userSelection: 'keep',
-        });
-      });
-
-      // Verify loop detection was NOT disabled
-      expect(mockLoopDetectionService.disableForSession).not.toHaveBeenCalled();
-
-      // Verify confirmation request was cleared
-      expect(result.current.loopDetectionConfirmationRequest).toBeNull();
-
-      // Verify appropriate message was added
-      expect(mockAddItem).toHaveBeenCalledWith(
-        {
-          type: 'info',
-          text: 'A potential loop was detected. This can happen due to repetitive tool calls or other model behavior. The request has been halted.',
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should handle multiple loop detection events properly', async () => {
-      const { result } = renderTestHook();
-
-      // First loop detection - set up fresh mock for first call
-      mockSendMessageStream.mockReturnValueOnce(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.LoopDetected,
-          };
-        })(),
-      );
-
-      // First loop detection
-      await act(async () => {
-        await result.current.submitQuery('first query');
-      });
-
-      await waitFor(() => {
-        expect(result.current.loopDetectionConfirmationRequest).not.toBeNull();
-      });
-
-      // Simulate user selecting "keep" for first request
-      await act(async () => {
-        result.current.loopDetectionConfirmationRequest?.onComplete({
-          userSelection: 'keep',
-        });
-      });
-
-      expect(result.current.loopDetectionConfirmationRequest).toBeNull();
-
-      // Verify first message was added
-      expect(mockAddItem).toHaveBeenCalledWith(
-        {
-          type: 'info',
-          text: 'A potential loop was detected. This can happen due to repetitive tool calls or other model behavior. The request has been halted.',
-        },
-        expect.any(Number),
-      );
-
-      // Second loop detection - set up fresh mock for second call
-      mockSendMessageStream.mockReturnValueOnce(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.LoopDetected,
-          };
-        })(),
-      );
-
-      // Second loop detection
-      await act(async () => {
-        await result.current.submitQuery('second query');
-      });
-
-      await waitFor(() => {
-        expect(result.current.loopDetectionConfirmationRequest).not.toBeNull();
-      });
-
-      // Simulate user selecting "disable" for second request
-      await act(async () => {
-        result.current.loopDetectionConfirmationRequest?.onComplete({
-          userSelection: 'disable',
-        });
-      });
-
-      expect(result.current.loopDetectionConfirmationRequest).toBeNull();
-
-      // Verify second message was added
-      expect(mockAddItem).toHaveBeenCalledWith(
-        {
-          type: 'info',
-          text: 'Loop detection has been disabled for this session. Please try your request again.',
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should process LoopDetected event after moving pending history to history', async () => {
-      mockSendMessageStream.mockReturnValue(
-        (async function* () {
-          yield {
-            type: ServerGeminiEventType.Content,
-            value: 'Some response content',
-          };
-          yield {
-            type: ServerGeminiEventType.LoopDetected,
-          };
-        })(),
-      );
-
-      const { result } = renderTestHook();
-
-      await act(async () => {
-        await result.current.submitQuery('test query');
-      });
-
-      // Verify that the content was added to history before the loop detection dialog
-      await waitFor(() => {
-        expect(mockAddItem).toHaveBeenCalledWith(
-          expect.objectContaining({
-            type: 'gemini',
-            text: 'Some response content',
-          }),
-          expect.any(Number),
-        );
-      });
-
-      // Then verify loop detection confirmation request was set
-      await waitFor(() => {
-        expect(result.current.loopDetectionConfirmationRequest).not.toBeNull();
-      });
-    });
   });
 });

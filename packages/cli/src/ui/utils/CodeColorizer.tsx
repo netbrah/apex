@@ -23,11 +23,9 @@ import {
 } from '../components/shared/MaxSizedBox.js';
 import { debugLogger } from '@apex-code/apex-core';
 import type { LoadedSettings } from '../../config/settings.js';
-import { createDebugLogger } from '@apex-code/apex-core';
 
 // Configure theming and parsing utilities.
 const lowlight = createLowlight(common);
-const debugLogger = createDebugLogger('CODE_COLORIZER');
 
 function renderHastNode(
   node: Root | Element | HastText | RootContent,

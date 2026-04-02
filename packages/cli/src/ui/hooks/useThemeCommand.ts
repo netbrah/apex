@@ -42,9 +42,7 @@ export const useThemeCommand = (
       addItem(
         {
           type: MessageType.INFO,
-          text: t(
-            'Theme configuration unavailable due to NO_COLOR env variable.',
-          ),
+          text: 'Theme configuration unavailable due to NO_COLOR env variable.',
         },
         Date.now(),
       );
@@ -64,11 +62,7 @@ export const useThemeCommand = (
       if (!themeManager.setActiveTheme(themeName)) {
         // If theme is not found, open the theme selection dialog and set error message
         setIsThemeDialogOpen(true);
-        setThemeError(
-          t('Theme "{{themeName}}" not found.', {
-            themeName: themeName ?? '',
-          }),
-        );
+        setThemeError(`Theme "${themeName}" not found.`);
       } else {
         setThemeError(null); // Clear any previous theme error on success
       }
@@ -100,11 +94,7 @@ export const useThemeCommand = (
         const isBuiltIn = themeManager.findThemeByName(themeName);
         const isCustom = themeName && mergedCustomThemes[themeName];
         if (!isBuiltIn && !isCustom) {
-          setThemeError(
-            t('Theme "{{themeName}}" not found in selected scope.', {
-              themeName: themeName ?? '',
-            }),
-          );
+          setThemeError(`Theme "${themeName}" not found in selected scope.`);
           setIsThemeDialogOpen(true);
           return;
         }

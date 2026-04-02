@@ -8,15 +8,13 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { escapeAnsiCtrlCodes } from '../utils/textUtils.js';
 import type { HistoryItem } from '../types.js';
-import {
-  UserMessage,
-  UserShellMessage,
-  AssistantMessage,
-  AssistantMessageContent,
-  ThinkMessage,
-  ThinkMessageContent,
-} from './messages/ConversationMessages.js';
+import { UserMessage } from './messages/UserMessage.js';
+import { UserShellMessage } from './messages/UserShellMessage.js';
+import { GeminiMessage } from './messages/GeminiMessage.js';
+import { InfoMessage } from './messages/InfoMessage.js';
+import { ErrorMessage } from './messages/ErrorMessage.js';
 import { ToolGroupMessage } from './messages/ToolGroupMessage.js';
+import { GeminiMessageContent } from './messages/GeminiMessageContent.js';
 import { CompressionMessage } from './messages/CompressionMessage.js';
 import { WarningMessage } from './messages/WarningMessage.js';
 import { SubagentHistoryMessage } from './messages/SubagentHistoryMessage.js';
@@ -45,7 +43,6 @@ interface HistoryItemDisplayProps {
   item: HistoryItem;
   availableTerminalHeight?: number;
   terminalWidth: number;
-  mainAreaWidth?: number;
   isPending: boolean;
   commands?: readonly SlashCommand[];
   availableTerminalHeightGemini?: number;
@@ -56,11 +53,10 @@ interface HistoryItemDisplayProps {
   suppressNarration?: boolean;
 }
 
-const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
+export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
   item,
   availableTerminalHeight,
   terminalWidth,
-  mainAreaWidth,
   isPending,
   commands,
   availableTerminalHeightGemini,

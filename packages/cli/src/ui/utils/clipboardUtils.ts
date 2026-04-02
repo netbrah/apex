@@ -278,7 +278,6 @@ export async function saveClipboardImage(
 
     // Generate a unique filename with timestamp
     const timestamp = new Date().getTime();
-    const tempFilePath = path.join(tempDir, `clipboard-${timestamp}.png`);
 
     if (process.platform === 'linux') {
       const tempFilePath = path.join(tempDir, `clipboard-${timestamp}.png`);
@@ -382,9 +381,8 @@ export async function saveClipboardImage(
       }
     }
 
-    await fs.writeFile(tempFilePath, buffer);
-
-    return tempFilePath;
+    // No format worked
+    return null;
   } catch (error) {
     debugLogger.warn('Error saving clipboard image:', error);
     return null;
@@ -392,8 +390,8 @@ export async function saveClipboardImage(
 }
 
 /**
- * Cleans up old temporary clipboard image files using LRU strategy
- * Keeps maximum 100 images, when exceeding removes 50 oldest files to reduce cleanup frequency
+ * Cleans up old temporary clipboard image files
+ * Removes files older than 1 hour
  * @param targetDir The target directory where temp files are stored
  */
 export async function cleanupOldClipboardImages(
@@ -402,38 +400,16 @@ export async function cleanupOldClipboardImages(
   try {
     const tempDir = await getProjectClipboardImagesDir(targetDir);
     const files = await fs.readdir(tempDir);
-    const MAX_IMAGES = 100;
-    const CLEANUP_COUNT = 50;
-
-    // Filter clipboard image files and get their stats
-    const imageFiles: Array<{ name: string; path: string; atime: number }> = [];
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
 
     for (const file of files) {
       const ext = path.extname(file).toLowerCase();
       if (file.startsWith('clipboard-') && IMAGE_EXTENSIONS.includes(ext)) {
         const filePath = path.join(tempDir, file);
         const stats = await fs.stat(filePath);
-        imageFiles.push({
-          name: file,
-          path: filePath,
-          atime: stats.atimeMs,
-        });
-      }
-    }
-
-    // If exceeds limit, remove CLEANUP_COUNT oldest files to reduce cleanup frequency
-    if (imageFiles.length > MAX_IMAGES) {
-      // Sort by access time (oldest first)
-      imageFiles.sort((a, b) => a.atime - b.atime);
-
-      // Remove CLEANUP_COUNT oldest files (or all excess files if less than CLEANUP_COUNT)
-      const removeCount = Math.min(
-        CLEANUP_COUNT,
-        imageFiles.length - MAX_IMAGES + CLEANUP_COUNT,
-      );
-      const filesToRemove = imageFiles.slice(0, removeCount);
-      for (const file of filesToRemove) {
-        await fs.unlink(file.path);
+        if (stats.mtimeMs < oneHourAgo) {
+          await fs.unlink(filePath);
+        }
       }
     }
   } catch (e) {

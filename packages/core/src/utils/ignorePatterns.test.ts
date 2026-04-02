@@ -14,7 +14,7 @@ import type { Config } from '../config/config.js';
 
 // Mock the memoryTool module
 vi.mock('../tools/memoryTool.js', () => ({
-  getAllGeminiMdFilenames: vi.fn(() => ['APEX.md', 'AGENTS.md']),
+  getCurrentGeminiMdFilename: vi.fn(() => 'APEX.md'),
 }));
 
 describe('FileExclusions', () => {
@@ -56,7 +56,6 @@ describe('FileExclusions', () => {
 
       // Should include dynamic patterns
       expect(patterns).toContain('**/APEX.md');
-      expect(patterns).toContain('**/AGENTS.md');
     });
 
     it('should respect includeDefaults option', () => {
@@ -69,7 +68,6 @@ describe('FileExclusions', () => {
       expect(patterns).not.toContain('**/node_modules/**');
       expect(patterns).not.toContain('**/.git/**');
       expect(patterns).not.toContain('**/APEX.md');
-      expect(patterns).not.toContain('**/AGENTS.md');
       expect(patterns).toHaveLength(0);
     });
 
@@ -103,9 +101,7 @@ describe('FileExclusions', () => {
       });
 
       expect(patternsWithDynamic).toContain('**/APEX.md');
-      expect(patternsWithDynamic).toContain('**/AGENTS.md');
       expect(patternsWithoutDynamic).not.toContain('**/APEX.md');
-      expect(patternsWithoutDynamic).not.toContain('**/AGENTS.md');
     });
   });
 
@@ -118,7 +114,6 @@ describe('FileExclusions', () => {
       expect(patterns).toContain('**/node_modules/**');
       expect(patterns).toContain('**/.git/**');
       expect(patterns).toContain('**/APEX.md');
-      expect(patterns).toContain('**/AGENTS.md');
 
       // Should include additional excludes
       expect(patterns).toContain('**/*.log');

@@ -32,12 +32,8 @@ class TestToolInvocation implements ToolInvocation<object, ToolResult> {
     return [];
   }
 
-  getDefaultPermission(): Promise<PermissionDecision> {
-    return Promise.resolve('allow');
-  }
-
-  getConfirmationDetails(): Promise<never> {
-    throw new Error('Not implemented');
+  shouldConfirmExecute(): Promise<false> {
+    return Promise.resolve(false);
   }
 
   execute(): Promise<ToolResult> {

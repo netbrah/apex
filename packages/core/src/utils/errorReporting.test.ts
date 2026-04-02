@@ -5,25 +5,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { reportError } from './errorReporting.js';
 import { debugLogger } from './debugLogger.js';
 
-const debugLoggerSpy = vi.hoisted(() => ({
-  error: vi.fn(),
-  warn: vi.fn(),
-  info: vi.fn(),
-  debug: vi.fn(),
-}));
-
-// Mock the debugLogger
-vi.mock('./debugLogger.js', () => ({
-  createDebugLogger: () => ({
-    error: debugLoggerSpy.error,
-    warn: debugLoggerSpy.warn,
-    info: debugLoggerSpy.info,
-    debug: debugLoggerSpy.debug,
-  }),
-}));
+// Use a type alias for SpyInstance as it's not directly exported
+type SpyInstance = ReturnType<typeof vi.spyOn>;
 
 describe('reportError', () => {
   let debugLoggerErrorSpy: SpyInstance;
@@ -40,16 +29,22 @@ describe('reportError', () => {
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue(MOCK_TIMESTAMP);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
+    // Clean up the temporary directory
+    await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  it('should not throw when called with a standard error', async () => {
+  const getExpectedReportPath = (type: string) =>
+    path.join(testDir, `gemini-client-error-${type}-${MOCK_TIMESTAMP}.json`);
+
+  it('should generate a report and log the path', async () => {
     const error = new Error('Test error');
     error.stack = 'Test stack';
     const baseMessage = 'An error occurred.';
     const context = { data: 'test context' };
     const type = 'test-type';
+    const expectedReportPath = getExpectedReportPath(type);
 
     await reportError(error, baseMessage, context, type, testDir);
 
@@ -73,6 +68,7 @@ describe('reportError', () => {
     const error = { message: 'Test plain object error' };
     const baseMessage = 'Another error.';
     const type = 'general';
+    const expectedReportPath = getExpectedReportPath(type);
 
     await reportError(error, baseMessage, undefined, type, testDir);
 
@@ -93,6 +89,7 @@ describe('reportError', () => {
     const error = 'Just a string error';
     const baseMessage = 'String error occurred.';
     const type = 'general';
+    const expectedReportPath = getExpectedReportPath(type);
 
     await reportError(error, baseMessage, undefined, type, testDir);
 
@@ -137,6 +134,11 @@ describe('reportError', () => {
     error.stack = 'Main stack';
     const baseMessage = 'Failed operation with BigInt.';
     const context = { a: BigInt(1) }; // BigInt cannot be stringified by JSON.stringify
+    const type = 'bigint-fail';
+    const stringifyError = new TypeError(
+      'Do not know how to serialize a BigInt',
+    );
+    const expectedMinimalReportPath = getExpectedReportPath(type);
 
     // Simulate JSON.stringify throwing an error for the full report
     const originalJsonStringify = JSON.stringify;
@@ -145,7 +147,7 @@ describe('reportError', () => {
       callCount++;
       if (callCount === 1) {
         // First call is for the full report content
-        throw new TypeError('Do not know how to serialize a BigInt');
+        throw stringifyError;
       }
       // Subsequent calls (for minimal report) should succeed
       return originalJsonStringify(value, replacer, space);
@@ -183,6 +185,7 @@ describe('reportError', () => {
     error.stack = 'No context stack';
     const baseMessage = 'Simple error.';
     const type = 'general';
+    const expectedReportPath = getExpectedReportPath(type);
 
     await reportError(error, baseMessage, undefined, type, testDir);
 

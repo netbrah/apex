@@ -10,7 +10,6 @@ import { ApiError } from '@google/genai';
 import { AuthType } from '../core/contentGenerator.js';
 import { type HttpError, ModelNotFoundError } from './httpErrors.js';
 import { retryWithBackoff } from './retry.js';
-import { getErrorStatus } from './errors.js';
 import { setSimulate429 } from './testUtils.js';
 import { debugLogger } from './debugLogger.js';
 import {
@@ -332,7 +331,6 @@ describe('retryWithBackoff', () => {
       expect(d).toBeLessThanOrEqual(100 * 1.3);
     });
   });
-});
 
   describe('Fetch error retries', () => {
     it("should retry on 'fetch failed' when retryFetchErrors is true", async () => {

@@ -101,54 +101,9 @@ vi.mock('../utils.js', () => ({
   exitCli: vi.fn(),
 }));
 
-const mockInstallExtension = vi.hoisted(() => vi.fn());
-const mockRefreshCache = vi.hoisted(() => vi.fn());
-const mockParseInstallSource = vi.hoisted(() => vi.fn());
-const mockRequestConsentNonInteractive = vi.hoisted(() => vi.fn());
-const mockRequestConsentOrFail = vi.hoisted(() => vi.fn());
-const mockIsWorkspaceTrusted = vi.hoisted(() => vi.fn());
-const mockLoadSettings = vi.hoisted(() => vi.fn());
-const mockWriteStdoutLine = vi.hoisted(() => vi.fn());
-const mockWriteStderrLine = vi.hoisted(() => vi.fn());
-
-vi.mock('@apex-code/apex-core', () => ({
-  ExtensionManager: vi.fn().mockImplementation(() => ({
-    installExtension: mockInstallExtension,
-    refreshCache: mockRefreshCache,
-  })),
-  parseInstallSource: mockParseInstallSource,
-}));
-
-vi.mock('./consent.js', () => ({
-  requestConsentNonInteractive: mockRequestConsentNonInteractive,
-  requestConsentOrFail: mockRequestConsentOrFail,
-  requestChoicePluginNonInteractive: vi.fn(),
-}));
-
-vi.mock('../../config/trustedFolders.js', () => ({
-  isWorkspaceTrusted: mockIsWorkspaceTrusted,
-}));
-
-vi.mock('../../config/settings.js', () => ({
-  loadSettings: mockLoadSettings,
-}));
-
-vi.mock('../../utils/errors.js', () => ({
-  getErrorMessage: vi.fn((error: Error) => error.message),
-}));
-
-vi.mock('../../utils/stdioHelpers.js', () => ({
-  writeStdoutLine: mockWriteStdoutLine,
-  writeStderrLine: mockWriteStderrLine,
-  clearScreen: vi.fn(),
-}));
-
 describe('extensions install command', () => {
   it('should fail if no source is provided', () => {
-    const validationParser = yargs([])
-      .locale('en')
-      .command(installCommand)
-      .fail(false);
+    const validationParser = yargs([]).command(installCommand).fail(false);
     expect(() => validationParser.parse('install')).toThrow(
       'Not enough non-option arguments: got 0, need at least 1',
     );
@@ -238,7 +193,6 @@ describe('handleInstall', () => {
       'Extension "http-extension" installed successfully and enabled.',
     );
   });
-});
 
   it('should install an extension from a https source', async () => {
     mockInstallOrUpdateExtension.mockResolvedValue(

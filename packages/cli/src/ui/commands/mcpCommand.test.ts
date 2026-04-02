@@ -87,7 +87,7 @@ describe('mcpCommand', () => {
     // Set up default mock environment
     vi.unstubAllEnvs();
 
-    // Default mock implementations - these are kept for auth subcommand tests
+    // Default mock implementations
     vi.mocked(getMCPServerStatus).mockReturnValue(MCPServerStatus.CONNECTED);
     vi.mocked(getMCPDiscoveryState).mockReturnValue(
       MCPDiscoveryState.COMPLETED,
@@ -132,16 +132,7 @@ describe('mcpCommand', () => {
   });
 
   describe('basic functionality', () => {
-    it('should open MCP management dialog by default', async () => {
-      const result = await mcpCommand.action!(mockContext, '');
-
-      expect(result).toEqual({
-        type: 'dialog',
-        dialog: 'mcp',
-      });
-    });
-
-    it('should open MCP management dialog even if config is not available', async () => {
+    it('should show an error if config is not available', async () => {
       const contextWithoutConfig = createMockCommandContext({
         services: {
           agentContext: null,
@@ -151,8 +142,9 @@ describe('mcpCommand', () => {
       const result = await mcpCommand.action!(contextWithoutConfig, '');
 
       expect(result).toEqual({
-        type: 'dialog',
-        dialog: 'mcp',
+        type: 'message',
+        messageType: 'error',
+        content: 'Config not loaded.',
       });
     });
 

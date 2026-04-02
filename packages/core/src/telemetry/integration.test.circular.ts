@@ -8,24 +8,12 @@
  * Integration test to verify circular reference handling with proxy agents
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { ClearcutLogger } from './clearcut-logger/clearcut-logger.js';
 import type { Config } from '../config/config.js';
-import type { RumEvent } from './apex-logger/event-types.js';
-import { ApexLogger } from './apex-logger/apex-logger.js';
 
 describe('Circular Reference Integration Test', () => {
-  beforeEach(() => {
-    // Clear singleton instance before each test
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (ApexLogger as any).instance = undefined;
-  });
-
-  afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (ApexLogger as any).instance = undefined;
-  });
-
-  it('should handle HttpsProxyAgent-like circular references in qwen logging', () => {
+  it('should handle HttpsProxyAgent-like circular references in clearcut logging', () => {
     // Create a mock config with proxy
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const mockConfig = {
@@ -59,57 +47,21 @@ describe('Circular Reference Integration Test', () => {
     proxyAgentLike.sockets['cloudcode-pa.googleapis.com:443'] = [socketLike];
 
     // Create an event that would contain this circular structure
-    const problematicEvent: RumEvent = {
-      timestamp: Date.now(),
-      event_type: 'exception',
-      type: 'error',
-      name: 'api_error',
+    const problematicEvent = {
       error: new Error('Network error'),
       function_args: {
         filePath: '/test/file.txt',
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         httpAgent: proxyAgentLike, // This would cause the circular reference
       },
-    } as RumEvent;
+    };
 
-    // Test that ApexLogger can handle this
-    const logger = ApexLogger.getInstance(mockConfig);
+    // Test that ClearcutLogger can handle this
+    const logger = ClearcutLogger.getInstance(mockConfig);
 
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
       logger?.enqueueLogEvent(problematicEvent as any);
-    }).not.toThrow();
-  });
-
-  it('should handle event overflow without memory leaks', () => {
-    const mockConfig = {
-      getTelemetryEnabled: () => true,
-      getUsageStatisticsEnabled: () => true,
-      getSessionId: () => 'test-session',
-      getDebugMode: () => true,
-    } as unknown as Config;
-
-    const logger = ApexLogger.getInstance(mockConfig);
-
-    // Add more events than the maximum capacity
-    for (let i = 0; i < 1100; i++) {
-      logger?.enqueueLogEvent({
-        timestamp: Date.now(),
-        event_type: 'action',
-        type: 'test',
-        name: `overflow-test-${i}`,
-      });
-    }
-
-    // Logger should still be functional
-    expect(logger).toBeDefined();
-    expect(() => {
-      logger?.enqueueLogEvent({
-        timestamp: Date.now(),
-        event_type: 'action',
-        type: 'test',
-        name: 'final-test',
-      });
     }).not.toThrow();
   });
 });

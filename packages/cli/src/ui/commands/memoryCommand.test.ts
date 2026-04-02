@@ -10,9 +10,6 @@ import type { SlashCommand, CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import { MessageType } from '../types.js';
 import type { LoadedSettings } from '../../config/settings.js';
-import { readFile } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import {
   refreshMemory,
   refreshServerHierarchicalMemory,
@@ -82,10 +79,6 @@ describe('memoryCommand', () => {
     let mockGetGeminiMdFileCount: Mock;
 
     beforeEach(() => {
-      setGeminiMdFilename('APEX.md');
-      mockReadFile.mockReset();
-      vi.restoreAllMocks();
-
       showCommand = getSubCommand('show');
 
       mockGetUserMemory = vi.fn();
@@ -155,162 +148,6 @@ describe('memoryCommand', () => {
         expect.any(Number),
       );
     });
-
-    it('should show project memory from the configured context file', async () => {
-      const projectCommand = showCommand.subCommands?.find(
-        (cmd) => cmd.name === '--project',
-      );
-      if (!projectCommand?.action) throw new Error('Command has no action');
-
-      setGeminiMdFilename('AGENTS.md');
-      vi.spyOn(process, 'cwd').mockReturnValue('/test/project');
-      mockReadFile.mockResolvedValue('project memory');
-
-      await projectCommand.action(mockContext, '');
-
-      const expectedProjectPath = path.join('/test/project', 'AGENTS.md');
-      expect(mockReadFile).toHaveBeenCalledWith(expectedProjectPath, 'utf-8');
-      expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-        {
-          type: MessageType.INFO,
-          text: expect.stringContaining(expectedProjectPath),
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should show global memory from the configured context file', async () => {
-      const globalCommand = showCommand.subCommands?.find(
-        (cmd) => cmd.name === '--global',
-      );
-      if (!globalCommand?.action) throw new Error('Command has no action');
-
-      setGeminiMdFilename('AGENTS.md');
-      vi.spyOn(os, 'homedir').mockReturnValue('/home/user');
-      mockReadFile.mockResolvedValue('global memory');
-
-      await globalCommand.action(mockContext, '');
-
-      const expectedGlobalPath = path.join('/home/user', APEX_DIR, 'AGENTS.md');
-      expect(mockReadFile).toHaveBeenCalledWith(expectedGlobalPath, 'utf-8');
-      expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-        {
-          type: MessageType.INFO,
-          text: expect.stringContaining('Global memory content'),
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should fall back to AGENTS.md when APEX.md does not exist for --project', async () => {
-      const projectCommand = showCommand.subCommands?.find(
-        (cmd) => cmd.name === '--project',
-      );
-      if (!projectCommand?.action) throw new Error('Command has no action');
-
-      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
-      vi.spyOn(process, 'cwd').mockReturnValue('/test/project');
-      mockReadFile.mockImplementation(async (filePath: string) => {
-        if (filePath.endsWith('AGENTS.md')) return 'agents memory content';
-        throw new Error('ENOENT');
-      });
-
-      await projectCommand.action(mockContext, '');
-
-      const expectedPath = path.join('/test/project', 'AGENTS.md');
-      expect(mockReadFile).toHaveBeenCalledWith(expectedPath, 'utf-8');
-      expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-        {
-          type: MessageType.INFO,
-          text: expect.stringContaining('agents memory content'),
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should fall back to AGENTS.md when APEX.md does not exist for --global', async () => {
-      const globalCommand = showCommand.subCommands?.find(
-        (cmd) => cmd.name === '--global',
-      );
-      if (!globalCommand?.action) throw new Error('Command has no action');
-
-      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
-      vi.spyOn(os, 'homedir').mockReturnValue('/home/user');
-      mockReadFile.mockImplementation(async (filePath: string) => {
-        if (filePath.endsWith('AGENTS.md')) return 'global agents memory';
-        throw new Error('ENOENT');
-      });
-
-      await globalCommand.action(mockContext, '');
-
-      const expectedPath = path.join('/home/user', APEX_DIR, 'AGENTS.md');
-      expect(mockReadFile).toHaveBeenCalledWith(expectedPath, 'utf-8');
-      expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-        {
-          type: MessageType.INFO,
-          text: expect.stringContaining('global agents memory'),
-        },
-        expect.any(Number),
-      );
-    });
-
-    it('should show content from both APEX.md and AGENTS.md for --project when both exist', async () => {
-      const projectCommand = showCommand.subCommands?.find(
-        (cmd) => cmd.name === '--project',
-      );
-      if (!projectCommand?.action) throw new Error('Command has no action');
-
-      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
-      vi.spyOn(process, 'cwd').mockReturnValue('/test/project');
-      mockReadFile.mockImplementation(async (filePath: string) => {
-        if (filePath.endsWith('APEX.md')) return 'qwen memory';
-        if (filePath.endsWith('AGENTS.md')) return 'agents memory';
-        throw new Error('ENOENT');
-      });
-
-      await projectCommand.action(mockContext, '');
-
-      expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/test/project', 'APEX.md'),
-        'utf-8',
-      );
-      expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/test/project', 'AGENTS.md'),
-        'utf-8',
-      );
-      const addItemCall = (mockContext.ui.addItem as Mock).mock.calls[0][0];
-      expect(addItemCall.text).toContain('qwen memory');
-      expect(addItemCall.text).toContain('agents memory');
-    });
-
-    it('should show content from both files for --global when both exist', async () => {
-      const globalCommand = showCommand.subCommands?.find(
-        (cmd) => cmd.name === '--global',
-      );
-      if (!globalCommand?.action) throw new Error('Command has no action');
-
-      setGeminiMdFilename(['APEX.md', 'AGENTS.md']);
-      vi.spyOn(os, 'homedir').mockReturnValue('/home/user');
-      mockReadFile.mockImplementation(async (filePath: string) => {
-        if (filePath.endsWith('APEX.md')) return 'global qwen memory';
-        if (filePath.endsWith('AGENTS.md')) return 'global agents memory';
-        throw new Error('ENOENT');
-      });
-
-      await globalCommand.action(mockContext, '');
-
-      expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/home/user', APEX_DIR, 'APEX.md'),
-        'utf-8',
-      );
-      expect(mockReadFile).toHaveBeenCalledWith(
-        path.join('/home/user', APEX_DIR, 'AGENTS.md'),
-        'utf-8',
-      );
-      const addItemCall = (mockContext.ui.addItem as Mock).mock.calls[0][0];
-      expect(addItemCall.text).toContain('global qwen memory');
-      expect(addItemCall.text).toContain('global agents memory');
-    });
   });
 
   describe('/memory add', () => {
@@ -342,7 +179,7 @@ describe('memoryCommand', () => {
       expect(result).toEqual({
         type: 'message',
         messageType: 'error',
-        content: 'Usage: /memory add [--global|--project] <text to remember>',
+        content: 'Usage: /memory add <text to remember>',
       });
 
       expect(mockContext.ui.addItem).not.toHaveBeenCalled();
@@ -357,7 +194,7 @@ describe('memoryCommand', () => {
       expect(mockContext.ui.addItem).toHaveBeenCalledWith(
         {
           type: MessageType.INFO,
-          text: `Attempting to save to memory : "${fact}"`,
+          text: `Attempting to save to memory: "${fact}"`,
         },
         expect.any(Number),
       );
@@ -367,61 +204,6 @@ describe('memoryCommand', () => {
         toolName: 'save_memory',
         toolArgs: { fact },
       });
-    });
-
-    it('should handle --global flag and add scope to tool args', () => {
-      if (!addCommand.action) throw new Error('Command has no action');
-
-      const fact = 'remember this globally';
-      const result = addCommand.action(mockContext, `--global ${fact}`);
-
-      expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-        {
-          type: MessageType.INFO,
-          text: `Attempting to save to memory (global): "${fact}"`,
-        },
-        expect.any(Number),
-      );
-
-      expect(result).toEqual({
-        type: 'tool',
-        toolName: 'save_memory',
-        toolArgs: { fact, scope: 'global' },
-      });
-    });
-
-    it('should handle --project flag and add scope to tool args', () => {
-      if (!addCommand.action) throw new Error('Command has no action');
-
-      const fact = 'remember this for project';
-      const result = addCommand.action(mockContext, `--project ${fact}`);
-
-      expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-        {
-          type: MessageType.INFO,
-          text: `Attempting to save to memory (project): "${fact}"`,
-        },
-        expect.any(Number),
-      );
-
-      expect(result).toEqual({
-        type: 'tool',
-        toolName: 'save_memory',
-        toolArgs: { fact, scope: 'project' },
-      });
-    });
-
-    it('should return error if flag is provided but no fact follows', () => {
-      if (!addCommand.action) throw new Error('Command has no action');
-
-      const result = addCommand.action(mockContext, '--global   ');
-      expect(result).toEqual({
-        type: 'message',
-        messageType: 'error',
-        content: 'Usage: /memory add [--global|--project] <text to remember>',
-      });
-
-      expect(mockContext.ui.addItem).not.toHaveBeenCalled();
     });
   });
 

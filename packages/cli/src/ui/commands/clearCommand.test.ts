@@ -8,10 +8,6 @@ import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 import { clearCommand } from './clearCommand.js';
 import { type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
-import {
-  SessionEndReason,
-  SessionStartSource,
-} from '@apex-code/apex-core';
 
 // Mock the telemetry service
 vi.mock('@apex-code/apex-core', async () => {
@@ -61,9 +57,6 @@ describe('clearCommand', () => {
           } as unknown as GeminiClient,
         },
       },
-      session: {
-        startNewSession: vi.fn(),
-      },
     });
   });
 
@@ -75,7 +68,7 @@ describe('clearCommand', () => {
     await clearCommand.action(mockContext, '');
 
     expect(mockContext.ui.setDebugMessage).toHaveBeenCalledWith(
-      'Starting a new session, resetting chat, and clearing terminal.',
+      'Clearing terminal and resetting chat.',
     );
     expect(mockContext.ui.setDebugMessage).toHaveBeenCalledTimes(1);
 
@@ -94,114 +87,9 @@ describe('clearCommand', () => {
     const clearOrder = (mockContext.ui.clear as Mock).mock
       .invocationCallOrder[0];
 
-  it('should fire SessionEnd event before clearing and SessionStart event after clearing', async () => {
-    if (!clearCommand.action) {
-      throw new Error('clearCommand must have an action.');
-    }
-
-    await clearCommand.action(mockContext, '');
-
-    expect(mockGetHookSystem).toHaveBeenCalled();
-    expect(mockFireSessionEndEvent).toHaveBeenCalledWith(
-      SessionEndReason.Clear,
-    );
-    expect(mockFireSessionStartEvent).toHaveBeenCalledWith(
-      SessionStartSource.Clear,
-      'test-model',
-      expect.any(String), // permissionMode
-    );
-
-    // SessionEnd should be called before SessionStart
-    const sessionEndCallOrder =
-      mockFireSessionEndEvent.mock.invocationCallOrder[0];
-    const sessionStartCallOrder =
-      mockFireSessionStartEvent.mock.invocationCallOrder[0];
-    expect(sessionEndCallOrder).toBeLessThan(sessionStartCallOrder);
-  });
-
-  it('should handle hook errors gracefully and continue execution', async () => {
-    if (!clearCommand.action) {
-      throw new Error('clearCommand must have an action.');
-    }
-
-    mockFireSessionEndEvent.mockRejectedValue(
-      new Error('SessionEnd hook failed'),
-    );
-    mockFireSessionStartEvent.mockRejectedValue(
-      new Error('SessionStart hook failed'),
-    );
-
-    await clearCommand.action(mockContext, '');
-
-    // Should still complete the clear operation despite hook errors
-    expect(mockStartNewSession).toHaveBeenCalledTimes(1);
-    expect(mockResetChat).toHaveBeenCalledTimes(1);
-    expect(mockContext.ui.clear).toHaveBeenCalledTimes(1);
-  });
-
-  it('should clear UI before resetChat for immediate responsiveness', async () => {
-    if (!clearCommand.action) {
-      throw new Error('clearCommand must have an action.');
-    }
-
-    const callOrder: string[] = [];
-    (mockContext.ui.clear as ReturnType<typeof vi.fn>).mockImplementation(
-      () => {
-        callOrder.push('ui.clear');
-      },
-    );
-    mockResetChat.mockImplementation(async () => {
-      callOrder.push('resetChat');
-    });
-
-    await clearCommand.action(mockContext, '');
-
-    // ui.clear should be called before resetChat for immediate UI feedback
-    const clearIndex = callOrder.indexOf('ui.clear');
-    const resetIndex = callOrder.indexOf('resetChat');
-    expect(clearIndex).toBeGreaterThanOrEqual(0);
-    expect(resetIndex).toBeGreaterThanOrEqual(0);
-    expect(clearIndex).toBeLessThan(resetIndex);
-  });
-
-  it('should not await hook events (fire-and-forget)', async () => {
-    if (!clearCommand.action) {
-      throw new Error('clearCommand must have an action.');
-    }
-
-    // Make hooks take a long time - they should not block
-    let sessionEndResolved = false;
-    let sessionStartResolved = false;
-    mockFireSessionEndEvent.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            sessionEndResolved = true;
-            resolve(undefined);
-          }, 5000);
-        }),
-    );
-    mockFireSessionStartEvent.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            sessionStartResolved = true;
-            resolve(undefined);
-          }, 5000);
-        }),
-    );
-
-    await clearCommand.action(mockContext, '');
-
-    // The action should complete immediately without waiting for hooks
-    expect(mockContext.ui.clear).toHaveBeenCalledTimes(1);
-    expect(mockResetChat).toHaveBeenCalledTimes(1);
-    // Hooks should have been called but not necessarily resolved
-    expect(mockFireSessionEndEvent).toHaveBeenCalled();
-    expect(mockFireSessionStartEvent).toHaveBeenCalled();
-    // Hooks should NOT have resolved yet since they have 5s timeouts
-    expect(sessionEndResolved).toBe(false);
-    expect(sessionStartResolved).toBe(false);
+    expect(setDebugMessageOrder).toBeLessThan(resetChatOrder);
+    expect(resetChatOrder).toBeLessThan(resetTelemetryOrder);
+    expect(resetTelemetryOrder).toBeLessThan(clearOrder);
   });
 
   it('should not attempt to reset chat if config service is not available', async () => {
@@ -213,15 +101,12 @@ describe('clearCommand', () => {
       services: {
         agentContext: null,
       },
-      session: {
-        startNewSession: vi.fn(),
-      },
     });
 
     await clearCommand.action(nullConfigContext, '');
 
     expect(nullConfigContext.ui.setDebugMessage).toHaveBeenCalledWith(
-      'Starting a new session and clearing.',
+      'Clearing terminal.',
     );
     expect(mockResetChat).not.toHaveBeenCalled();
     expect(uiTelemetryService.clear).toHaveBeenCalled();

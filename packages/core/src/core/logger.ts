@@ -16,7 +16,6 @@ const LOG_FILE_NAME = 'logs.json';
 
 export enum MessageSenderType {
   USER = 'user',
-  MODEL_SWITCH = 'model_switch',
 }
 
 export interface LogEntry {
@@ -69,20 +68,18 @@ export function decodeTagName(str: string): string {
 }
 
 export class Logger {
-  private apexDir: string | undefined;
+  private geminiDir: string | undefined;
   private logFilePath: string | undefined;
   private sessionId: string | undefined;
   private messageId = 0; // Instance-specific counter for the next messageId
   private initialized = false;
   private logs: LogEntry[] = []; // In-memory cache, ideally reflects the last known state of the file
-  private debugLogger: DebugLogger;
 
   constructor(
     sessionId: string,
     private readonly storage: Storage,
   ) {
     this.sessionId = sessionId;
-    this.debugLogger = createDebugLogger('LOGGER');
   }
 
   private async _readLogFile(): Promise<LogEntry[]> {
@@ -152,7 +149,7 @@ export class Logger {
     this.logFilePath = path.join(this.geminiDir, LOG_FILE_NAME);
 
     try {
-      await fs.mkdir(this.apexDir, { recursive: true });
+      await fs.mkdir(this.geminiDir, { recursive: true });
       let fileExisted = true;
       try {
         await fs.access(this.logFilePath);
@@ -289,12 +286,12 @@ export class Logger {
     if (!tag.length) {
       throw new Error('No checkpoint tag specified.');
     }
-    if (!this.apexDir) {
+    if (!this.geminiDir) {
       throw new Error('Checkpoint file path not set.');
     }
     // Encode the tag to handle all special characters safely.
     const encodedTag = encodeTagName(tag);
-    return path.join(this.apexDir, `checkpoint-${encodedTag}.json`);
+    return path.join(this.geminiDir, `checkpoint-${encodedTag}.json`);
   }
 
   private async _getCheckpointPath(tag: string): Promise<string> {
@@ -313,7 +310,7 @@ export class Logger {
     }
 
     // 2. Fallback for backward compatibility: check for the old raw path.
-    const oldPath = path.join(this.apexDir!, `checkpoint-${tag}.json`);
+    const oldPath = path.join(this.geminiDir!, `checkpoint-${tag}.json`);
     try {
       await fs.access(oldPath);
       return oldPath; // Found it, use the old path.

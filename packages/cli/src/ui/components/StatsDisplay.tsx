@@ -213,7 +213,7 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
     }
     return (
       <Text bold color={theme.text.accent}>
-        {t('Session Stats')}
+        Session Stats
       </Text>
     );
   };
@@ -275,15 +275,15 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
             <Text color={theme.status.error}>x {tools.totalFail}</Text> )
           </Text>
         </StatRow>
-        <StatRow title={t('Success Rate:')}>
+        <StatRow title="Success Rate:">
           <Text color={successColor}>{computed.successRate.toFixed(1)}%</Text>
         </StatRow>
         {computed.totalDecisions > 0 && (
-          <StatRow title={t('User Agreement:')}>
+          <StatRow title="User Agreement:">
             <Text color={agreementColor}>
               {computed.agreementRate.toFixed(1)}%{' '}
               <Text color={theme.text.secondary}>
-                ({computed.totalDecisions} {t('reviewed')})
+                ({computed.totalDecisions} reviewed)
               </Text>
             </Text>
           </StatRow>

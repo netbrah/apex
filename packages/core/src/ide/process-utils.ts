@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { exec, execFile } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 
 const execAsync = promisify(exec);
-const execFileAsync = promisify(execFile);
 
 const MAX_TRAVERSAL_DEPTH = 32;
 
@@ -107,6 +106,7 @@ async function getProcessInfo(pid: number): Promise<{
     return { parentPid: 0, name: '', command: '' };
   }
 }
+
 /**
  * Finds the IDE process info on Unix-like systems.
  *
@@ -141,15 +141,15 @@ async function getIdeProcessInfoForUnix(): Promise<{
         } catch {
           // Ignore if getting grandparent fails, we'll just use the parent pid.
         }
-        const { command: ideCommand } = await getProcessInfo(idePid);
-        return { pid: idePid, command: ideCommand };
+        const { command } = await getProcessInfo(idePid);
+        return { pid: idePid, command };
       }
 
       if (parentPid <= 1) {
         break; // Reached the root
       }
       currentPid = parentPid;
-    } catch (_e) {
+    } catch {
       // Process in chain died
       break;
     }
@@ -159,65 +159,9 @@ async function getIdeProcessInfoForUnix(): Promise<{
   return { pid: currentPid, command };
 }
 
-interface ProcessInfo {
-  pid: number;
-  parentPid: number;
-  name: string;
-  command: string;
-}
-
-interface RawProcessInfo {
-  ProcessId?: number;
-  ParentProcessId?: number;
-  Name?: string;
-  CommandLine?: string;
-}
-
 /**
  * Finds the IDE process info on Windows using a snapshot approach.
  */
-async function getProcessTableWindows(): Promise<Map<number, ProcessInfo>> {
-  const processMap = new Map<number, ProcessInfo>();
-  try {
-    const powershellCommand =
-      'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress';
-    const { stdout } = await execFileAsync(
-      'powershell',
-      ['-NoProfile', '-NonInteractive', '-Command', powershellCommand],
-      { maxBuffer: 10 * 1024 * 1024 },
-    );
-
-    if (!stdout.trim()) {
-      return processMap;
-    }
-
-    let processes: RawProcessInfo | RawProcessInfo[];
-    try {
-      processes = JSON.parse(stdout);
-    } catch (_e) {
-      return processMap;
-    }
-
-    if (!Array.isArray(processes)) {
-      processes = [processes];
-    }
-
-    for (const p of processes) {
-      if (p && typeof p.ProcessId === 'number') {
-        processMap.set(p.ProcessId, {
-          pid: p.ProcessId,
-          parentPid: p.ParentProcessId || 0,
-          name: p.Name || '',
-          command: p.CommandLine || '',
-        });
-      }
-    }
-  } catch (_e) {
-    // Fallback or error handling if PowerShell fails
-  }
-  return processMap;
-}
-
 async function getIdeProcessInfoForWindows(): Promise<{
   pid: number;
   command: string;

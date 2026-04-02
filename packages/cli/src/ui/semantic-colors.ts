@@ -23,17 +23,4 @@ export const theme: SemanticColors = {
   get status() {
     return themeManager.getSemanticColors().status;
   },
-  // V2 token groups (FQ-26)
-  get surface() {
-    return themeManager.getSemanticColors().surface;
-  },
-  get interactive() {
-    return themeManager.getSemanticColors().interactive;
-  },
-  get badge() {
-    return themeManager.getSemanticColors().badge;
-  },
-  get prompt() {
-    return themeManager.getSemanticColors().prompt;
-  },
 };

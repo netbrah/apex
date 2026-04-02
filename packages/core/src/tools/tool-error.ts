@@ -22,8 +22,6 @@ export enum ToolErrorType {
   UNHANDLED_EXCEPTION = 'unhandled_exception',
   TOOL_NOT_REGISTERED = 'tool_not_registered',
   EXECUTION_FAILED = 'execution_failed',
-  // Try to execute a tool that is excluded due to the approval mode
-  EXECUTION_DENIED = 'execution_denied',
 
   // File System Errors
   FILE_NOT_FOUND = 'file_not_found',
@@ -60,6 +58,9 @@ export enum ToolErrorType {
 
   // Memory-specific Errors
   MEMORY_TOOL_EXECUTION_ERROR = 'memory_tool_execution_error',
+
+  // ReadManyFiles-specific Errors
+  READ_MANY_FILES_SEARCH_ERROR = 'read_many_files_search_error',
 
   // Shell errors
   SHELL_EXECUTE_ERROR = 'shell_execute_error',

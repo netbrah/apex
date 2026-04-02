@@ -20,7 +20,6 @@ import {
   type SlashCommand,
   CommandKind,
 } from './types.js';
-import { t } from '../../i18n/index.js';
 
 function getUserIdentity(context: CommandContext) {
   const selectedAuthType =

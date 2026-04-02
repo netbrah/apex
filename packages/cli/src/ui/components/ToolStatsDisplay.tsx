@@ -17,7 +17,6 @@ import {
 } from '../utils/displayUtils.js';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import type { ToolCallStats } from '@apex-code/apex-core';
-import { t } from '../../i18n/index.js';
 
 const TOOL_NAME_COL_WIDTH = 25;
 const CALLS_COL_WIDTH = 8;
@@ -53,13 +52,7 @@ const StatRow: React.FC<{
   );
 };
 
-interface ToolStatsDisplayProps {
-  width?: number;
-}
-
-export const ToolStatsDisplay: React.FC<ToolStatsDisplayProps> = ({
-  width,
-}) => {
+export const ToolStatsDisplay: React.FC = () => {
   const { stats } = useSessionStats();
   const { tools } = stats.metrics;
   const activeTools = Object.entries(tools.byName).filter(
@@ -73,7 +66,6 @@ export const ToolStatsDisplay: React.FC<ToolStatsDisplayProps> = ({
         borderColor={theme.border.default}
         paddingTop={1}
         paddingX={2}
-        width={width}
       >
         <Text color={theme.text.primary}>
           No tool calls have been made in this session.
@@ -108,7 +100,7 @@ export const ToolStatsDisplay: React.FC<ToolStatsDisplayProps> = ({
       flexDirection="column"
       paddingTop={1}
       paddingX={2}
-      width={width}
+      width={70}
     >
       <Text bold color={theme.text.accent}>
         Tool Stats For Nerds

@@ -41,7 +41,7 @@ console.log('Wrote .npmrc for @google-gemini scope to packages/core/');
 
 // Update @apex-code/apex
 updatePackageJson('packages/cli/package.json', (pkg) => {
-  pkg.name = '@google-gemini/apex';
+  pkg.name = '@google-gemini/gemini-cli';
   pkg.files = ['bundle/'];
   pkg.bin = {
     gemini: 'bundle/gemini.js',
@@ -57,12 +57,12 @@ updatePackageJson('packages/cli/package.json', (pkg) => {
 
 // Update @apex-code/apex-a2a-server
 updatePackageJson('packages/a2a-server/package.json', (pkg) => {
-  pkg.name = '@google-gemini/apex-a2a-server';
+  pkg.name = '@google-gemini/gemini-cli-a2a-server';
 });
 
 // Update @apex-code/apex-core
 updatePackageJson('packages/core/package.json', (pkg) => {
-  pkg.name = '@google-gemini/apex-core';
+  pkg.name = '@google-gemini/gemini-cli-core';
 });
 
 console.log('Successfully prepared packages for GitHub release.');

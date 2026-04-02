@@ -97,10 +97,6 @@ export interface CliArgs {
   listSessions: boolean | undefined;
   deleteSession: string | undefined;
   includeDirectories: string[] | undefined;
-  tavilyApiKey: string | undefined;
-  googleApiKey: string | undefined;
-  googleSearchEngineId: string | undefined;
-  webSearchDefault: string | undefined;
   screenReader: boolean | undefined;
   useWriteTodos: boolean | undefined;
   outputFormat: string | undefined;
@@ -164,7 +160,7 @@ export async function parseArguments(
   const startupMessages: string[] = [];
   const yargsInstance = yargs(rawArgv)
     .locale('en')
-    .scriptName('apex')
+    .scriptName('gemini')
     .usage(
       'Usage: gemini [options] [command]\n\nGemini CLI - Defaults to interactive mode. Use -p/--prompt for non-interactive (headless) mode.',
     )
@@ -346,39 +342,10 @@ export async function parseArguments(
           type: 'boolean',
           description: 'Starts the agent in ACP mode',
         })
-        .option('acp', {
-          type: 'boolean',
-          description:
-            'Starts the agent in ACP mode (deprecated, use --acp instead)',
-        })
         .option('experimental-acp', {
           type: 'boolean',
           description:
             'Starts the agent in ACP mode (deprecated, use --acp instead)',
-          hidden: true,
-        })
-        .option('experimental-skills', {
-          type: 'boolean',
-          description:
-            'Deprecated: Skills are now enabled by default. This flag is ignored.',
-          hidden: true,
-        })
-        .option('experimental-lsp', {
-          type: 'boolean',
-          description:
-            'Enable experimental LSP (Language Server Protocol) feature for code intelligence',
-          default: false,
-        })
-        .option('experimental-hooks', {
-          type: 'boolean',
-          description:
-            'Enable experimental hooks feature for lifecycle event customization',
-          default: false,
-        })
-        .option('channel', {
-          type: 'string',
-          choices: ['VSCode', 'ACP', 'SDK', 'CI'],
-          description: 'Channel identifier (VSCode, ACP, SDK, CI)',
         })
         .option('allowed-mcp-server-names', {
           type: 'array',
@@ -440,48 +407,12 @@ export async function parseArguments(
             'Delete a session by index number (use --list-sessions to see available sessions).',
         })
         .option('include-directories', {
-          alias: 'add-dir',
           type: 'array',
           string: true,
           nargs: 1,
           description:
             'Additional directories to include in the workspace (comma-separated or multiple --include-directories)',
           coerce: coerceCommaSeparated,
-        })
-        .option('openai-logging', {
-          type: 'boolean',
-          description:
-            'Enable logging of OpenAI API calls for debugging and analysis',
-        })
-        .option('openai-logging-dir', {
-          type: 'string',
-          description:
-            'Custom directory path for OpenAI API logs. Overrides settings files.',
-        })
-        .option('openai-api-key', {
-          type: 'string',
-          description: 'OpenAI API key to use for authentication',
-        })
-        .option('openai-base-url', {
-          type: 'string',
-          description: 'OpenAI base URL (for custom endpoints)',
-        })
-        .option('tavily-api-key', {
-          type: 'string',
-          description: 'Tavily API key for web search',
-        })
-        .option('google-api-key', {
-          type: 'string',
-          description: 'Google Custom Search API key',
-        })
-        .option('google-search-engine-id', {
-          type: 'string',
-          description: 'Google Custom Search Engine ID',
-        })
-        .option('web-search-default', {
-          type: 'string',
-          description:
-            'Default web search provider (dashscope, tavily, google)',
         })
         .option('screen-reader', {
           type: 'boolean',
@@ -625,8 +556,8 @@ export async function loadCliConfig(
   if (settings.context?.fileName) {
     setServerGeminiMdFilename(settings.context.fileName);
   } else {
-    // Reset to default context filenames if not provided in settings.
-    setServerGeminiMdFilename(getAllGeminiMdFilenames());
+    // Reset to default if not provided in settings.
+    setServerGeminiMdFilename(getCurrentGeminiMdFilename());
   }
 
   const fileService = new FileDiscoveryService(cwd);
@@ -720,22 +651,6 @@ export async function loadCliConfig(
   }
 
   const question = argv.promptInteractive || argv.prompt || '';
-  const inputFormat: InputFormat =
-    (argv.inputFormat as InputFormat | undefined) ?? InputFormat.TEXT;
-  const argvOutputFormat = normalizeOutputFormat(
-    argv.outputFormat as string | OutputFormat | undefined,
-  );
-  const settingsOutputFormat = normalizeOutputFormat(settings.output?.format);
-  const outputFormat =
-    argvOutputFormat ?? settingsOutputFormat ?? OutputFormat.TEXT;
-  const outputSettingsFormat: OutputFormat =
-    outputFormat === OutputFormat.STREAM_JSON
-      ? settingsOutputFormat &&
-        settingsOutputFormat !== OutputFormat.STREAM_JSON
-        ? settingsOutputFormat
-        : OutputFormat.TEXT
-      : (outputFormat as OutputFormat);
-  const includePartialMessages = Boolean(argv.includePartialMessages);
 
   // Determine approval mode with backward compatibility
   let approvalMode: ApprovalMode;
@@ -955,25 +870,6 @@ export async function loadCliConfig(
           `Admin-required MCP servers injected: ${requiredResult.requiredServerNames.join(', ')}`,
         );
       }
-    };
-
-    switch (approvalMode) {
-      case ApprovalMode.PLAN:
-      case ApprovalMode.DEFAULT:
-        // Deny all write/execute tools unless explicitly allowed.
-        denyUnlessAllowed(ShellTool.Name as ToolName);
-        denyUnlessAllowed(EditTool.Name as ToolName);
-        denyUnlessAllowed(WriteFileTool.Name as ToolName);
-        break;
-      case ApprovalMode.AUTO_EDIT:
-        // Only shell requires a prompt in auto-edit mode.
-        denyUnlessAllowed(ShellTool.Name as ToolName);
-        break;
-      case ApprovalMode.YOLO:
-        // No extra denials for YOLO mode.
-        break;
-      default:
-        break;
     }
   }
 
@@ -1096,16 +992,7 @@ export async function loadCliConfig(
     modelSteering: settings.experimental?.modelSteering,
     topicUpdateNarration: settings.experimental?.topicUpdateNarration,
     noBrowser: !!process.env['NO_BROWSER'],
-    authType: selectedAuthType,
-    inputFormat,
-    outputFormat,
-    includePartialMessages,
-    modelProvidersConfig,
-    generationConfigSources: resolvedCliConfig.sources,
-    generationConfig: resolvedCliConfig.generationConfig,
-    warnings: resolvedCliConfig.warnings,
-    cliVersion: await getCliVersion(),
-    webSearch: buildWebSearchConfig(argv, settings, selectedAuthType),
+    summarizeToolOutput: settings.model?.summarizeToolOutput,
     ideMode,
     disableLoopDetection: settings.model?.disableLoopDetection,
     compressionThreshold: settings.model?.compressionThreshold,
@@ -1158,6 +1045,7 @@ export async function loadCliConfig(
     },
     enableConseca: settings.security?.enableConseca,
   });
+}
 
 function mergeExcludeTools(
   settings: MergedSettings,

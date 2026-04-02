@@ -150,20 +150,20 @@ describe('getInstallationInfo', () => {
       value: 'darwin',
     });
     // Use a path that matches what brew would resolve to
-    const cliPath = '/opt/homebrew/Cellar/apex/1.0.0/bin/gemini';
+    const cliPath = '/opt/homebrew/Cellar/gemini-cli/1.0.0/bin/gemini';
     process.argv[1] = cliPath;
 
     mockedExecSync.mockImplementation((cmd) => {
-      if (typeof cmd === 'string' && cmd.includes('brew --prefix apex')) {
-        return '/opt/homebrew/opt/apex';
+      if (typeof cmd === 'string' && cmd.includes('brew --prefix gemini-cli')) {
+        return '/opt/homebrew/opt/gemini-cli';
       }
       throw new Error(`Command failed: ${cmd}`);
     });
 
     mockedRealPathSync.mockImplementation((p) => {
       if (p === cliPath) return cliPath;
-      if (p === '/opt/homebrew/opt/apex') {
-        return '/opt/homebrew/Cellar/apex/1.0.0';
+      if (p === '/opt/homebrew/opt/gemini-cli') {
+        return '/opt/homebrew/Cellar/gemini-cli/1.0.0';
       }
       return String(p);
     });
@@ -171,13 +171,13 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
 
     expect(mockedExecSync).toHaveBeenCalledWith(
-      expect.stringContaining('brew --prefix apex'),
+      expect.stringContaining('brew --prefix gemini-cli'),
       expect.anything(),
     );
     expect(info.packageManager).toBe(PackageManager.HOMEBREW);
     expect(info.isGlobal).toBe(true);
     expect(info.updateMessage).toBe(
-      'Installed via Homebrew. Please update with "brew upgrade apex".',
+      'Installed via Homebrew. Please update with "brew upgrade gemini-cli".',
     );
   });
 
@@ -195,7 +195,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
 
     expect(mockedExecSync).toHaveBeenCalledWith(
-      expect.stringContaining('brew --prefix apex'),
+      expect.stringContaining('brew --prefix gemini-cli'),
       expect.anything(),
     );
     // Should fall back to default global npm
@@ -344,9 +344,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
     expect(info.packageManager).toBe(PackageManager.NPM);
     expect(info.isGlobal).toBe(true);
-    expect(info.updateCommand).toBe(
-      'npm install -g @apex-code/apex@latest',
-    );
+    expect(info.updateCommand).toBe('npm install -g @apex-code/apex@latest');
     expect(info.updateMessage).toContain('Attempting to automatically update');
 
     // isAutoUpdateEnabled = false -> "Please run..."
@@ -354,7 +352,7 @@ describe('getInstallationInfo', () => {
     expect(infoDisabled.updateMessage).toContain('Please run npm install');
   });
 
-  it('should NOT detect Homebrew if apex is installed in brew but running from npm location', () => {
+  it('should NOT detect Homebrew if gemini-cli is installed in brew but running from npm location', () => {
     Object.defineProperty(process, 'platform', {
       value: 'darwin',
     });
@@ -366,11 +364,11 @@ describe('getInstallationInfo', () => {
     // Setup mocks
     mockedExecSync.mockImplementation((cmd) => {
       if (typeof cmd === 'string' && cmd.includes('brew list')) {
-        return Buffer.from('apex\n');
+        return Buffer.from('gemini-cli\n');
       }
       // Future proofing for the fix:
-      if (typeof cmd === 'string' && cmd.includes('brew --prefix apex')) {
-        return '/opt/homebrew/opt/apex';
+      if (typeof cmd === 'string' && cmd.includes('brew --prefix gemini-cli')) {
+        return '/opt/homebrew/opt/gemini-cli';
       }
       throw new Error(`Command failed: ${cmd}`);
     });
@@ -378,8 +376,8 @@ describe('getInstallationInfo', () => {
     mockedRealPathSync.mockImplementation((p) => {
       if (p === cliPath) return cliPath;
       // Future proofing for the fix:
-      if (p === '/opt/homebrew/opt/apex')
-        return '/opt/homebrew/Cellar/apex/1.0.0';
+      if (p === '/opt/homebrew/opt/gemini-cli')
+        return '/opt/homebrew/Cellar/gemini-cli/1.0.0';
       return String(p);
     });
 

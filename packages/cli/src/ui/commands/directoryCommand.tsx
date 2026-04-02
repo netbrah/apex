@@ -82,59 +82,16 @@ async function finishAddingDirectories(
   }
 }
 
-/**
- * Returns directory path completions for the given partial argument.
- * Supports comma-separated paths by completing only the last segment.
- */
-export function getDirPathCompletions(partialArg: string): string[] {
-  const lastComma = partialArg.lastIndexOf(',');
-  const prefix = lastComma >= 0 ? partialArg.substring(0, lastComma + 1) : '';
-  const partial =
-    lastComma >= 0
-      ? partialArg.substring(lastComma + 1).trimStart()
-      : partialArg;
-
-  const trimmed = partial.trim();
-  if (!trimmed) return [];
-
-  const expanded = trimmed.startsWith('~')
-    ? trimmed.replace(/^~/, os.homedir())
-    : trimmed;
-  const endsWithSep = expanded.endsWith('/') || expanded.endsWith(path.sep);
-  const searchDir = endsWithSep ? expanded : path.dirname(expanded);
-  const namePrefix = endsWithSep ? '' : path.basename(expanded);
-
-  try {
-    return fs
-      .readdirSync(searchDir, { withFileTypes: true })
-      .filter(
-        (e) =>
-          e.isDirectory() &&
-          e.name.startsWith(namePrefix) &&
-          !e.name.startsWith('.'),
-      )
-      .map((e) => prefix + path.join(searchDir, e.name))
-      .slice(0, 8);
-  } catch {
-    return [];
-  }
-}
-
 export const directoryCommand: SlashCommand = {
   name: 'directory',
   altNames: ['dir'],
-  get description() {
-    return t('Manage workspace directories');
-  },
+  description: 'Manage workspace directories',
   kind: CommandKind.BUILT_IN,
   subCommands: [
     {
       name: 'add',
-      get description() {
-        return t(
-          'Add directories to the workspace. Use comma to separate multiple paths',
-        );
-      },
+      description:
+        'Add directories to the workspace. Use comma to separate multiple paths',
       kind: CommandKind.BUILT_IN,
       autoExecute: false,
       showCompletionLoading: false,
@@ -203,9 +160,8 @@ export const directoryCommand: SlashCommand = {
           return {
             type: 'message' as const,
             messageType: 'error' as const,
-            content: t(
+            content:
               'The /directory add command is not supported in restrictive sandbox profiles. Please use --include-directories when starting the session instead.',
-            ),
           };
         }
 
@@ -319,9 +275,7 @@ export const directoryCommand: SlashCommand = {
     },
     {
       name: 'show',
-      get description() {
-        return t('Show all directories in the workspace');
-      },
+      description: 'Show all directories in the workspace',
       kind: CommandKind.BUILT_IN,
       action: async (context: CommandContext) => {
         const {

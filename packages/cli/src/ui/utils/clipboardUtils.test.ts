@@ -597,11 +597,5 @@ describe('clipboardUtils', () => {
         expect(result).toBe('@\\\\server\\share\\file.txt ');
       });
     });
-
-    it('should use clipboard directory consistently with saveClipboardImage', () => {
-      // This test verifies that both functions use the same directory structure
-      // The implementation uses 'clipboard' subdirectory for both functions
-      expect(true).toBe(true);
-    });
   });
 });

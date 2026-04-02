@@ -8,7 +8,6 @@ import {
   debugLogger,
   flatMapTextParts,
   readPathFromWorkspace,
-  createDebugLogger,
 } from '@apex-code/apex-core';
 import type { CommandContext } from '../../ui/commands/types.js';
 import { MessageType } from '../../ui/types.js';
@@ -18,8 +17,6 @@ import {
   type PromptPipelineContent,
 } from './types.js';
 import { extractInjections } from './injectionParser.js';
-
-const debugLogger = createDebugLogger('AT_FILE_PROCESSOR');
 
 export class AtFileProcessor implements IPromptProcessor {
   constructor(private readonly commandName?: string) {}

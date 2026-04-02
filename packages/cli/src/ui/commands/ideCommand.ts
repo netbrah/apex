@@ -13,15 +13,6 @@ import {
   IdeConnectionType,
 } from '@apex-code/apex-core';
 import {
-  type Config,
-  IdeClient,
-  type File,
-  logIdeConnection,
-  IdeConnectionEvent,
-  IdeConnectionType,
-} from '@apex-code/apex-core';
-import {
-  APEX_COMPANION_EXTENSION_NAME,
   getIdeInstaller,
   IDEConnectionStatus,
   ideContextStore,
@@ -35,7 +26,6 @@ import type {
 } from './types.js';
 import { CommandKind } from './types.js';
 import { SettingScope } from '../../config/settings.js';
-import { t } from '../../i18n/index.js';
 
 function getIdeStatusMessage(ideClient: IdeClient): {
   messageType: 'info' | 'error';
@@ -192,23 +182,11 @@ export const ideCommand = async (): Promise<SlashCommand> => {
     autoExecute: true,
     action: async (context) => {
       const installer = getIdeInstaller(currentIDE);
-      const isSandBox = !!process.env['SANDBOX'];
-      if (isSandBox) {
-        context.ui.addItem(
-          {
-            type: 'info',
-            text: `IDE integration needs to be installed on the host. If you have already installed it, you can directly connect the ide`,
-          },
-          Date.now(),
-        );
-        return;
-      }
       if (!installer) {
-        const ideName = ideClient.getDetectedIdeDisplayName();
         context.ui.addItem(
           {
             type: 'error',
-            text: `Automatic installation is not supported for ${ideName}. Please install the '${APEX_COMPANION_EXTENSION_NAME}' extension manually from the marketplace.`,
+            text: `No installer is available for ${ideClient.getDetectedIdeDisplayName()}. Please install the '${APEX_COMPANION_EXTENSION_NAME}' extension manually from the marketplace.`,
           },
           Date.now(),
         );

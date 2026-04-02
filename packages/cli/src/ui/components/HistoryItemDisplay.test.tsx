@@ -24,9 +24,7 @@ vi.mock('./messages/ToolGroupMessage.js', () => ({
 }));
 
 describe('<HistoryItemDisplay />', () => {
-  const mockConfig = {
-    getChatRecordingService: () => undefined,
-  } as unknown as Config;
+  const mockConfig = {} as unknown as Config;
   const baseItem = {
     id: 1,
     timestamp: 12345,
@@ -136,24 +134,15 @@ describe('<HistoryItemDisplay />', () => {
 
   it('renders AboutBox for "about" type', async () => {
     const item: HistoryItem = {
-      id: 1,
+      ...baseItem,
       type: MessageType.ABOUT,
-      systemInfo: {
-        cliVersion: '1.0.0',
-        osPlatform: 'test-os',
-        osArch: 'x64',
-        osRelease: '22.0.0',
-        nodeVersion: 'v20.0.0',
-        npmVersion: '10.0.0',
-        sandboxEnv: 'test-env',
-        modelVersion: 'test-model',
-        selectedAuthType: 'test-auth',
-        ideClient: 'test-ide',
-        sessionId: 'test-session-id',
-        memoryUsage: '100 MB',
-        baseUrl: undefined,
-        gitCommit: undefined,
-      },
+      cliVersion: '1.0.0',
+      osVersion: 'test-os',
+      sandboxEnv: 'test-env',
+      modelVersion: 'test-model',
+      selectedAuthType: 'test-auth',
+      gcpProject: 'test-project',
+      ideClient: 'test-ide',
     };
     const { lastFrame, unmount } = await renderWithProviders(
       <HistoryItemDisplay {...baseItem} item={item} />,

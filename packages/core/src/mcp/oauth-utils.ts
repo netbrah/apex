@@ -46,7 +46,6 @@ export interface OAuthProtectedResourceMetadata {
   resource_signing_alg_values_supported?: string[];
   resource_encryption_alg_values_supported?: string[];
   resource_encryption_enc_values_supported?: string[];
-  scopes_supported?: string[];
 }
 
 export const FIVE_MIN_BUFFER_MS = 5 * 60 * 1000;
@@ -278,11 +277,6 @@ export class OAuthUtils {
 
         if (authServerMetadata) {
           const config = this.metadataToOAuthConfig(authServerMetadata);
-          // Merge scopes from protected resource metadata (RFC 9728)
-          // Protected resource scopes take precedence as they define the specific access requirements
-          if (resourceMetadata.scopes_supported?.length) {
-            config.scopes = resourceMetadata.scopes_supported;
-          }
           if (authServerMetadata.registration_endpoint) {
             debugLogger.log(
               'Dynamic client registration is supported at:',
@@ -380,13 +374,7 @@ export class OAuthUtils {
       await this.discoverAuthorizationServerMetadata(authServerUrl);
 
     if (authServerMetadata) {
-      const config = this.metadataToOAuthConfig(authServerMetadata);
-      // Merge scopes from protected resource metadata (RFC 9728)
-      // Protected resource scopes take precedence as they define the specific access requirements
-      if (resourceMetadata.scopes_supported?.length) {
-        config.scopes = resourceMetadata.scopes_supported;
-      }
-      return config;
+      return this.metadataToOAuthConfig(authServerMetadata);
     }
 
     return null;
@@ -416,13 +404,8 @@ export class OAuthUtils {
   /**
    * Build a resource parameter for OAuth requests.
    *
-   * Per MCP spec and RFC 8707, the resource parameter MUST be the
-   * canonical URI of the MCP server. Clients SHOULD provide the most
-   * specific URI they can. The URI MUST NOT include a fragment and
-   * SHOULD NOT include a query component.
-   *
-   * @param endpointUrl The MCP server endpoint URL
-   * @returns The canonical resource URI
+   * @param endpointUrl The endpoint URL
+   * @returns The resource parameter value
    */
   static buildResourceParameter(endpointUrl: string): string {
     const url = new URL(endpointUrl);

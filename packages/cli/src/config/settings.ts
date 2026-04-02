@@ -100,11 +100,11 @@ export function getSystemSettingsPath(): string {
     return process.env['APEX_SYSTEM_SETTINGS_PATH'];
   }
   if (platform() === 'darwin') {
-    return '/Library/Application Support/QwenCode/settings.json';
+    return '/Library/Application Support/GeminiCli/settings.json';
   } else if (platform() === 'win32') {
-    return 'C:\\ProgramData\\apex\\settings.json';
+    return 'C:\\ProgramData\\gemini-cli\\settings.json';
   } else {
-    return '/etc/apex/settings.json';
+    return '/etc/gemini-cli/settings.json';
   }
 }
 
@@ -203,22 +203,19 @@ export interface SettingsFile {
   readOnly?: boolean;
 }
 
-function getSettingsFileKeyWarnings(
-  settings: Record<string, unknown>,
-  settingsFilePath: string,
-): string[] {
-  const version = settings[SETTINGS_VERSION_KEY];
-  if (typeof version !== 'number' || version < SETTINGS_VERSION) {
-    return [];
-  }
+function setNestedProperty(
+  obj: Record<string, unknown>,
+  path: string,
+  value: unknown,
+) {
+  const keys = path.split('.');
+  const lastKey = keys.pop();
+  if (!lastKey) return;
 
-  const warnings: string[] = [];
-  const ignoredLegacyKeys = new Set<string>();
-
-  // Ignored legacy keys (V1 top-level keys that moved to a nested V2 path).
-  for (const [oldKey, newPath] of Object.entries(V1_TO_V2_MIGRATION_MAP)) {
-    if (oldKey === newPath) {
-      continue;
+  let current: Record<string, unknown> = obj;
+  for (const key of keys) {
+    if (current[key] === undefined) {
+      current[key] = {};
     }
     const next = current[key];
     if (typeof next === 'object' && next !== null) {
@@ -500,25 +497,23 @@ export class LoadedSettings {
 function findEnvFile(startDir: string): string | null {
   let currentDir = path.resolve(startDir);
   while (true) {
-    // Prefer gemini-specific .env under APEX_DIR
+    // prefer gemini-specific .env under APEX_DIR
     const geminiEnvPath = path.join(currentDir, APEX_DIR, '.env');
-    if (fs.existsSync(geminiEnvPath) && canUseEnvFile(geminiEnvPath)) {
+    if (fs.existsSync(geminiEnvPath)) {
       return geminiEnvPath;
     }
-
     const envPath = path.join(currentDir, '.env');
-    if (fs.existsSync(envPath) && canUseEnvFile(envPath)) {
+    if (fs.existsSync(envPath)) {
       return envPath;
     }
-
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir || !parentDir) {
-      // At home directory - check fallback .env files
-      const homeGeminiEnvPath = path.join(homeDir, APEX_DIR, '.env');
+      // check .env under home as fallback, again preferring gemini-specific .env
+      const homeGeminiEnvPath = path.join(homedir(), APEX_DIR, '.env');
       if (fs.existsSync(homeGeminiEnvPath)) {
         return homeGeminiEnvPath;
       }
-      const homeEnvPath = path.join(homeDir, '.env');
+      const homeEnvPath = path.join(homedir(), '.env');
       if (fs.existsSync(homeEnvPath)) {
         return homeEnvPath;
       }
@@ -584,6 +579,8 @@ export function loadEnvironment(
   }
 
   if (envFilePath) {
+    // Manually parse and load environment variables to handle exclusions correctly.
+    // This avoids modifying environment variables that were already set from the shell.
     try {
       const envFileContent = fs.readFileSync(envFilePath, 'utf-8');
       const parsedEnv = dotenv.parse(envFileContent);
@@ -609,7 +606,7 @@ export function loadEnvironment(
             continue;
           }
 
-          // Only set if not already present in process.env (no-override)
+          // Load variable only if it's not already set in the environment.
           if (!Object.hasOwn(process.env, key)) {
             process.env[key] = value;
           }
@@ -617,16 +614,6 @@ export function loadEnvironment(
       }
     } catch {
       // Errors are ignored to match the behavior of `dotenv.config({ quiet: true })`.
-    }
-  }
-
-  // Step 2: Load environment variables from settings.env as fallback (lowest priority)
-  // Only set if not already present (no-override, after .env is loaded)
-  if (settings.env) {
-    for (const [key, value] of Object.entries(settings.env)) {
-      if (!Object.hasOwn(process.env, key) && typeof value === 'string') {
-        process.env[key] = value;
-      }
     }
   }
 }

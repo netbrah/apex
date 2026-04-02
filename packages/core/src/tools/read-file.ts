@@ -84,18 +84,7 @@ class ReadFileToolInvocation extends BaseToolInvocation<
       this.resolvedPath,
       this.config.getTargetDir(),
     );
-    const shortPath = shortenPath(relativePath);
-
-    const { offset, limit } = this.params;
-    if (offset !== undefined && limit !== undefined) {
-      return `${shortPath} (lines ${offset + 1}-${offset + limit})`;
-    } else if (offset !== undefined) {
-      return `${shortPath} (from line ${offset + 1})`;
-    } else if (limit !== undefined) {
-      return `${shortPath} (first ${limit} lines)`;
-    }
-
-    return shortPath;
+    return shortenPath(relativePath);
   }
 
   override toolLocations(): ToolLocation[] {

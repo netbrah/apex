@@ -37,8 +37,6 @@ import {
 
 type ToolParams = Record<string, unknown>;
 
-const debugLogger = createDebugLogger('TOOL_REGISTRY');
-
 class DiscoveredToolInvocation extends BaseToolInvocation<
   ToolParams,
   ToolResult
@@ -59,7 +57,7 @@ class DiscoveredToolInvocation extends BaseToolInvocation<
 
   async execute(
     _signal: AbortSignal,
-    _updateOutput?: (output: ToolResultDisplay) => void,
+    _updateOutput?: (output: string) => void,
   ): Promise<ToolResult> {
     const callCommand = this.config.getToolCallCommand()!;
     const args = [this.originalToolName];
@@ -319,22 +317,6 @@ export class ToolRegistry {
     );
   }
 
-  /**
-   * Copies discovered (non-core) tools from another registry into this one.
-   * Used to share MCP/command-discovered tools with per-agent registries
-   * that were built with skipDiscovery.
-   */
-  copyDiscoveredToolsFrom(source: ToolRegistry): void {
-    for (const tool of source.getAllTools()) {
-      if (
-        (tool instanceof DiscoveredTool || tool instanceof DiscoveredMCPTool) &&
-        !this.tools.has(tool.name)
-      ) {
-        this.tools.set(tool.name, tool);
-      }
-    }
-  }
-
   private removeDiscoveredTools(): void {
     for (const tool of this.allKnownTools.values()) {
       if (tool instanceof DiscoveredTool || tool instanceof DiscoveredMCPTool) {
@@ -352,44 +334,6 @@ export class ToolRegistry {
       if (tool instanceof DiscoveredMCPTool && tool.serverName === serverName) {
         this.allKnownTools.delete(name);
       }
-    }
-  }
-
-  /**
-   * Disconnects an MCP server by removing its tools, prompts, and disconnecting the client.
-   * Unlike disableMcpServer, this does NOT add the server to the exclusion list.
-   * @param serverName The name of the server to disconnect.
-   */
-  async disconnectServer(serverName: string): Promise<void> {
-    // Remove tools from registry
-    this.removeMcpToolsByServer(serverName);
-
-    // Remove prompts
-    this.config.getPromptRegistry().removePromptsByServer(serverName);
-
-    // Disconnect the MCP client
-    await this.mcpClientManager.disconnectServer(serverName);
-  }
-
-  /**
-   * Disables an MCP server by removing its tools, prompts, and disconnecting the client.
-   * Also updates the config's exclusion list.
-   * @param serverName The name of the server to disable.
-   */
-  async disableMcpServer(serverName: string): Promise<void> {
-    // Remove tools from registry
-    this.removeMcpToolsByServer(serverName);
-
-    // Remove prompts
-    this.config.getPromptRegistry().removePromptsByServer(serverName);
-
-    // Disconnect the MCP client
-    await this.mcpClientManager.disconnectServer(serverName);
-
-    // Update config's exclusion list
-    const currentExcluded = this.config.getExcludedMcpServers() || [];
-    if (!currentExcluded.includes(serverName)) {
-      this.config.setExcludedMcpServers([...currentExcluded, serverName]);
     }
   }
 
@@ -831,40 +775,5 @@ export class ToolRegistry {
       return tool;
     }
     return;
-  }
-
-  async readMcpResource(
-    serverName: string,
-    uri: string,
-    options?: { signal?: AbortSignal },
-  ): Promise<ReadResourceResult> {
-    if (!this.config.isTrustedFolder()) {
-      throw new Error('MCP resources are unavailable in untrusted folders.');
-    }
-
-    return this.mcpClientManager.readResource(serverName, uri, options);
-  }
-
-  /**
-   * Stops all MCP clients, disposes tools, and cleans up resources.
-   * This method is idempotent and safe to call multiple times.
-   */
-  async stop(): Promise<void> {
-    for (const tool of this.tools.values()) {
-      if ('dispose' in tool && typeof tool.dispose === 'function') {
-        try {
-          tool.dispose();
-        } catch (error) {
-          debugLogger.error(`Error disposing tool ${tool.name}:`, error);
-        }
-      }
-    }
-
-    try {
-      await this.mcpClientManager.stop();
-    } catch (error) {
-      // Log but don't throw - cleanup should be best-effort
-      debugLogger.error('Error stopping MCP clients:', error);
-    }
   }
 }

@@ -366,10 +366,10 @@ describe('modifyWithEditor', () => {
 
     expect(mockOpenDiff).toHaveBeenCalledOnce();
     const [oldFilePath, newFilePath] = mockOpenDiff.mock.calls[0];
-    expect(oldFilePath).toMatch(/apex-modify-test-file-old-\d+\.txt$/);
-    expect(newFilePath).toMatch(/apex-modify-test-file-new-\d+\.txt$/);
+    expect(oldFilePath).toMatch(/gemini-cli-modify-test-file-old-\d+\.txt$/);
+    expect(newFilePath).toMatch(/gemini-cli-modify-test-file-new-\d+\.txt$/);
 
-    const diffDirPrefix = path.join(os.tmpdir(), 'apex-tool-modify-');
+    const diffDirPrefix = path.join(os.tmpdir(), 'gemini-cli-tool-modify-');
     expect(path.dirname(oldFilePath).startsWith(diffDirPrefix)).toBe(true);
     expect(path.dirname(newFilePath).startsWith(diffDirPrefix)).toBe(true);
   });
@@ -387,10 +387,10 @@ describe('modifyWithEditor', () => {
 
     expect(mockOpenDiff).toHaveBeenCalledOnce();
     const [oldFilePath, newFilePath] = mockOpenDiff.mock.calls[0];
-    expect(oldFilePath).toMatch(/apex-modify-test-file-old-\d+$/);
-    expect(newFilePath).toMatch(/apex-modify-test-file-new-\d+$/);
+    expect(oldFilePath).toMatch(/gemini-cli-modify-test-file-old-\d+$/);
+    expect(newFilePath).toMatch(/gemini-cli-modify-test-file-new-\d+$/);
 
-    const diffDirPrefix = path.join(os.tmpdir(), 'apex-tool-modify-');
+    const diffDirPrefix = path.join(os.tmpdir(), 'gemini-cli-tool-modify-');
     expect(path.dirname(oldFilePath).startsWith(diffDirPrefix)).toBe(true);
     expect(path.dirname(newFilePath).startsWith(diffDirPrefix)).toBe(true);
   });

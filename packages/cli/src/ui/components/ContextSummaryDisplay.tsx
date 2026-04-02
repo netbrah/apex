@@ -47,11 +47,9 @@ export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
     if (openFileCount === 0) {
       return '';
     }
-    const fileText =
-      openFileCount === 1
-        ? t('{{count}} open file', { count: String(openFileCount) })
-        : t('{{count}} open files', { count: String(openFileCount) });
-    return `${fileText} ${t('(ctrl+g to view)')}`;
+    return `${openFileCount} open file${
+      openFileCount > 1 ? 's' : ''
+    } (ctrl+g to view)`;
   })();
 
   const geminiMdText = (() => {
@@ -60,15 +58,9 @@ export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
     }
     const allNamesTheSame = new Set(contextFileNames).size < 2;
     const name = allNamesTheSame ? contextFileNames[0] : 'context';
-    return geminiMdFileCount === 1
-      ? t('{{count}} {{name}} file', {
-          count: String(geminiMdFileCount),
-          name,
-        })
-      : t('{{count}} {{name}} files', {
-          count: String(geminiMdFileCount),
-          name,
-        });
+    return `${geminiMdFileCount} ${name} file${
+      geminiMdFileCount > 1 ? 's' : ''
+    }`;
   })();
 
   const mcpText = (() => {
@@ -78,27 +70,15 @@ export const ContextSummaryDisplay: React.FC<ContextSummaryDisplayProps> = ({
 
     const parts = [];
     if (mcpServerCount > 0) {
-      const serverText =
-        mcpServerCount === 1
-          ? t('{{count}} MCP server', { count: String(mcpServerCount) })
-          : t('{{count}} MCP servers', { count: String(mcpServerCount) });
-      parts.push(serverText);
+      parts.push(
+        `${mcpServerCount} MCP server${mcpServerCount > 1 ? 's' : ''}`,
+      );
     }
 
     if (blockedMcpServerCount > 0) {
-      let blockedText = t('{{count}} Blocked', {
-        count: String(blockedMcpServerCount),
-      });
+      let blockedText = `${blockedMcpServerCount} Blocked`;
       if (mcpServerCount === 0) {
-        const serverText =
-          blockedMcpServerCount === 1
-            ? t('{{count}} MCP server', {
-                count: String(blockedMcpServerCount),
-              })
-            : t('{{count}} MCP servers', {
-                count: String(blockedMcpServerCount),
-              });
-        blockedText += ` ${serverText}`;
+        blockedText += ` MCP server${blockedMcpServerCount > 1 ? 's' : ''}`;
       }
       parts.push(blockedText);
     }

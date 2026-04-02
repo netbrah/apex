@@ -42,6 +42,7 @@ vi.mock('node:os', async (importOriginal) => {
   };
 });
 vi.mock('crypto');
+vi.mock('../utils/summarizer.js');
 
 import { initializeShellParsers } from '../utils/shell-utils.js';
 import { ShellTool, OUTPUT_UPDATE_INTERVAL_MS } from './shell.js';
@@ -57,6 +58,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { isSubpath } from '../utils/paths.js';
 import * as crypto from 'node:crypto';
+import * as summarizer from '../utils/summarizer.js';
 import { ToolErrorType } from './tool-error.js';
 import {
   ToolConfirmationOutcome,
@@ -235,33 +237,8 @@ describe('ShellTool', () => {
     });
 
     it('should throw an error for an empty command', () => {
-      expect(() =>
-        shellTool.build({ command: ' ', is_background: false }),
-      ).toThrow('Command cannot be empty.');
-    });
-
-    it('should throw an error for a relative directory path', () => {
-      expect(() =>
-        shellTool.build({
-          command: 'ls',
-          directory: 'rel/path',
-          is_background: false,
-        }),
-      ).toThrow('Directory must be an absolute path.');
-    });
-
-    it('should throw an error for a directory outside the workspace', () => {
-      (mockConfig.getWorkspaceContext as Mock).mockReturnValue(
-        createMockWorkspaceContext('/test/dir', ['/another/workspace']),
-      );
-      expect(() =>
-        shellTool.build({
-          command: 'ls',
-          directory: '/not/in/workspace',
-          is_background: false,
-        }),
-      ).toThrow(
-        "Directory '/not/in/workspace' is not within any of the registered workspace directories.",
+      expect(() => shellTool.build({ command: ' ' })).toThrow(
+        'Command cannot be empty.',
       );
     });
 
@@ -287,96 +264,6 @@ describe('ShellTool', () => {
       });
       expect(invocation).toBeDefined();
     });
-
-    it('should throw an error for the user skills directory itself', () => {
-      expect(() =>
-        shellTool.build({
-          command: 'ls',
-          directory: '/test/dir/.apex/skills',
-          is_background: false,
-        }),
-      ).toThrow(
-        'Explicitly running shell commands from within the user skills directory is not allowed. Please use absolute paths for command parameter instead.',
-      );
-    });
-
-    it('should resolve directory path before checking user skills directory', () => {
-      expect(() =>
-        shellTool.build({
-          command: 'ls',
-          directory: '/test/dir/.apex/skills/../skills/my-skill',
-          is_background: false,
-        }),
-      ).toThrow(
-        'Explicitly running shell commands from within the user skills directory is not allowed. Please use absolute paths for command parameter instead.',
-      );
-    });
-
-    it('should return an invocation for a valid absolute directory path', () => {
-      (mockConfig.getWorkspaceContext as Mock).mockReturnValue(
-        createMockWorkspaceContext('/test/dir', ['/another/workspace']),
-      );
-      const invocation = shellTool.build({
-        command: 'ls',
-        directory: '/test/dir/subdir',
-        is_background: false,
-      });
-      expect(invocation).toBeDefined();
-    });
-
-    it('should include background indicator in description when is_background is true', () => {
-      const invocation = shellTool.build({
-        command: 'npm start',
-        is_background: true,
-      });
-      expect(invocation.getDescription()).toContain('[background]');
-    });
-
-    it('should not include background indicator in description when is_background is false', () => {
-      const invocation = shellTool.build({
-        command: 'npm test',
-        is_background: false,
-      });
-      expect(invocation.getDescription()).not.toContain('[background]');
-    });
-
-    describe('is_background parameter coercion', () => {
-      it('should accept string "true" as boolean true', () => {
-        const invocation = shellTool.build({
-          command: 'npm run dev',
-          is_background: 'true' as unknown as boolean,
-        });
-        expect(invocation).toBeDefined();
-        expect(invocation.getDescription()).toContain('[background]');
-      });
-
-      it('should accept string "false" as boolean false', () => {
-        const invocation = shellTool.build({
-          command: 'npm run build',
-          is_background: 'false' as unknown as boolean,
-        });
-        expect(invocation).toBeDefined();
-        expect(invocation.getDescription()).not.toContain('[background]');
-      });
-
-      it('should accept string "True" as boolean true', () => {
-        const invocation = shellTool.build({
-          command: 'npm run dev',
-          is_background: 'True' as unknown as boolean,
-        });
-        expect(invocation).toBeDefined();
-        expect(invocation.getDescription()).toContain('[background]');
-      });
-
-      it('should accept string "False" as boolean false', () => {
-        const invocation = shellTool.build({
-          command: 'npm run build',
-          is_background: 'False' as unknown as boolean,
-        });
-        expect(invocation).toBeDefined();
-        expect(invocation.getDescription()).not.toContain('[background]');
-      });
-    });
   });
 
   describe('execute', () => {
@@ -399,11 +286,8 @@ describe('ShellTool', () => {
       resolveExecutionPromise(fullResult);
     };
 
-    it('should wrap background command on linux and parse pgrep output', async () => {
-      const invocation = shellTool.build({
-        command: 'my-command',
-        is_background: true,
-      });
+    it('should wrap command on linux and parse pgrep output', async () => {
+      const invocation = shellTool.build({ command: 'my-command &' });
       const promise = invocation.execute(mockAbortSignal);
       resolveShellExecution({ pid: 54321 });
 
@@ -576,10 +460,7 @@ describe('ShellTool', () => {
 
     it('should format error messages correctly', async () => {
       const error = new Error('wrapped command failed');
-      const invocation = shellTool.build({
-        command: 'user-command',
-        is_background: false,
-      });
+      const invocation = shellTool.build({ command: 'user-command' });
       const promise = invocation.execute(mockAbortSignal);
       resolveShellExecution({
         error,
@@ -599,10 +480,7 @@ describe('ShellTool', () => {
 
     it('should return a SHELL_EXECUTE_ERROR for a command failure', async () => {
       const error = new Error('command failed');
-      const invocation = shellTool.build({
-        command: 'user-command',
-        is_background: false,
-      });
+      const invocation = shellTool.build({ command: 'user-command' });
       const promise = invocation.execute(mockAbortSignal);
       resolveShellExecution({
         error,
@@ -617,9 +495,9 @@ describe('ShellTool', () => {
     });
 
     it('should throw an error for invalid parameters', () => {
-      expect(() =>
-        shellTool.build({ command: '', is_background: false }),
-      ).toThrow('Command cannot be empty.');
+      expect(() => shellTool.build({ command: '' })).toThrow(
+        'Command cannot be empty.',
+      );
     });
 
     it('should summarize output when configured', async () => {
@@ -687,10 +565,7 @@ describe('ShellTool', () => {
         throw error;
       });
 
-      const invocation = shellTool.build({
-        command: 'a-command',
-        is_background: false,
-      });
+      const invocation = shellTool.build({ command: 'a-command' });
       await expect(invocation.execute(mockAbortSignal)).rejects.toThrow(error);
 
       const tmpFile = path.join(os.tmpdir(), 'shell_pgrep_abcdef.tmp');
@@ -726,10 +601,7 @@ describe('ShellTool', () => {
       });
 
       it('should immediately show binary detection message and throttle progress', async () => {
-        const invocation = shellTool.build({
-          command: 'cat img',
-          is_background: false,
-        });
+        const invocation = shellTool.build({ command: 'cat img' });
         const promise = invocation.execute(mockAbortSignal, updateOutputMock);
 
         mockShellOutputCallback({ type: 'binary_detected' });
@@ -797,351 +669,6 @@ describe('ShellTool', () => {
         await promise;
       });
     });
-
-    describe('addCoAuthorToGitCommit', () => {
-      it('should add co-author to git commit with double quotes', async () => {
-        const command = 'git commit -m "Initial commit"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        // Mock the shell execution to return success
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        // Verify that the command was executed with co-author added
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should add co-author to git commit with single quotes', async () => {
-        const command = "git commit -m 'Fix bug'";
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should handle git commit with additional flags', async () => {
-        const command = 'git commit -a -m "Add feature"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should handle git commit with combined short flags like -am', async () => {
-        const command = 'git commit -am "Add feature"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should not modify non-git commands', async () => {
-        const command = 'npm install';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining('npm install'),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should not modify git commands without -m flag', async () => {
-        const command = 'git commit';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining('git commit'),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should handle git commit with escaped quotes in message', async () => {
-        const command = 'git commit -m "Fix \\"quoted\\" text"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should not add co-author when disabled in config', async () => {
-        // Mock config with disabled co-author
-        (mockConfig.getGitCoAuthor as Mock).mockReturnValue({
-          enabled: false,
-          name: 'Qwen-Coder',
-          email: 'apexr@alibabacloud.com',
-        });
-
-        const command = 'git commit -m "Initial commit"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining('git commit -m "Initial commit"'),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should use custom name and email from config', async () => {
-        // Mock config with custom co-author details
-        (mockConfig.getGitCoAuthor as Mock).mockReturnValue({
-          enabled: true,
-          name: 'Custom Bot',
-          email: 'custom@example.com',
-        });
-
-        const command = 'git commit -m "Test commit"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Custom Bot <custom@example.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should add co-author when git commit is prefixed with cd command', async () => {
-        const command = 'cd /tmp/test && git commit -m "Test commit"';
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-
-      it('should add co-author to git commit with multi-line message', async () => {
-        const command = `git commit -m "Fix bug
-
- This is a detailed description
- spanning multiple lines"`;
-        const invocation = shellTool.build({ command, is_background: false });
-        const promise = invocation.execute(mockAbortSignal);
-
-        resolveExecutionPromise({
-          rawOutput: Buffer.from(''),
-          output: '',
-          exitCode: 0,
-          signal: null,
-          error: null,
-          aborted: false,
-          pid: 12345,
-          executionMethod: 'child_process',
-        });
-
-        await promise;
-
-        expect(mockShellExecutionService).toHaveBeenCalledWith(
-          expect.stringContaining(
-            'Co-authored-by: Qwen-Coder <apexr@alibabacloud.com>',
-          ),
-          expect.any(String),
-          expect.any(Function),
-          expect.any(AbortSignal),
-          false,
-          {},
-        );
-      });
-    });
   });
 
   describe('shouldConfirmExecute', () => {
@@ -1161,16 +688,9 @@ describe('ShellTool', () => {
       const confirmation = await invocation.shouldConfirmExecute(
         new AbortController().signal,
       );
-      expect(details.type).toBe('exec');
-    });
 
-    it('should exclude read-only sub-commands from confirmation details in compound commands', async () => {
-      // "cd" is read-only, "npm run build" is not
-      const params = {
-        command: 'cd packages/core && npm run build',
-        is_background: false,
-      };
-      const invocation = shellTool.build(params);
+      expect(confirmation).not.toBe(false);
+      expect(confirmation && confirmation.type).toBe('exec');
 
       if (confirmation && confirmation.type === 'exec') {
         await confirmation.onConfirm(ToolConfirmationOutcome.ProceedAlways);
@@ -1181,25 +701,12 @@ describe('ShellTool', () => {
       const secondInvocation = shellTool.build({ command: 'npm test' });
       const secondConfirmation = await secondInvocation.shouldConfirmExecute(
         new AbortController().signal,
-      )) as { rootCommand: string; permissionRules: string[] };
-
-      // rootCommand should only include 'npm', not 'cd'
-      expect(details.rootCommand).not.toContain('cd');
-      expect(details.rootCommand).toContain('npm');
-
-      // permissionRules should not include Bash(cd *)
-      expect(details.permissionRules).not.toContainEqual(
-        expect.stringContaining('cd'),
       );
-      expect(details.permissionRules).toContainEqual(
-        expect.stringContaining('npm'),
-      );
+      expect(secondConfirmation).toBe(false);
     });
 
     it('should throw an error if validation fails', () => {
-      expect(() =>
-        shellTool.build({ command: '', is_background: false }),
-      ).toThrow();
+      expect(() => shellTool.build({ command: '' })).toThrow();
     });
   });
 

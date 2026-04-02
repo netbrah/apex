@@ -146,9 +146,6 @@ export interface SessionStatsState {
   sessionStartTime: Date;
   metrics: SessionMetrics;
   lastPromptTokenCount: number;
-  lastOutputTokenCount: number;
-  lastToolTokenCount: number;
-  lastCachedContentTokenCount: number;
   promptCount: number;
 }
 
@@ -173,7 +170,6 @@ export interface ComputedSessionStats {
 // and the functions to update it.
 interface SessionStatsContextValue {
   stats: SessionStatsState;
-  startNewSession: (sessionId: string) => void;
   startNewPrompt: () => void;
   getPromptCount: () => number;
 }
@@ -184,40 +180,26 @@ const SessionStatsContext = createContext<SessionStatsContextValue | undefined>(
   undefined,
 );
 
-const createDefaultStats = (sessionId: string = ''): SessionStatsState => ({
-  sessionId,
-  sessionStartTime: new Date(),
-  metrics: uiTelemetryService.getMetrics(),
-  lastPromptTokenCount: 0,
-  lastOutputTokenCount: 0,
-  lastToolTokenCount: 0,
-  lastCachedContentTokenCount: 0,
-  promptCount: 0,
-});
-
 // --- Provider Component ---
 
-export const SessionStatsProvider: React.FC<{
-  sessionId?: string;
-  children: React.ReactNode;
-}> = ({ sessionId, children }) => {
-  const [stats, setStats] = useState<SessionStatsState>(() =>
-    createDefaultStats(sessionId ?? ''),
-  );
+export const SessionStatsProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [stats, setStats] = useState<SessionStatsState>({
+    sessionId,
+    sessionStartTime: new Date(),
+    metrics: uiTelemetryService.getMetrics(),
+    lastPromptTokenCount: 0,
+    promptCount: 0,
+  });
 
   useEffect(() => {
     const handleUpdate = ({
       metrics,
       lastPromptTokenCount,
-      lastOutputTokenCount = 0,
-      lastToolTokenCount = 0,
-      lastCachedContentTokenCount = 0,
     }: {
       metrics: SessionMetrics;
       lastPromptTokenCount: number;
-      lastOutputTokenCount?: number;
-      lastToolTokenCount?: number;
-      lastCachedContentTokenCount?: number;
     }) => {
       setStats((prevState) => {
         if (
@@ -249,23 +231,12 @@ export const SessionStatsProvider: React.FC<{
     handleUpdate({
       metrics: uiTelemetryService.getMetrics(),
       lastPromptTokenCount: uiTelemetryService.getLastPromptTokenCount(),
-      lastOutputTokenCount: uiTelemetryService.getLastOutputTokenCount(),
-      lastToolTokenCount: uiTelemetryService.getLastToolTokenCount(),
-      lastCachedContentTokenCount:
-        uiTelemetryService.getLastCachedContentTokenCount(),
     });
 
     return () => {
       uiTelemetryService.off('update', handleUpdate);
       uiTelemetryService.off('clear', handleClear);
     };
-  }, []);
-
-  const startNewSession = useCallback((sessionId: string) => {
-    setStats(() => ({
-      ...createDefaultStats(sessionId),
-      lastPromptTokenCount: uiTelemetryService.getLastPromptTokenCount(),
-    }));
   }, []);
 
   const startNewPrompt = useCallback(() => {
@@ -283,11 +254,10 @@ export const SessionStatsProvider: React.FC<{
   const value = useMemo(
     () => ({
       stats,
-      startNewSession,
       startNewPrompt,
       getPromptCount,
     }),
-    [stats, startNewSession, startNewPrompt, getPromptCount],
+    [stats, startNewPrompt, getPromptCount],
   );
 
   return (

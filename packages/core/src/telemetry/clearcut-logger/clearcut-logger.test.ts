@@ -713,7 +713,7 @@ describe('ClearcutLogger', () => {
 
   describe('GITHUB_REPOSITORY metadata', () => {
     it('includes hashed repository when GITHUB_REPOSITORY is set', () => {
-      vi.stubEnv('GITHUB_REPOSITORY', 'google/apex');
+      vi.stubEnv('GITHUB_REPOSITORY', 'google/gemini-cli');
       const { logger } = setup({});
 
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
@@ -724,11 +724,11 @@ describe('ClearcutLogger', () => {
       );
       expect(repositoryMetadata).toBeDefined();
       expect(repositoryMetadata?.value).toMatch(/^[a-f0-9]{64}$/);
-      expect(repositoryMetadata?.value).not.toBe('google/apex');
+      expect(repositoryMetadata?.value).not.toBe('google/gemini-cli');
     });
 
     it('hashes repository name consistently', () => {
-      vi.stubEnv('GITHUB_REPOSITORY', 'google/apex');
+      vi.stubEnv('GITHUB_REPOSITORY', 'google/gemini-cli');
       const { logger } = setup({});
 
       const event1 = logger?.createLogEvent(EventNames.API_ERROR, []);
@@ -751,7 +751,7 @@ describe('ClearcutLogger', () => {
     });
 
     it('produces different hashes for different repositories', () => {
-      vi.stubEnv('GITHUB_REPOSITORY', 'google/apex');
+      vi.stubEnv('GITHUB_REPOSITORY', 'google/gemini-cli');
       const { logger: logger1 } = setup({});
       const event1 = logger1?.createLogEvent(EventNames.API_ERROR, []);
       const hash1 = event1?.event_metadata[0].find(

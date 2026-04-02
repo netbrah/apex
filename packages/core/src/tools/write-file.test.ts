@@ -44,8 +44,8 @@ import {
   getMockMessageBusInstance,
 } from '../test-utils/mock-message-bus.js';
 
-const rootDir = path.resolve(os.tmpdir(), 'apex-test-root');
-const plansDir = path.resolve(os.tmpdir(), 'apex-test-plans');
+const rootDir = path.resolve(os.tmpdir(), 'gemini-cli-test-root');
+const plansDir = path.resolve(os.tmpdir(), 'gemini-cli-test-plans');
 
 // --- MOCKS ---
 vi.mock('../core/client.js');
@@ -255,7 +255,7 @@ describe('WriteFileTool', () => {
       expect(invocation.params).toEqual(params);
     });
 
-    it('should allow a path outside root (external path support)', () => {
+    it('should throw an error for a path outside root', () => {
       const outsidePath = path.resolve(tempDir, 'outside-root.txt');
       const params = {
         file_path: outsidePath,
@@ -276,12 +276,14 @@ describe('WriteFileTool', () => {
       );
     });
 
-    it('should coerce null content into an empty string', () => {
+    it('should throw an error if the content is null', () => {
+      const dirAsFilePath = path.join(rootDir, 'a_directory');
+      fs.mkdirSync(dirAsFilePath);
       const params = {
-        file_path: path.join(rootDir, 'test.txt'),
+        file_path: dirAsFilePath,
         content: null,
       } as unknown as WriteFileToolParams; // Intentionally non-conforming
-      expect(() => tool.build(params)).toBeDefined();
+      expect(() => tool.build(params)).toThrow('params/content must be string');
     });
 
     it('should throw error if the file_path is empty', () => {
@@ -455,15 +457,7 @@ describe('WriteFileTool', () => {
   describe('shouldConfirmExecute', () => {
     const abortSignal = new AbortController().signal;
 
-    it('should always return ask from getDefaultPermission', async () => {
-      const filePath = path.join(rootDir, 'confirm_permission_file.txt');
-      const params = { file_path: filePath, content: 'test content' };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
-    });
-
-    it('should throw if _getCorrectedFileContent returns an error', async () => {
+    it('should return false if _getCorrectedFileContent returns an error', async () => {
       const filePath = path.join(rootDir, 'confirm_error_file.txt');
       const params = { file_path: filePath, content: 'test content' };
       fs.writeFileSync(filePath, 'original', { mode: 0o000 });
@@ -474,20 +468,21 @@ describe('WriteFileTool', () => {
       );
 
       const invocation = tool.build(params);
-      await expect(
-        invocation.getConfirmationDetails(abortSignal),
-      ).rejects.toThrow('Error reading existing file for confirmation');
+      const confirmation = await invocation.shouldConfirmExecute(abortSignal);
+      expect(confirmation).toBe(false);
 
       fs.chmodSync(filePath, 0o600);
     });
 
-    it('should request confirmation with diff for a new file', async () => {
+    it('should request confirmation with diff for a new file (with corrected content)', async () => {
       const filePath = path.join(rootDir, 'confirm_new_file.txt');
       const proposedContent = 'Proposed new content for confirmation.';
+      const correctedContent = 'Corrected new content for confirmation.';
+      mockEnsureCorrectFileContent.mockResolvedValue(correctedContent); // Ensure this mock is active
 
       const params = { file_path: filePath, content: proposedContent };
       const invocation = tool.build(params);
-      const confirmation = (await invocation.getConfirmationDetails(
+      const confirmation = (await invocation.shouldConfirmExecute(
         abortSignal,
       )) as ToolEditConfirmationDetails;
 
@@ -502,7 +497,7 @@ describe('WriteFileTool', () => {
         expect.objectContaining({
           title: `Confirm Write: ${path.basename(filePath)}`,
           fileName: 'confirm_new_file.txt',
-          fileDiff: expect.stringContaining(proposedContent),
+          fileDiff: expect.stringContaining(correctedContent),
         }),
       );
       expect(confirmation.fileDiff).toMatch(
@@ -513,17 +508,19 @@ describe('WriteFileTool', () => {
       );
     });
 
-    it('should request confirmation with diff for an existing file', async () => {
+    it('should request confirmation with diff for an existing file (with corrected content)', async () => {
       const filePath = path.join(rootDir, 'confirm_existing_file.txt');
       const originalContent = 'Original content for confirmation.';
       const proposedContent = 'Proposed replacement for confirmation.';
+      const correctedProposedContent =
+        'Corrected replacement for confirmation.';
       fs.writeFileSync(filePath, originalContent, 'utf8');
 
       mockEnsureCorrectFileContent.mockResolvedValue(correctedProposedContent);
 
       const params = { file_path: filePath, content: proposedContent };
       const invocation = tool.build(params);
-      const confirmation = (await invocation.getConfirmationDetails(
+      const confirmation = (await invocation.shouldConfirmExecute(
         abortSignal,
       )) as ToolEditConfirmationDetails;
 
@@ -538,7 +535,7 @@ describe('WriteFileTool', () => {
         expect.objectContaining({
           title: `Confirm Write: ${path.basename(filePath)}`,
           fileName: 'confirm_existing_file.txt',
-          fileDiff: expect.stringContaining(proposedContent),
+          fileDiff: expect.stringContaining(correctedProposedContent),
         }),
       );
       expect(confirmation.fileDiff).toMatch(
@@ -710,9 +707,11 @@ describe('WriteFileTool', () => {
       fs.chmodSync(filePath, 0o600);
     });
 
-    it('should write a new file and return diff', async () => {
-      const filePath = path.join(rootDir, 'execute_new_file.txt');
+    it('should write a new file with corrected content and return diff', async () => {
+      const filePath = path.join(rootDir, 'execute_new_corrected_file.txt');
       const proposedContent = 'Proposed new content for execute.';
+      const correctedContent = 'Corrected new content for execute.';
+      mockEnsureCorrectFileContent.mockResolvedValue(correctedContent);
 
       const params = { file_path: filePath, content: proposedContent };
       const invocation = tool.build(params);
@@ -732,23 +731,29 @@ describe('WriteFileTool', () => {
         /Successfully created and wrote to new file/,
       );
       expect(fs.existsSync(filePath)).toBe(true);
-      const { content: writtenContent } = await fsService.readTextFile({
-        path: filePath,
-      });
-      expect(writtenContent).toBe(proposedContent);
+      const writtenContent = await fsService.readTextFile(filePath);
+      expect(writtenContent).toBe(correctedContent);
       const display = result.returnDisplay as FileDiff;
-      expect(display.fileName).toBe('execute_new_file.txt');
-      expect(display.fileDiff).toMatch(/--- execute_new_file.txt\tOriginal/);
-      expect(display.fileDiff).toMatch(/\+\+\+ execute_new_file.txt\tWritten/);
+      expect(display.fileName).toBe('execute_new_corrected_file.txt');
       expect(display.fileDiff).toMatch(
-        proposedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+        /--- execute_new_corrected_file.txt\tOriginal/,
+      );
+      expect(display.fileDiff).toMatch(
+        /\+\+\+ execute_new_corrected_file.txt\tWritten/,
+      );
+      expect(display.fileDiff).toMatch(
+        correctedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
       );
     });
 
-    it('should overwrite an existing file and return diff', async () => {
-      const filePath = path.join(rootDir, 'execute_existing_file.txt');
+    it('should overwrite an existing file with corrected content and return diff', async () => {
+      const filePath = path.join(
+        rootDir,
+        'execute_existing_corrected_file.txt',
+      );
       const initialContent = 'Initial content for execute.';
       const proposedContent = 'Proposed overwrite for execute.';
+      const correctedProposedContent = 'Corrected overwrite for execute.';
       fs.writeFileSync(filePath, initialContent, 'utf8');
 
       mockEnsureCorrectFileContent.mockResolvedValue(correctedProposedContent);
@@ -768,54 +773,23 @@ describe('WriteFileTool', () => {
         true, // aggressiveUnescape
       );
       expect(result.llmContent).toMatch(/Successfully overwrote file/);
-      const { content: writtenContent } = await fsService.readTextFile({
-        path: filePath,
-      });
-      expect(writtenContent).toBe(proposedContent);
+      const writtenContent = await fsService.readTextFile(filePath);
+      expect(writtenContent).toBe(correctedProposedContent);
       const display = result.returnDisplay as FileDiff;
-      expect(display.fileName).toBe('execute_existing_file.txt');
+      expect(display.fileName).toBe('execute_existing_corrected_file.txt');
       expect(display.fileDiff).toMatch(
         initialContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
       );
       expect(display.fileDiff).toMatch(
-        proposedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
+        correctedProposedContent.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'),
       );
-    });
-
-    it('should treat metadata ENOENT as new file when readTextFile returned empty content', async () => {
-      const filePath = path.join(rootDir, 'execute_acp_like_missing_file.txt');
-      const proposedContent = 'content from acp-like flow';
-      const writeSpy = vi.spyOn(fsService, 'writeTextFile');
-
-      // Simulate ENOENT: file does not exist, readTextFile throws ENOENT.
-      const enoentError = new Error('File not found') as NodeJS.ErrnoException;
-      enoentError.code = 'ENOENT';
-      vi.spyOn(fsService, 'readTextFile').mockRejectedValueOnce(enoentError);
-
-      const params = { file_path: filePath, content: proposedContent };
-      const invocation = tool.build(params);
-      const result = await invocation.execute(abortSignal);
-
-      expect(result.error).toBeUndefined();
-      expect(result.llmContent).toMatch(
-        /Successfully created and wrote to new file/,
-      );
-      expect(writeSpy).toHaveBeenCalledWith({
-        path: filePath,
-        content: proposedContent,
-        _meta: {
-          bom: false,
-          encoding: undefined,
-        },
-      });
-      expect(fs.existsSync(filePath)).toBe(true);
-      expect(fs.readFileSync(filePath, 'utf8')).toBe(proposedContent);
     });
 
     it('should create directory if it does not exist', async () => {
       const dirPath = path.join(rootDir, 'new_dir_for_write');
       const filePath = path.join(dirPath, 'file_in_new_dir.txt');
       const content = 'Content in new directory';
+      mockEnsureCorrectFileContent.mockResolvedValue(content); // Ensure this mock is active
 
       const params = { file_path: filePath, content };
       const invocation = tool.build(params);
@@ -929,10 +903,10 @@ describe('WriteFileTool', () => {
       expect(() => tool.build(params)).not.toThrow();
     });
 
-    it('should allow paths outside workspace root (external path support)', () => {
+    it('should reject paths outside workspace root', () => {
       const params = {
         file_path: '/etc/passwd',
-        content: 'test',
+        content: 'malicious',
       };
       expect(() => tool.build(params)).toThrow(/Path not in workspace/);
     });
@@ -1137,139 +1111,6 @@ describe('WriteFileTool', () => {
       expect(result.llmContent).not.toContain(
         'Newly Discovered Project Context',
       );
-    });
-  });
-
-  describe('BOM preservation (Issue #1672)', () => {
-    const abortSignal = new AbortController().signal;
-
-    it('should preserve BOM when overwriting existing file with BOM', async () => {
-      const filePath = path.join(rootDir, 'bom_file.txt');
-      const originalContent = 'original content';
-      const newContent = 'new content';
-
-      // Create file with BOM
-      fs.writeFileSync(
-        filePath,
-        Buffer.concat([
-          Buffer.from([0xef, 0xbb, 0xbf]),
-          Buffer.from(originalContent, 'utf-8'),
-        ]),
-      );
-
-      // Spy on writeTextFile to verify BOM option
-      const writeSpy = vi.spyOn(fsService, 'writeTextFile');
-
-      const params = { file_path: filePath, content: newContent };
-      const invocation = tool.build(params);
-      await invocation.execute(abortSignal);
-
-      // Verify writeTextFile was called with bom: true
-      expect(writeSpy).toHaveBeenCalledWith({
-        path: filePath,
-        content: newContent,
-        _meta: { bom: true, encoding: 'utf-8', lineEnding: 'lf' },
-      });
-
-      // Cleanup
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    });
-
-    it('should not add BOM when overwriting existing file without BOM', async () => {
-      const filePath = path.join(rootDir, 'no_bom_file.txt');
-      const originalContent = 'original content';
-      const newContent = 'new content';
-
-      // Create file without BOM
-      fs.writeFileSync(filePath, originalContent, 'utf-8');
-
-      // Spy on writeTextFile to verify BOM option
-      const writeSpy = vi.spyOn(fsService, 'writeTextFile');
-
-      const params = { file_path: filePath, content: newContent };
-      const invocation = tool.build(params);
-      await invocation.execute(abortSignal);
-
-      // Verify writeTextFile was called with bom: false
-      expect(writeSpy).toHaveBeenCalledWith({
-        path: filePath,
-        content: newContent,
-        _meta: { bom: false, encoding: 'utf-8', lineEnding: 'lf' },
-      });
-
-      // Cleanup
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    });
-
-    it('should use default encoding for new files', async () => {
-      const filePath = path.join(rootDir, 'new_file.txt');
-      const newContent = 'new content';
-
-      // Ensure file does not exist
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      // Spy on writeTextFile to verify BOM option
-      const writeSpy = vi.spyOn(fsService, 'writeTextFile');
-
-      const params = { file_path: filePath, content: newContent };
-      const invocation = tool.build(params);
-      await invocation.execute(abortSignal);
-
-      // Verify writeTextFile was called with bom: false (default is utf-8)
-      expect(writeSpy).toHaveBeenCalledWith({
-        path: filePath,
-        content: newContent,
-        _meta: { bom: false, encoding: undefined },
-      });
-
-      // Cleanup
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    });
-
-    it('should use BOM for new files when defaultFileEncoding is utf-8-bom', async () => {
-      const filePath = path.join(rootDir, 'new_file_bom.txt');
-      const newContent = 'new content';
-
-      // Ensure file does not exist
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      // Mock config to return utf-8-bom
-      const originalGetDefaultFileEncoding =
-        mockConfigInternal.getDefaultFileEncoding;
-      mockConfigInternal.getDefaultFileEncoding = () => 'utf-8-bom';
-
-      // Spy on writeTextFile to verify BOM option
-      const writeSpy = vi.spyOn(fsService, 'writeTextFile');
-
-      const params = { file_path: filePath, content: newContent };
-      const invocation = tool.build(params);
-      await invocation.execute(abortSignal);
-
-      // Verify writeTextFile was called with bom: true
-      expect(writeSpy).toHaveBeenCalledWith({
-        path: filePath,
-        content: newContent,
-        _meta: { bom: true, encoding: undefined },
-      });
-
-      // Restore mock
-      mockConfigInternal.getDefaultFileEncoding =
-        originalGetDefaultFileEncoding;
-
-      // Cleanup
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
     });
   });
 });

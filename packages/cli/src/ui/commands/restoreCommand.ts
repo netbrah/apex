@@ -47,7 +47,7 @@ async function restoreAction(
     return {
       type: 'message',
       messageType: 'error',
-      content: 'Could not determine the .qwen directory path.',
+      content: 'Could not determine the .gemini directory path.',
     };
   }
 
@@ -163,11 +163,8 @@ export const restoreCommand = (config: Config | null): SlashCommand | null => {
 
   return {
     name: 'restore',
-    get description() {
-      return t(
-        'Restore a tool call. This will reset the conversation and file history to the state it was in when the tool call was suggested',
-      );
-    },
+    description:
+      'Restore a tool call. This will reset the conversation and file history to the state it was in when the tool call was suggested',
     kind: CommandKind.BUILT_IN,
     autoExecute: true,
     action: restoreAction,

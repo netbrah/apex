@@ -172,17 +172,6 @@ export class LoopDetectionService {
     );
   }
 
-  /**
-   * Disables loop detection for the current session.
-   */
-  disableForSession(): void {
-    this.disabledForSession = true;
-    logLoopDetectionDisabled(
-      this.config,
-      new LoopDetectionDisabledEvent(this.promptId),
-    );
-  }
-
   private getToolCallKey(toolCall: { name: string; args: object }): string {
     const argsString = JSON.stringify(toolCall.args);
     const keyString = `${toolCall.name}:${argsString}`;
@@ -734,6 +723,7 @@ export class LoopDetectionService {
     this.userPrompt = userPrompt ?? '';
     this.resetToolCallCount();
     this.resetContentTracking();
+    this.resetLlmCheckTracking();
     this.loopDetected = false;
     this.detectedCount = 0;
     this.lastLoopDetail = undefined;
@@ -759,5 +749,11 @@ export class LoopDetectionService {
     }
     this.contentStats.clear();
     this.lastContentIndex = 0;
+  }
+
+  private resetLlmCheckTracking(): void {
+    this.turnsInCurrentPrompt = 0;
+    this.llmCheckInterval = DEFAULT_LLM_CHECK_INTERVAL;
+    this.lastCheckTurn = 0;
   }
 }

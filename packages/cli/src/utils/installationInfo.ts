@@ -25,8 +25,6 @@ export enum PackageManager {
   UNKNOWN = 'unknown',
 }
 
-const debugLogger = createDebugLogger('INSTALLATION_INFO');
-
 export interface InstallationInfo {
   packageManager: PackageManager;
   isGlobal: boolean;
@@ -97,7 +95,7 @@ export function getInstallationInfo(
     if (process.platform === 'darwin') {
       try {
         const brewPrefix = childProcess
-          .execSync('brew --prefix apex', {
+          .execSync('brew --prefix gemini-cli', {
             encoding: 'utf8',
             stdio: ['ignore', 'pipe', 'ignore'],
           })
@@ -109,11 +107,11 @@ export function getInstallationInfo(
             packageManager: PackageManager.HOMEBREW,
             isGlobal: true,
             updateMessage:
-              'Installed via Homebrew. Please update with "brew upgrade apex".',
+              'Installed via Homebrew. Please update with "brew upgrade gemini-cli".',
           };
         }
       } catch {
-        // Brew is not installed or apex is not installed via brew.
+        // Brew is not installed or gemini-cli is not installed via brew.
         // Continue to the next check.
       }
     }

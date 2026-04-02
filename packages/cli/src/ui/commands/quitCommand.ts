@@ -6,7 +6,6 @@
 
 import { formatDuration } from '../utils/formatters.js';
 import { CommandKind, type SlashCommand } from './types.js';
-import { t } from '../../i18n/index.js';
 
 export const quitCommand: SlashCommand = {
   name: 'quit',

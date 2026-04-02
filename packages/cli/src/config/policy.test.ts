@@ -39,7 +39,7 @@ describe('resolveWorkspacePolicyState', () => {
 
   beforeEach(() => {
     // Create a temporary directory for the test
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-cli-test-'));
     // Redirect APEX_HOME to the temp directory to isolate integrity storage
     vi.stubEnv('APEX_HOME', tempDir);
 
@@ -226,7 +226,7 @@ describe('resolveWorkspacePolicyState', () => {
     // Create a symlink to the home directory
     const symlinkDir = path.join(
       os.tmpdir(),
-      `apex-symlink-${Date.now()}`,
+      `gemini-cli-symlink-${Date.now()}`,
     );
     fs.symlinkSync(tempDir, symlinkDir, 'dir');
 

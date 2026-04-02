@@ -5,7 +5,6 @@
  */
 
 import type React from 'react';
-import { Box, Text } from 'ink';
 import { StatsDisplay } from './StatsDisplay.js';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
@@ -13,7 +12,6 @@ import { escapeShellArg, getShellConfiguration } from '@apex-code/apex-core';
 
 interface SessionSummaryDisplayProps {
   duration: string;
-  width: number;
 }
 
 export const SessionSummaryDisplay: React.FC<SessionSummaryDisplayProps> = ({

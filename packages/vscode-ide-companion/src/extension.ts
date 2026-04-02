@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import * as vscode from 'vscode';
 import { IDEServer } from './ide-server.js';
 import semver from 'semver';
@@ -102,8 +108,8 @@ async function checkForUpdates(
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-  logger = vscode.window.createOutputChannel('Apex Companion');
-  const log = createLogger(context, logger);
+  logger = vscode.window.createOutputChannel('Gemini CLI IDE Companion');
+  log = createLogger(context, logger);
   log('Extension activated');
 
   const isManagedExtensionSurface = MANAGED_EXTENSION_SURFACES.has(
@@ -215,7 +221,17 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate(): Promise<void> {
-  if (logger) {
-    logger.dispose();
+  log('Extension deactivated');
+  try {
+    if (ideServer) {
+      await ideServer.stop();
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`Failed to stop IDE server during deactivation: ${message}`);
+  } finally {
+    if (logger) {
+      logger.dispose();
+    }
   }
 }

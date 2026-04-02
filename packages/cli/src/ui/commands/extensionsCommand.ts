@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getErrorMessage } from '../../utils/errors.js';
-import { MessageType } from '../types.js';
 import {
   debugLogger,
   listExtensions,

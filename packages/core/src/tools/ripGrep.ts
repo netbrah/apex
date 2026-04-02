@@ -108,7 +108,7 @@ export async function ensureRgPath(): Promise<string> {
 }
 
 /**
- * Parameters for the GrepTool (Simplified)
+ * Parameters for the GrepTool
  */
 export interface RipGrepToolParams {
   /**
@@ -122,7 +122,7 @@ export interface RipGrepToolParams {
   dir_path?: string;
 
   /**
-   * Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")
+   * File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")
    */
   include_pattern?: string;
 
@@ -524,20 +524,6 @@ class GrepToolInvocation extends BaseToolInvocation<
       debugLogger.debug(`GrepLogic: ripgrep failed: ${getErrorMessage(error)}`);
       throw error;
     }
-
-    return result.stdout;
-  }
-
-  private getFileFilteringOptions(): FileFilteringOptions {
-    const options = this.config.getFileFilteringOptions?.();
-    return {
-      respectGitIgnore:
-        options?.respectGitIgnore ??
-        DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-      respectApexIgnore:
-        options?.respectApexIgnore ??
-        DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
-    };
   }
 
   private parseRipgrepJsonLine(
@@ -589,6 +575,7 @@ class GrepToolInvocation extends BaseToolInvocation<
 
   /**
    * Gets a description of the grep operation
+   * @param params Parameters for the grep operation
    * @returns A string describing the grep
    */
   getDescription(): string {
@@ -607,16 +594,12 @@ class GrepToolInvocation extends BaseToolInvocation<
       );
       description += ` within ${shortenPath(relativePath)}`;
     }
-    if (this.params.glob) {
-      description += ` (filter: '${this.params.glob}')`;
-    }
-
     return description;
   }
 }
 
 /**
- * Implementation of the Grep tool logic
+ * Implementation of the Grep tool logic (moved from CLI)
  */
 export class RipGrepTool extends BaseDeclarativeTool<
   RipGrepToolParams,
@@ -681,13 +664,6 @@ export class RipGrepTool extends BaseDeclarativeTool<
       params.total_max_matches < 1
     ) {
       return 'total_max_matches must be at least 1.';
-    }
-
-    // Validate pattern is a valid regex
-    try {
-      new RegExp(params.pattern);
-    } catch (error) {
-      return `Invalid regular expression pattern: ${params.pattern}. Error: ${getErrorMessage(error)}`;
     }
 
     // Only validate path if one is provided

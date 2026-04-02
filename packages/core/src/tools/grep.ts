@@ -9,7 +9,6 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import ignore from 'ignore';
 import { globStream } from 'glob';
 import { execStreaming } from '../utils/shell-utils.js';
 import {
@@ -29,7 +28,6 @@ import { makeRelative, shortenPath } from '../utils/paths.js';
 import { getErrorMessage, isNodeError } from '../utils/errors.js';
 import { isGitRepository } from '../utils/gitUtils.js';
 import type { Config } from '../config/config.js';
-import type { PermissionDecision } from '../permissions/types.js';
 import type { FileExclusions } from '../utils/ignorePatterns.js';
 import { ToolErrorType } from './tool-error.js';
 import { GREP_TOOL_NAME, GREP_DISPLAY_NAME } from './tool-names.js';
@@ -56,7 +54,7 @@ export interface GrepToolParams {
   dir_path?: string;
 
   /**
-   * Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")
+   * File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")
    */
   include_pattern?: string;
 
@@ -86,7 +84,6 @@ class GrepToolInvocation extends BaseToolInvocation<
   ToolResult
 > {
   private readonly fileExclusions: FileExclusions;
-  private readonly userRgIgnorePatterns = loadUserRgIgnorePatterns();
 
   constructor(
     private readonly config: Config,
@@ -202,28 +199,13 @@ class GrepToolInvocation extends BaseToolInvocation<
       const searchDirDisplay = pathParam || '.';
 
       // Determine which directories to search
-      const searchDirs: string[] = [];
-      let searchLocationDescription: string;
-
-      if (this.params.path) {
-        // User specified a path — search only that directory
-        const searchDirAbs = resolveAndValidatePath(
-          this.config,
-          this.params.path,
-          { allowExternalPaths: true },
-        );
-        searchDirs.push(searchDirAbs);
-        searchLocationDescription = `in path "${this.params.path}"`;
+      let searchDirectories: readonly string[];
+      if (searchDirAbs === null) {
+        // No path specified - search all workspace directories
+        searchDirectories = workspaceContext.getDirectories();
       } else {
-        // No path specified — search all workspace directories
-        const workspaceDirs = this.config
-          .getWorkspaceContext()
-          .getDirectories();
-        searchDirs.push(...workspaceDirs);
-        searchLocationDescription =
-          workspaceDirs.length > 1
-            ? `across ${workspaceDirs.length} workspace directories`
-            : `in the workspace directory`;
+        // Specific path provided - search only that directory
+        searchDirectories = [searchDirAbs];
       }
 
       // Collect matches from all search directories
@@ -290,16 +272,15 @@ class GrepToolInvocation extends BaseToolInvocation<
         signal.removeEventListener('abort', onAbort);
       }
 
-      // Deduplicate matches that might appear from overlapping workspace
-      // directories (e.g. parent + child both in workspace dirs).
-      if (searchDirs.length > 1) {
-        const seen = new Set<string>();
-        rawMatches = rawMatches.filter((match) => {
-          const key = `${match.filePath}:${match.lineNumber}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+      let searchLocationDescription: string;
+      if (searchDirAbs === null) {
+        const numDirs = workspaceContext.getDirectories().length;
+        searchLocationDescription =
+          numDirs > 1
+            ? `across ${numDirs} workspace directories`
+            : `in the workspace directory`;
+      } else {
+        searchLocationDescription = `in path "${searchDirDisplay}"`;
       }
 
       return await formatGrepResults(
@@ -387,7 +368,7 @@ class GrepToolInvocation extends BaseToolInvocation<
 
   /**
    * Performs the actual search using the prioritized strategies.
-   * @param options Search options including pattern, absolute path, and glob filter.
+   * @param options Search options including pattern, absolute path, and include glob.
    * @returns A promise resolving to an array of match objects.
    */
   private async performGrepSearch(options: {
@@ -417,7 +398,7 @@ class GrepToolInvocation extends BaseToolInvocation<
 
       // --- Strategy 1: git grep ---
       const isGit = isGitRepository(absolutePath);
-      const gitAvailable = isGit && isCommandAvailable('git').available;
+      const gitAvailable = isGit && (await this.isCommandAvailable('git'));
 
       if (gitAvailable) {
         strategyUsed = 'git grep';
@@ -552,7 +533,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       const globPattern = include_pattern ? include_pattern : '**/*';
       const ignorePatterns = this.fileExclusions.getGlobExcludes();
 
-      const filesIterator = globStream(globPattern, {
+      const filesStream = globStream(globPattern, {
         cwd: absolutePath,
         dot: true,
         ignore: ignorePatterns,
@@ -616,7 +597,7 @@ class GrepToolInvocation extends BaseToolInvocation<
         }
       }
 
-      return this.filterMatchesByUserRgIgnore(allMatches);
+      return allMatches;
     } catch (error: unknown) {
       debugLogger.warn(
         `GrepLogic: Error in performGrepSearch (Strategy: ${strategyUsed}): ${getErrorMessage(
@@ -690,11 +671,10 @@ export class GrepTool extends BaseDeclarativeTool<GrepToolParams, ToolResult> {
   protected override validateToolParamValues(
     params: GrepToolParams,
   ): string | null {
-    // Validate pattern is a valid regex
     try {
       new RegExp(params.pattern);
     } catch (error) {
-      return `Invalid regular expression pattern: ${params.pattern}. Error: ${getErrorMessage(error)}`;
+      return `Invalid regular expression pattern provided: ${params.pattern}. Error: ${getErrorMessage(error)}`;
     }
 
     if (params.exclude_pattern) {

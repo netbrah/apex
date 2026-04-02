@@ -180,44 +180,6 @@ import { CheckerRegistry } from '../safety/registry.js';
 import { ConsecaSafetyChecker } from '../safety/conseca/conseca.js';
 import type { AgentLoopContext } from './agent-loop-context.js';
 
-export const APPROVAL_MODES = Object.values(ApprovalMode);
-
-/**
- * Information about an approval mode including display name and description.
- */
-export interface ApprovalModeInfo {
-  id: ApprovalMode;
-  name: string;
-  description: string;
-}
-
-/**
- * Detailed information about each approval mode.
- * Used for UI display and protocol responses.
- */
-export const APPROVAL_MODE_INFO: Record<ApprovalMode, ApprovalModeInfo> = {
-  [ApprovalMode.PLAN]: {
-    id: ApprovalMode.PLAN,
-    name: 'Plan',
-    description: 'Analyze only, do not modify files or execute commands',
-  },
-  [ApprovalMode.DEFAULT]: {
-    id: ApprovalMode.DEFAULT,
-    name: 'Default',
-    description: 'Require approval for file edits or shell commands',
-  },
-  [ApprovalMode.AUTO_EDIT]: {
-    id: ApprovalMode.AUTO_EDIT,
-    name: 'Auto Edit',
-    description: 'Automatically approve file edits',
-  },
-  [ApprovalMode.YOLO]: {
-    id: ApprovalMode.YOLO,
-    name: 'YOLO',
-    description: 'Automatically approve all tools',
-  },
-};
-
 export interface AccessibilitySettings {
   /** @deprecated Use ui.statusHints instead. */
   enableLoadingPhrases?: boolean;
@@ -537,13 +499,6 @@ export class MCPServerConfig {
   ) {}
 }
 
-/**
- * Check if an MCP server config represents an SDK server
- */
-export function isSdkMcpServerConfig(config: MCPServerConfig): boolean {
-  return config.type === 'sdk';
-}
-
 export enum AuthProviderType {
   DYNAMIC_DISCOVERY = 'dynamic_discovery',
   GOOGLE_CREDENTIALS = 'google_credentials',
@@ -628,7 +583,6 @@ export interface ConfigParameters {
   toolSandboxing?: boolean;
   targetDir: string;
   debugMode: boolean;
-  includePartialMessages?: boolean;
   question?: string;
 
   coreTools?: string[];
@@ -637,12 +591,6 @@ export interface ConfigParameters {
   allowedTools?: string[];
   /** @deprecated Use Policy Engine instead */
   excludeTools?: string[];
-  /** Merged permission rules from all sources (settings + CLI args). */
-  permissions?: {
-    allow?: string[];
-    ask?: string[];
-    deny?: string[];
-  };
   toolDiscoveryCommand?: string;
   toolCallCommand?: string;
   mcpServerCommand?: string;
@@ -652,14 +600,14 @@ export interface ConfigParameters {
   geminiMdFileCount?: number;
   geminiMdFilePaths?: string[];
   approvalMode?: ApprovalMode;
+  showMemoryUsage?: boolean;
   contextFileName?: string | string[];
   accessibility?: AccessibilitySettings;
   telemetry?: TelemetrySettings;
-  gitCoAuthor?: boolean;
   usageStatisticsEnabled?: boolean;
   fileFiltering?: {
     respectGitIgnore?: boolean;
-    respectApexIgnore?: boolean;
+    respectGeminiIgnore?: boolean;
     enableRecursiveFileSearch?: boolean;
     enableFuzzySearch?: boolean;
     maxFileCount?: number;
@@ -691,14 +639,6 @@ export interface ConfigParameters {
   summarizeToolOutput?: Record<string, SummarizeToolOutputSettings>;
   folderTrust?: boolean;
   ideMode?: boolean;
-  authType?: AuthType;
-  generationConfig?: Partial<ContentGeneratorConfig>;
-  /**
-   * Optional source map for generationConfig fields (e.g. CLI/env/settings attribution).
-   * This is used to produce per-field source badges in the UI.
-   */
-  generationConfigSources?: ContentGeneratorConfigSources;
-  cliVersion?: string;
   loadMemoryFromIncludeDirectories?: boolean;
   includeDirectoryTree?: boolean;
   importFormat?: 'tree' | 'flat';
@@ -807,17 +747,11 @@ export class Config implements McpContext, AgentLoopContext {
   private contentGenerator!: ContentGenerator;
   readonly modelConfigService: ModelConfigService;
   private readonly embeddingModel: string;
-
-  private modelsConfig!: ModelsConfig;
-  private readonly modelProvidersConfig?: ModelProvidersConfig;
   private readonly sandbox: SandboxConfig | undefined;
   private _sandboxForbiddenPaths: string[] | undefined;
   private readonly targetDir: string;
   private workspaceContext: WorkspaceContext;
   private readonly debugMode: boolean;
-  private readonly inputFormat: InputFormat;
-  private readonly outputFormat: OutputFormat;
-  private readonly includePartialMessages: boolean;
   private readonly question: string | undefined;
   private readonly worktreeSettings: WorktreeSettings | undefined;
   readonly enableConseca: boolean;
@@ -828,9 +762,6 @@ export class Config implements McpContext, AgentLoopContext {
   private readonly allowedTools: string[] | undefined;
   /** @deprecated Use Policy Engine instead */
   private readonly excludeTools: string[] | undefined;
-  private readonly permissionsAllow: string[];
-  private readonly permissionsAsk: string[];
-  private readonly permissionsDeny: string[];
   private readonly toolDiscoveryCommand: string | undefined;
   private readonly toolCallCommand: string | undefined;
   private readonly mcpServerCommand: string | undefined;
@@ -844,7 +775,6 @@ export class Config implements McpContext, AgentLoopContext {
   private readonly showMemoryUsage: boolean;
   private readonly accessibility: AccessibilitySettings;
   private readonly telemetrySettings: TelemetrySettings;
-  private readonly gitCoAuthor: GitCoAuthorSettings;
   private readonly usageStatisticsEnabled: boolean;
   private _geminiClient!: GeminiClient;
   private _sandboxManager: SandboxManager;
@@ -855,7 +785,7 @@ export class Config implements McpContext, AgentLoopContext {
   private readonly modelAvailabilityService: ModelAvailabilityService;
   private readonly fileFiltering: {
     respectGitIgnore: boolean;
-    respectApexIgnore: boolean;
+    respectGeminiIgnore: boolean;
     enableRecursiveFileSearch: boolean;
     enableFuzzySearch: boolean;
     maxFileCount: number;
@@ -864,8 +794,6 @@ export class Config implements McpContext, AgentLoopContext {
   };
   private fileDiscoveryService: FileDiscoveryService | null = null;
   private gitService: GitService | undefined = undefined;
-  private sessionService: SessionService | undefined = undefined;
-  private chatRecordingService: ChatRecordingService | undefined = undefined;
   private readonly checkpointing: boolean;
   private readonly proxy: string | undefined;
   private readonly cwd: string;
@@ -1048,12 +976,6 @@ export class Config implements McpContext, AgentLoopContext {
     this.workspaceContext = new WorkspaceContext(this.targetDir, []);
     this.pendingIncludeDirectories = params.includeDirectories ?? [];
     this.debugMode = params.debugMode;
-    this.inputFormat = params.inputFormat ?? InputFormat.TEXT;
-    const normalizedOutputFormat = normalizeConfigOutputFormat(
-      params.outputFormat ?? params.output?.format,
-    );
-    this.outputFormat = normalizedOutputFormat ?? OutputFormat.TEXT;
-    this.includePartialMessages = params.includePartialMessages ?? false;
     this.question = params.question;
     this.worktreeSettings = params.worktreeSettings;
 
@@ -1094,9 +1016,6 @@ export class Config implements McpContext, AgentLoopContext {
     this.mainAgentTools = params.mainAgentTools;
     this.allowedTools = params.allowedTools;
     this.excludeTools = params.excludeTools;
-    this.permissionsAllow = params.permissions?.allow || [];
-    this.permissionsAsk = params.permissions?.ask || [];
-    this.permissionsDeny = params.permissions?.deny || [];
     this.toolDiscoveryCommand = params.toolDiscoveryCommand;
     this.toolCallCommand = params.toolCallCommand;
     this.mcpServerCommand = params.mcpServerCommand;
@@ -1126,7 +1045,6 @@ export class Config implements McpContext, AgentLoopContext {
       useCliAuth: params.telemetry?.useCliAuth,
     };
     this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? true;
-    this.outputLanguageFilePath = params.outputLanguageFilePath;
 
     this.fileFiltering = {
       respectGitIgnore:
@@ -1414,63 +1332,9 @@ export class Config implements McpContext, AgentLoopContext {
       overageStrategy: params.billing?.overageStrategy ?? 'ask',
     };
 
-    // Web search
-    this.webSearch = params.webSearch;
-    this.useRipgrep = params.useRipgrep ?? true;
-    this.useBuiltinRipgrep = params.useBuiltinRipgrep ?? true;
-    this.shouldUseNodePtyShell =
-      params.shouldUseNodePtyShell ?? shouldDefaultToNodePty();
-    this.skipNextSpeakerCheck = params.skipNextSpeakerCheck ?? true;
-    this.shellExecutionConfig = {
-      terminalWidth: params.shellExecutionConfig?.terminalWidth ?? 80,
-      terminalHeight: params.shellExecutionConfig?.terminalHeight ?? 24,
-      showColor: params.shellExecutionConfig?.showColor ?? false,
-      pager: params.shellExecutionConfig?.pager ?? 'cat',
-    };
-    this.truncateToolOutputThreshold =
-      params.truncateToolOutputThreshold ??
-      DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD;
-    this.truncateToolOutputLines =
-      params.truncateToolOutputLines ?? DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES;
-    this.toolOutputMasking = {
-      enabled: params.toolOutputMasking?.enabled ?? false,
-      toolProtectionThreshold:
-        params.toolOutputMasking?.toolProtectionThreshold ??
-        DEFAULT_TOOL_PROTECTION_THRESHOLD,
-      minPrunableTokensThreshold:
-        params.toolOutputMasking?.minPrunableTokensThreshold ??
-        DEFAULT_MIN_PRUNABLE_TOKENS_THRESHOLD,
-      protectLatestTurn:
-        params.toolOutputMasking?.protectLatestTurn ??
-        DEFAULT_PROTECT_LATEST_TURN,
-    };
-    this.channel = params.channel;
-    this.defaultFileEncoding = params.defaultFileEncoding;
-    this.storage = new Storage(this.targetDir);
-    this.inputFormat = params.inputFormat ?? InputFormat.TEXT;
-    this.fileExclusions = new FileExclusions(this);
-    this.eventEmitter = params.eventEmitter;
-    this.arenaAgentClient = ArenaAgentClient.create();
-    this.agentsSettings = params.agents ?? {};
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
     }
-
-    // Create ModelsConfig for centralized model management
-    // Prefer params.authType over generationConfig.authType because:
-    // - params.authType preserves undefined (user hasn't selected yet)
-    // - generationConfig.authType may have a default value from resolvers
-    this.modelsConfig = new ModelsConfig({
-      initialAuthType: params.authType ?? params.generationConfig?.authType,
-      modelProvidersConfig: this.modelProvidersConfig,
-      generationConfig: {
-        model: params.model,
-        ...(params.generationConfig || {}),
-        baseUrl: params.generationConfig?.baseUrl,
-      },
-      generationConfigSources: params.generationConfigSources,
-      onModelChange: this.handleModelChange.bind(this),
-    });
 
     if (this.telemetrySettings.enabled) {
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -1638,7 +1502,6 @@ export class Config implements McpContext, AgentLoopContext {
       // Restore the conversation history to the new client
       this._geminiClient.stripThoughtsFromHistory();
     }
-  }
 
     // Reset availability status when switching auth (e.g. from limited key to OAuth)
     this.modelAvailabilityService.reset();
@@ -1977,8 +1840,12 @@ export class Config implements McpContext, AgentLoopContext {
     return this.maxSessionTurns;
   }
 
-  getSessionTokenLimit(): number {
-    return this.sessionTokenLimit;
+  setQuotaErrorOccurred(value: boolean): void {
+    this.quotaErrorOccurred = value;
+  }
+
+  getQuotaErrorOccurred(): boolean {
+    return this.quotaErrorOccurred;
   }
 
   setCreditsNotificationShown(value: boolean): void {
@@ -2134,10 +2001,6 @@ export class Config implements McpContext, AgentLoopContext {
     return this.targetDir;
   }
 
-  getCwd(): string {
-    return this.targetDir;
-  }
-
   getWorkspaceContext(): WorkspaceContext {
     return getWorkspaceContextOverride() ?? this.workspaceContext;
   }
@@ -2155,30 +2018,6 @@ export class Config implements McpContext, AgentLoopContext {
     return this.toolRegistry;
   }
 
-  /**
-   * Shuts down the Config and releases all resources.
-   * This method is idempotent and safe to call multiple times.
-   * It handles the case where initialization was not completed.
-   */
-  async shutdown(): Promise<void> {
-    if (!this.initialized) {
-      // Nothing to clean up if not initialized
-      return;
-    }
-    try {
-      this.skillManager?.stopWatching();
-
-      if (this.toolRegistry) {
-        await this.toolRegistry.stop();
-      }
-
-      await this.cleanupArenaRuntime();
-    } catch (error) {
-      // Log but don't throw - cleanup should be best-effort
-      this.debugLogger.error('Error during Config shutdown:', error);
-    }
-  }
-
   getPromptRegistry(): PromptRegistry {
     return this._promptRegistry;
   }
@@ -2194,7 +2033,6 @@ export class Config implements McpContext, AgentLoopContext {
   getDebugMode(): boolean {
     return this.debugMode;
   }
-
   getQuestion(): string | undefined {
     return this.question;
   }
@@ -2305,11 +2143,6 @@ export class Config implements McpContext, AgentLoopContext {
     };
   }
 
-  getAppendSystemPrompt(): string | undefined {
-    return this.appendSystemPrompt;
-  }
-
-  /** @deprecated Use getPermissionsAllow() instead. */
   getCoreTools(): string[] | undefined {
     return this.coreTools;
   }
@@ -2372,89 +2205,7 @@ export class Config implements McpContext, AgentLoopContext {
    * Does NOT include mcp servers configured by extensions.
    */
   getMcpServers(): Record<string, MCPServerConfig> | undefined {
-    let mcpServers = { ...(this.mcpServers || {}) };
-    const extensions = this.getActiveExtensions();
-    for (const extension of extensions) {
-      Object.entries(extension.config.mcpServers || {}).forEach(
-        ([key, server]) => {
-          if (mcpServers[key]) return;
-          mcpServers[key] = {
-            ...server,
-            extensionName: extension.config.name,
-          };
-        },
-      );
-    }
-
-    if (this.allowedMcpServers) {
-      mcpServers = Object.fromEntries(
-        Object.entries(mcpServers).filter(([key]) =>
-          this.allowedMcpServers?.includes(key),
-        ),
-      );
-    }
-
-    // Note: We no longer filter out excluded servers here.
-    // The UI layer should check isMcpServerDisabled() to determine
-    // whether to show a server as disabled.
-
-    return mcpServers;
-  }
-
-  getExcludedMcpServers(): string[] | undefined {
-    return this.excludedMcpServers;
-  }
-
-  setExcludedMcpServers(excluded: string[]): void {
-    this.excludedMcpServers = excluded;
-  }
-
-  isMcpServerDisabled(serverName: string): boolean {
-    return this.excludedMcpServers?.includes(serverName) ?? false;
-  }
-
-  addMcpServers(servers: Record<string, MCPServerConfig>): void {
-    if (this.initialized) {
-      throw new Error('Cannot modify mcpServers after initialization');
-    }
-    this.mcpServers = { ...this.mcpServers, ...servers };
-  }
-
-  isLspEnabled(): boolean {
-    return this.lspEnabled;
-  }
-
-  getLspClient(): LspClient | undefined {
-    return this.lspClient;
-  }
-
-  /**
-   * Allows wiring an LSP client after Config construction but before initialize().
-   */
-  setLspClient(client: LspClient | undefined): void {
-    if (this.initialized) {
-      throw new Error('Cannot set LSP client after initialization');
-    }
-    this.lspClient = client;
-  }
-
-  getSessionSubagents(): SubagentConfig[] {
-    return this.sessionSubagents;
-  }
-
-  setSessionSubagents(subagents: SubagentConfig[]): void {
-    if (this.initialized) {
-      throw new Error('Cannot modify sessionSubagents after initialization');
-    }
-    this.sessionSubagents = subagents;
-  }
-
-  getSdkMode(): boolean {
-    return this.sdkMode;
-  }
-
-  setSdkMode(value: boolean): void {
-    this.sdkMode = value;
+    return this.mcpServers;
   }
 
   getMcpEnabled(): boolean {
@@ -2850,12 +2601,8 @@ export class Config implements McpContext, AgentLoopContext {
     this.pendingIncludeDirectories = [];
   }
 
-  getInputFormat(): 'text' | 'stream-json' {
-    return this.inputFormat;
-  }
-
-  getIncludePartialMessages(): boolean {
-    return this.includePartialMessages;
+  getShowMemoryUsage(): boolean {
+    return this.showMemoryUsage;
   }
 
   getAccessibility(): AccessibilitySettings {
@@ -3108,9 +2855,10 @@ export class Config implements McpContext, AgentLoopContext {
     return this.getNoBrowser() || !shouldAttemptBrowserLaunch();
   }
 
-  // Web search provider configuration
-  getWebSearchConfig() {
-    return this.webSearch;
+  getSummarizeToolOutputConfig():
+    | Record<string, SummarizeToolOutputSettings>
+    | undefined {
+    return this.summarizeToolOutput;
   }
 
   getIdeMode(): boolean {
@@ -3581,44 +3329,6 @@ export class Config implements McpContext, AgentLoopContext {
     return this.gitService;
   }
 
-  /**
-   * Returns the chat recording service.
-   */
-  getChatRecordingService(): ChatRecordingService | undefined {
-    if (!this.chatRecordingEnabled) {
-      return undefined;
-    }
-    if (!this.chatRecordingService) {
-      this.chatRecordingService = new ChatRecordingService(this);
-    }
-    return this.chatRecordingService;
-  }
-
-  /**
-   * Returns the transcript file path for the current session.
-   * This is the path to the JSONL file where the conversation is recorded.
-   * Returns empty string if chat recording is disabled.
-   */
-  getTranscriptPath(): string {
-    if (!this.chatRecordingEnabled) {
-      return '';
-    }
-    const projectDir = this.storage.getProjectDir();
-    const sessionId = this.getSessionId();
-    const safeFilename = `${sessionId}.jsonl`;
-    return path.join(projectDir, 'chats', safeFilename);
-  }
-
-  /**
-   * Gets or creates a SessionService for managing chat sessions.
-   */
-  getSessionService(): SessionService {
-    if (!this.sessionService) {
-      this.sessionService = new SessionService(this.targetDir);
-    }
-    return this.sessionService;
-  }
-
   getFileExclusions(): FileExclusions {
     return this.fileExclusions;
   }
@@ -3728,7 +3438,6 @@ export class Config implements McpContext, AgentLoopContext {
             tool.startsWith(`${toolName}(`) ||
             tool.startsWith(`${normalizedClassName}(`),
         );
-        return;
       }
 
       if (isEnabled) {
@@ -4018,3 +3727,5 @@ export class Config implements McpContext, AgentLoopContext {
     }
   }
 }
+// Export model constants for use in CLI
+export { DEFAULT_GEMINI_FLASH_MODEL };

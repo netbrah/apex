@@ -71,28 +71,15 @@ import {
 import { Storage } from './storage.js';
 import type { AgentLoopContext } from './agent-loop-context.js';
 
-function createToolMock(toolName: string) {
-  const ToolMock = vi.fn();
-  Object.defineProperty(ToolMock, 'Name', {
-    value: toolName,
-    writable: true,
-  });
-  return ToolMock;
-}
-
-vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs')>();
-  const mocked = {
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
     ...actual,
     existsSync: vi.fn().mockReturnValue(true),
     statSync: vi.fn().mockReturnValue({
       isDirectory: vi.fn().mockReturnValue(true),
     }),
     realpathSync: vi.fn((path) => path),
-  };
-  return {
-    ...mocked,
-    default: mocked, // Required for ESM default imports (import fs from 'node:fs')
   };
 });
 
@@ -104,7 +91,6 @@ vi.mock('../tools/tool-registry', () => {
   ToolRegistryMock.prototype.discoverAllTools = vi.fn();
   ToolRegistryMock.prototype.sortTools = vi.fn();
   ToolRegistryMock.prototype.getAllTools = vi.fn(() => []); // Mock methods if needed
-  ToolRegistryMock.prototype.getAllToolNames = vi.fn(() => []);
   ToolRegistryMock.prototype.getTool = vi.fn();
   ToolRegistryMock.prototype.getAllToolNames = vi.fn(() => []);
   ToolRegistryMock.prototype.getFunctionDeclarations = vi.fn(() => []);
@@ -120,9 +106,7 @@ vi.mock('../tools/mcp-client-manager.js', () => ({
 }));
 
 vi.mock('../utils/memoryDiscovery.js', () => ({
-  loadServerHierarchicalMemory: vi
-    .fn()
-    .mockResolvedValue({ memoryContent: '', fileCount: 0 }),
+  loadServerHierarchicalMemory: vi.fn(),
 }));
 
 // Mock individual tools if their constructors are complex or have side effects
@@ -140,7 +124,7 @@ vi.mock('../tools/write-file');
 vi.mock('../tools/web-fetch');
 vi.mock('../tools/read-many-files');
 vi.mock('../tools/memoryTool', () => ({
-  MemoryTool: createToolMock('save_memory'),
+  MemoryTool: vi.fn(),
   setGeminiMdFilename: vi.fn(),
   getCurrentGeminiMdFilename: vi.fn(() => 'APEX.md'), // Mock the original filename
   DEFAULT_CONTEXT_FILENAME: 'APEX.md',
@@ -277,7 +261,7 @@ describe('Server Config (config.ts)', () => {
   const MODEL = DEFAULT_GEMINI_MODEL;
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'apex-sandbox',
+    image: 'gemini-cli-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -285,6 +269,7 @@ describe('Server Config (config.ts)', () => {
   const USER_MEMORY = 'Test User Memory';
   const TELEMETRY_SETTINGS = { enabled: false };
   const EMBEDDING_MODEL = 'gemini-embedding';
+  const SESSION_ID = 'test-session-id';
   const baseParams: ConfigParameters = {
     cwd: '/tmp',
     embeddingModel: EMBEDDING_MODEL,
@@ -294,9 +279,9 @@ describe('Server Config (config.ts)', () => {
     question: QUESTION,
     userMemory: USER_MEMORY,
     telemetry: TELEMETRY_SETTINGS,
+    sessionId: SESSION_ID,
     model: MODEL,
     usageStatisticsEnabled: false,
-    overrideExtensions: [],
   };
 
   describe('maxAttempts', () => {
@@ -1283,7 +1268,7 @@ describe('Server Config (config.ts)', () => {
     it('should register a tool if coreTools contains an argument-specific pattern', async () => {
       const params: ConfigParameters = {
         ...baseParams,
-        coreTools: ['Shell(git status)'], // Use display name instead of class name
+        coreTools: ['ShellTool(git status)'],
       };
       const config = new Config(params);
       await config.initialize();
@@ -1675,7 +1660,7 @@ describe('GemmaModelRouterSettings', () => {
   const MODEL = DEFAULT_GEMINI_MODEL;
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'apex-sandbox',
+    image: 'gemini-cli-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -1787,7 +1772,6 @@ describe('setApprovalMode with folder trust', () => {
     expect(() => config.setApprovalMode(ApprovalMode.YOLO)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.AUTO_EDIT)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.DEFAULT)).not.toThrow();
-    expect(() => config.setApprovalMode(ApprovalMode.PLAN)).not.toThrow();
   });
 
   it('should NOT throw an error when setting any mode if trustedFolder is undefined', () => {
@@ -1796,420 +1780,6 @@ describe('setApprovalMode with folder trust', () => {
     expect(() => config.setApprovalMode(ApprovalMode.YOLO)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.AUTO_EDIT)).not.toThrow();
     expect(() => config.setApprovalMode(ApprovalMode.DEFAULT)).not.toThrow();
-    expect(() => config.setApprovalMode(ApprovalMode.PLAN)).not.toThrow();
-  });
-
-  describe('registerCoreTools', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
-    it('should register RipGrepTool when useRipgrep is true and it is available', async () => {
-      (canUseRipgrep as Mock).mockResolvedValue(true);
-      const config = new Config({ ...baseParams, useRipgrep: true });
-      await config.initialize();
-
-      const calls = (ToolRegistry.prototype.registerTool as Mock).mock.calls;
-      const wasRipGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(RipGrepTool),
-      );
-      const wasGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(GrepTool),
-      );
-
-      expect(wasRipGrepRegistered).toBe(true);
-      expect(wasGrepRegistered).toBe(false);
-      expect(canUseRipgrep).toHaveBeenCalledWith(true);
-    });
-
-    it('should register RipGrepTool with system ripgrep when useBuiltinRipgrep is false', async () => {
-      (canUseRipgrep as Mock).mockResolvedValue(true);
-      const config = new Config({
-        ...baseParams,
-        useRipgrep: true,
-        useBuiltinRipgrep: false,
-      });
-      await config.initialize();
-
-      const calls = (ToolRegistry.prototype.registerTool as Mock).mock.calls;
-      const wasRipGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(RipGrepTool),
-      );
-      const wasGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(GrepTool),
-      );
-
-      expect(wasRipGrepRegistered).toBe(true);
-      expect(wasGrepRegistered).toBe(false);
-      expect(canUseRipgrep).toHaveBeenCalledWith(false);
-    });
-
-    it('should fall back to GrepTool and log error when useBuiltinRipgrep is false but system ripgrep is not available', async () => {
-      (canUseRipgrep as Mock).mockResolvedValue(false);
-      const config = new Config({
-        ...baseParams,
-        useRipgrep: true,
-        useBuiltinRipgrep: false,
-      });
-      await config.initialize();
-
-      const calls = (ToolRegistry.prototype.registerTool as Mock).mock.calls;
-      const wasRipGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(RipGrepTool),
-      );
-      const wasGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(GrepTool),
-      );
-
-      expect(wasRipGrepRegistered).toBe(false);
-      expect(wasGrepRegistered).toBe(true);
-      expect(canUseRipgrep).toHaveBeenCalledWith(false);
-      expect(logRipgrepFallback).toHaveBeenCalledWith(
-        config,
-        expect.any(RipgrepFallbackEvent),
-      );
-      const event = (logRipgrepFallback as Mock).mock.calls[0][1];
-      expect(event.error).toContain('ripgrep is not available');
-    });
-
-    it('should fall back to GrepTool and log error when useRipgrep is true and builtin ripgrep is not available', async () => {
-      (canUseRipgrep as Mock).mockResolvedValue(false);
-      const config = new Config({ ...baseParams, useRipgrep: true });
-      await config.initialize();
-
-      const calls = (ToolRegistry.prototype.registerTool as Mock).mock.calls;
-      const wasRipGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(RipGrepTool),
-      );
-      const wasGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(GrepTool),
-      );
-
-      expect(wasRipGrepRegistered).toBe(false);
-      expect(wasGrepRegistered).toBe(true);
-      expect(canUseRipgrep).toHaveBeenCalledWith(true);
-      expect(logRipgrepFallback).toHaveBeenCalledWith(
-        config,
-        expect.any(RipgrepFallbackEvent),
-      );
-      const event = (logRipgrepFallback as Mock).mock.calls[0][1];
-      expect(event.error).toContain('ripgrep is not available');
-    });
-
-    it('should fall back to GrepTool and log error when canUseRipgrep throws an error', async () => {
-      const error = new Error('ripGrep check failed');
-      (canUseRipgrep as Mock).mockRejectedValue(error);
-      const config = new Config({ ...baseParams, useRipgrep: true });
-      await config.initialize();
-
-      const calls = (ToolRegistry.prototype.registerTool as Mock).mock.calls;
-      const wasRipGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(RipGrepTool),
-      );
-      const wasGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(GrepTool),
-      );
-
-      expect(wasRipGrepRegistered).toBe(false);
-      expect(wasGrepRegistered).toBe(true);
-      expect(logRipgrepFallback).toHaveBeenCalledWith(
-        config,
-        expect.any(RipgrepFallbackEvent),
-      );
-      const event = (logRipgrepFallback as Mock).mock.calls[0][1];
-      expect(event.error).toBe(`ripGrep check failed`);
-    });
-
-    it('should register GrepTool when useRipgrep is false', async () => {
-      const config = new Config({ ...baseParams, useRipgrep: false });
-      await config.initialize();
-
-      const calls = (ToolRegistry.prototype.registerTool as Mock).mock.calls;
-      const wasRipGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(RipGrepTool),
-      );
-      const wasGrepRegistered = calls.some(
-        (call) => call[0] instanceof vi.mocked(GrepTool),
-      );
-
-      expect(wasRipGrepRegistered).toBe(false);
-      expect(wasGrepRegistered).toBe(true);
-      expect(canUseRipgrep).not.toHaveBeenCalled();
-    });
-  });
-});
-
-describe('BaseLlmClient Lifecycle', () => {
-  const MODEL = 'gemini-pro';
-  const SANDBOX: SandboxConfig = {
-    command: 'docker',
-    image: 'apex-sandbox',
-  };
-  const TARGET_DIR = '/path/to/target';
-  const DEBUG_MODE = false;
-  const QUESTION = 'test question';
-  const USER_MEMORY = 'Test User Memory';
-  const TELEMETRY_SETTINGS = { enabled: false };
-  const EMBEDDING_MODEL = 'gemini-embedding';
-  const baseParams: ConfigParameters = {
-    cwd: '/tmp',
-    embeddingModel: EMBEDDING_MODEL,
-    sandbox: SANDBOX,
-    targetDir: TARGET_DIR,
-    debugMode: DEBUG_MODE,
-    question: QUESTION,
-    userMemory: USER_MEMORY,
-    telemetry: TELEMETRY_SETTINGS,
-    model: MODEL,
-    usageStatisticsEnabled: false,
-  };
-
-  it('should throw an error if getBaseLlmClient is called before refreshAuth', () => {
-    const config = new Config(baseParams);
-    expect(() => config.getBaseLlmClient()).toThrow(
-      'BaseLlmClient not initialized. Ensure authentication has occurred and ContentGenerator is ready.',
-    );
-  });
-
-  it('should successfully initialize BaseLlmClient after refreshAuth is called', async () => {
-    const config = new Config(baseParams);
-    const authType = AuthType.USE_GEMINI;
-    const mockContentConfig = { model: 'gemini-flash', apiKey: 'test-key' };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: mockContentConfig,
-      sources: {},
-    });
-
-    await config.refreshAuth(authType);
-
-    // Should not throw
-    const llmService = config.getBaseLlmClient();
-    expect(llmService).toBeDefined();
-    expect(BaseLlmClient).toHaveBeenCalledWith(
-      config.getContentGenerator(),
-      config,
-    );
-  });
-});
-
-describe('Model Switching and Config Updates', () => {
-  const baseParams: ConfigParameters = {
-    cwd: '/tmp',
-    targetDir: '/path/to/target',
-    debugMode: false,
-    model: 'qwen3-coder-plus',
-    usageStatisticsEnabled: false,
-    telemetry: { enabled: false },
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should update contextWindowSize when switching models with hot-update', async () => {
-    const config = new Config(baseParams);
-
-    // Initialize with first model
-    const initialConfig: ContentGeneratorConfig = {
-      ['model']: 'qwen3-coder-plus',
-      ['authType']: AuthType.USE_OPENAI,
-      ['apiKey']: 'test-key',
-      ['contextWindowSize']: 1_000_000,
-      ['samplingParams']: { temperature: 0.7 },
-      ['enableCacheControl']: true,
-    };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: initialConfig,
-      sources: {
-        model: { kind: 'settings' },
-        contextWindowSize: { kind: 'computed', detail: 'auto' },
-      },
-    });
-
-    await config.refreshAuth(AuthType.USE_OPENAI);
-
-    // Verify initial config
-    const contentGenConfig = config.getContentGeneratorConfig();
-    expect(contentGenConfig['model']).toBe('qwen3-coder-plus');
-    expect(contentGenConfig['contextWindowSize']).toBe(1_000_000);
-
-    // Switch to a different model with different token limits
-    const newConfig: ContentGeneratorConfig = {
-      ['model']: 'qwen-max',
-      ['authType']: AuthType.USE_OPENAI,
-      ['apiKey']: 'test-key',
-      ['contextWindowSize']: 128_000,
-      ['samplingParams']: { temperature: 0.8 },
-      ['enableCacheControl']: false,
-    };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: newConfig,
-      sources: {
-        model: { kind: 'programmatic', detail: 'user' },
-        contextWindowSize: { kind: 'computed', detail: 'auto' },
-        samplingParams: { kind: 'settings' },
-        enableCacheControl: { kind: 'settings' },
-      },
-    });
-
-    // Simulate model switch (this would be called by ModelsConfig.switchModel)
-    await (
-      config as unknown as {
-        handleModelChange: (
-          authType: AuthType,
-          requiresRefresh: boolean,
-        ) => Promise<void>;
-      }
-    ).handleModelChange(AuthType.USE_OPENAI, false);
-
-    // Verify all fields are updated
-    const updatedConfig = config.getContentGeneratorConfig();
-    expect(updatedConfig['model']).toBe('qwen-max');
-    expect(updatedConfig['contextWindowSize']).toBe(128_000);
-    expect(updatedConfig['samplingParams']?.temperature).toBe(0.8);
-    expect(updatedConfig['enableCacheControl']).toBe(false);
-
-    // Verify sources are also updated
-    const sources = config.getContentGeneratorConfigSources();
-    expect(sources['model']?.kind).toBe('programmatic');
-    expect(sources['model']?.detail).toBe('user');
-    expect(sources['contextWindowSize']?.kind).toBe('computed');
-    expect(sources['contextWindowSize']?.detail).toBe('auto');
-    expect(sources['samplingParams']?.kind).toBe('settings');
-    expect(sources['enableCacheControl']?.kind).toBe('settings');
-  });
-
-  it('should trigger full refresh when switching to different auth provider', async () => {
-    const config = new Config(baseParams);
-
-    // Initialize with USE_OPENAI
-    const initialConfig: ContentGeneratorConfig = {
-      ['model']: 'qwen3-coder-plus',
-      ['authType']: AuthType.USE_OPENAI,
-      ['apiKey']: 'test-key',
-      ['contextWindowSize']: 1_000_000,
-    };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: initialConfig,
-      sources: {},
-    });
-
-    await config.refreshAuth(AuthType.USE_OPENAI);
-
-    // Switch to different auth type (should trigger full refresh)
-    const newConfig: ContentGeneratorConfig = {
-      ['model']: 'gemini-flash',
-      ['authType']: AuthType.USE_GEMINI,
-      ['apiKey']: 'gemini-key',
-      ['contextWindowSize']: 32_000,
-    };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: newConfig,
-      sources: {},
-    });
-
-    const refreshAuthSpy = vi.spyOn(
-      config as unknown as {
-        refreshAuth: (authType: AuthType) => Promise<void>;
-      },
-      'refreshAuth',
-    );
-
-    // Simulate model switch with different auth type
-    await (
-      config as unknown as {
-        handleModelChange: (
-          authType: AuthType,
-          requiresRefresh: boolean,
-        ) => Promise<void>;
-      }
-    ).handleModelChange(AuthType.USE_GEMINI, true);
-
-    // Verify refreshAuth was called (full refresh path)
-    expect(refreshAuthSpy).toHaveBeenCalledWith(AuthType.USE_GEMINI);
-  });
-
-  it('should handle model switch when contextWindowSize is undefined', async () => {
-    const config = new Config(baseParams);
-
-    // Initialize with config that has undefined token limits
-    const initialConfig: ContentGeneratorConfig = {
-      ['model']: 'qwen3-coder-plus',
-      ['authType']: AuthType.USE_OPENAI,
-      ['apiKey']: 'test-key',
-      ['contextWindowSize']: undefined,
-    };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: initialConfig,
-      sources: {},
-    });
-
-    await config.refreshAuth(AuthType.USE_OPENAI);
-
-    // Switch to model with defined limits
-    const newConfig: ContentGeneratorConfig = {
-      ['model']: 'qwen-max',
-      ['authType']: AuthType.USE_OPENAI,
-      ['apiKey']: 'test-key',
-      ['contextWindowSize']: 128_000,
-    };
-
-    vi.mocked(resolveContentGeneratorConfigWithSources).mockReturnValue({
-      config: newConfig,
-      sources: {},
-    });
-
-    await (
-      config as unknown as {
-        handleModelChange: (
-          authType: AuthType,
-          requiresRefresh: boolean,
-        ) => Promise<void>;
-      }
-    ).handleModelChange(AuthType.USE_OPENAI, false);
-
-    // Verify limits are now defined
-    const updatedConfig = config.getContentGeneratorConfig();
-    expect(updatedConfig['contextWindowSize']).toBe(128_000);
-  });
-
-  describe('hasHooksForEvent', () => {
-    it('should return false when hookSystem is not initialized', () => {
-      const config = new Config(baseParams);
-      expect(config.hasHooksForEvent('Stop')).toBe(false);
-    });
-
-    it('should delegate to hookSystem.hasHooksForEvent when hookSystem exists', () => {
-      const config = new Config(baseParams);
-      const mockHasHooksForEvent = vi.fn().mockReturnValue(true);
-      const mockHookSystem = {
-        hasHooksForEvent: mockHasHooksForEvent,
-      };
-      // @ts-expect-error - accessing private for testing
-      config['hookSystem'] = mockHookSystem;
-
-      expect(config.hasHooksForEvent('UserPromptSubmit')).toBe(true);
-      expect(mockHasHooksForEvent).toHaveBeenCalledWith('UserPromptSubmit');
-    });
-
-    it('should return false when hookSystem has no hooks for the event', () => {
-      const config = new Config(baseParams);
-      const mockHasHooksForEvent = vi.fn().mockReturnValue(false);
-      const mockHookSystem = {
-        hasHooksForEvent: mockHasHooksForEvent,
-      };
-      // @ts-expect-error - accessing private for testing
-      config['hookSystem'] = mockHookSystem;
-
-      expect(config.hasHooksForEvent('Stop')).toBe(false);
-      expect(mockHasHooksForEvent).toHaveBeenCalledWith('Stop');
-    });
   });
 
   it('should update system instruction when entering Plan mode', () => {
@@ -2476,7 +2046,7 @@ describe('BaseLlmClient Lifecycle', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'apex-sandbox',
+    image: 'gemini-cli-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -2531,7 +2101,7 @@ describe('Generation Config Merging (HACK)', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'apex-sandbox',
+    image: 'gemini-cli-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -2837,7 +2407,7 @@ describe('LocalLiteRtLmClient Lifecycle', () => {
   const MODEL = 'gemini-pro';
   const SANDBOX: SandboxConfig = createMockSandboxConfig({
     command: 'docker',
-    image: 'apex-sandbox',
+    image: 'gemini-cli-sandbox',
   });
   const TARGET_DIR = '/path/to/target';
   const DEBUG_MODE = false;
@@ -3157,7 +2727,7 @@ describe('Config Quota & Preview Model Access', () => {
       allowedPaths: [],
       networkAccess: false,
       command: 'docker',
-      image: 'apex-sandbox',
+      image: 'gemini-cli-sandbox',
     },
   };
 

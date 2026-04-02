@@ -13,12 +13,9 @@ import {
   afterEach,
   type Mock,
 } from 'vitest';
-import type { Content } from '@google/genai';
 import {
   getEnvironmentContext,
   getDirectoryContextString,
-  getInitialChatHistory,
-  stripStartupContext,
 } from './environmentContext.js';
 import type { Config } from '../config/config.js';
 import type { Storage } from '../config/storage.js';
@@ -79,6 +76,7 @@ describe('getDirectoryContextString', () => {
 
 describe('getEnvironmentContext', () => {
   let mockConfig: Partial<Config>;
+  let mockToolRegistry: { getTool: Mock };
 
   beforeEach(() => {
     mockToolRegistry = {
@@ -148,17 +146,13 @@ describe('getEnvironmentContext', () => {
     expect(context).toContain('</session_context>');
     expect(getFolderStructure).toHaveBeenCalledTimes(2);
   });
-});
 
   it('should omit directory structure when getIncludeDirectoryTree is false', async () => {
     (vi.mocked(mockConfig.getIncludeDirectoryTree!) as Mock).mockReturnValue(
       false,
     );
 
-  afterEach(() => {
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
-  });
+    const parts = await getEnvironmentContext(mockConfig as Config);
 
     expect(parts.length).toBe(1);
     const context = parts[0].text;
@@ -213,7 +207,7 @@ describe('getEnvironmentContext', () => {
     };
     mockToolRegistry.getTool.mockReturnValue(mockReadManyFilesTool);
 
-    const history = await getInitialChatHistory(mockConfig as Config);
+    const parts = await getEnvironmentContext(mockConfig as Config);
 
     expect(parts.length).toBe(1); // No extra part added
   });

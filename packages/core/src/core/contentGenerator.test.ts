@@ -20,6 +20,7 @@ import { FakeContentGenerator } from './fakeContentGenerator.js';
 import { RecordingContentGenerator } from './recordingContentGenerator.js';
 import { resetVersionCache } from '../utils/version.js';
 
+vi.mock('../code_assist/codeAssist.js');
 vi.mock('@google/genai');
 vi.mock('./apiKeyCredentialStorage.js', () => ({
   loadApiKey: vi.fn(),
@@ -461,7 +462,7 @@ describe('createContentGenerator', () => {
     );
   });
 
-  it('should create a Gemini content generator with client install id logging disabled', async () => {
+  it('should create a GoogleGenAI content generator with client install id logging disabled', async () => {
     const mockConfig = {
       getModel: vi.fn().mockReturnValue('gemini-pro'),
       getUsageStatisticsEnabled: () => false,

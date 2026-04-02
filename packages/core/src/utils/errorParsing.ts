@@ -13,8 +13,10 @@ const RATE_LIMIT_ERROR_MESSAGE_USE_GEMINI =
   '\nPlease wait and try again later. To increase your limits, request a quota increase through AI Studio, or switch to another /auth method';
 const RATE_LIMIT_ERROR_MESSAGE_VERTEX =
   '\nPlease wait and try again later. To increase your limits, request a quota increase through Vertex, or switch to another /auth method';
-const RATE_LIMIT_ERROR_MESSAGE_DEFAULT =
-  '\nPossible quota limitations in place or slow response times detected. Please wait and try again later.';
+const getRateLimitErrorMessageDefault = (
+  fallbackModel: string = DEFAULT_GEMINI_FLASH_MODEL,
+) =>
+  `\nPossible quota limitations in place or slow response times detected. Switching to the ${fallbackModel} model for the rest of this session.`;
 
 function getRateLimitMessage(
   authType?: AuthType,
@@ -26,13 +28,16 @@ function getRateLimitMessage(
     case AuthType.USE_VERTEX_AI:
       return RATE_LIMIT_ERROR_MESSAGE_VERTEX;
     default:
-      return RATE_LIMIT_ERROR_MESSAGE_DEFAULT;
+      return getRateLimitErrorMessageDefault(fallbackModel);
   }
 }
 
 export function parseAndFormatApiError(
   error: unknown,
   authType?: AuthType,
+  userTier?: UserTierId,
+  currentModel?: string,
+  fallbackModel?: string,
 ): string {
   if (isStructuredError(error)) {
     let text = `[API Error: ${error.message}]`;
@@ -64,10 +69,7 @@ export function parseAndFormatApiError(
         } catch {
           // It's not a nested JSON error, so we just use the message as is.
         }
-        const statusText = parsedError.error.status
-          ? ` (Status: ${parsedError.error.status})`
-          : '';
-        let text = `[API Error: ${finalMessage}${statusText}]`;
+        let text = `[API Error: ${finalMessage} (Status: ${parsedError.error.status})]`;
         if (parsedError.error.code === 429) {
           text += getRateLimitMessage(authType, fallbackModel);
         }

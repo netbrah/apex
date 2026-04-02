@@ -7,22 +7,25 @@
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/QwenLM/qwen-code.git",
+    "url": "https://github.com/netbrah/apex.git",
     "directory": "packages/vscode-ide-companion"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.99.0"
   },
   "license": "LICENSE",
   "preview": true,
   "categories": [
-    "Other"
+    "AI"
   ],
   "keywords": [
-    "apex",
-    "ontap",
-    "chat viewer",
-    "session browser"
+    "gemini-cli",
+    "gemini cli",
+    "gemini",
+    "gemini code",
+    "cli",
+    "ide integration",
+    "ide companion"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -45,51 +48,58 @@
     ],
     "commands": [
       {
-        "command": "apex.openFile",
-        "title": "Apex: Open File",
-        "icon": "$(go-to-file)"
+        "command": "gemini.diff.accept",
+        "title": "Gemini CLI: Accept Diff",
+        "icon": "$(check)"
       },
       {
-        "command": "apex.openSession",
-        "title": "Apex: Open Chat Session",
-        "icon": "$(comment-discussion)"
+        "command": "gemini.diff.cancel",
+        "title": "Gemini CLI: Close Diff Editor",
+        "icon": "$(close)"
       },
       {
-        "command": "apex.refresh",
-        "title": "Apex: Refresh",
-        "icon": "$(refresh)"
+        "command": "gemini-cli.runGeminiCLI",
+        "title": "Gemini CLI: Run"
       },
       {
-        "command": "apex.revealInFinder",
-        "title": "Reveal in Finder",
-        "icon": "$(folder-opened)"
+        "command": "gemini-cli.showNotices",
+        "title": "Gemini CLI: View Third-Party Notices"
       }
     ],
     "menus": {
-      "view/title": [
+      "commandPalette": [
         {
-          "command": "apex.refresh",
-          "when": "view == apex.explorer",
-          "group": "navigation"
+          "command": "gemini.diff.accept",
+          "when": "gemini.diff.isVisible"
+        },
+        {
+          "command": "gemini.diff.cancel",
+          "when": "gemini.diff.isVisible"
         }
       ],
-      "view/item/context": [
+      "editor/title": [
         {
-          "command": "apex.revealInFinder",
-          "when": "view == apex.explorer && viewItem == folder",
+          "command": "gemini.diff.accept",
+          "when": "gemini.diff.isVisible",
           "group": "navigation"
         },
         {
-          "command": "apex.revealInFinder",
-          "when": "view == apex.explorer && viewItem == file",
+          "command": "gemini.diff.cancel",
+          "when": "gemini.diff.isVisible",
           "group": "navigation"
         }
       ]
     },
-    "jsonValidation": [
+    "keybindings": [
       {
-        "fileMatch": "**/.apex/settings.json",
-        "url": "./schemas/settings.schema.json"
+        "command": "gemini.diff.accept",
+        "key": "ctrl+s",
+        "when": "gemini.diff.isVisible"
+      },
+      {
+        "command": "gemini.diff.accept",
+        "key": "cmd+s",
+        "when": "gemini.diff.isVisible"
       }
     ]
   },
@@ -113,6 +123,8 @@
     "validate:notices": "node ./scripts/validate-notices.js"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "20.x",
     "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.31.1",

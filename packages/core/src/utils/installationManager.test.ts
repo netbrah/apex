@@ -62,7 +62,7 @@ describe('InstallationManager', () => {
 
   beforeEach(() => {
     tempHomeDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'apex-test-home-'),
+      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
     );
     (pathsHomedir as Mock).mockReturnValue(tempHomeDir);
     (os.homedir as Mock).mockReturnValue(tempHomeDir);

@@ -21,7 +21,6 @@ import {
 } from '@apex-code/apex-core';
 import type { Settings } from './settings.js';
 import stripJsonComments from 'strip-json-comments';
-import { writeStderrLine } from '../utils/stdioHelpers.js';
 
 const { promises: fsPromises } = fs;
 

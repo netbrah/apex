@@ -27,14 +27,6 @@ import type {
 
 // Grouped dependencies for clarity and easier mocking
 export interface CommandContext {
-  /**
-   * Execution mode for the current invocation.
-   *
-   * - interactive: React/Ink UI mode
-   * - non_interactive: non-interactive CLI mode (text/json)
-   * - acp: ACP/Zed integration mode
-   */
-  executionMode?: 'interactive' | 'non_interactive' | 'acp';
   // Invocation properties for when commands are called.
   invocation?: {
     /** The raw, untrimmed input string from the user. */
@@ -50,7 +42,7 @@ export interface CommandContext {
     agentContext: AgentLoopContext | null;
     settings: LoadedSettings;
     git: GitService | undefined;
-    logger: Logger | null;
+    logger: Logger;
   };
   // UI state and history management
   ui: {
@@ -71,14 +63,6 @@ export interface CommandContext {
      * @param item The history item to display as pending, or `null` to clear.
      */
     setPendingItem: (item: HistoryItemWithoutId | null) => void;
-    /** The current btw side-question item rendered in the fixed bottom area. */
-    btwItem: HistoryItemBtw | null;
-    /** Sets the btw item independently of the main pendingItem. */
-    setBtwItem: (item: HistoryItemBtw | null) => void;
-    /** Cancels a pending btw (aborts the in-flight API call and clears the btw area). */
-    cancelBtw: () => void;
-    /** Ref to the btw AbortController, set by btwCommand so cancelBtw can abort it. */
-    btwAbortControllerRef: MutableRefObject<AbortController | null>;
     /**
      * Loads a new set of history items, replacing the current history.
      *
@@ -114,13 +98,9 @@ export interface CommandContext {
     stats: SessionStatsState;
     /** A transient list of shell commands the user has approved for this session. */
     sessionShellAllowlist: Set<string>;
-    /** Reset session metrics and prompt counters for a fresh session. */
-    startNewSession?: (sessionId: string) => void;
   };
   // Flag to indicate if an overwrite has been confirmed
   overwriteConfirmed?: boolean;
-  /** Abort signal for cancelling long-running slash command operations via ESC. */
-  abortSignal?: AbortSignal;
 }
 
 /** The return type for a command action that results in the app quitting. */

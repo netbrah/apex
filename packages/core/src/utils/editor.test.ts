@@ -353,7 +353,6 @@ describe('editor utils', () => {
       'windsurf',
       'cursor',
       'zed',
-      'trae',
     ];
 
     for (const editor of guiEditors) {
@@ -545,7 +544,6 @@ describe('editor utils', () => {
       'windsurf',
       'cursor',
       'zed',
-      'trae',
     ];
     for (const editor of guiEditors) {
       it(`should not allow ${editor} in sandbox mode`, () => {

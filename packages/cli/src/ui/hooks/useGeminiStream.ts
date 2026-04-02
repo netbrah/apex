@@ -7,17 +7,14 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   GeminiEventType as ServerGeminiEventType,
-  SendMessageType,
-  createDebugLogger,
   getErrorMessage,
   isNodeError,
   MessageSenderType,
   logUserPrompt,
-  logUserRetry,
   GitService,
   UnauthorizedError,
   UserPromptEvent,
-  UserRetryEvent,
+  DEFAULT_GEMINI_FLASH_MODEL,
   logConversationFinishedEvent,
   ConversationFinishedEvent,
   ApprovalMode,
@@ -264,13 +261,9 @@ export const useGeminiStream = (
   const [_isFirstToolInGroup, isFirstToolInGroupRef, setIsFirstToolInGroup] =
     useStateAndRef<boolean>(true);
   const processedMemoryToolsRef = useRef<Set<string>>(new Set());
-  const {
-    startNewPrompt,
-    getPromptCount,
-    stats: sessionStates,
-  } = useSessionStats();
+  const { startNewPrompt, getPromptCount } = useSessionStats();
   const storage = config.storage;
-  const logger = useLogger(storage, sessionStates.sessionId);
+  const logger = useLogger(storage);
   const gitService = useMemo(() => {
     if (!config.getProjectRoot()) {
       return;
@@ -1011,13 +1004,6 @@ export const useGeminiStream = (
           return { queryToSend: null, shouldProceed: false };
         }
 
-        localQueryToSendToGemini = trimmedQuery;
-
-        addItem(
-          { type: MessageType.USER, text: trimmedQuery },
-          userMessageTimestamp,
-        );
-
         // Handle @-commands (which might involve tool calls)
         if (isAtCommand(trimmedQuery)) {
           // Add user's turn before @ command processing for correct UI ordering.
@@ -1029,6 +1015,7 @@ export const useGeminiStream = (
           const atCommandResult = await handleAtCommand({
             query: trimmedQuery,
             config,
+            addItem,
             onDebugMessage,
             messageId: userMessageTimestamp,
             signal: abortSignal,
@@ -1039,6 +1026,13 @@ export const useGeminiStream = (
             return { queryToSend: null, shouldProceed: false };
           }
           localQueryToSendToGemini = atCommandResult.processedQuery;
+        } else {
+          // Normal query for Gemini
+          addItem(
+            { type: MessageType.USER, text: trimmedQuery },
+            userMessageTimestamp,
+          );
+          localQueryToSendToGemini = trimmedQuery;
         }
       } else {
         // It's a function response (PartListUnion that isn't a string)
@@ -1151,8 +1145,6 @@ export const useGeminiStream = (
       if (turnCancelledRef.current) {
         return;
       }
-
-      lastPromptErroredRef.current = false;
       if (pendingHistoryItemRef.current) {
         if (pendingHistoryItemRef.current.type === 'tool_group') {
           const updatedTools = pendingHistoryItemRef.current.tools.map(
@@ -1179,7 +1171,6 @@ export const useGeminiStream = (
         { type: MessageType.INFO, text: 'User cancelled the request.' },
         userMessageTimestamp,
       );
-      clearRetryCountdown();
       setIsResponding(false);
       setThought(null); // Reset thought when user cancels
     },
@@ -1205,6 +1196,9 @@ export const useGeminiStream = (
           text: parseAndFormatApiError(
             eventValue.error,
             config.getContentGeneratorConfig()?.authType,
+            undefined,
+            config.getModel(),
+            DEFAULT_GEMINI_FLASH_MODEL,
           ),
         },
         userMessageTimestamp,
@@ -1283,12 +1277,8 @@ export const useGeminiStream = (
           userMessageTimestamp,
         );
       }
-      // Only clear auto-retry countdown errors (those with active timer)
-      if (retryCountdownTimerRef.current) {
-        clearRetryCountdown();
-      }
     },
-    [addItem, clearRetryCountdown],
+    [addItem],
   );
 
   const handleChatCompressionEvent = useCallback(
@@ -1461,7 +1451,6 @@ export const useGeminiStream = (
       signal: AbortSignal,
     ): Promise<StreamProcessingStatus> => {
       let geminiMessageBuffer = '';
-      let thoughtBuffer = '';
       const toolCallRequests: ToolCallRequestInfo[] = [];
       for await (const event of stream) {
         if (
@@ -1583,7 +1572,7 @@ export const useGeminiStream = (
   const submitQuery = useCallback(
     async (
       query: PartListUnion,
-      submitType: SendMessageType = SendMessageType.UserQuery,
+      options?: { isContinuation: boolean },
       prompt_id?: string,
     ) =>
       runInDevTraceSpan(
@@ -2012,9 +2001,6 @@ export const useGeminiStream = (
             role: 'user',
             parts: combinedParts,
           });
-
-          // Report cancellation to arena (safety net — cancelOngoingRequest
-          config.getArenaAgentClient()?.reportCancelled();
         }
 
         const callIdsToMarkAsSubmitted = geminiTools.map(

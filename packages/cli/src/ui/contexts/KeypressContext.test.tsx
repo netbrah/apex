@@ -625,7 +625,7 @@ describe('KeypressContext', () => {
 
       act(() => result.current.subscribe(keyHandler));
 
-      // Send a kitty sequence - should work without debug logging
+      // Send a kitty sequence
       act(() => {
         stdin.write('\x1b[27u');
       });
@@ -658,7 +658,7 @@ describe('KeypressContext', () => {
       );
     });
 
-    it('should handle kitty sequences when debugKeystrokeLogging is true', async () => {
+    it('should show char codes when debugKeystrokeLogging is true even without debug mode', async () => {
       const keyHandler = vi.fn();
 
       const { result } = await renderHookWithProviders(

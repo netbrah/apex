@@ -630,6 +630,7 @@ class EditToolInvocation
       if (!isNodeError(err) || err.code !== 'ENOENT') {
         throw err;
       }
+      fileExists = false;
     }
 
     const isNewFile = params.old_string === '' && !fileExists;
@@ -739,14 +740,15 @@ class EditToolInvocation
   }
 
   /**
-   * Edit operations always need user confirmation (unless overridden by PM or ApprovalMode).
+   * Handles the confirmation prompt for the Edit tool in the CLI.
+   * It needs to calculate the diff to show the user.
    */
   protected override async getConfirmationDetails(
     abortSignal: AbortSignal,
   ): Promise<ToolCallConfirmationDetails | false> {
     let editData: CalculatedEdit;
     try {
-      editData = await this.calculateEdit(this.params);
+      editData = await this.calculateEdit(this.params, abortSignal);
     } catch (error) {
       if (abortSignal.aborted) {
         throw error;
@@ -791,6 +793,8 @@ class EditToolInvocation
         if (ideConfirmation) {
           const result = await ideConfirmation;
           if (result.status === 'accepted' && result.content) {
+            // TODO(chrstn): See https://github.com/netbrah/apex/pull/5618#discussion_r2255413084
+            // for info on a possible race condition where the file is modified on disk while being edited.
             this.params.old_string = editData.currentContent ?? '';
             this.params.new_string = result.content;
           }
@@ -843,7 +847,7 @@ class EditToolInvocation
 
     let editData: CalculatedEdit;
     try {
-      editData = await this.calculateEdit(this.params);
+      editData = await this.calculateEdit(this.params, signal);
     } catch (error) {
       if (signal.aborted) {
         throw error;
@@ -979,21 +983,6 @@ ${snippet}`);
         llmContent = appendJitContext(llmContent, jitContext);
       }
 
-      const llmSuccessMessageParts = [
-        editData.isNewFile
-          ? `Created new file: ${this.params.file_path} with provided content.`
-          : `The file: ${this.params.file_path} has been updated.`,
-      ];
-
-      const snippetResult = extractEditSnippet(
-        editData.currentContent,
-        editData.newContent,
-      );
-      if (snippetResult) {
-        const snippetText = `Showing lines ${snippetResult.startLine}-${snippetResult.endLine} of ${snippetResult.totalLines} from the edited file:\n\n---\n\n${snippetResult.content}`;
-        llmSuccessMessageParts.push(snippetText);
-      }
-
       return {
         llmContent,
         returnDisplay: displayResult,
@@ -1125,22 +1114,18 @@ export class EditTool
         }
       },
       getProposedContent: async (params: EditToolParams): Promise<string> => {
-        if (fs.existsSync(params.file_path)) {
-          try {
-            const { content: currentContent } = await this.config
-              .getFileSystemService()
-              .readTextFile({ path: params.file_path });
-            return applyReplacement(
-              currentContent,
-              params.old_string,
-              params.new_string,
-              params.old_string === '' && currentContent === '',
-            );
-          } catch (err) {
-            if (!isNodeError(err) || err.code !== 'ENOENT') throw err;
-            return '';
-          }
-        } else {
+        try {
+          const currentContent = await this.config
+            .getFileSystemService()
+            .readTextFile(params.file_path);
+          return applyReplacement(
+            currentContent,
+            params.old_string,
+            params.new_string,
+            params.old_string === '' && currentContent === '',
+          );
+        } catch (err) {
+          if (!isNodeError(err) || err.code !== 'ENOENT') throw err;
           return '';
         }
       },

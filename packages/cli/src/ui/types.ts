@@ -170,16 +170,6 @@ export type HistoryItemGeminiContent = HistoryItemBase & {
   text: string;
 };
 
-export type HistoryItemGeminiThought = HistoryItemBase & {
-  type: 'gemini_thought';
-  text: string;
-};
-
-export type HistoryItemGeminiThoughtContent = HistoryItemBase & {
-  type: 'gemini_thought_content';
-  text: string;
-};
-
 export type HistoryItemInfo = HistoryItemBase & {
   type: 'info';
   text: string;
@@ -191,22 +181,6 @@ export type HistoryItemInfo = HistoryItemBase & {
 
 export type HistoryItemError = HistoryItemBase & {
   type: 'error';
-  text: string;
-  hint?: string; // Optional inline hint (e.g., retry countdown) displayed in secondary color
-};
-
-export type HistoryItemWarning = HistoryItemBase & {
-  type: 'warning';
-  text: string;
-};
-
-export type HistoryItemSuccess = HistoryItemBase & {
-  type: 'success';
-  text: string;
-};
-
-export type HistoryItemRetryCountdown = HistoryItemBase & {
-  type: 'retry_countdown';
   text: string;
 };
 
@@ -410,8 +384,6 @@ export type HistoryItemWithoutId =
   | HistoryItemUserShell
   | HistoryItemGemini
   | HistoryItemGeminiContent
-  | HistoryItemGeminiThought
-  | HistoryItemGeminiThoughtContent
   | HistoryItemInfo
   | HistoryItemError
   | HistoryItemWarning
@@ -439,7 +411,6 @@ export type HistoryItem = HistoryItemWithoutId & { id: number };
 // Message types used by internal command feedback (subset of HistoryItem types)
 export enum MessageType {
   INFO = 'info',
-  SUCCESS = 'success',
   ERROR = 'error',
   WARNING = 'warning',
   USER = 'user',
@@ -510,16 +481,6 @@ export type Message =
   | {
       type: MessageType.COMPRESSION;
       compression: CompressionProps;
-      timestamp: Date;
-    }
-  | {
-      type: MessageType.SUMMARY;
-      summary: SummaryProps;
-      timestamp: Date;
-    }
-  | {
-      type: MessageType.INSIGHT_PROGRESS;
-      progress: InsightProgressProps;
       timestamp: Date;
     };
 

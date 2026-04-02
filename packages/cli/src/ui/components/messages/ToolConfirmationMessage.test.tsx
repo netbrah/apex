@@ -61,7 +61,7 @@ describe('ToolConfirmationMessage', () => {
         config={mockConfig}
         getPreferredEditor={vi.fn()}
         availableTerminalHeight={30}
-        contentWidth={80}
+        terminalWidth={80}
       />,
     );
 
@@ -87,7 +87,7 @@ describe('ToolConfirmationMessage', () => {
         config={mockConfig}
         getPreferredEditor={vi.fn()}
         availableTerminalHeight={30}
-        contentWidth={80}
+        terminalWidth={80}
       />,
     );
 
@@ -267,30 +267,6 @@ describe('ToolConfirmationMessage', () => {
     result.unmount();
   });
 
-  it('should render plan confirmation with markdown plan content', () => {
-    const confirmationDetails: ToolCallConfirmationDetails = {
-      type: 'plan',
-      title: 'Would you like to proceed?',
-      plan: '# Implementation Plan\n- Step one\n- Step two'.replace(/\n/g, EOL),
-      onConfirm: vi.fn(),
-    };
-
-    const { lastFrame } = renderWithProviders(
-      <ToolConfirmationMessage
-        confirmationDetails={confirmationDetails}
-        config={mockConfig}
-        availableTerminalHeight={30}
-        contentWidth={80}
-      />,
-    );
-
-    expect(lastFrame()).toContain('Yes, and auto-accept edits');
-    expect(lastFrame()).toContain('Yes, and manually approve edits');
-    expect(lastFrame()).toContain('No, keep planning');
-    expect(lastFrame()).toContain('Implementation Plan');
-    expect(lastFrame()).toContain('Step one');
-  });
-
   describe('with folder trust', () => {
     const editConfirmationDetails: SerializableConfirmationDetails = {
       type: 'edit',
@@ -344,7 +320,7 @@ describe('ToolConfirmationMessage', () => {
       {
         description: 'for mcp confirmations',
         details: mcpConfirmationDetails,
-        alwaysAllowText: 'Always allow in this project',
+        alwaysAllowText: 'always allow',
       },
     ])('$description', ({ details }) => {
       it('should show "allow always" when folder is trusted', async () => {
@@ -384,7 +360,7 @@ describe('ToolConfirmationMessage', () => {
             config={mockConfig}
             getPreferredEditor={vi.fn()}
             availableTerminalHeight={30}
-            contentWidth={80}
+            terminalWidth={80}
           />,
         );
 

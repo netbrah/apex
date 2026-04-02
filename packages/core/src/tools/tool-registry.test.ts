@@ -32,6 +32,7 @@ import {
   type CallableTool,
 } from '@google/genai';
 import { spawn } from 'node:child_process';
+
 import fs from 'node:fs';
 import { MockTool } from '../test-utils/mock-tool.js';
 import { ToolErrorType } from './tool-error.js';
@@ -218,6 +219,7 @@ const baseConfigParams: ConfigParameters = {
   userMemory: '',
   geminiMdFileCount: 0,
   approvalMode: ApprovalMode.DEFAULT,
+  sessionId: 'test-session-id',
 };
 
 describe('ToolRegistry', () => {

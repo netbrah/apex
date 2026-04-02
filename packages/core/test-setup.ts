@@ -5,8 +5,8 @@
  */
 
 // Unset NO_COLOR environment variable to ensure consistent theme behavior between local and CI test runs
-if (process.env['NO_COLOR'] !== undefined) {
-  delete process.env['NO_COLOR'];
+if (process.env.NO_COLOR !== undefined) {
+  delete process.env.NO_COLOR;
 }
 
 import { setSimulate429 } from './src/utils/testUtils.js';
@@ -15,12 +15,6 @@ import { coreEvents } from './src/utils/events.js';
 
 // Increase max listeners to avoid warnings in large test suites
 coreEvents.setMaxListeners(100);
-
-// Avoid writing per-session debug log files during tests.
-// Unit tests can opt-in by overriding this env var.
-if (process.env['APEX_DEBUG_LOG_FILE'] === undefined) {
-  process.env['APEX_DEBUG_LOG_FILE'] = '0';
-}
 
 // Disable 429 simulation globally for all tests
 setSimulate429(false);

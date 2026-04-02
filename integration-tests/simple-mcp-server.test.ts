@@ -227,9 +227,7 @@ describe.skip('simple-mcp-server', () => {
       args: 'Use the `add` tool to calculate 5+10 and output only the resulting number.',
     });
 
-    const foundToolCall = await rig.waitForToolCall(
-      'mcp__addition-server__add',
-    );
+    const foundToolCall = await rig.waitForToolCall('add');
 
     expect(foundToolCall, 'Expected to find an add tool call').toBeTruthy();
 

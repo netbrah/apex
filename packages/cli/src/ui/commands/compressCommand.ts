@@ -15,14 +15,11 @@ export const compressCommand: SlashCommand = {
   autoExecute: true,
   action: async (context) => {
     const { ui } = context;
-    const executionMode = context.executionMode ?? 'interactive';
-    const abortSignal = context.abortSignal;
-
-    if (executionMode === 'interactive' && ui.pendingItem) {
+    if (ui.pendingItem) {
       ui.addItem(
         {
           type: MessageType.ERROR,
-          text: t('Already compressing, wait for previous request to complete'),
+          text: 'Already compressing, wait for previous request to complete',
         },
         Date.now(),
       );
@@ -39,17 +36,8 @@ export const compressCommand: SlashCommand = {
       },
     };
 
-    const config = context.services.config;
-    const geminiClient = config?.getGeminiClient();
-    if (!config || !geminiClient) {
-      return {
-        type: 'message',
-        messageType: 'error',
-        content: t('Config not loaded.'),
-      };
-    }
-
-    const doCompress = async () => {
+    try {
+      ui.setPendingItem(pendingMessage);
       const promptId = `compress-${Date.now()}`;
       const compressed =
         await context.services.agentContext?.geminiClient?.tryCompressChat(
@@ -69,43 +57,27 @@ export const compressCommand: SlashCommand = {
           } as HistoryItemCompression,
           Date.now(),
         );
-        return;
-      }
-
-      return {
-        type: 'message',
-        messageType: 'info',
-        content: `Context compressed (${compressed.originalTokenCount} -> ${compressed.newTokenCount}).`,
-      };
-    } catch (e) {
-      // If cancelled via ESC, don't show error — cancelSlashCommand already handled UI
-      if (abortSignal?.aborted) {
-        return;
-      }
-      if (executionMode === 'interactive') {
+      } else {
         ui.addItem(
           {
             type: MessageType.ERROR,
-            text: t('Failed to compress chat history: {{error}}', {
-              error: e instanceof Error ? e.message : String(e),
-            }),
+            text: 'Failed to compress chat history.',
           },
           Date.now(),
         );
-        return;
       }
-
-      return {
-        type: 'message',
-        messageType: 'error',
-        content: t('Failed to compress chat history: {{error}}', {
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      };
+    } catch (e) {
+      ui.addItem(
+        {
+          type: MessageType.ERROR,
+          text: `Failed to compress chat history: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        },
+        Date.now(),
+      );
     } finally {
-      if (executionMode === 'interactive') {
-        ui.setPendingItem(null);
-      }
+      ui.setPendingItem(null);
     }
   },
 };

@@ -43,7 +43,7 @@ export const GITHUB_COMMANDS_PATHS = [
 ];
 
 const REPO_DOWNLOAD_URL =
-  'https://raw.githubusercontent.com/google-github-actions/run-apex';
+  'https://raw.githubusercontent.com/google-github-actions/run-gemini-cli';
 const SOURCE_DIR = 'examples/workflows';
 // Generate OS-specific commands to open the GitHub pages needed for setup.
 function getOpenUrlsCommands(readmeUrl: string): string[] {
@@ -65,7 +65,7 @@ function getOpenUrlsCommands(readmeUrl: string): string[] {
   return commands;
 }
 
-// Add Apex specific entries to .gitignore file
+// Add Gemini CLI specific entries to .gitignore file
 export async function updateGitignore(gitRepoRoot: string): Promise<void> {
   const gitignoreEntries = ['.apex/', 'gha-creds-*.json'];
 
@@ -206,9 +206,7 @@ async function downloadSetupFiles({
 
 export const setupGithubCommand: SlashCommand = {
   name: 'setup-github',
-  get description() {
-    return t('Set up GitHub Actions');
-  },
+  description: 'Set up GitHub Actions',
   kind: CommandKind.BUILT_IN,
   autoExecute: true,
   action: async (
@@ -234,7 +232,7 @@ export const setupGithubCommand: SlashCommand = {
     // Get the latest release tag from GitHub
     const proxy = context?.services?.agentContext?.config.getProxy();
     const releaseTag = await getLatestGitHubRelease(proxy);
-    const readmeUrl = `https://github.com/netbrah/apex-action/blob/${releaseTag}/README.md#quick-start`;
+    const readmeUrl = `https://github.com/google-github-actions/run-gemini-cli/blob/${releaseTag}/README.md#quick-start`;
 
     // Create workflows directory
     const workflowsDir = path.join(gitRepoRoot, '.github', 'workflows');
@@ -272,9 +270,8 @@ export const setupGithubCommand: SlashCommand = {
       toolName: 'run_shell_command',
       toolArgs: {
         description:
-          'Setting up GitHub Actions to triage issues and review PRs with Qwen.',
+          'Setting up GitHub Actions to triage issues and review PRs with Gemini.',
         command,
-        is_background: false,
       },
     };
   },

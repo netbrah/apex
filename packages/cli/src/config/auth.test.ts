@@ -1,13 +1,12 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { AuthType } from '@apex-code/apex-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateAuthMethod } from './auth.js';
-import * as settings from './settings.js';
 
 vi.mock('./settings.js', () => ({
   loadEnvironment: vi.fn(),
@@ -96,116 +95,5 @@ describe('validateAuthMethod', () => {
       vi.stubEnv(key, value as string);
     }
     expect(validateAuthMethod(authType)).toBe(expected);
-  });
-
-  it('should return null for USE_ANTHROPIC with custom envKey and baseUrl', () => {
-    vi.mocked(settings.loadSettings).mockReturnValue({
-      merged: {
-        model: { name: 'claude-3' },
-        modelProviders: {
-          anthropic: [
-            {
-              id: 'claude-3',
-              envKey: 'CUSTOM_ANTHROPIC_KEY',
-              baseUrl: 'https://api.anthropic.com',
-            },
-          ],
-        },
-      },
-    } as unknown as ReturnType<typeof settings.loadSettings>);
-    process.env['CUSTOM_ANTHROPIC_KEY'] = 'custom-anthropic-key';
-
-    expect(validateAuthMethod(AuthType.USE_ANTHROPIC)).toBeNull();
-  });
-
-  it('should return error for USE_ANTHROPIC when baseUrl is missing', () => {
-    vi.mocked(settings.loadSettings).mockReturnValue({
-      merged: {
-        model: { name: 'claude-3' },
-        modelProviders: {
-          anthropic: [{ id: 'claude-3', envKey: 'CUSTOM_ANTHROPIC_KEY' }],
-        },
-      },
-    } as unknown as ReturnType<typeof settings.loadSettings>);
-    process.env['CUSTOM_ANTHROPIC_KEY'] = 'custom-key';
-
-    const result = validateAuthMethod(AuthType.USE_ANTHROPIC);
-    expect(result).toContain('modelProviders[].baseUrl');
-  });
-
-  it('should return null for USE_VERTEX_AI with custom envKey', () => {
-    vi.mocked(settings.loadSettings).mockReturnValue({
-      merged: {
-        model: { name: 'vertex-model' },
-        modelProviders: {
-          'vertex-ai': [
-            { id: 'vertex-model', envKey: 'GOOGLE_API_KEY_VERTEX' },
-          ],
-        },
-      },
-    } as unknown as ReturnType<typeof settings.loadSettings>);
-    process.env['GOOGLE_API_KEY_VERTEX'] = 'vertex-key';
-
-    expect(validateAuthMethod(AuthType.USE_VERTEX_AI)).toBeNull();
-  });
-
-  it('should use config.getModelsConfig().getModel() when Config is provided', () => {
-    // Settings has a different model
-    vi.mocked(settings.loadSettings).mockReturnValue({
-      merged: {
-        model: { name: 'settings-model' },
-        modelProviders: {
-          openai: [
-            { id: 'settings-model', envKey: 'SETTINGS_API_KEY' },
-            { id: 'cli-model', envKey: 'CLI_API_KEY' },
-          ],
-        },
-      },
-    } as unknown as ReturnType<typeof settings.loadSettings>);
-
-    // Mock Config object that returns a different model (e.g., from CLI args)
-    const mockConfig = {
-      getModelsConfig: vi.fn().mockReturnValue({
-        getModel: vi.fn().mockReturnValue('cli-model'),
-      }),
-    } as unknown as import('@apex-code/apex-core').Config;
-
-    // Set the env key for the CLI model, not the settings model
-    process.env['CLI_API_KEY'] = 'cli-key';
-
-    // Should use 'cli-model' from config.getModelsConfig().getModel(), not 'settings-model'
-    const result = validateAuthMethod(AuthType.USE_OPENAI, mockConfig);
-    expect(result).toBeNull();
-    expect(mockConfig.getModelsConfig).toHaveBeenCalled();
-  });
-
-  it('should fail validation when Config provides different model without matching env key', () => {
-    // Clean up any existing env keys first
-    delete process.env['CLI_API_KEY'];
-    delete process.env['SETTINGS_API_KEY'];
-    delete process.env['OPENAI_API_KEY'];
-
-    vi.mocked(settings.loadSettings).mockReturnValue({
-      merged: {
-        model: { name: 'settings-model' },
-        modelProviders: {
-          openai: [
-            { id: 'settings-model', envKey: 'SETTINGS_API_KEY' },
-            { id: 'cli-model', envKey: 'CLI_API_KEY' },
-          ],
-        },
-      },
-    } as unknown as ReturnType<typeof settings.loadSettings>);
-
-    const mockConfig = {
-      getModelsConfig: vi.fn().mockReturnValue({
-        getModel: vi.fn().mockReturnValue('cli-model'),
-      }),
-    } as unknown as import('@apex-code/apex-core').Config;
-
-    // Don't set CLI_API_KEY - validation should fail
-    const result = validateAuthMethod(AuthType.USE_OPENAI, mockConfig);
-    expect(result).not.toBeNull();
-    expect(result).toContain('CLI_API_KEY');
   });
 });

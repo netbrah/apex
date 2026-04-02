@@ -12,7 +12,6 @@ import {
   beforeEach,
   afterEach,
   type Mocked,
-  type Mock,
 } from 'vitest';
 import { IdeClient, IDEConnectionStatus } from './ide-client.js';
 import type * as fs from 'node:fs';
@@ -58,13 +57,9 @@ describe('IdeClient', () => {
   let mockStdioTransport: Mocked<StdioClientTransport>;
 
   beforeEach(async () => {
-    // Reset singleton instance and cached host for test isolation
-    (
-      IdeClient as unknown as {
-        instancePromise: Promise<IdeClient> | null;
-      }
-    ).instancePromise = null;
-    _resetCachedIdeServerHost();
+    // Reset singleton instance for test isolation
+    (IdeClient as unknown as { instance: IdeClient | undefined }).instance =
+      undefined;
 
     // Mock environment variables
     process.env['APEX_IDE_WORKSPACE_PATH'] = '/test/workspace';
@@ -106,13 +101,11 @@ describe('IdeClient', () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   describe('connect', () => {
     it('should connect using HTTP when port is provided in config file', async () => {
-      process.env['APEX_IDE_SERVER_PORT'] = '8080';
       const config = { port: '8080' };
       vi.mocked(getConnectionConfigFromFile).mockResolvedValue(config);
       vi.mocked(validateWorkspacePath).mockReturnValue({ isValid: true });
@@ -129,7 +122,6 @@ describe('IdeClient', () => {
       expect(ideClient.getConnectionStatus().status).toBe(
         IDEConnectionStatus.Connected,
       );
-      delete process.env['APEX_IDE_SERVER_PORT'];
     });
 
     it('should connect using stdio when stdio config is provided in file', async () => {
@@ -149,11 +141,9 @@ describe('IdeClient', () => {
       expect(ideClient.getConnectionStatus().status).toBe(
         IDEConnectionStatus.Connected,
       );
-      delete process.env['APEX_IDE_SERVER_PORT'];
     });
 
     it('should prioritize port over stdio when both are in config file', async () => {
-      process.env['APEX_IDE_SERVER_PORT'] = '8080';
       const config = {
         port: '8080',
         stdio: { command: 'test-cmd', args: ['--foo'] },
@@ -169,7 +159,6 @@ describe('IdeClient', () => {
       expect(ideClient.getConnectionStatus().status).toBe(
         IDEConnectionStatus.Connected,
       );
-      delete process.env['APEX_IDE_SERVER_PORT'];
     });
 
     it('should connect using HTTP when port is provided in environment variables', async () => {
@@ -188,136 +177,6 @@ describe('IdeClient', () => {
       expect(ideClient.getConnectionStatus().status).toBe(
         IDEConnectionStatus.Connected,
       );
-    });
-
-    it('should fall back to host.docker.internal when localhost fails in container', async () => {
-      process.env['APEX_IDE_SERVER_PORT'] = '9090';
-      vi.mocked(fs.promises.readFile).mockRejectedValue(
-        new Error('File not found'),
-      );
-      (
-        vi.mocked(fs.promises.readdir) as Mock<
-          (path: fs.PathLike) => Promise<string[]>
-        >
-      ).mockResolvedValue([]);
-      vi.mocked(fs.existsSync).mockImplementation(
-        (filePath: fs.PathLike) => filePath === '/.dockerenv',
-      );
-      (dns.lookup as unknown as Mock).mockImplementation(
-        (
-          _hostname: string,
-          callback: (
-            err: Error | null,
-            address?: string,
-            family?: number,
-          ) => void,
-        ) => {
-          callback(null, '192.168.65.254', 4);
-        },
-      );
-      mockClient.connect
-        .mockRejectedValueOnce(new Error('localhost unreachable'))
-        .mockResolvedValueOnce(undefined);
-
-      const ideClient = await IdeClient.getInstance();
-      await ideClient.connect();
-
-      // Localhost is always tried first.
-      expect(StreamableHTTPClientTransport).toHaveBeenNthCalledWith(
-        1,
-        new URL('http://127.0.0.1:9090/mcp'),
-        expect.any(Object),
-      );
-      // In a container, host.docker.internal is used as fallback.
-      expect(StreamableHTTPClientTransport).toHaveBeenNthCalledWith(
-        2,
-        new URL('http://host.docker.internal:9090/mcp'),
-        expect.any(Object),
-      );
-      expect(ideClient.getConnectionStatus().status).toBe(
-        IDEConnectionStatus.Connected,
-      );
-
-      delete process.env['APEX_IDE_SERVER_PORT'];
-    });
-
-    it('should try a newer lock-file port when the configured port is stale', async () => {
-      process.env['APEX_IDE_SERVER_PORT'] = '1111';
-      const primaryConfig = {
-        port: '1111',
-        authToken: 'stale-token',
-        workspacePath: '/test/workspace',
-      };
-      const fallbackConfig = {
-        port: '2222',
-        authToken: 'fresh-token',
-        workspacePath: '/test/workspace',
-      };
-      vi.mocked(fs.promises.readFile).mockImplementation(
-        async (filePath: fs.PathLike | FileHandle) => {
-          const file = String(filePath);
-          if (file === path.join('/home/test', '.apex', 'ide', '1111.lock')) {
-            return JSON.stringify(primaryConfig);
-          }
-          if (file === path.join('/home/test', '.apex', 'ide', '2222.lock')) {
-            return JSON.stringify(fallbackConfig);
-          }
-          throw new Error(`unexpected path: ${file}`);
-        },
-      );
-      (
-        vi.mocked(fs.promises.readdir) as Mock<
-          (path: fs.PathLike) => Promise<string[]>
-        >
-      ).mockResolvedValue(['1111.lock', '2222.lock']);
-      (
-        vi.mocked(fs.promises.stat) as Mock<
-          (path: fs.PathLike) => Promise<fs.Stats>
-        >
-      ).mockImplementation(async (filePath: fs.PathLike) => {
-        const now = Date.now();
-        const file = String(filePath);
-        return {
-          mtimeMs: file.endsWith('2222.lock') ? now : now - 1000,
-        } as fs.Stats;
-      });
-      vi.mocked(fs.existsSync).mockImplementation(
-        (filePath: fs.PathLike) => String(filePath) === '/test/workspace',
-      );
-      mockClient.request.mockResolvedValue({ tools: [] });
-      mockClient.connect
-        .mockRejectedValueOnce(new Error('stale port'))
-        .mockResolvedValueOnce(undefined);
-
-      const ideClient = await IdeClient.getInstance();
-      await ideClient.connect();
-
-      expect(StreamableHTTPClientTransport).toHaveBeenNthCalledWith(
-        1,
-        new URL('http://127.0.0.1:1111/mcp'),
-        expect.objectContaining({
-          requestInit: {
-            headers: {
-              Authorization: 'Bearer stale-token',
-            },
-          },
-        }),
-      );
-      expect(StreamableHTTPClientTransport).toHaveBeenNthCalledWith(
-        2,
-        new URL('http://127.0.0.1:2222/mcp'),
-        expect.objectContaining({
-          requestInit: {
-            headers: {
-              Authorization: 'Bearer fresh-token',
-            },
-          },
-        }),
-      );
-      expect(ideClient.getConnectionStatus().status).toBe(
-        IDEConnectionStatus.Connected,
-      );
-      delete process.env['APEX_IDE_SERVER_PORT'];
     });
 
     it('should connect using stdio when stdio config is in environment variables', async () => {

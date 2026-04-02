@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// File for 'qwen mcp remove' command
+// File for 'gemini mcp remove' command
 import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
 import { debugLogger } from '@apex-code/apex-core';
@@ -41,7 +41,7 @@ export const removeCommand: CommandModule = {
   describe: 'Remove a server',
   builder: (yargs) =>
     yargs
-      .usage('Usage: qwen mcp remove [options] <name>')
+      .usage('Usage: gemini mcp remove [options] <name>')
       .positional('name', {
         describe: 'Name of the server',
         type: 'string',
@@ -51,7 +51,7 @@ export const removeCommand: CommandModule = {
         alias: 's',
         describe: 'Configuration scope (user or project)',
         type: 'string',
-        default: 'user',
+        default: 'project',
         choices: ['user', 'project'],
       }),
   handler: async (argv) => {

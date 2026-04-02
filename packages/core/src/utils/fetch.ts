@@ -13,26 +13,6 @@ import { lookup } from 'node:dns/promises';
 const DEFAULT_HEADERS_TIMEOUT = 300000; // 5 minutes
 const DEFAULT_BODY_TIMEOUT = 300000; // 5 minutes
 
-const TLS_ERROR_CODES = new Set([
-  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
-  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
-  'SELF_SIGNED_CERT_IN_CHAIN',
-  'DEPTH_ZERO_SELF_SIGNED_CERT',
-  'CERT_HAS_EXPIRED',
-  'ERR_TLS_CERT_ALTNAME_INVALID',
-]);
-
-const FETCH_TROUBLESHOOTING_ERROR_CODES = new Set([
-  ...TLS_ERROR_CODES,
-  'ECONNRESET',
-  'ETIMEDOUT',
-  'ECONNREFUSED',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-]);
-
 export class FetchError extends Error {
   constructor(
     message: string,

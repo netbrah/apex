@@ -74,8 +74,8 @@ describe('ThemeManager', () => {
 
   it('should set and get the active theme', () => {
     expect(themeManager.getActiveTheme().name).toBe(DEFAULT_THEME.name);
-    themeManager.setActiveTheme('Default');
-    expect(themeManager.getActiveTheme().name).toBe('Default');
+    themeManager.setActiveTheme('Ayu');
+    expect(themeManager.getActiveTheme().name).toBe('Ayu');
   });
 
   it('should set and get a custom active theme', () => {
@@ -101,7 +101,7 @@ describe('ThemeManager', () => {
   });
 
   it('should get a theme by name', () => {
-    expect(themeManager.getTheme('Default')).toBeDefined();
+    expect(themeManager.getTheme('Ayu')).toBeDefined();
     themeManager.loadCustomThemes({ MyCustomTheme: validCustomTheme });
     expect(themeManager.getTheme('MyCustomTheme')).toBeDefined();
   });
@@ -171,7 +171,7 @@ describe('ThemeManager', () => {
       expect(themeManager.getActiveTheme().name).toBe(DEFAULT_THEME.name);
     });
 
-    it('should not load a theme from an untrusted file path', () => {
+    it('should not load a theme from an untrusted file path and log a message', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(mockTheme));
       const consoleWarnSpy = vi
@@ -182,6 +182,11 @@ describe('ThemeManager', () => {
 
       expect(result).toBe(false);
       expect(themeManager.getActiveTheme().name).toBe(DEFAULT_THEME.name);
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('is outside your home directory'),
+      );
+
+      consoleWarnSpy.mockRestore();
     });
   });
 

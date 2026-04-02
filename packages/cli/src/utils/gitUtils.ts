@@ -7,9 +7,6 @@
 import { debugLogger } from '@apex-code/apex-core';
 import { execSync } from 'node:child_process';
 import { ProxyAgent } from 'undici';
-import { createDebugLogger } from '@apex-code/apex-core';
-
-const debugLogger = createDebugLogger('GIT');
 
 /**
  * Checks if a directory is within a git repository hosted on GitHub.
@@ -62,7 +59,7 @@ export const getLatestGitHubRelease = async (
   try {
     const controller = new AbortController();
 
-    const endpoint = `https://api.github.com/repos/QwenLM/apex-action/releases/latest`;
+    const endpoint = `https://api.github.com/repos/google-github-actions/run-gemini-cli/releases/latest`;
 
     const response = await fetch(endpoint, {
       method: 'GET',
@@ -90,11 +87,11 @@ export const getLatestGitHubRelease = async (
     return releaseTag;
   } catch (error) {
     debugLogger.debug(
-      `Failed to determine latest run-apex release:`,
+      `Failed to determine latest run-gemini-cli release:`,
       error,
     );
     throw new Error(
-      `Unable to determine the latest apex-action release on GitHub.`,
+      `Unable to determine the latest run-gemini-cli release on GitHub.`,
     );
   }
 };

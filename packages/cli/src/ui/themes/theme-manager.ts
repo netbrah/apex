@@ -48,7 +48,7 @@ export interface ThemeDisplay {
   isCustom?: boolean;
 }
 
-export const DEFAULT_THEME: Theme = ApexDark;
+export const DEFAULT_THEME: Theme = DefaultDark;
 
 class ThemeManager {
   private readonly availableThemes: Theme[];
@@ -71,8 +71,11 @@ class ThemeManager {
     this.homedir = dependencies?.homedir ?? homedir;
 
     this.availableThemes = [
-      ApexDark,
-      ApexOperator,
+      AyuDark,
+      AyuLight,
+      AtomOneDark,
+      Dracula,
+      DefaultLight,
       DefaultDark,
       GitHubDark,
       GitHubLight,
@@ -502,44 +505,32 @@ class ThemeManager {
       isCustom: true,
     }));
 
-    // Separate Apex themes (pinned to top)
-    const apexThemes = builtInThemes.filter(
-      (theme) =>
-        theme.name === ApexDark.name || theme.name === ApexOperator.name,
-    );
-    const otherBuiltInThemes = builtInThemes.filter(
-      (theme) =>
-        theme.name !== ApexDark.name && theme.name !== ApexOperator.name,
-    );
+    const allThemes = [...builtInThemes, ...customThemes];
 
-    // Sort other themes by type and then name
-    const sortedOtherThemes = [...otherBuiltInThemes, ...customThemes].sort(
-      (a, b) => {
-        const typeOrder = (type: ThemeType): number => {
-          switch (type) {
-            case 'dark':
-              return 1;
-            case 'light':
-              return 2;
-            case 'ansi':
-              return 3;
-            case 'custom':
-              return 4; // Custom themes at the end
-            default:
-              return 5;
-          }
-        };
-
-        const typeComparison = typeOrder(a.type) - typeOrder(b.type);
-        if (typeComparison !== 0) {
-          return typeComparison;
+    const sortedThemes = allThemes.sort((a, b) => {
+      const typeOrder = (type: ThemeType): number => {
+        switch (type) {
+          case 'dark':
+            return 1;
+          case 'light':
+            return 2;
+          case 'ansi':
+            return 3;
+          case 'custom':
+            return 4; // Custom themes at the end
+          default:
+            return 5;
         }
-        return a.name.localeCompare(b.name);
-      },
-    );
+      };
 
-    // Combine Qwen themes first, then sorted others
-    return [...apexThemes, ...sortedOtherThemes];
+      const typeComparison = typeOrder(a.type) - typeOrder(b.type);
+      if (typeComparison !== 0) {
+        return typeComparison;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return sortedThemes;
   }
 
   /**

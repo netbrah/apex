@@ -18,9 +18,7 @@ import {
 } from '../config/constants.js';
 import { debugLogger } from './debugLogger.js';
 
-const debugLogger = createDebugLogger('FOLDER_STRUCTURE');
-
-const MAX_ITEMS = 20;
+const MAX_ITEMS = 200;
 const TRUNCATION_INDICATOR = '...';
 const DEFAULT_IGNORED_FOLDERS = new Set([
   'node_modules',
@@ -33,7 +31,7 @@ const DEFAULT_IGNORED_FOLDERS = new Set([
 
 /** Options for customizing folder structure retrieval. */
 interface FolderStructureOptions {
-  /** Maximum number of files and folders combined to display. Defaults to 20. */
+  /** Maximum number of files and folders combined to display. Defaults to 200. */
   maxItems?: number;
   /** Set of folder names to ignore completely. Case-sensitive. */
   ignoredFolders?: Set<string>;
@@ -331,7 +329,25 @@ export async function getFolderStructure(
     formatStructure(structureRoot, '', true, true, structureLines);
 
     // 3. Build the final output string
-    return `Showing up to ${mergedOptions.maxItems} items:\n\n${resolvedPath}${path.sep}\n${structureLines.join('\n')}`;
+    function isTruncated(node: FullFolderInfo): boolean {
+      if (node.hasMoreFiles || node.hasMoreSubfolders || node.isIgnored) {
+        return true;
+      }
+      for (const sub of node.subFolders) {
+        if (isTruncated(sub)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    let summary = `Showing up to ${mergedOptions.maxItems} items (files + folders).`;
+
+    if (isTruncated(structureRoot)) {
+      summary += ` Folders or files indicated with ${TRUNCATION_INDICATOR} contain more items not shown, were ignored, or the display limit (${mergedOptions.maxItems} items) was reached.`;
+    }
+
+    return `${summary}\n\n${resolvedPath}${path.sep}\n${structureLines.join('\n')}`;
   } catch (error: unknown) {
     debugLogger.warn(
       `Error getting folder structure for ${resolvedPath}:`,

@@ -188,8 +188,7 @@ describe('handleAutoUpdate', () => {
     mockSettings.merged.general.enableAutoUpdate = false;
     mockGetInstallationInfo.mockReturnValue({
       updateCommand: 'npm i -g @apex-code/apex@latest',
-      updateMessage:
-        'Please run npm i -g @apex-code/apex@latest to update',
+      updateMessage: 'Please update manually.',
       isGlobal: true,
       packageManager: PackageManager.NPM,
     });
@@ -348,11 +347,7 @@ describe('handleAutoUpdate', () => {
     handleAutoUpdate(mockUpdateInfo, mockSettings, '/root', mockSpawn);
 
     expect(mockSpawn).toHaveBeenCalledWith(
-      expect.stringMatching(/^(bash|cmd\.exe)$/),
-      expect.arrayContaining([
-        expect.stringMatching(/^(-c|\/c)$/),
-        'npm i -g @apex-code/apex@nightly',
-      ]),
+      'npm i -g @apex-code/apex@nightly',
       {
         shell: true,
         stdio: 'ignore',

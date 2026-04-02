@@ -212,9 +212,9 @@ describe('useApprovalModeIndicator', () => {
       } as Key);
     });
     expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-      ApprovalMode.PLAN,
+      ApprovalMode.AUTO_EDIT,
     );
-    expect(result.current).toBe(ApprovalMode.PLAN);
+    expect(result.current).toBe(ApprovalMode.AUTO_EDIT);
 
     // Ctrl+Y toggles YOLO
     act(() => {
@@ -253,13 +253,7 @@ describe('useApprovalModeIndicator', () => {
         shift: false,
       } as Key);
     });
-    if (process.platform === 'win32') {
-      // On Windows, Tab alone toggles approval mode
-      expect(mockConfigInstance.setApprovalMode).toHaveBeenCalled();
-      mockConfigInstance.setApprovalMode.mockClear();
-    } else {
-      expect(mockConfigInstance.setApprovalMode).not.toHaveBeenCalled();
-    }
+    expect(mockConfigInstance.setApprovalMode).not.toHaveBeenCalled();
 
     act(() => {
       capturedUseKeypressHandler({
@@ -444,7 +438,6 @@ describe('useApprovalModeIndicator', () => {
       // Mock the error thrown by setApprovalMode
       const errorMessage =
         'Cannot enable privileged approval modes in an untrusted folder.';
-      mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
       mockConfigInstance.setApprovalMode.mockImplementation(() => {
         throw new Error(errorMessage);
       });
@@ -457,13 +450,11 @@ describe('useApprovalModeIndicator', () => {
         }),
       );
 
+      // Try to enable YOLO mode
       act(() => {
-        capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
+        capturedUseKeypressHandler({ name: 'y', ctrl: true } as Key);
       });
 
-      expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-        ApprovalMode.AUTO_EDIT,
-      );
       expect(mockAddItem).toHaveBeenCalledWith(
         {
           type: MessageType.INFO,
@@ -471,33 +462,15 @@ describe('useApprovalModeIndicator', () => {
         },
         expect.any(Number),
       );
-    });
 
-    it('should show a warning when cycling from AUTO_EDIT to YOLO', () => {
-      const errorMessage =
-        'Cannot enable privileged approval modes in an untrusted folder.';
-      mockConfigInstance.getApprovalMode.mockReturnValue(
-        ApprovalMode.AUTO_EDIT,
-      );
-      mockConfigInstance.setApprovalMode.mockImplementation(() => {
-        throw new Error(errorMessage);
-      });
-
-      const mockAddItem = vi.fn();
-      renderHook(() =>
-        useAutoAcceptIndicator({
-          config: mockConfigInstance as unknown as ActualConfigType,
-          addItem: mockAddItem,
-        }),
-      );
-
+      // Try to enable AUTO_EDIT mode
       act(() => {
-        capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
+        capturedUseKeypressHandler({
+          name: 'tab',
+          shift: true,
+        } as Key);
       });
 
-      expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-        ApprovalMode.YOLO,
-      );
       expect(mockAddItem).toHaveBeenCalledWith(
         {
           type: MessageType.INFO,
@@ -505,179 +478,8 @@ describe('useApprovalModeIndicator', () => {
         },
         expect.any(Number),
       );
-    });
 
-    it('should cycle from YOLO to PLAN when Shift+Tab is pressed', () => {
-      mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.YOLO);
-      const mockAddItem = vi.fn();
-      renderHook(() =>
-        useAutoAcceptIndicator({
-          config: mockConfigInstance as unknown as ActualConfigType,
-          addItem: mockAddItem,
-        }),
-      );
-
-      act(() => {
-        capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
-      });
-
-      expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-        ApprovalMode.PLAN,
-      );
-      expect(mockConfigInstance.getApprovalMode()).toBe(ApprovalMode.PLAN);
-      expect(mockAddItem).not.toHaveBeenCalled();
-    });
-  });
-
-  it('should call onApprovalModeChange when switching to AUTO_EDIT mode', () => {
-    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
-
-    const mockOnApprovalModeChange = vi.fn();
-
-    renderHook(() =>
-      useAutoAcceptIndicator({
-        config: mockConfigInstance as unknown as ActualConfigType,
-        onApprovalModeChange: mockOnApprovalModeChange,
-      }),
-    );
-
-    act(() => {
-      capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
-    });
-
-    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-      ApprovalMode.AUTO_EDIT,
-    );
-    expect(mockOnApprovalModeChange).toHaveBeenCalledWith(
-      ApprovalMode.AUTO_EDIT,
-    );
-  });
-
-  it('should not call onApprovalModeChange when callback is not provided', () => {
-    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
-
-    renderHook(() =>
-      useAutoAcceptIndicator({
-        config: mockConfigInstance as unknown as ActualConfigType,
-      }),
-    );
-
-    act(() => {
-      capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
-    });
-
-    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-      ApprovalMode.AUTO_EDIT,
-    );
-    // Should not throw an error when callback is not provided
-  });
-
-  it('should handle multiple mode changes correctly', () => {
-    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
-
-    const mockOnApprovalModeChange = vi.fn();
-
-    renderHook(() =>
-      useAutoAcceptIndicator({
-        config: mockConfigInstance as unknown as ActualConfigType,
-        onApprovalModeChange: mockOnApprovalModeChange,
-      }),
-    );
-
-    // Switch to AUTO_EDIT
-    act(() => {
-      capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
-    });
-
-    // Switch to YOLO
-    act(() => {
-      capturedUseKeypressHandler({ name: 'tab', shift: true } as Key);
-    });
-
-    expect(mockOnApprovalModeChange).toHaveBeenCalledTimes(2);
-    expect(mockOnApprovalModeChange).toHaveBeenNthCalledWith(
-      1,
-      ApprovalMode.AUTO_EDIT,
-    );
-    expect(mockOnApprovalModeChange).toHaveBeenNthCalledWith(
-      2,
-      ApprovalMode.YOLO,
-    );
-  });
-
-  it('should not cycle approval mode on Windows when shouldBlockTab returns true', () => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, 'platform', {
-      value: 'win32',
-    });
-
-    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
-    const mockShouldBlockTab = vi.fn(() => true);
-
-    renderHook(() =>
-      useAutoAcceptIndicator({
-        config: mockConfigInstance as unknown as ActualConfigType,
-        addItem: vi.fn(),
-        shouldBlockTab: mockShouldBlockTab,
-      }),
-    );
-
-    // Simulate Tab key press on Windows
-    act(() => {
-      capturedUseKeypressHandler({
-        name: 'tab',
-        shift: false,
-        ctrl: false,
-        meta: false,
-      } as Key);
-    });
-
-    // Should call shouldBlockTab to check if autocomplete is active
-    expect(mockShouldBlockTab).toHaveBeenCalled();
-    // Should NOT cycle approval mode when shouldBlockTab returns true
-    expect(mockConfigInstance.setApprovalMode).not.toHaveBeenCalled();
-
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-    });
-  });
-
-  it('should cycle approval mode on Windows when shouldBlockTab returns false', () => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, 'platform', {
-      value: 'win32',
-    });
-
-    mockConfigInstance.getApprovalMode.mockReturnValue(ApprovalMode.DEFAULT);
-    const mockShouldBlockTab = vi.fn(() => false);
-
-    renderHook(() =>
-      useAutoAcceptIndicator({
-        config: mockConfigInstance as unknown as ActualConfigType,
-        addItem: vi.fn(),
-        shouldBlockTab: mockShouldBlockTab,
-      }),
-    );
-
-    // Simulate Tab key press on Windows
-    act(() => {
-      capturedUseKeypressHandler({
-        name: 'tab',
-        shift: false,
-        ctrl: false,
-        meta: false,
-      } as Key);
-    });
-
-    // Should call shouldBlockTab to check if autocomplete is active
-    expect(mockShouldBlockTab).toHaveBeenCalled();
-    // Should cycle approval mode when shouldBlockTab returns false
-    expect(mockConfigInstance.setApprovalMode).toHaveBeenCalledWith(
-      ApprovalMode.AUTO_EDIT,
-    );
-
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
+      expect(mockAddItem).toHaveBeenCalledTimes(2);
     });
   });
 

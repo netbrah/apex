@@ -10,7 +10,6 @@ import * as path from 'node:path';
 import { debugLogger, isNodeError, Storage } from '@apex-code/apex-core';
 
 const MAX_HISTORY_LENGTH = 100;
-const debugLogger = createDebugLogger('SHELL_HISTORY');
 
 export interface UseShellHistoryReturn {
   history: string[];

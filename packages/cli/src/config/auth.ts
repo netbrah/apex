@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -23,89 +23,20 @@ export function validateAuthMethod(authMethod: string): string | null {
         'Update your environment and try again (no reload needed if using .env)!'
       );
     }
-  }
-
-  // Also check settings.security.auth.apiKey as fallback (only for default env key)
-  if (settings.security?.auth?.apiKey) {
-    return {
-      hasKey: true,
-      checkedEnvKey: defaultEnvKey || undefined,
-      isExplicitEnvKey: false,
-    };
-  }
-
-  return {
-    hasKey: false,
-    checkedEnvKey: defaultEnvKey,
-    isExplicitEnvKey: false,
-  };
-}
-
-/**
- * Generate API key error message based on auth check result.
- * Returns null if API key is present, otherwise returns the appropriate error message.
- */
-function getApiKeyError(
-  authMethod: string,
-  settings: Settings,
-  config?: Config,
-): string | null {
-  const { hasKey, checkedEnvKey, isExplicitEnvKey } = hasApiKeyForAuth(
-    authMethod,
-    settings,
-    config,
-  );
-  if (hasKey) {
     return null;
   }
 
-  const envKeyHint = checkedEnvKey || DEFAULT_ENV_KEYS[authMethod];
-  if (isExplicitEnvKey) {
-    return t(
-      '{{envKeyHint}} environment variable not found. Please set it in your .env file or environment variables.',
-      { envKeyHint },
-    );
-  }
-  return t(
-    '{{envKeyHint}} environment variable not found (or set settings.security.auth.apiKey). Please set it in your .env file or environment variables.',
-    { envKeyHint },
-  );
-}
-
-/**
- * Validate that the required credentials and configuration exist for the given auth method.
- */
-export function validateAuthMethod(
-  authMethod: string,
-  config?: Config,
-): string | null {
-  const settings = loadSettings();
-  loadEnvironment(settings.merged);
-
-  if (
-    authMethod === AuthType.USE_OPENAI ||
-    authMethod === AuthType.USE_OPENAI_RESPONSES
-  ) {
-    const { hasKey, checkedEnvKey, isExplicitEnvKey } = hasApiKeyForAuth(
-      authMethod,
-      settings.merged,
-      config,
-    );
-    if (!hasKey) {
-      const envKeyHint = checkedEnvKey
-        ? `'${checkedEnvKey}'`
-        : "'OPENAI_API_KEY'";
-      if (isExplicitEnvKey) {
-        // Explicit envKey configured - only suggest setting the env var
-        return t(
-          'Missing API key for OpenAI-compatible auth. Set the {{envKeyHint}} environment variable.',
-          { envKeyHint },
-        );
-      }
-      // Default env key - can use either apiKey or env var
-      return t(
-        'Missing API key for OpenAI-compatible auth. Set settings.security.auth.apiKey, or set the {{envKeyHint}} environment variable.',
-        { envKeyHint },
+  if (authMethod === AuthType.USE_VERTEX_AI) {
+    const hasVertexProjectLocationConfig =
+      !!process.env['GOOGLE_CLOUD_PROJECT'] &&
+      !!process.env['GOOGLE_CLOUD_LOCATION'];
+    const hasGoogleApiKey = !!process.env['GOOGLE_API_KEY'];
+    if (!hasVertexProjectLocationConfig && !hasGoogleApiKey) {
+      return (
+        'When using Vertex AI, you must specify either:\n' +
+        '• GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables.\n' +
+        '• GOOGLE_API_KEY environment variable (if using express mode).\n' +
+        'Update your environment and try again (no reload needed if using .env)!'
       );
     }
     return null;

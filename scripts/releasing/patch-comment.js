@@ -77,7 +77,7 @@ async function main() {
 
   const repo = {
     owner: process.env.GITHUB_REPOSITORY_OWNER || 'google-gemini',
-    repo: process.env.GITHUB_REPOSITORY_NAME || 'apex',
+    repo: process.env.GITHUB_REPOSITORY_NAME || 'gemini-cli',
   };
 
   // Get inputs from CLI args or environment

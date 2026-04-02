@@ -32,14 +32,9 @@ vi.mock('fs', async (importOriginal) => {
   };
 });
 
-const mockWriteStdoutLine = vi.hoisted(() => vi.fn());
-const mockWriteStderrLine = vi.hoisted(() => vi.fn());
-const mockDeleteCredentials = vi.hoisted(() => vi.fn());
-
-vi.mock('../../utils/stdioHelpers.js', () => ({
-  writeStdoutLine: mockWriteStdoutLine,
-  writeStderrLine: mockWriteStderrLine,
-  clearScreen: vi.fn(),
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
 vi.mock('../utils.js', () => ({
@@ -108,8 +103,6 @@ describe('mcp remove command', () => {
       );
       debugLogSpy.mockRestore();
     });
-    mockWriteStdoutLine.mockClear();
-    mockDeleteCredentials.mockClear();
   });
 
   describe('integration tests with real file I/O', () => {

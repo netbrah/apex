@@ -702,33 +702,6 @@ function doIt() {
       calculateSpy.mockRestore();
     });
 
-    it('should reject when calculateEdit fails after an abort signal', async () => {
-      const params: EditToolParams = {
-        file_path: path.join(rootDir, 'abort-execute.txt'),
-        old_string: 'old',
-        new_string: 'new',
-      };
-
-      const invocation = tool.build(params);
-      const abortController = new AbortController();
-      const abortError = new Error('Abort requested during execute');
-
-      const calculateSpy = vi
-        .spyOn(invocation as any, 'calculateEdit')
-        .mockImplementation(async () => {
-          if (!abortController.signal.aborted) {
-            abortController.abort();
-          }
-          throw abortError;
-        });
-
-      await expect(invocation.execute(abortController.signal)).rejects.toBe(
-        abortError,
-      );
-
-      calculateSpy.mockRestore();
-    });
-
     it('should edit an existing file and return diff with fileName', async () => {
       const initialContent = 'This is some old text.';
       const newContent = 'This is some new text.';
@@ -743,9 +716,7 @@ function doIt() {
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
 
-      expect(result.llmContent).toMatch(
-        /Showing lines \d+-\d+ of \d+ from the edited file:/,
-      );
+      expect(result.llmContent).toMatch(/Successfully modified file/);
       expect(fs.readFileSync(filePath, 'utf8')).toBe(newContent);
       const display = result.returnDisplay as FileDiff;
       expect(display.fileDiff).toMatch(initialContent);
@@ -1095,7 +1066,7 @@ function doIt() {
       });
 
       const invocation = tool.build(params);
-      const confirmation = await invocation.getConfirmationDetails(
+      const confirmation = await invocation.shouldConfirmExecute(
         new AbortController().signal,
       );
 
@@ -1107,49 +1078,6 @@ function doIt() {
 
       expect(params.old_string).toBe(initialContent);
       expect(params.new_string).toBe(modifiedContent);
-    });
-
-    it('should not call ideClient.openDiff in AUTO_EDIT mode', async () => {
-      const initialContent = 'some old content here';
-      fs.writeFileSync(filePath, initialContent);
-      const params: EditToolParams = {
-        file_path: filePath,
-        old_string: 'old',
-        new_string: 'new',
-      };
-      (mockConfig.getApprovalMode as Mock).mockReturnValueOnce(
-        ApprovalMode.AUTO_EDIT,
-      );
-
-      const invocation = tool.build(params);
-      const confirmation = await invocation.getConfirmationDetails(
-        new AbortController().signal,
-      );
-
-      expect(ideClient.openDiff).not.toHaveBeenCalled();
-      expect(confirmation).toBeDefined();
-      expect((confirmation as any).ideConfirmation).toBeUndefined();
-    });
-
-    it('should not call ideClient.openDiff in YOLO mode', async () => {
-      const initialContent = 'some old content here';
-      fs.writeFileSync(filePath, initialContent);
-      const params: EditToolParams = {
-        file_path: filePath,
-        old_string: 'old',
-        new_string: 'new',
-      };
-      (mockConfig.getApprovalMode as Mock).mockReturnValueOnce(
-        ApprovalMode.YOLO,
-      );
-
-      const invocation = tool.build(params);
-      const confirmation = await invocation.getConfirmationDetails(
-        new AbortController().signal,
-      );
-
-      expect(ideClient.openDiff).not.toHaveBeenCalled();
-      expect((confirmation as any).ideConfirmation).toBeUndefined();
     });
   });
 

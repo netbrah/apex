@@ -47,11 +47,11 @@ export async function handleDisable(args: DisableArgs) {
 
 export const disableCommand: CommandModule = {
   command: 'disable [--scope] <name>',
-  describe: t('Disables an extension.'),
+  describe: 'Disables an extension.',
   builder: (yargs) =>
     yargs
       .positional('name', {
-        describe: t('The name of the extension to disable.'),
+        describe: 'The name of the extension to disable.',
         type: 'string',
       })
       .option('scope', {

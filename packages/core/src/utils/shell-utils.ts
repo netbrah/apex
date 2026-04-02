@@ -804,30 +804,19 @@ export function stripShellWrapper(command: string): string {
  * - Single quotes ('): Everything literal, no substitution possible
  * - Double quotes ("): Command substitution with $() and backticks unless escaped with \
  * - No quotes: Command substitution with $(), <(), and backticks
- *
- * This function also understands heredocs:
- * - If a heredoc delimiter is quoted (e.g. `<<'EOF'`), bash will not perform
- *   expansions in the heredoc body, so substitution-like text is allowed.
- * - If a heredoc delimiter is unquoted (e.g. `<<EOF`), bash will perform
- *   expansions in the heredoc body, so command substitution is blocked there too.
  * @param command The shell command string to check
  * @returns true if command substitution would be executed by bash
  */
 /**
- * Executes a command with the given arguments without using a shell.
+ * Determines whether a given shell command is allowed to execute based on
+ * the tool's configuration including allowlists and blocklists.
  *
- * This is a wrapper around Node.js's `execFile`, which spawns a process
- * directly without invoking a shell, making it safer than `exec`.
- * It's suitable for short-running commands with limited output.
+ * This function operates in "default allow" mode. It is a wrapper around
+ * `checkCommandPermissions`.
  *
- * @param command The command to execute (e.g., 'git', 'osascript').
- * @param args Array of arguments to pass to the command.
- * @param options Optional spawn options including:
- *   - preserveOutputOnError: If false (default), rejects on error.
- *                           If true, resolves with output and error code.
- *   - Other standard spawn options (e.g., cwd, env).
- * @returns A promise that resolves with stdout, stderr strings, and exit code.
- * @throws Rejects with an error if the command fails (unless preserveOutputOnError is true).
+ * @param command The shell command string to validate.
+ * @param config The application configuration.
+ * @returns An object with 'allowed' boolean and optional 'reason' string if not allowed.
  */
 export const spawnAsync = async (
   command: string,
@@ -1004,76 +993,4 @@ export async function* execStreaming(
       }
     });
   }
-}
-
-export function isCommandNeedsPermission(command: string): {
-  requiresPermission: boolean;
-  reason?: string;
-} {
-  const isAllowed = isShellCommandReadOnly(command);
-
-  if (isAllowed) {
-    return { requiresPermission: false };
-  }
-
-  return {
-    requiresPermission: true,
-    reason: 'Command requires permission to execute.',
-  };
-}
-
-/**
- * Checks user arguments for potentially dangerous shell characters.
- * This is used to validate arguments before they are substituted into
- * shell command templates (e.g., $ARGUMENTS placeholder).
- *
- * Note: This does NOT remove outer quotes - it validates the raw input.
- * Use escapeShellArg() for safe shell argument escaping.
- *
- * @param args - The raw user arguments string
- * @returns Object with isSafe flag and list of dangerous patterns found
- */
-export function checkArgumentSafety(args: string): {
-  isSafe: boolean;
-  dangerousPatterns: string[];
-} {
-  const dangerousPatterns: string[] = [];
-
-  // Command substitution patterns
-  if (args.includes('$(')) dangerousPatterns.push('$() command substitution');
-  if (args.includes('`'))
-    dangerousPatterns.push('backtick command substitution');
-  if (args.includes('<(')) dangerousPatterns.push('<() process substitution');
-  if (args.includes('>(')) dangerousPatterns.push('>() process substitution');
-
-  // Command separators (outside of quotes)
-  if (args.includes(';')) dangerousPatterns.push('; command separator');
-  if (args.includes('|')) dangerousPatterns.push('| pipe');
-  if (args.includes('&&')) dangerousPatterns.push('&& AND operator');
-  if (args.includes('||')) dangerousPatterns.push('|| OR operator');
-
-  // Background execution (space + &, with optional surrounding)
-  if (args.includes(' &') || args.includes('& '))
-    dangerousPatterns.push('& background operator');
-
-  // Input/Output redirection
-  if (args.includes('>') || args.includes('<')) {
-    if (/>\s|\d>/.test(args)) dangerousPatterns.push('> output redirection');
-    if (/<\s|\d</.test(args)) dangerousPatterns.push('< input redirection');
-  }
-
-  return {
-    isSafe: dangerousPatterns.length === 0,
-    dangerousPatterns,
-  };
-}
-
-// ConPTY on Windows builds <= 19041 has known reliability issues (missing
-// output, hangs). VS Code uses the same cutoff: microsoft/vscode#123725.
-const CONPTY_MIN_WINDOWS_BUILD = 19042;
-
-export function shouldDefaultToNodePty(): boolean {
-  if (os.platform() !== 'win32') return true;
-  const build = parseInt(os.release().split('.')[2] ?? '', 10);
-  return !isNaN(build) && build >= CONPTY_MIN_WINDOWS_BUILD;
 }

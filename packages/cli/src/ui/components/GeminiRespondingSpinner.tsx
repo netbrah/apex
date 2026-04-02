@@ -63,22 +63,3 @@ export const GeminiRespondingSpinner: React.FC<
 
   return null;
 };
-
-interface GeminiSpinnerProps {
-  spinnerType?: SpinnerName;
-  altText?: string;
-}
-
-export const GeminiSpinner: React.FC<GeminiSpinnerProps> = ({
-  spinnerType = 'dots',
-  altText,
-}) => {
-  const isScreenReaderEnabled = useIsScreenReaderEnabled();
-  return isScreenReaderEnabled ? (
-    <Text>{altText}</Text>
-  ) : (
-    <Text color={theme.text.primary}>
-      <Spinner type={spinnerType} />
-    </Text>
-  );
-};

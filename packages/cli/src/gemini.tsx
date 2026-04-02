@@ -126,6 +126,10 @@ export function getNodeMemoryArgs(isDebugMode: boolean): string[] {
     );
   }
 
+  if (process.env['APEX_NO_RELAUNCH']) {
+    return [];
+  }
+
   if (targetMaxOldSpaceSizeInMB > currentMaxOldSpaceSizeMb) {
     if (isDebugMode) {
       debugLogger.debug(
@@ -400,11 +404,8 @@ export async function main() {
         await runExitCleanup();
         process.exit(ExitCodes.FATAL_AUTHENTICATION_ERROR);
       }
-      // For stream-json mode, don't read stdin here - it should be forwarded to the sandbox
-      // and consumed by StreamJsonInputReader inside the container
-      const inputFormat = argv.inputFormat as string | undefined;
       let stdinData = '';
-      if (!process.stdin.isTTY && inputFormat !== 'stream-json') {
+      if (!process.stdin.isTTY) {
         stdinData = await readStdin();
       }
 

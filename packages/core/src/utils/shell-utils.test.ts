@@ -58,10 +58,8 @@ vi.mock('node:child_process', () => ({
 }));
 
 const mockQuote = vi.hoisted(() => vi.fn());
-const mockParse = vi.hoisted(() => vi.fn());
 vi.mock('shell-quote', () => ({
   quote: mockQuote,
-  parse: mockParse,
 }));
 
 const mockDebugLogger = vi.hoisted(() => ({
@@ -118,7 +116,7 @@ const mockPowerShellResult = (
 };
 
 describe('getCommandRoots', () => {
-  it('should return a single command', async () => {
+  it('should return a single command', () => {
     expect(getCommandRoots('ls -l')).toEqual(['ls']);
   });
 
@@ -128,16 +126,16 @@ describe('getCommandRoots', () => {
     ]);
   });
 
-  it('should return an empty array for an empty string', async () => {
+  it('should return an empty array for an empty string', () => {
     expect(getCommandRoots('')).toEqual([]);
   });
 
-  it('should handle a mix of operators', async () => {
+  it('should handle a mix of operators', () => {
     const result = getCommandRoots('a;b|c&&d||e&f');
     expect(result).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
   });
 
-  it('should correctly parse a chained command with quotes', async () => {
+  it('should correctly parse a chained command with quotes', () => {
     const result = getCommandRoots('echo "hello" && git commit -m "feat"');
     expect(result).toEqual(['echo', 'git']);
   });
@@ -342,19 +340,19 @@ describe('splitCommands', () => {
 });
 
 describe('stripShellWrapper', () => {
-  it('should strip sh -c with quotes', async () => {
+  it('should strip sh -c with quotes', () => {
     expect(stripShellWrapper('sh -c "ls -l"')).toEqual('ls -l');
   });
 
-  it('should strip bash -c with extra whitespace', async () => {
+  it('should strip bash -c with extra whitespace', () => {
     expect(stripShellWrapper('  bash  -c  "ls -l"  ')).toEqual('ls -l');
   });
 
-  it('should strip zsh -c without quotes', async () => {
+  it('should strip zsh -c without quotes', () => {
     expect(stripShellWrapper('zsh -c ls -l')).toEqual('ls -l');
   });
 
-  it('should strip cmd.exe /c', async () => {
+  it('should strip cmd.exe /c', () => {
     expect(stripShellWrapper('cmd.exe /c "dir"')).toEqual('dir');
   });
 
@@ -380,14 +378,14 @@ describe('stripShellWrapper', () => {
 
 describe('escapeShellArg', () => {
   describe('POSIX (bash)', () => {
-    it('should use shell-quote for escaping', async () => {
+    it('should use shell-quote for escaping', () => {
       mockQuote.mockReturnValueOnce("'escaped value'");
       const result = escapeShellArg('raw value', 'bash');
       expect(mockQuote).toHaveBeenCalledWith(['raw value']);
       expect(result).toBe("'escaped value'");
     });
 
-    it('should handle empty strings', async () => {
+    it('should handle empty strings', () => {
       const result = escapeShellArg('', 'bash');
       expect(result).toBe('');
       expect(mockQuote).not.toHaveBeenCalled();
@@ -396,39 +394,39 @@ describe('escapeShellArg', () => {
 
   describe('Windows', () => {
     describe('when shell is cmd.exe', () => {
-      it('should wrap simple arguments in double quotes', async () => {
+      it('should wrap simple arguments in double quotes', () => {
         const result = escapeShellArg('search term', 'cmd');
         expect(result).toBe('"search term"');
       });
 
-      it('should escape internal double quotes by doubling them', async () => {
+      it('should escape internal double quotes by doubling them', () => {
         const result = escapeShellArg('He said "Hello"', 'cmd');
         expect(result).toBe('"He said ""Hello"""');
       });
 
-      it('should handle empty strings', async () => {
+      it('should handle empty strings', () => {
         const result = escapeShellArg('', 'cmd');
         expect(result).toBe('');
       });
     });
 
     describe('when shell is PowerShell', () => {
-      it('should wrap simple arguments in single quotes', async () => {
+      it('should wrap simple arguments in single quotes', () => {
         const result = escapeShellArg('search term', 'powershell');
         expect(result).toBe("'search term'");
       });
 
-      it('should escape internal single quotes by doubling them', async () => {
+      it('should escape internal single quotes by doubling them', () => {
         const result = escapeShellArg("It's a test", 'powershell');
         expect(result).toBe("'It''s a test'");
       });
 
-      it('should handle double quotes without escaping them', async () => {
+      it('should handle double quotes without escaping them', () => {
         const result = escapeShellArg('He said "Hello"', 'powershell');
         expect(result).toBe('\'He said "Hello"\'');
       });
 
-      it('should handle empty strings', async () => {
+      it('should handle empty strings', () => {
         const result = escapeShellArg('', 'powershell');
         expect(result).toBe('');
       });
@@ -443,7 +441,7 @@ describe('getShellConfiguration', () => {
     process.env = originalEnv;
   });
 
-  it('should return bash configuration on Linux', async () => {
+  it('should return bash configuration on Linux', () => {
     mockPlatform.mockReturnValue('linux');
     const config = getShellConfiguration();
     expect(config.executable).toBe('bash');
@@ -451,7 +449,7 @@ describe('getShellConfiguration', () => {
     expect(config.shell).toBe('bash');
   });
 
-  it('should return bash configuration on macOS (darwin)', async () => {
+  it('should return bash configuration on macOS (darwin)', () => {
     mockPlatform.mockReturnValue('darwin');
     const config = getShellConfiguration();
     expect(config.executable).toBe('bash');
@@ -460,16 +458,12 @@ describe('getShellConfiguration', () => {
   });
 
   describe('on Windows', () => {
-    const originalEnv = { ...process.env };
-
     beforeEach(() => {
       mockPlatform.mockReturnValue('win32');
     });
 
     it('should return PowerShell configuration by default', () => {
       delete process.env['ComSpec'];
-      delete process.env['MSYSTEM'];
-      delete process.env['TERM'];
       const config = getShellConfiguration();
       expect(config.executable).toBe('powershell.exe');
       expect(config.argsPrefix).toEqual(['-NoProfile', '-Command']);
@@ -479,273 +473,37 @@ describe('getShellConfiguration', () => {
     it('should ignore ComSpec when pointing to cmd.exe', () => {
       const cmdPath = 'C:\\WINDOWS\\system32\\cmd.exe';
       process.env['ComSpec'] = cmdPath;
-      delete process.env['MSYSTEM'];
-      delete process.env['TERM'];
       const config = getShellConfiguration();
       expect(config.executable).toBe('powershell.exe');
       expect(config.argsPrefix).toEqual(['-NoProfile', '-Command']);
       expect(config.shell).toBe('powershell');
     });
 
-    it('should return PowerShell configuration if ComSpec points to powershell.exe', async () => {
+    it('should return PowerShell configuration if ComSpec points to powershell.exe', () => {
       const psPath =
         'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
       process.env['ComSpec'] = psPath;
-      delete process.env['MSYSTEM'];
-      delete process.env['TERM'];
       const config = getShellConfiguration();
       expect(config.executable).toBe(psPath);
       expect(config.argsPrefix).toEqual(['-NoProfile', '-Command']);
       expect(config.shell).toBe('powershell');
     });
 
-    it('should return PowerShell configuration if ComSpec points to pwsh.exe', async () => {
+    it('should return PowerShell configuration if ComSpec points to pwsh.exe', () => {
       const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
       process.env['ComSpec'] = pwshPath;
-      delete process.env['MSYSTEM'];
-      delete process.env['TERM'];
       const config = getShellConfiguration();
       expect(config.executable).toBe(pwshPath);
       expect(config.argsPrefix).toEqual(['-NoProfile', '-Command']);
       expect(config.shell).toBe('powershell');
     });
 
-    it('should be case-insensitive when checking ComSpec', async () => {
+    it('should be case-insensitive when checking ComSpec', () => {
       process.env['ComSpec'] = 'C:\\Path\\To\\POWERSHELL.EXE';
-      delete process.env['MSYSTEM'];
-      delete process.env['TERM'];
       const config = getShellConfiguration();
       expect(config.executable).toBe('C:\\Path\\To\\POWERSHELL.EXE');
       expect(config.argsPrefix).toEqual(['-NoProfile', '-Command']);
       expect(config.shell).toBe('powershell');
-    });
-
-    describe('Git Bash / MSYS2 / MinTTY detection', () => {
-      it('should return bash configuration when MSYSTEM starts with MINGW', () => {
-        process.env['MSYSTEM'] = 'MINGW64';
-        const config = getShellConfiguration();
-        // executable should be bash.exe path (either 'bash' or full path like 'C:\...\bash.exe')
-        expect(
-          config.executable.endsWith('bash.exe') ||
-            config.executable === 'bash',
-        ).toBe(true);
-        expect(config.argsPrefix).toEqual(['-c']);
-        expect(config.shell).toBe('bash');
-      });
-
-      it('should return bash configuration when MSYSTEM starts with MSYS', () => {
-        process.env['MSYSTEM'] = 'MSYS';
-        const config = getShellConfiguration();
-        expect(
-          config.executable.endsWith('bash.exe') ||
-            config.executable === 'bash',
-        ).toBe(true);
-        expect(config.argsPrefix).toEqual(['-c']);
-        expect(config.shell).toBe('bash');
-      });
-
-      it('should return bash configuration when TERM includes msys', () => {
-        delete process.env['MSYSTEM'];
-        process.env['TERM'] = 'xterm-256color-msys';
-        const config = getShellConfiguration();
-        expect(
-          config.executable.endsWith('bash.exe') ||
-            config.executable === 'bash',
-        ).toBe(true);
-        expect(config.argsPrefix).toEqual(['-c']);
-        expect(config.shell).toBe('bash');
-      });
-
-      it('should return bash configuration when TERM includes cygwin', () => {
-        delete process.env['MSYSTEM'];
-        process.env['TERM'] = 'xterm-256color-cygwin';
-        const config = getShellConfiguration();
-        expect(
-          config.executable.endsWith('bash.exe') ||
-            config.executable === 'bash',
-        ).toBe(true);
-        expect(config.argsPrefix).toEqual(['-c']);
-        expect(config.shell).toBe('bash');
-      });
-
-      it('should prioritize MSYSTEM over TERM for Git Bash detection', () => {
-        process.env['MSYSTEM'] = 'MINGW64';
-        process.env['TERM'] = 'xterm';
-        const config = getShellConfiguration();
-        expect(
-          config.executable.endsWith('bash.exe') ||
-            config.executable === 'bash',
-        ).toBe(true);
-        expect(config.argsPrefix).toEqual(['-c']);
-        expect(config.shell).toBe('bash');
-      });
-
-      it('should return cmd.exe when MSYSTEM and TERM do not indicate Git Bash', () => {
-        process.env['MSYSTEM'] = 'UNKNOWN';
-        process.env['TERM'] = 'xterm';
-        delete process.env['ComSpec'];
-        const config = getShellConfiguration();
-        expect(config.executable).toBe('cmd.exe');
-        expect(config.argsPrefix).toEqual(['/d', '/s', '/c']);
-        expect(config.shell).toBe('cmd');
-      });
-
-      it('should return bash when MSYSTEM is MINGW32', () => {
-        process.env['MSYSTEM'] = 'MINGW32';
-        const config = getShellConfiguration();
-        expect(
-          config.executable.endsWith('bash.exe') ||
-            config.executable === 'bash',
-        ).toBe(true);
-        expect(config.argsPrefix).toEqual(['-c']);
-        expect(config.shell).toBe('bash');
-      });
-    });
-  });
-});
-
-describe('isCommandNeedPermission', () => {
-  it('returns false for read-only commands', async () => {
-    const result = isCommandNeedsPermission('ls');
-    expect(result.requiresPermission).toBe(false);
-  });
-
-  it('returns true for mutating commands with reason', async () => {
-    const result = isCommandNeedsPermission('rm -rf temp');
-    expect(result.requiresPermission).toBe(true);
-    expect(result.reason).toContain('requires permission to execute');
-  });
-});
-
-describe('checkArgumentSafety', () => {
-  describe('command substitution patterns', () => {
-    it('should detect $() command substitution', async () => {
-      const result = checkArgumentSafety('$(whoami)');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('$() command substitution');
-    });
-
-    it('should detect backtick command substitution', async () => {
-      const result = checkArgumentSafety('`whoami`');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain(
-        'backtick command substitution',
-      );
-    });
-
-    it('should detect <() process substitution', async () => {
-      const result = checkArgumentSafety('<(cat file)');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('<() process substitution');
-    });
-
-    it('should detect >() process substitution', async () => {
-      const result = checkArgumentSafety('>(tee file)');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('>() process substitution');
-    });
-  });
-
-  describe('command separators', () => {
-    it('should detect semicolon separator', async () => {
-      const result = checkArgumentSafety('arg1; rm -rf /');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('; command separator');
-    });
-
-    it('should detect pipe', async () => {
-      const result = checkArgumentSafety('arg1 | cat file');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('| pipe');
-    });
-
-    it('should detect && operator', async () => {
-      const result = checkArgumentSafety('arg1 && ls');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('&& AND operator');
-    });
-
-    it('should detect || operator', async () => {
-      const result = checkArgumentSafety('arg1 || ls');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('|| OR operator');
-    });
-  });
-
-  describe('background execution', () => {
-    it('should detect background operator', async () => {
-      const result = checkArgumentSafety('arg1 & ls');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('& background operator');
-    });
-  });
-
-  describe('input/output redirection', () => {
-    it('should detect output redirection', async () => {
-      const result = checkArgumentSafety('arg1 > file');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('> output redirection');
-    });
-
-    it('should detect input redirection', async () => {
-      const result = checkArgumentSafety('arg1 < file');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('< input redirection');
-    });
-
-    it('should detect append redirection', async () => {
-      const result = checkArgumentSafety('arg1 >> file');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('> output redirection');
-    });
-  });
-
-  describe('safe inputs', () => {
-    it('should accept simple arguments', async () => {
-      const result = checkArgumentSafety('arg1 arg2');
-      expect(result.isSafe).toBe(true);
-      expect(result.dangerousPatterns).toHaveLength(0);
-    });
-
-    it('should accept arguments with numbers', async () => {
-      const result = checkArgumentSafety('file123.txt');
-      expect(result.isSafe).toBe(true);
-    });
-
-    it('should accept arguments with hyphens', async () => {
-      const result = checkArgumentSafety('--flag=value');
-      expect(result.isSafe).toBe(true);
-    });
-
-    it('should accept arguments with underscores', async () => {
-      const result = checkArgumentSafety('my_file_name');
-      expect(result.isSafe).toBe(true);
-    });
-
-    it('should accept arguments with dots', async () => {
-      const result = checkArgumentSafety('path/to/file.txt');
-      expect(result.isSafe).toBe(true);
-    });
-
-    it('should accept empty string', async () => {
-      const result = checkArgumentSafety('');
-      expect(result.isSafe).toBe(true);
-    });
-
-    it('should accept arguments with spaces (quoted)', async () => {
-      const result = checkArgumentSafety('hello world');
-      expect(result.isSafe).toBe(true);
-    });
-  });
-
-  describe('multiple dangerous patterns', () => {
-    it('should detect multiple dangerous patterns', async () => {
-      const result = checkArgumentSafety('$(whoami); rm -rf / &');
-      expect(result.isSafe).toBe(false);
-      expect(result.dangerousPatterns).toContain('$() command substitution');
-      expect(result.dangerousPatterns).toContain('; command separator');
-      expect(result.dangerousPatterns).toContain('& background operator');
-      expect(result.dangerousPatterns).toHaveLength(3);
     });
   });
 });

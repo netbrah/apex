@@ -171,9 +171,6 @@ export interface ColorsTheme {
   AccentGreen: string;
   AccentYellow: string;
   AccentRed: string;
-  // Dim variants for less intense UI elements
-  AccentYellowDim: string;
-  AccentRedDim: string;
   DiffAdded: string;
   DiffRemoved: string;
   Comment: string;
@@ -241,8 +238,6 @@ export const ansiTheme: ColorsTheme = {
   AccentGreen: 'green',
   AccentYellow: 'yellow',
   AccentRed: 'red',
-  AccentYellowDim: 'yellow',
-  AccentRedDim: 'red',
   DiffAdded: 'green',
   DiffRemoved: 'red',
   Comment: 'gray',
@@ -278,7 +273,7 @@ export class Theme {
     readonly colors: ColorsTheme,
     semanticColors?: SemanticColors,
   ) {
-    const baseSemanticColors: SemanticColors = semanticColors ?? {
+    this.semanticColors = semanticColors ?? {
       text: {
         primary: this.colors.Foreground,
         secondary: this.colors.Gray,
@@ -329,41 +324,7 @@ export class Theme {
         error: this.colors.AccentRed,
         success: this.colors.AccentGreen,
         warning: this.colors.AccentYellow,
-        errorDim: this.colors.AccentRedDim,
-        warningDim: this.colors.AccentYellowDim,
       },
-    };
-
-    // Auto-derive V2 token groups when not explicitly provided (FQ-26)
-    const bg = this.colors.Background;
-    const isLight = this.type === 'light';
-    const deriveSurface = (): SemanticColors['surface'] => ({
-      canvas: bg,
-      panel: lightenOrDarken(bg, isLight ? -0.04 : 0.06),
-      panelMuted: lightenOrDarken(bg, isLight ? -0.02 : 0.03),
-      overlay: lightenOrDarken(bg, isLight ? -0.07 : 0.1),
-    });
-    const deriveInteractive = (): SemanticColors['interactive'] => ({
-      hover: lightenOrDarken(bg, isLight ? -0.06 : 0.08),
-      active: lightenOrDarken(bg, isLight ? -0.1 : 0.14),
-      selected: this.colors.AccentBlue,
-    });
-    const deriveBadge = (): SemanticColors['badge'] => ({
-      info: this.colors.AccentBlue,
-      tool: this.colors.AccentCyan,
-      agent: this.colors.AccentPurple,
-    });
-    const derivePrompt = (): SemanticColors['prompt'] => ({
-      prefix: this.colors.AccentPurple,
-      placeholder: this.colors.Gray,
-    });
-
-    this.semanticColors = {
-      ...baseSemanticColors,
-      surface: baseSemanticColors.surface ?? deriveSurface(),
-      interactive: baseSemanticColors.interactive ?? deriveInteractive(),
-      badge: baseSemanticColors.badge ?? deriveBadge(),
-      prompt: baseSemanticColors.prompt ?? derivePrompt(),
     };
     this._colorMap = Object.freeze(this._buildColorMap(rawMappings)); // Build and freeze the map
 
@@ -435,17 +396,13 @@ export function createCustomTheme(customTheme: CustomTheme): Theme {
     type: 'custom',
     Background: customTheme.background?.primary ?? customTheme.Background ?? '',
     Foreground: customTheme.text?.primary ?? customTheme.Foreground ?? '',
-    LightBlue: customTheme.text?.code ?? customTheme.LightBlue ?? '',
+    LightBlue: customTheme.text?.link ?? customTheme.LightBlue ?? '',
     AccentBlue: customTheme.text?.link ?? customTheme.AccentBlue ?? '',
     AccentPurple: customTheme.text?.accent ?? customTheme.AccentPurple ?? '',
     AccentCyan: customTheme.text?.link ?? customTheme.AccentCyan ?? '',
     AccentGreen: customTheme.status?.success ?? customTheme.AccentGreen ?? '',
     AccentYellow: customTheme.status?.warning ?? customTheme.AccentYellow ?? '',
     AccentRed: customTheme.status?.error ?? customTheme.AccentRed ?? '',
-    AccentYellowDim:
-      customTheme.status?.warningDim ?? customTheme.AccentYellowDim ?? '',
-    AccentRedDim:
-      customTheme.status?.errorDim ?? customTheme.AccentRedDim ?? '',
     DiffAdded:
       customTheme.background?.diff?.added ?? customTheme.DiffAdded ?? '',
     DiffRemoved:

@@ -168,8 +168,6 @@ async function detectTerminal(): Promise<SupportedTerminal | null> {
         return 'cursor';
       if (parentName.includes('code') || parentName.includes('Code'))
         return 'vscode';
-      if (parentName.includes('trae') || parentName.includes('Trae'))
-        return 'trae';
     } catch (error) {
       // Continue detection even if process check fails
       debugLogger.debug('Parent process detection failed:', error);
@@ -223,10 +221,7 @@ async function configureVSCodeStyle(
   if (!configDir) {
     return {
       success: false,
-      message: t(
-        'Could not determine {{terminalName}} config path on Windows: APPDATA environment variable is not set.',
-        { terminalName },
-      ),
+      message: `Could not determine ${terminalName} config path on Windows: APPDATA environment variable is not set.`,
     };
   }
 
@@ -247,12 +242,9 @@ async function configureVSCodeStyle(
           return {
             success: false,
             message:
-              t(
-                '{{terminalName}} keybindings.json exists but is not a valid JSON array. Please fix the file manually or delete it to allow automatic configuration.',
-                { terminalName },
-              ) +
-              '\n' +
-              t('File: {{file}}', { file: keybindingsFile }),
+              `${terminalName} keybindings.json exists but is not a valid JSON array. ` +
+              `Please fix the file manually or delete it to allow automatic configuration.\n` +
+              `File: ${keybindingsFile}`,
           };
         }
         keybindings = parsedContent;
@@ -260,14 +252,10 @@ async function configureVSCodeStyle(
         return {
           success: false,
           message:
-            t(
-              'Failed to parse {{terminalName}} keybindings.json. The file contains invalid JSON. Please fix the file manually or delete it to allow automatic configuration.',
-              { terminalName },
-            ) +
-            '\n' +
-            t('File: {{file}}', { file: keybindingsFile }) +
-            '\n' +
-            t('Error: {{error}}', { error: String(parseError) }),
+            `Failed to parse ${terminalName} keybindings.json. The file contains invalid JSON.\n` +
+            `Please fix the file manually or delete it to allow automatic configuration.\n` +
+            `File: ${keybindingsFile}\n` +
+            `Error: ${parseError}`,
         };
       }
     } catch {
@@ -339,9 +327,7 @@ async function configureVSCodeStyle(
     if (results.every((r) => r.hasOurBinding)) {
       return {
         success: true,
-        message: t('{{terminalName}} keybindings already configured.', {
-          terminalName,
-        }),
+        message: `${terminalName} keybindings already configured.`,
       };
     }
 
@@ -376,12 +362,7 @@ async function configureVSCodeStyle(
   } catch (error) {
     return {
       success: false,
-      message:
-        t('Failed to configure {{terminalName}}.', { terminalName }) +
-        '\n' +
-        t('File: {{file}}', { file: keybindingsFile }) +
-        '\n' +
-        t('Error: {{error}}', { error: String(error) }),
+      message: `Failed to configure ${terminalName}.\nFile: ${keybindingsFile}\nError: ${error}`,
     };
   }
 }
@@ -439,10 +420,6 @@ export async function shouldPromptForTerminalSetup(): Promise<boolean> {
   }
 }
 
-async function configureTrae(): Promise<TerminalSetupResult> {
-  return configureVSCodeStyle('Trae', 'Trae');
-}
-
 /**
  * Main terminal setup function that detects and configures the current terminal.
  *
@@ -467,9 +444,8 @@ export async function terminalSetup(): Promise<TerminalSetupResult> {
   if (terminalCapabilityManager.isKittyProtocolEnabled()) {
     return {
       success: true,
-      message: t(
+      message:
         'Your terminal is already configured for an optimal experience with multiline input (Shift+Enter and Ctrl+Enter).',
-      ),
     };
   }
 

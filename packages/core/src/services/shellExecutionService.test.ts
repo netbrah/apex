@@ -27,9 +27,6 @@ import { ExecutionLifecycleService } from './executionLifecycleService.js';
 import type { AnsiOutput, AnsiToken } from '../utils/terminalSerializer.js';
 
 // Hoisted Mocks
-const mockGetSystemEncoding = vi.hoisted(() =>
-  vi.fn().mockReturnValue('utf-8'),
-);
 const mockPtySpawn = vi.hoisted(() => vi.fn());
 const mockCpSpawn = vi.hoisted(() => vi.fn());
 const mockIsBinary = vi.hoisted(() => vi.fn());
@@ -251,11 +248,6 @@ describe('ShellExecutionService', () => {
     };
 
     mockPtySpawn.mockReturnValue(mockPtyProcess);
-  });
-
-  afterEach(() => {
-    process.env = originalProcessEnv;
-    vi.unstubAllEnvs();
   });
 
   // Helper function to run a standard execution simulation
@@ -1036,11 +1028,6 @@ describe('ShellExecutionService', () => {
   describe('Platform-Specific Behavior', () => {
     it('should use powershell.exe on Windows', async () => {
       mockPlatform.mockReturnValue('win32');
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'cmd.exe',
-        argsPrefix: ['/d', '/s', '/c'],
-        shell: 'cmd',
-      });
       await simulateExecution('dir "foo bar"', (pty) =>
         pty.onExit.mock.calls[0][0]({ exitCode: 0, signal: null }),
       );
@@ -1050,51 +1037,6 @@ describe('ShellExecutionService', () => {
         ['-NoProfile', '-Command', 'dir "foo bar"'],
         expect.any(Object),
       );
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'bash',
-        argsPrefix: ['-c'],
-        shell: 'bash',
-      });
-    });
-
-    it('should use PowerShell on Windows with array args and UTF-8 prefix', async () => {
-      mockPlatform.mockReturnValue('win32');
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'powershell.exe',
-        argsPrefix: ['-NoProfile', '-Command'],
-        shell: 'powershell',
-      });
-      await simulateExecution('Test-Path "C:\\Temp\\"', (pty) =>
-        pty.onExit.mock.calls[0][0]({ exitCode: 0, signal: null }),
-      );
-
-      // PowerShell commands on Windows are prefixed with UTF-8 output encoding
-      expect(mockPtySpawn).toHaveBeenCalledWith(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-Command',
-          '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;Test-Path "C:\\Temp\\"',
-        ],
-        expect.any(Object),
-      );
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'bash',
-        argsPrefix: ['-c'],
-        shell: 'bash',
-      });
-    });
-
-    it('should normalize PATH-like env keys on Windows for pty execution', async () => {
-      mockPlatform.mockReturnValue('win32');
-      setupConflictingPathEnv();
-
-      await simulateExecution('dir', (pty) =>
-        pty.onExit.mock.calls[0][0]({ exitCode: 0, signal: null }),
-      );
-
-      const spawnOptions = mockPtySpawn.mock.calls[0][2];
-      expectNormalizedWindowsPathEnv(spawnOptions.env);
     });
 
     it('should use bash on Linux', async () => {
@@ -1303,7 +1245,6 @@ describe('ShellExecutionService child_process fallback', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    originalProcessEnv = process.env;
 
     mockIsBinary.mockReturnValue(false);
     mockPlatform.mockReturnValue('linux');
@@ -1323,11 +1264,6 @@ describe('ShellExecutionService child_process fallback', () => {
     });
 
     mockCpSpawn.mockReturnValue(mockChildProcess);
-  });
-
-  afterEach(() => {
-    process.env = originalProcessEnv;
-    vi.unstubAllEnvs();
   });
 
   // Helper function to run a standard execution simulation
@@ -1380,7 +1316,11 @@ describe('ShellExecutionService child_process fallback', () => {
 
       expect(onOutputEventMock).toHaveBeenCalledWith({
         type: 'data',
-        chunk: 'file1.txt\na warning',
+        chunk: 'file1.txt\n',
+      });
+      expect(onOutputEventMock).toHaveBeenCalledWith({
+        type: 'data',
+        chunk: 'a warning',
       });
       expect(onOutputEventMock).toHaveBeenCalledWith({
         type: 'exit',
@@ -1683,53 +1623,6 @@ describe('ShellExecutionService child_process fallback', () => {
           windowsVerbatimArguments: false,
         }),
       );
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'bash',
-        argsPrefix: ['-c'],
-        shell: 'bash',
-      });
-    });
-
-    it('should use PowerShell with UTF-8 prefix without windowsVerbatimArguments on Windows', async () => {
-      mockPlatform.mockReturnValue('win32');
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'powershell.exe',
-        argsPrefix: ['-NoProfile', '-Command'],
-        shell: 'powershell',
-      });
-      await simulateExecution('Test-Path "C:\\Temp\\"', (cp) =>
-        cp.emit('exit', 0, null),
-      );
-
-      // PowerShell commands on Windows are prefixed with UTF-8 output encoding
-      expect(mockCpSpawn).toHaveBeenCalledWith(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-Command',
-          '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;Test-Path "C:\\Temp\\"',
-        ],
-        expect.objectContaining({
-          detached: false,
-          windowsHide: true,
-          windowsVerbatimArguments: false,
-        }),
-      );
-      mockGetShellConfiguration.mockReturnValue({
-        executable: 'bash',
-        argsPrefix: ['-c'],
-        shell: 'bash',
-      });
-    });
-
-    it('should normalize PATH-like env keys on Windows for child_process fallback', async () => {
-      mockPlatform.mockReturnValue('win32');
-      setupConflictingPathEnv();
-
-      await simulateExecution('dir', (cp) => cp.emit('exit', 0, null));
-
-      const spawnOptions = mockCpSpawn.mock.calls[0][2];
-      expectNormalizedWindowsPathEnv(spawnOptions.env);
     });
 
     it('should use bash and detached process group on Linux', async () => {

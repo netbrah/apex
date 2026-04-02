@@ -98,8 +98,6 @@ class GlobToolInvocation extends BaseToolInvocation<
   GlobToolParams,
   ToolResult
 > {
-  private fileService: FileDiscoveryService;
-
   constructor(
     private config: Config,
     params: GlobToolParams,
@@ -120,7 +118,6 @@ class GlobToolInvocation extends BaseToolInvocation<
       const relativePath = makeRelative(searchDir, this.config.getTargetDir());
       description += ` within ${shortenPath(relativePath)}`;
     }
-
     return description;
   }
 
@@ -134,9 +131,8 @@ class GlobToolInvocation extends BaseToolInvocation<
 
   async execute(signal: AbortSignal): Promise<ToolResult> {
     try {
-      // Determine which directories to search
-      const searchDirs: string[] = [];
-      let searchLocationDescription: string;
+      const workspaceContext = this.config.getWorkspaceContext();
+      const workspaceDirectories = workspaceContext.getDirectories();
 
       // If a specific path is provided, resolve it and check if it's within workspace
       let searchDirectories: readonly string[];
@@ -161,15 +157,8 @@ class GlobToolInvocation extends BaseToolInvocation<
         }
         searchDirectories = [searchDirAbsolute];
       } else {
-        // No path specified — search all workspace directories
-        const workspaceDirs = this.config
-          .getWorkspaceContext()
-          .getDirectories();
-        searchDirs.push(...workspaceDirs);
-        searchLocationDescription =
-          workspaceDirs.length > 1
-            ? `across ${workspaceDirs.length} workspace directories`
-            : `in the workspace directory`;
+        // Search across all workspace directories
+        searchDirectories = workspaceDirectories;
       }
 
       // Get centralized file discovery service
@@ -234,7 +223,7 @@ class GlobToolInvocation extends BaseToolInvocation<
           message += ` (${ignoredCount} files were ignored)`;
         }
         return {
-          llmContent: `No files found matching pattern "${this.params.pattern}" ${searchLocationDescription}`,
+          llmContent: message,
           returnDisplay: `No files found`,
         };
       }
@@ -250,31 +239,17 @@ class GlobToolInvocation extends BaseToolInvocation<
         oneDayInMs,
       );
 
-      const totalFileCount = sortedEntries.length;
-      const fileLimit = Math.min(
-        MAX_FILE_COUNT,
-        this.config.getTruncateToolOutputLines(),
-      );
-      const truncated = totalFileCount > fileLimit;
-
-      // Limit to fileLimit if needed
-      const entriesToShow = truncated
-        ? sortedEntries.slice(0, fileLimit)
-        : sortedEntries;
-
-      const sortedAbsolutePaths = entriesToShow.map((entry) =>
+      const sortedAbsolutePaths = sortedEntries.map((entry) =>
         entry.fullpath(),
       );
       const fileListDescription = sortedAbsolutePaths.join('\n');
+      const fileCount = sortedAbsolutePaths.length;
 
-      let resultMessage = `Found ${totalFileCount} file(s) matching "${this.params.pattern}" ${searchLocationDescription}`;
-      resultMessage += `, sorted by modification time (newest first):\n---\n${fileListDescription}`;
-
-      // Add truncation notice if needed
-      if (truncated) {
-        const omittedFiles = totalFileCount - fileLimit;
-        const fileTerm = omittedFiles === 1 ? 'file' : 'files';
-        resultMessage += `\n---\n[${omittedFiles} ${fileTerm} truncated] ...`;
+      let resultMessage = `Found ${fileCount} file(s) matching "${this.params.pattern}"`;
+      if (searchDirectories.length === 1) {
+        resultMessage += ` within ${searchDirectories[0]}`;
+      } else {
+        resultMessage += ` across ${searchDirectories.length} workspace directories`;
       }
       if (ignoredCount > 0) {
         resultMessage += ` (${ignoredCount} additional files were ignored)`;
@@ -283,7 +258,7 @@ class GlobToolInvocation extends BaseToolInvocation<
 
       return {
         llmContent: resultMessage,
-        returnDisplay: `Found ${totalFileCount} matching file(s)${truncated ? ' (truncated)' : ''}`,
+        returnDisplay: `Found ${fileCount} matching file(s)`,
       };
     } catch (error) {
       debugLogger.warn(`GlobLogic execute Error`, error);
@@ -291,25 +266,13 @@ class GlobToolInvocation extends BaseToolInvocation<
       const rawError = `Error during glob search operation: ${errorMessage}`;
       return {
         llmContent: rawError,
-        returnDisplay: `Error: ${errorMessage || 'An unexpected error occurred.'}`,
+        returnDisplay: `Error: An unexpected error occurred.`,
         error: {
           message: rawError,
           type: ToolErrorType.GLOB_EXECUTION_ERROR,
         },
       };
     }
-  }
-
-  private getFileFilteringOptions(): FileFilteringOptions {
-    const options = this.config.getFileFilteringOptions?.();
-    return {
-      respectGitIgnore:
-        options?.respectGitIgnore ??
-        DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-      respectApexIgnore:
-        options?.respectApexIgnore ??
-        DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
-    };
   }
 }
 
@@ -371,17 +334,6 @@ export class GlobTool extends BaseDeclarativeTool<GlobToolParams, ToolResult> {
       params.pattern.trim() === ''
     ) {
       return "The 'pattern' parameter cannot be empty.";
-    }
-
-    // Only validate path if one is provided
-    if (params.path) {
-      try {
-        resolveAndValidatePath(this.config, params.path, {
-          allowExternalPaths: true,
-        });
-      } catch (error) {
-        return getErrorMessage(error);
-      }
     }
 
     return null;

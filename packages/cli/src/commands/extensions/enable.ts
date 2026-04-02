@@ -78,7 +78,7 @@ export const enableCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .positional('name', {
-        describe: t('The name of the extension to enable.'),
+        describe: 'The name of the extension to enable.',
         type: 'string',
       })
       .option('scope', {

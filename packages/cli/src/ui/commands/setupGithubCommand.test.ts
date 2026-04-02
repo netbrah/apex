@@ -277,7 +277,7 @@ describe('updateGitignore', () => {
     expect(content).toBe('.apex/\nsome-other-file\n\ngha-creds-*.json\n');
     expect(content).toContain('gha-creds-*.json');
     // Should not duplicate .apex/ entry
-    expect((content.match(/\.apex\//g) || []).length).toBe(1);
+    expect((content.match(/\.gemini\//g) || []).length).toBe(1);
   });
 
   it('does not get confused by entries in comments or as substrings', async () => {
@@ -329,7 +329,12 @@ describe('updateGitignore', () => {
       .mockRejectedValue(new Error('Permission denied'));
 
     await expect(updateGitignore(scratchDir)).resolves.toBeUndefined();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'Failed to update .gitignore:',
+      expect.any(Error),
+    );
 
     writeFileSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });

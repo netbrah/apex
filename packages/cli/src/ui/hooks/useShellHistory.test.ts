@@ -63,12 +63,6 @@ vi.mock('@apex-code/apex-core', async (importOriginal) => {
     ...actual,
     isNodeError: (err: unknown): err is NodeJS.ErrnoException =>
       typeof err === 'object' && err !== null && 'code' in err,
-    createDebugLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
     Storage,
   };
 });

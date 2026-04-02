@@ -178,7 +178,7 @@ export class GeminiAgent {
       protocolVersion: acp.PROTOCOL_VERSION,
       authMethods,
       agentInfo: {
-        name: 'apex',
+        name: 'gemini-cli',
         title: 'Gemini CLI',
         version,
       },

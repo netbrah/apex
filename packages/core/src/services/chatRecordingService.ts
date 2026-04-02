@@ -36,13 +36,7 @@ const ENOSPC_WARNING_MESSAGE =
   'Free up disk space and restart to enable recording.';
 
 /**
- * A single record stored in the JSONL file.
- * Forms a tree structure via uuid/parentUuid for future checkpointing support.
- *
- * Each record is self-contained with full metadata, enabling:
- * - Append-only writes (crash-safe)
- * - Tree reconstruction by following parentUuid chain
- * - Future checkpointing by branching from any historical record
+ * Token usage summary for a message or conversation.
  */
 export interface TokensSummary {
   input: number; // promptTokenCount
@@ -117,55 +111,15 @@ export interface ConversationRecord {
 }
 
 /**
- * Stored payload for chat compression checkpoints. This allows us to rebuild the
- * effective chat history on resume while keeping the original UI-visible history.
+ * Data structure for resuming an existing session.
  */
-export interface ChatCompressionRecordPayload {
-  /** Compression metrics/status returned by the compression service */
-  info: ChatCompressionInfo;
-  /**
-   * Snapshot of the new history contents that the model should see after
-   * compression (summary turns + retained tail). Stored as Content[] for
-   * resume reconstruction.
-   */
-  compressedHistory: Content[];
-}
-
-export interface SlashCommandRecordPayload {
-  /** Whether this record represents the invocation or the resulting output. */
-  phase: 'invocation' | 'result';
-  /** Raw user-entered slash command (e.g., "/about"). */
-  rawCommand: string;
-  /**
-   * History items the UI displayed for this command, in the same shape used by
-   * the CLI (without IDs). Stored as plain objects for replay on resume.
-   */
-  outputHistoryItems?: Array<Record<string, unknown>>;
+export interface ResumedSessionData {
+  conversation: ConversationRecord;
+  filePath: string;
 }
 
 /**
- * Stored payload for @-command replay.
- */
-export interface AtCommandRecordPayload {
-  /** Files that were read for this @-command. */
-  filesRead: string[];
-  /** Status for UI reconstruction. */
-  status: 'success' | 'error';
-  /** Optional result message for UI reconstruction. */
-  message?: string;
-  /** Raw user-entered @-command query (optional for legacy records). */
-  userText?: string;
-}
-
-/**
- * Stored payload for UI telemetry replay.
- */
-export interface UiTelemetryRecordPayload {
-  uiEvent: UiEvent;
-}
-
-/**
- * Service for recording the current chat session to disk.
+ * Service for automatically recording chat conversations to disk.
  *
  * This service provides comprehensive conversation recording that captures:
  * - All user and assistant messages
@@ -173,20 +127,7 @@ export interface UiTelemetryRecordPayload {
  * - Token usage statistics
  * - Assistant thoughts and reasoning
  *
- * **API Design:**
- * - `recordUserMessage()` - Records a user message (immediate write)
- * - `recordAssistantTurn()` - Records an assistant turn with all data (immediate write)
- * - `recordToolResult()` - Records tool results (immediate write)
- *
- * **Storage Format:** JSONL files with tree-structured records.
- * Each record has uuid/parentUuid fields enabling:
- * - Append-only writes (never rewrite the file)
- * - Linear history reconstruction
- * - Future checkpointing (branch from any historical point)
- *
- * File location: ~/.apex/tmp/<project_id>/chats/
- *
- * For session management (list, load, remove), use SessionService.
+ * Sessions are stored as JSON files in ~/.apex/tmp/<project_hash>/chats/
  */
 export class ChatRecordingService {
   private conversationFile: string | null = null;
@@ -315,42 +256,12 @@ export class ChatRecordingService {
       debugLogger.error('Error initializing chat recording service:', error);
       throw error;
     }
-
-    return chatsDir;
   }
 
-  /**
-   * Ensures the conversation file exists, creating it if it doesn't exist.
-   * Uses atomic file creation to avoid race conditions.
-   * @returns The path to the conversation file.
-   * @throws Error if the file cannot be created or accessed.
-   */
-  private ensureConversationFile(): string {
-    const chatsDir = this.ensureChatsDir();
-    const sessionId = this.getSessionId();
-    const safeFilename = `${sessionId}.jsonl`;
-    const conversationFile = path.join(chatsDir, safeFilename);
-
-    if (fs.existsSync(conversationFile)) {
-      return conversationFile;
-    }
-
-    try {
-      // Use 'wx' flag for exclusive creation - atomic operation that fails if file exists
-      // This avoids the TOCTOU race condition of existsSync + writeFileSync
-      fs.writeFileSync(conversationFile, '', { flag: 'wx', encoding: 'utf8' });
-    } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      // EEXIST means file already exists, which is expected and fine
-      if (nodeError.code !== 'EEXIST') {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `Failed to create conversation file at ${conversationFile}: ${message}`,
-        );
-      }
-    }
-
-    return conversationFile;
+  private getLastMessage(
+    conversation: ConversationRecord,
+  ): MessageRecord | undefined {
+    return conversation.messages.at(-1);
   }
 
   private newMessage(
@@ -359,9 +270,7 @@ export class ChatRecordingService {
     displayContent?: PartListUnion,
   ): MessageRecord {
     return {
-      uuid: randomUUID(),
-      parentUuid: this.lastRecordUuid,
-      sessionId: this.getSessionId(),
+      id: randomUUID(),
       timestamp: new Date().toISOString(),
       type,
       content,
@@ -370,7 +279,7 @@ export class ChatRecordingService {
   }
 
   /**
-   * Appends a record to the session file and updates lastRecordUuid.
+   * Records a message in the conversation.
    */
   recordMessage(message: {
     model: string | undefined;
@@ -409,12 +318,11 @@ export class ChatRecordingService {
   }
 
   /**
-   * Records a user message.
-   * Writes immediately to disk.
-   *
-   * @param message The raw PartListUnion object as used with the API
+   * Records a thought from the assistant's reasoning process.
    */
-  recordUserMessage(message: PartListUnion): void {
+  recordThought(thought: ThoughtSummary): void {
+    if (!this.conversationFile) return;
+
     try {
       this.queuedThoughts.push({
         ...thought,
@@ -612,14 +520,7 @@ export class ChatRecordingService {
   }
 
   /**
-   * Records an assistant turn with all available data.
-   * Writes immediately to disk.
-   *
-   * @param data.message The raw PartListUnion object from the model response
-   * @param data.model The model name
-   * @param data.tokens Token usage statistics
-   * @param data.contextWindowSize Context window size of the model
-   * @param data.toolCallsMetadata Enriched tool call info for UI recovery
+   * Saves the conversation record; overwrites the file.
    */
   private writeConversation(
     conversation: ConversationRecord,
@@ -668,47 +569,15 @@ export class ChatRecordingService {
   }
 
   /**
-   * Records tool results (function responses) sent back to the model.
-   * Writes immediately to disk.
-   *
-   * @param message The raw PartListUnion object with functionResponse parts
-   * @param toolCallResult Optional tool call result info for UI recovery
+   * Convenient helper for updating the conversation without file reading and writing and time
+   * updating boilerplate.
    */
-  recordToolResult(
-    message: PartListUnion,
-    toolCallResult?: Partial<ToolCallResponseInfo> & { status: Status },
-  ): void {
-    try {
-      const record: ChatRecord = {
-        ...this.createBaseRecord('tool_result'),
-        message: createUserContent(message),
-      };
-
-      if (toolCallResult) {
-        // special case for task executions - we don't want to record the tool calls
-        if (
-          typeof toolCallResult.resultDisplay === 'object' &&
-          toolCallResult.resultDisplay !== null &&
-          'type' in toolCallResult.resultDisplay &&
-          toolCallResult.resultDisplay.type === 'task_execution'
-        ) {
-          const taskResult = toolCallResult.resultDisplay as AgentResultDisplay;
-          record.toolCallResult = {
-            ...toolCallResult,
-            resultDisplay: {
-              ...taskResult,
-              toolCalls: [],
-            },
-          };
-        } else {
-          record.toolCallResult = toolCallResult;
-        }
-      }
-
-      this.appendRecord(record);
-    } catch (error) {
-      debugLogger.error('Error saving tool result:', error);
-    }
+  private updateConversation(
+    updateFn: (conversation: ConversationRecord) => void,
+  ) {
+    const conversation = this.readConversation();
+    updateFn(conversation);
+    this.writeConversation(conversation);
   }
 
   /**

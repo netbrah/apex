@@ -20,7 +20,6 @@ export interface UseInputHistoryReturn {
   handleSubmit: (value: string) => void;
   navigateUp: () => boolean;
   navigateDown: () => boolean;
-  resetHistoryNav: () => void;
 }
 
 export function useInputHistory({
@@ -131,6 +130,5 @@ export function useInputHistory({
     handleSubmit,
     navigateUp,
     navigateDown,
-    resetHistoryNav,
   };
 }

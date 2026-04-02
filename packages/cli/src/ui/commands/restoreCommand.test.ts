@@ -96,7 +96,7 @@ describe('restoreCommand', () => {
       ).toEqual({
         type: 'message',
         messageType: 'error',
-        content: 'Could not determine the .qwen directory path.',
+        content: 'Could not determine the .gemini directory path.',
       });
     });
 

@@ -31,7 +31,7 @@ import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
 // Mock tool names if they are dynamically generated or complex
 vi.mock('../tools/ls', () => ({ LSTool: { Name: 'list_directory' } }));
-vi.mock('../tools/edit', () => ({ EditTool: { Name: 'edit' } }));
+vi.mock('../tools/edit', () => ({ EditTool: { Name: 'replace' } }));
 vi.mock('../tools/glob', () => ({ GlobTool: { Name: 'glob' } }));
 vi.mock('../tools/grep', () => ({ GrepTool: { Name: 'grep_search' } }));
 vi.mock('../tools/read-file', () => ({ ReadFileTool: { Name: 'read_file' } }));
@@ -725,9 +725,9 @@ describe('Core System Prompt (prompts.ts)', () => {
       },
     );
 
-    it('should throw error if APEX_SYSTEM_MD points to a non-existent file', () => {
+    it('should throw error if GEMINI_SYSTEM_MD points to a non-existent file', () => {
       const customPath = '/non/existent/path/system.md';
-      vi.stubEnv('APEX_SYSTEM_MD', customPath);
+      vi.stubEnv('GEMINI_SYSTEM_MD', customPath);
       vi.mocked(fs.existsSync).mockReturnValue(false);
       expect(() => getCoreSystemPrompt(mockConfig)).toThrow(
         `missing system prompt file '${path.resolve(customPath)}'`,
@@ -748,9 +748,9 @@ describe('Core System Prompt (prompts.ts)', () => {
       },
     );
 
-    it('should read from custom path when APEX_SYSTEM_MD provides one, preserving case', () => {
+    it('should read from custom path when GEMINI_SYSTEM_MD provides one, preserving case', () => {
       const customPath = path.resolve('/custom/path/SyStEm.Md');
-      vi.stubEnv('APEX_SYSTEM_MD', customPath);
+      vi.stubEnv('GEMINI_SYSTEM_MD', customPath);
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
 
@@ -759,12 +759,12 @@ describe('Core System Prompt (prompts.ts)', () => {
       expect(prompt).toBe('custom system prompt');
     });
 
-    it('should expand tilde in custom path when APEX_SYSTEM_MD is set', () => {
+    it('should expand tilde in custom path when GEMINI_SYSTEM_MD is set', () => {
       const homeDir = '/Users/test';
       vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
       const customPath = '~/custom/system.md';
       const expectedPath = path.join(homeDir, 'custom/system.md');
-      vi.stubEnv('APEX_SYSTEM_MD', customPath);
+      vi.stubEnv('GEMINI_SYSTEM_MD', customPath);
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
 
@@ -800,7 +800,7 @@ describe('Core System Prompt (prompts.ts)', () => {
       },
     );
 
-    it('should write to custom path when APEX_WRITE_SYSTEM_MD provides one', () => {
+    it('should write to custom path when GEMINI_WRITE_SYSTEM_MD provides one', () => {
       const customPath = path.resolve('/custom/path/system.md');
       vi.stubEnv('GEMINI_WRITE_SYSTEM_MD', customPath);
       getCoreSystemPrompt(mockConfig);
@@ -920,432 +920,5 @@ describe('resolvePathFromEnv helper function', () => {
 
       consoleSpy.mockRestore();
     });
-  });
-});
-
-describe('Model-specific tool call formats', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    vi.stubEnv('SANDBOX', undefined);
-  });
-
-  it('should use XML format for qwen3-coder model', () => {
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const prompt = getCoreSystemPrompt(undefined, 'qwen3-coder-7b');
-
-    // Should contain XML-style tool calls
-    expect(prompt).toContain('<tool_call>');
-    expect(prompt).toContain('<function=run_shell_command>');
-    expect(prompt).toContain('<parameter=command>');
-    expect(prompt).toContain('</function>');
-    expect(prompt).toContain('</tool_call>');
-
-    // Should NOT contain bracket-style tool calls
-    expect(prompt).not.toContain('[tool_call: run_shell_command for');
-
-    // Should NOT contain JSON-style tool calls
-    expect(prompt).not.toContain('{"name": "run_shell_command"');
-
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should use JSON format for qwen-vl model', () => {
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const prompt = getCoreSystemPrompt(undefined, 'qwen-vl-max');
-
-    // Should contain JSON-style tool calls
-    expect(prompt).toContain('<tool_call>');
-    expect(prompt).toContain('{"name": "run_shell_command"');
-    expect(prompt).toContain(
-      '"arguments": {"command": "node server.js &", "is_background": true}',
-    );
-    expect(prompt).toContain('</tool_call>');
-
-    // Should NOT contain bracket-style tool calls
-    expect(prompt).not.toContain('[tool_call: run_shell_command for');
-
-    // Should NOT contain XML-style tool calls with parameters
-    expect(prompt).not.toContain('<function=run_shell_command>');
-    expect(prompt).not.toContain('<parameter=command>');
-
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should use bracket format for generic models', () => {
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const prompt = getCoreSystemPrompt(undefined, 'gpt-4');
-
-    // Should contain bracket-style tool calls
-    expect(prompt).toContain('[tool_call: run_shell_command for');
-    expect(prompt).toContain('because it must run in the background]');
-
-    // Should NOT contain XML-style tool calls
-    expect(prompt).not.toContain('<function=run_shell_command>');
-    expect(prompt).not.toContain('<parameter=command>');
-
-    // Should NOT contain JSON-style tool calls
-    expect(prompt).not.toContain('{"name": "run_shell_command"');
-
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should use bracket format when no model is specified', () => {
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const prompt = getCoreSystemPrompt();
-
-    // Should contain bracket-style tool calls (default behavior)
-    expect(prompt).toContain('[tool_call: run_shell_command for');
-    expect(prompt).toContain('because it must run in the background]');
-
-    // Should NOT contain XML or JSON formats
-    expect(prompt).not.toContain('<function=run_shell_command>');
-    expect(prompt).not.toContain('{"name": "run_shell_command"');
-
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should preserve model-specific formats with user memory', () => {
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const userMemory = 'User prefers concise responses.';
-    const prompt = getCoreSystemPrompt(userMemory, 'qwen3-coder-14b');
-
-    // Should contain XML-style tool calls
-    expect(prompt).toContain('<tool_call>');
-    expect(prompt).toContain('<function=run_shell_command>');
-
-    // Should contain user memory with separator
-    expect(prompt).toContain('---');
-    expect(prompt).toContain('User prefers concise responses.');
-
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should preserve model-specific formats with sandbox environment', () => {
-    vi.stubEnv('SANDBOX', 'true');
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const prompt = getCoreSystemPrompt(undefined, 'qwen-vl-plus');
-
-    // Should contain JSON-style tool calls
-    expect(prompt).toContain('{"name": "run_shell_command"');
-
-    // Should contain sandbox instructions
-    expect(prompt).toContain('# Sandbox');
-
-    expect(prompt).toMatchSnapshot();
-  });
-});
-
-describe('getCustomSystemPrompt', () => {
-  it('should handle string custom instruction without user memory', () => {
-    const customInstruction =
-      'You are a helpful assistant specialized in code review.';
-    const result = getCustomSystemPrompt(customInstruction);
-
-    expect(result).toBe(
-      'You are a helpful assistant specialized in code review.',
-    );
-    expect(result).not.toContain('---');
-  });
-
-  it('should handle string custom instruction with user memory', () => {
-    const customInstruction =
-      'You are a helpful assistant specialized in code review.';
-    const userMemory =
-      'Remember to be extra thorough.\nFocus on security issues.';
-    const result = getCustomSystemPrompt(customInstruction, userMemory);
-
-    expect(result).toBe(
-      'You are a helpful assistant specialized in code review.\n\n---\n\nRemember to be extra thorough.\nFocus on security issues.',
-    );
-    expect(result).toContain('---');
-  });
-
-  it('should handle Content object with parts array and user memory', () => {
-    const customInstruction = {
-      parts: [
-        { text: 'You are a code assistant. ' },
-        { text: 'Always provide examples.' },
-      ],
-    };
-    const userMemory = 'User prefers TypeScript examples.';
-    const result = getCustomSystemPrompt(customInstruction, userMemory);
-
-    expect(result).toBe(
-      'You are a code assistant. Always provide examples.\n\n---\n\nUser prefers TypeScript examples.',
-    );
-    expect(result).toContain('---');
-  });
-});
-
-describe('getSubagentSystemReminder', () => {
-  it('should format single agent type correctly', () => {
-    const result = getSubagentSystemReminder(['python']);
-
-    expect(result).toMatch(/^<system-reminder>.*<\/system-reminder>$/);
-    expect(result).toContain('specialized subagents available: python');
-    expect(result).toContain('delegated recon and relief assets');
-    expect(result).toContain('PROACTIVELY use the');
-  });
-
-  it('should join multiple agent types with commas', () => {
-    const result = getSubagentSystemReminder(['python', 'web', 'analysis']);
-
-    expect(result).toContain(
-      'specialized subagents available: python, web, analysis',
-    );
-  });
-
-  it('should handle empty array', () => {
-    const result = getSubagentSystemReminder([]);
-
-    expect(result).toContain('specialized subagents available: ');
-    expect(result).toContain('<system-reminder>');
-  });
-});
-
-describe('getPlanModeSystemReminder', () => {
-  it('should return plan mode system reminder with proper structure', () => {
-    const result = getPlanModeSystemReminder();
-
-    expect(result).toMatch(/^<system-reminder>[\s\S]*<\/system-reminder>$/);
-    expect(result).toContain('Plan mode is active');
-    expect(result).toContain('recon-only phase');
-    expect(result).toContain('MUST NOT make edits');
-  });
-
-  it('should include workflow instructions', () => {
-    const result = getPlanModeSystemReminder();
-
-    expect(result).toContain('1. Build the operating picture');
-    expect(result).toContain('2. Surface constraints, assumptions, risks');
-    expect(result).toContain('ask_user_question');
-    expect(result).toContain('exit_plan_mode tool');
-  });
-
-  it('should be deterministic', () => {
-    const result1 = getPlanModeSystemReminder();
-    const result2 = getPlanModeSystemReminder();
-
-    expect(result1).toBe(result2);
-  });
-});
-
-describe('resolvePathFromEnv helper function', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  describe('when envVar is undefined, empty, or whitespace', () => {
-    it('should return null for undefined', () => {
-      const result = resolvePathFromEnv(undefined);
-      expect(result).toEqual({
-        isSwitch: false,
-        value: null,
-        isDisabled: false,
-      });
-    });
-
-    it('should return null for empty string', () => {
-      const result = resolvePathFromEnv('');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: null,
-        isDisabled: false,
-      });
-    });
-
-    it('should return null for whitespace only', () => {
-      const result = resolvePathFromEnv('   \n\t  ');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: null,
-        isDisabled: false,
-      });
-    });
-  });
-
-  describe('when envVar is a boolean-like string', () => {
-    it('should handle "0" as disabled switch', () => {
-      const result = resolvePathFromEnv('0');
-      expect(result).toEqual({
-        isSwitch: true,
-        value: '0',
-        isDisabled: true,
-      });
-    });
-
-    it('should handle "false" as disabled switch', () => {
-      const result = resolvePathFromEnv('false');
-      expect(result).toEqual({
-        isSwitch: true,
-        value: 'false',
-        isDisabled: true,
-      });
-    });
-
-    it('should handle "1" as enabled switch', () => {
-      const result = resolvePathFromEnv('1');
-      expect(result).toEqual({
-        isSwitch: true,
-        value: '1',
-        isDisabled: false,
-      });
-    });
-
-    it('should handle "true" as enabled switch', () => {
-      const result = resolvePathFromEnv('true');
-      expect(result).toEqual({
-        isSwitch: true,
-        value: 'true',
-        isDisabled: false,
-      });
-    });
-
-    it('should be case-insensitive for boolean values', () => {
-      expect(resolvePathFromEnv('FALSE')).toEqual({
-        isSwitch: true,
-        value: 'false',
-        isDisabled: true,
-      });
-      expect(resolvePathFromEnv('TRUE')).toEqual({
-        isSwitch: true,
-        value: 'true',
-        isDisabled: false,
-      });
-    });
-  });
-
-  describe('when envVar is a file path', () => {
-    it('should resolve absolute paths', () => {
-      const result = resolvePathFromEnv('/absolute/path/file.txt');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: path.resolve('/absolute/path/file.txt'),
-        isDisabled: false,
-      });
-    });
-
-    it('should resolve relative paths', () => {
-      const result = resolvePathFromEnv('relative/path/file.txt');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: path.resolve('relative/path/file.txt'),
-        isDisabled: false,
-      });
-    });
-
-    it('should expand tilde to home directory', () => {
-      const homeDir = '/Users/test';
-      vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
-
-      const result = resolvePathFromEnv('~/documents/file.txt');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: path.resolve(path.join(homeDir, 'documents/file.txt')),
-        isDisabled: false,
-      });
-    });
-
-    it('should handle standalone tilde', () => {
-      const homeDir = '/Users/test';
-      vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
-
-      const result = resolvePathFromEnv('~');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: path.resolve(homeDir),
-        isDisabled: false,
-      });
-    });
-
-    it('should handle os.homedir() errors gracefully', () => {
-      vi.spyOn(os, 'homedir').mockImplementation(() => {
-        throw new Error('Cannot resolve home directory');
-      });
-
-      const result = resolvePathFromEnv('~/documents/file.txt');
-      expect(result).toEqual({
-        isSwitch: false,
-        value: null,
-        isDisabled: false,
-      });
-    });
-  });
-});
-
-describe('getContextBudgetSystemReminder', () => {
-  it('should return empty string when ratio is below 0.75 (GREEN)', () => {
-    expect(getContextBudgetSystemReminder(0.0, false)).toBe('');
-    expect(getContextBudgetSystemReminder(0.5, false)).toBe('');
-    expect(getContextBudgetSystemReminder(0.74, false)).toBe('');
-    expect(getContextBudgetSystemReminder(0.749, true)).toBe('');
-  });
-
-  it('should return BINGO reminder when ratio is >= 0.75 and < 0.90', () => {
-    const result = getContextBudgetSystemReminder(0.75, false);
-    expect(result).toContain('BINGO');
-    expect(result).toContain('75%');
-    expect(result).toContain('<system-reminder>');
-    expect(result).toContain('</system-reminder>');
-    // BINGO level — starts with BINGO, not WINCHESTER
-    expect(result).toMatch(/^<system-reminder>\nBINGO/);
-  });
-
-  it('should return BINGO at 0.89 ratio', () => {
-    const result = getContextBudgetSystemReminder(0.89, false);
-    expect(result).toContain('BINGO');
-    expect(result).toContain('89%');
-    expect(result).toMatch(/^<system-reminder>\nBINGO/);
-  });
-
-  it('should return WINCHESTER reminder when ratio is >= 0.90', () => {
-    const result = getContextBudgetSystemReminder(0.9, false);
-    expect(result).toContain('WINCHESTER');
-    expect(result).toContain('90%');
-    expect(result).toContain('<system-reminder>');
-    expect(result).not.toContain('BINGO');
-  });
-
-  it('should return WINCHESTER at ratio > 1.0', () => {
-    const result = getContextBudgetSystemReminder(1.05, false);
-    expect(result).toContain('WINCHESTER');
-    expect(result).toContain('105%');
-  });
-
-  it('should include compaction note when isSummarized is true', () => {
-    const bingo = getContextBudgetSystemReminder(0.8, true);
-    expect(bingo).toContain('already been compacted once');
-
-    const winchester = getContextBudgetSystemReminder(0.95, true);
-    expect(winchester).toContain('already been compacted once');
-  });
-
-  it('should not include compaction note when isSummarized is false', () => {
-    const bingo = getContextBudgetSystemReminder(0.8, false);
-    expect(bingo).not.toContain('already been compacted');
-
-    const winchester = getContextBudgetSystemReminder(0.95, false);
-    expect(winchester).not.toContain('already been compacted');
-  });
-
-  it('should mention BROWNING and JOKER callouts in both levels', () => {
-    const bingo = getContextBudgetSystemReminder(0.8, false);
-    expect(bingo).toContain('BROWNING');
-    expect(bingo).toContain('JOKER');
-
-    const winchester = getContextBudgetSystemReminder(0.95, false);
-    expect(winchester).toContain('BROWNING');
-    expect(winchester).toContain('JOKER');
-  });
-
-  it('should round percentage correctly', () => {
-    const result = getContextBudgetSystemReminder(0.777, false);
-    expect(result).toContain('78%');
-  });
-
-  it('should be deterministic', () => {
-    const r1 = getContextBudgetSystemReminder(0.85, true);
-    const r2 = getContextBudgetSystemReminder(0.85, true);
-    expect(r1).toBe(r2);
   });
 });

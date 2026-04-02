@@ -609,7 +609,7 @@ describe('GeminiChat', () => {
             {
               functionCall: {
                 name: 'find_restaurant',
-                response: { name: 'Vesuvio' },
+                args: { cuisine: 'Italian' },
               },
             },
           ],
@@ -631,6 +631,7 @@ describe('GeminiChat', () => {
         emptyStreamResponse,
       );
 
+      // 3. Action: Send the function response back to the model and consume the stream.
       const stream = await chat.sendMessageStream(
         { model: 'gemini-2.0-flash' },
         {
@@ -890,7 +891,6 @@ describe('GeminiChat', () => {
       for await (const event of stream) {
         events.push(event);
       }
-    });
 
       // 3. Assertions
       // Should be called twice (initial + retry)
@@ -971,47 +971,6 @@ describe('GeminiChat', () => {
         'prompt-id-1',
         LlmRole.MAIN,
       );
-
-      // Verify that token counting is called when usageMetadata is present
-      expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalledWith(
-        57,
-      );
-      expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalledTimes(
-        1,
-      );
-    });
-
-    it('should keep parts with thoughtSignature when consolidating history', async () => {
-      const stream = (async function* () {
-        yield {
-          candidates: [
-            {
-              content: {
-                role: 'model',
-                parts: [
-                  {
-                    text: 'p1',
-                    thoughtSignature: 's1',
-                  } as unknown as { text: string; thoughtSignature: string },
-                ],
-              },
-              finishReason: 'STOP',
-            },
-          ],
-        } as unknown as GenerateContentResponse;
-      })();
-      vi.mocked(mockContentGenerator.generateContentStream).mockResolvedValue(
-        stream,
-      );
-
-      const res = await chat.sendMessageStream('m1', { message: 'h1' }, 'p1');
-      for await (const _ of res);
-
-      const history = chat.getHistory();
-      expect(history[1].parts![0]).toEqual({
-        text: 'p1',
-        thoughtSignature: 's1',
-      });
     });
 
     it('should use thinkingLevel and remove thinkingBudget for gemini-3 models', async () => {
@@ -1249,7 +1208,6 @@ describe('GeminiChat', () => {
             } as unknown as GenerateContentResponse;
           })(),
         );
-        const chunks = await collectStreamWithFakeTimers(stream);
 
       const stream = await chat.sendMessageStream(
         { model: 'gemini-2.0-flash' },
@@ -1384,7 +1342,7 @@ describe('GeminiChat', () => {
               ],
             } as unknown as GenerateContentResponse;
           })(),
-        );
+      );
 
       const stream = await chat.sendMessageStream(
         { model: 'gemini-2.0-flash' },

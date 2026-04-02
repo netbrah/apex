@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import * as crypto from 'node:crypto';
@@ -49,10 +48,9 @@ export function tildeifyPath(path: string): string {
 
 /**
  * Shortens a path string if it exceeds maxLen, prioritizing the start and end segments.
- * Shows root + first segment + "..." + end segments when middle segments are omitted.
  * Example: /path/to/a/very/long/file.txt -> /path/.../long/file.txt
  */
-export function shortenPath(filePath: string, maxLen: number = 80): string {
+export function shortenPath(filePath: string, maxLen: number = 35): string {
   if (filePath.length <= maxLen) {
     return filePath;
   }
@@ -106,8 +104,11 @@ export function shortenPath(filePath: string, maxLen: number = 80): string {
 
   const parsedPath = path.parse(filePath);
   const root = parsedPath.root;
+  const separator = path.sep;
+
+  // Get segments of the path *after* the root
   const relativePath = filePath.substring(root.length);
-  const segments = relativePath.split(separator).filter((s) => s !== '');
+  const segments = relativePath.split(separator).filter((s) => s !== ''); // Filter out empty segments
 
   // Handle cases with no segments after root (e.g., "/", "C:\") or only one segment
   if (segments.length <= 1) {
@@ -310,35 +311,11 @@ export function unescapePath(filePath: string): string {
 
 /**
  * Generates a unique hash for a project based on its root path.
- * On Windows, paths are case-insensitive, so we normalize to lowercase
- * to ensure the same physical path always produces the same hash.
  * @param projectRoot The absolute path to the project's root directory.
  * @returns A SHA256 hash of the project root path.
  */
 export function getProjectHash(projectRoot: string): string {
-  // On Windows, normalize path to lowercase for case-insensitive matching
-  const normalizedPath =
-    os.platform() === 'win32' ? projectRoot.toLowerCase() : projectRoot;
-  return crypto.createHash('sha256').update(normalizedPath).digest('hex');
-}
-
-/**
- * Sanitizes a directory path to create a safe project ID.
- *
- * - On Windows: normalizes to lowercase for case-insensitive matching
- * - Replaces all non-alphanumeric characters with hyphens
- *
- * This is used for:
- * - Creating project-specific directories
- * - Generating session IDs for debug logging during startup
- *
- * @param cwd - The directory path to sanitize
- * @returns A sanitized string safe for use as a project identifier
- */
-export function sanitizeCwd(cwd: string): string {
-  // On Windows, normalize to lowercase for case-insensitive matching
-  const normalizedCwd = os.platform() === 'win32' ? cwd.toLowerCase() : cwd;
-  return normalizedCwd.replace(/[^a-zA-Z0-9]/g, '-');
+  return crypto.createHash('sha256').update(projectRoot).digest('hex');
 }
 
 /**

@@ -52,8 +52,7 @@ export interface ToolConfirmationMessageProps {
   getPreferredEditor: () => EditorType | undefined;
   isFocused?: boolean;
   availableTerminalHeight?: number;
-  contentWidth: number;
-  compactMode?: boolean;
+  terminalWidth: number;
 }
 
 const REDIRECTION_WARNING_NOTE_LABEL = 'Note: ';
@@ -70,8 +69,7 @@ export const ToolConfirmationMessage: React.FC<
   getPreferredEditor,
   isFocused = true,
   availableTerminalHeight,
-  contentWidth,
-  compactMode = false,
+  terminalWidth,
 }) => {
   const keyMatchers = useKeyMatchers();
   const { confirm, isDiffingEnabled } = useToolActions();

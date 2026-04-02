@@ -51,6 +51,9 @@ import {
   JIT_CONTEXT_SUFFIX,
 } from './jit-context.js';
 
+/**
+ * Parameters for the ReadManyFilesTool.
+ */
 export interface ReadManyFilesParams {
   /**
    * Glob patterns for files to include.
@@ -64,14 +67,32 @@ export interface ReadManyFilesParams {
    * Example: ["*.log", "dist/**"]
    */
   exclude?: string[];
+
+  /**
+   * Optional. Search directories recursively.
+   * This is generally controlled by glob patterns (e.g., `**`).
+   * The glob implementation is recursive by default for `**`.
+   * For simplicity, we'll rely on `**` for recursion.
+   */
   recursive?: boolean;
+
+  /**
+   * Optional. Apply default exclusion patterns. Defaults to true.
+   */
   useDefaultExcludes?: boolean;
+
+  /**
+   * Whether to respect .gitignore and .apexignore patterns (optional, defaults to true)
+   */
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_apex_ignore?: boolean;
+    respect_gemini_ignore?: boolean;
   };
 }
 
+/**
+ * Result type for file processing operations
+ */
 type FileProcessingResult =
   | {
       success: true;
@@ -88,6 +109,11 @@ type FileProcessingResult =
       reason: string;
     };
 
+/**
+ * Creates the default exclusion patterns including dynamic patterns.
+ * This combines the shared patterns with dynamic patterns like APEX.md.
+ * TODO(adh): Consider making this configurable or extendable through a command line argument.
+ */
 function getDefaultExcludes(config?: Config): string[] {
   return config?.getFileExclusions().getReadManyFilesExcludes() ?? [];
 }
@@ -181,6 +207,7 @@ ${finalExclusionPatternsForDescription
           if (exists) {
             processedPatterns.push(escape(normalizedP));
           } else {
+            // The path does not exist or is not a file, so we treat it as a glob pattern.
             processedPatterns.push(normalizedP);
           }
         }
@@ -292,9 +319,11 @@ ${finalExclusionPatternsForDescription
             }
           }
 
+          // Use processSingleFileContent for all file types now
           const fileReadResult = await processSingleFileContent(
             filePath,
-            this.config,
+            this.config.getTargetDir(),
+            this.config.getFileSystemService(),
           );
 
           if (fileReadResult.error) {
@@ -334,18 +363,20 @@ ${finalExclusionPatternsForDescription
         const fileResult = result.value;
 
         if (!fileResult.success) {
+          // Handle skipped files (images/PDFs not requested or read errors)
           skippedFiles.push({
             path: fileResult.relativePathForDisplay,
             reason: fileResult.reason,
           });
         } else {
+          // Handle successfully processed files
           const { filePath, relativePathForDisplay, fileReadResult } =
             fileResult;
 
           if (typeof fileReadResult.llmContent === 'string') {
             const separator = DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
               '{filePath}',
-              relativePathForDisplay,
+              filePath,
             );
             let fileContentForLlm = '';
             if (fileReadResult.isTruncated) {
@@ -354,6 +385,7 @@ ${finalExclusionPatternsForDescription
             fileContentForLlm += fileReadResult.llmContent;
             contentParts.push(`${separator}\n\n${fileContentForLlm}\n\n`);
           } else {
+            // This is a Part for image/pdf, which we don't add the separator to.
             contentParts.push(fileReadResult.llmContent);
           }
 
@@ -380,6 +412,7 @@ ${finalExclusionPatternsForDescription
           );
         }
       } else {
+        // Handle Promise rejection (unexpected errors)
         skippedFiles.push({
           path: 'unknown',
           reason: `Unexpected error: ${result.reason}`,
@@ -471,6 +504,11 @@ ${finalExclusionPatternsForDescription
   }
 }
 
+/**
+ * Tool implementation for finding and reading multiple text files from the local filesystem
+ * within a specified target directory. The content is concatenated.
+ * It is intended to run in an environment with access to the local file system (e.g., a Node.js backend).
+ */
 export class ReadManyFilesTool extends BaseDeclarativeTool<
   ReadManyFilesParams,
   ToolResult

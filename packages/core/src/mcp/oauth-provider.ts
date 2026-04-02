@@ -6,7 +6,6 @@
 
 import * as crypto from 'node:crypto';
 import { URL } from 'node:url';
-import type { EventEmitter } from 'node:events';
 import { openBrowserSecurely } from '../utils/secure-browser-launcher.js';
 import type { OAuthToken } from './token-storage/types.js';
 import { MCPOAuthTokenStorage } from './oauth-token-storage.js';
@@ -104,7 +103,7 @@ export class MCPOAuthProvider {
       config.redirectUri || `http://localhost:${redirectPort}${REDIRECT_PATH}`;
 
     const registrationRequest: OAuthClientRegistrationRequest = {
-      client_name: MCP_OAUTH_CLIENT_NAME,
+      client_name: 'Gemini CLI MCP Client',
       redirect_uris: [redirectUri],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
@@ -284,7 +283,6 @@ export class MCPOAuthProvider {
     serverName: string,
     config: MCPOAuthConfig,
     mcpServerUrl?: string,
-    events?: EventEmitter,
   ): Promise<OAuthToken> {
     // Helper function to display messages through handler or fallback to console.log
     const displayMessage = (message: string) => {

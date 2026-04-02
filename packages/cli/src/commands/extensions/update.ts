@@ -142,7 +142,7 @@ export const updateCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .positional('name', {
-        describe: t('The name of the extension to update.'),
+        describe: 'The name of the extension to update.',
         type: 'string',
       })
       .option('all', {

@@ -28,6 +28,7 @@ import {
   cpIndexToOffset,
 } from '../utils/textUtils.js';
 import chalk from 'chalk';
+import stringWidth from 'string-width';
 import { useShellHistory } from '../hooks/useShellHistory.js';
 import { useReverseSearchCompletion } from '../hooks/useReverseSearchCompletion.js';
 import {
@@ -94,16 +95,6 @@ export function isTerminalPasteTrusted(
   return kittyProtocolSupported;
 }
 
-/**
- * Represents an attachment (e.g., pasted image) displayed above the input prompt
- */
-export interface Attachment {
-  id: string; // Unique identifier (timestamp)
-  path: string; // Full file path
-  filename: string; // Filename only (for display)
-}
-
-const debugLogger = createDebugLogger('INPUT_PROMPT');
 export interface InputPromptProps {
   buffer: TextBuffer;
   onSubmit: (value: string) => void;
@@ -199,13 +190,6 @@ export function tryTogglePasteExpansion(buffer: TextBuffer): boolean {
   return true;
 }
 
-// Re-export from shared utils for backwards compatibility
-export { calculatePromptWidths } from '../utils/layoutUtils.js';
-
-// Large paste placeholder thresholds
-const LARGE_PASTE_CHAR_THRESHOLD = 1000;
-const LARGE_PASTE_LINE_THRESHOLD = 10;
-
 export const InputPrompt: React.FC<InputPromptProps> = ({
   buffer,
   onSubmit,
@@ -214,8 +198,9 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   config,
   slashCommands,
   commandContext,
-  placeholder,
+  placeholder = '  Type your message or @path/to/file',
   focus = true,
+  inputWidth,
   suggestionsWidth,
   shellModeActive,
   setShellModeActive,
@@ -366,9 +351,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       if (pasteTimeoutRef.current) {
         clearTimeout(pasteTimeoutRef.current);
       }
-      if (pasteTimeoutRef.current) {
-        clearTimeout(pasteTimeoutRef.current);
-      }
     },
     [],
   );
@@ -386,18 +368,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       if (shellModeActive) {
         shellHistory.addCommandToHistory(processedValue);
       }
-      if (shellModeActive) {
-        shellHistory.addCommandToHistory(finalValue);
-      }
-
-      // Convert attachments to @references and prepend to the message
-      if (attachments.length > 0) {
-        const attachmentRefs = attachments
-          .map((att) => `@${path.relative(config.getTargetDir(), att.path)}`)
-          .join(' ');
-        finalValue = `${attachmentRefs}\n\n${finalValue.trim()}`;
-      }
-
       // Clear the buffer *before* calling onSubmit to prevent potential re-submission
       // if onSubmit triggers a re-render while the buffer still holds the old value.
       buffer.setText('');
@@ -412,9 +382,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       shellModeActive,
       shellHistory,
       resetReverseSearchCompletionState,
-      attachments,
-      config,
-      pendingPastes,
     ],
   );
 
@@ -516,12 +483,11 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       setShortcutsHelpVisible(false);
     }
     try {
-      const hasImage = validated || (await clipboardHasImage());
-      if (hasImage) {
-        const imagePath = await saveClipboardImage(Storage.getGlobalTempDir());
+      if (await clipboardHasImage()) {
+        const imagePath = await saveClipboardImage(config.getTargetDir());
         if (imagePath) {
           // Clean up old images
-          cleanupOldClipboardImages(Storage.getGlobalTempDir()).catch(() => {
+          cleanupOldClipboardImages(config.getTargetDir()).catch(() => {
             // Ignore cleanup errors
           });
 
@@ -883,10 +849,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         buffer.text === '' &&
         !(completion.showSuggestions && isShellSuggestionsVisible)
       ) {
-        // Hide shortcuts when toggling shell mode
-        if (showShortcuts && onToggleShortcuts) {
-          onToggleShortcuts();
-        }
         setShellModeActive(!shellModeActive);
         buffer.setText(''); // Clear the '!' from input
         return true;
@@ -1148,40 +1110,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         }
       }
 
-      // Attachment mode handling - process before history navigation
-      if (isAttachmentMode && attachments.length > 0) {
-        if (key.name === 'left') {
-          setSelectedAttachmentIndex((i) => Math.max(0, i - 1));
-          return true;
-        }
-        if (key.name === 'right') {
-          setSelectedAttachmentIndex((i) =>
-            Math.min(attachments.length - 1, i + 1),
-          );
-          return true;
-        }
-        if (keyMatchers[Command.NAVIGATION_DOWN](key)) {
-          // Exit attachment mode and return to input
-          setIsAttachmentMode(false);
-          setSelectedAttachmentIndex(-1);
-          return true;
-        }
-        if (key.name === 'backspace' || key.name === 'delete') {
-          handleAttachmentDelete(selectedAttachmentIndex);
-          return true;
-        }
-        if (key.name === 'return' || key.name === 'escape') {
-          setIsAttachmentMode(false);
-          setSelectedAttachmentIndex(-1);
-          return true;
-        }
-        // For other keys, exit attachment mode and let input handle them
-        setIsAttachmentMode(false);
-        setSelectedAttachmentIndex(-1);
-        // Continue to process the key in input
-      }
-
-      // Enter attachment mode when pressing up at the first line with attachments
+      // Handle Tab key for ghost text acceptance
       if (
         key.name === 'tab' &&
         !key.shift &&
@@ -1417,130 +1346,123 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     priority: true,
   });
 
-      const visualStart = logicalStartCol;
-      const visualEnd = logicalStartCol + cpLen(lineText);
-      const segments = buildSegmentsForVisualSlice(
-        tokens,
-        visualStart,
-        visualEnd,
-      );
+  const linesToRender = buffer.viewportVisualLines;
+  const [cursorVisualRowAbsolute, cursorVisualColAbsolute] =
+    buffer.visualCursor;
+  const scrollVisualRow = buffer.visualScrollRow;
 
-      const renderedLine: React.ReactNode[] = [];
-      let charCount = 0;
-      segments.forEach((seg, segIdx) => {
-        const segLen = cpLen(seg.text);
-        let display = seg.text;
-
-        if (isOnCursorLine) {
-          const segStart = charCount;
-          const segEnd = segStart + segLen;
-          if (
-            cursorVisualColAbsolute >= segStart &&
-            cursorVisualColAbsolute < segEnd
-          ) {
-            const charToHighlight = cpSlice(
-              seg.text,
-              cursorVisualColAbsolute - segStart,
-              cursorVisualColAbsolute - segStart + 1,
-            );
-            const highlighted = showCursorOpt
-              ? chalk.inverse(charToHighlight)
-              : charToHighlight;
-            display =
-              cpSlice(seg.text, 0, cursorVisualColAbsolute - segStart) +
-              highlighted +
-              cpSlice(seg.text, cursorVisualColAbsolute - segStart + 1);
-          }
-          charCount = segEnd;
-        }
-
-        const color =
-          seg.type === 'command' || seg.type === 'file'
-            ? theme.text.accent
-            : theme.text.primary;
-
-        renderedLine.push(
-          <Text key={`token-${segIdx}`} color={color}>
-            {display}
-          </Text>,
-        );
-      });
-
-      if (isOnCursorLine && cursorVisualColAbsolute === cpLen(lineText)) {
-        // Add zero-width space after cursor to prevent Ink from trimming trailing whitespace
-        renderedLine.push(
-          <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
-            {showCursorOpt ? chalk.inverse(' ') + '\u200B' : ' \u200B'}
-          </Text>,
-        );
-      }
-
-      return <Text>{renderedLine}</Text>;
-    },
-    [],
-  );
-
-  const getActiveCompletion = () => {
-    if (commandSearchActive) return commandSearchCompletion;
-    if (reverseSearchActive) return reverseSearchCompletion;
-    return completion;
-  };
-
-  const activeCompletion = getActiveCompletion();
-  const shouldShowSuggestions = activeCompletion.showSuggestions;
-
-  // Notify parent about suggestions visibility changes
-  useEffect(() => {
-    if (onSuggestionsVisibilityChange) {
-      onSuggestionsVisibilityChange(shouldShowSuggestions);
+  const getGhostTextLines = useCallback(() => {
+    if (
+      !completion.promptCompletion.text ||
+      !buffer.text ||
+      !completion.promptCompletion.text.startsWith(buffer.text)
+    ) {
+      return { inlineGhost: '', additionalLines: [] };
     }
-  }, [shouldShowSuggestions, onSuggestionsVisibilityChange]);
 
-  const showAutoAcceptStyling =
-    !shellModeActive && approvalMode === ApprovalMode.AUTO_EDIT;
-  const showYoloStyling =
-    !shellModeActive && approvalMode === ApprovalMode.YOLO;
+    const ghostSuffix = completion.promptCompletion.text.slice(
+      buffer.text.length,
+    );
+    if (!ghostSuffix) {
+      return { inlineGhost: '', additionalLines: [] };
+    }
 
-  let statusColor: string | undefined;
-  let statusText = '';
-  if (shellModeActive) {
-    statusColor = theme.ui.symbol;
-    statusText = t('Shell mode');
-  } else if (showYoloStyling) {
-    statusColor = theme.status.errorDim;
-    statusText = t('YOLO mode');
-  } else if (showAutoAcceptStyling) {
-    statusColor = theme.status.warningDim;
-    statusText = t('Accepting edits');
-  }
+    const currentLogicalLine = buffer.lines[buffer.cursor[0]] || '';
+    const cursorCol = buffer.cursor[1];
 
-  const borderColor =
-    isShellFocused && !isEmbeddedShellFocused && !agentTabBarFocused
-      ? (statusColor ?? theme.border.focused)
-      : theme.border.default;
+    const textBeforeCursor = cpSlice(currentLogicalLine, 0, cursorCol);
+    const usedWidth = stringWidth(textBeforeCursor);
+    const remainingWidth = Math.max(0, inputWidth - usedWidth);
 
-  const prefixNode = (
-    <Text
-      color={statusColor ?? theme.prompt?.prefix ?? theme.text.accent}
-      aria-label={statusText || undefined}
-    >
-      {shellModeActive ? (
-        reverseSearchActive ? (
-          <Text color={theme.text.link} aria-label={SCREEN_READER_USER_PREFIX}>
-            (r:){' '}
-          </Text>
-        ) : (
-          '!'
-        )
-      ) : commandSearchActive ? (
-        <Text color={theme.text.accent}>(r:) </Text>
-      ) : showYoloStyling ? (
-        '*'
-      ) : (
-        '>'
-      )}{' '}
-    </Text>
-  );
+    const ghostTextLinesRaw = ghostSuffix.split('\n');
+    const firstLineRaw = ghostTextLinesRaw.shift() || '';
+
+    let inlineGhost = '';
+    let remainingFirstLine = '';
+
+    if (stringWidth(firstLineRaw) <= remainingWidth) {
+      inlineGhost = firstLineRaw;
+    } else {
+      const words = firstLineRaw.split(' ');
+      let currentLine = '';
+      let wordIdx = 0;
+      for (const word of words) {
+        const prospectiveLine = currentLine ? `${currentLine} ${word}` : word;
+        if (stringWidth(prospectiveLine) > remainingWidth) {
+          break;
+        }
+        currentLine = prospectiveLine;
+        wordIdx++;
+      }
+      inlineGhost = currentLine;
+      if (words.length > wordIdx) {
+        remainingFirstLine = words.slice(wordIdx).join(' ');
+      }
+    }
+
+    const linesToWrap = [];
+    if (remainingFirstLine) {
+      linesToWrap.push(remainingFirstLine);
+    }
+    linesToWrap.push(...ghostTextLinesRaw);
+    const remainingGhostText = linesToWrap.join('\n');
+
+    const additionalLines: string[] = [];
+    if (remainingGhostText) {
+      const textLines = remainingGhostText.split('\n');
+      for (const textLine of textLines) {
+        const words = textLine.split(' ');
+        let currentLine = '';
+
+        for (const word of words) {
+          const prospectiveLine = currentLine ? `${currentLine} ${word}` : word;
+          const prospectiveWidth = stringWidth(prospectiveLine);
+
+          if (prospectiveWidth > inputWidth) {
+            if (currentLine) {
+              additionalLines.push(currentLine);
+            }
+
+            let wordToProcess = word;
+            while (stringWidth(wordToProcess) > inputWidth) {
+              let part = '';
+              const wordCP = toCodePoints(wordToProcess);
+              let partWidth = 0;
+              let splitIndex = 0;
+              for (let i = 0; i < wordCP.length; i++) {
+                const char = wordCP[i];
+                const charWidth = stringWidth(char);
+                if (partWidth + charWidth > inputWidth) {
+                  break;
+                }
+                part += char;
+                partWidth += charWidth;
+                splitIndex = i + 1;
+              }
+              additionalLines.push(part);
+              wordToProcess = cpSlice(wordToProcess, splitIndex);
+            }
+            currentLine = wordToProcess;
+          } else {
+            currentLine = prospectiveLine;
+          }
+        }
+        if (currentLine) {
+          additionalLines.push(currentLine);
+        }
+      }
+    }
+
+    return { inlineGhost, additionalLines };
+  }, [
+    completion.promptCompletion.text,
+    buffer.text,
+    buffer.lines,
+    buffer.cursor,
+    inputWidth,
+  ]);
+
+  const { inlineGhost, additionalLines } = getGhostTextLines();
 
   const useBackgroundColor = config.getUseBackgroundColor();
   const isLowColor = isLowColorDepth();

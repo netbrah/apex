@@ -18,6 +18,16 @@ vi.mock('os', async (importOriginal) => {
   };
 });
 
+// Mock './settings.js' to ensure it uses the mocked 'os.homedir()' for its internal constants.
+vi.mock('./settings.js', async (importActual) => {
+  const originalModule = await importActual<typeof import('./settings.js')>();
+  return {
+    __esModule: true, // Ensure correct module shape
+    ...originalModule, // Re-export all original members
+    // We are relying on originalModule's USER_SETTINGS_PATH being constructed with mocked os.homedir()
+  };
+});
+
 // Mock trustedFolders
 import * as trustedFolders from './trustedFolders.js';
 vi.mock('./trustedFolders.js', () => ({
@@ -52,7 +62,6 @@ import { isWorkspaceTrusted } from './trustedFolders.js';
 
 // These imports will get the versions from the vi.mock('./settings.js', ...) factory.
 import {
-  getSettingsWarnings,
   loadSettings,
   USER_SETTINGS_PATH, // This IS the mocked path.
   getSystemSettingsPath,
@@ -92,11 +101,7 @@ const MOCK_WORKSPACE_SETTINGS_PATH = path.join(
 );
 
 // A more flexible type for test data that allows arbitrary properties.
-type TestSettings = Settings & {
-  [key: string]: unknown;
-  nested?: { [key: string]: unknown };
-  nestedObj?: { [key: string]: unknown };
-};
+type TestSettings = Settings & { [key: string]: unknown };
 
 // Helper to normalize paths for test assertions, making them OS-agnostic
 const normalizePath = (p: string | fs.PathOrFileDescriptor) =>
@@ -112,7 +117,6 @@ vi.mock('fs', async (importOriginal) => {
     existsSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
-    renameSync: vi.fn(),
     mkdirSync: vi.fn(),
     realpathSync: vi.fn((p: string) => p),
   };
@@ -330,7 +334,7 @@ describe('Settings Loading and Merging', () => {
           fileName: 'WORKSPACE_CONTEXT.md',
         },
         mcp: {
-          allowed: ['server1', 'server2', 'server3', 'server1', 'server2'],
+          allowed: ['server1', 'server2'],
         },
       });
     });
@@ -416,22 +420,10 @@ describe('Settings Loading and Merging', () => {
 
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
 
-      expect(settings.systemDefaults.settings).toEqual({
-        ...systemDefaultsContent,
-        [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-      });
-      expect(settings.system.settings).toEqual({
-        ...systemSettingsContent,
-        [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-      });
-      expect(settings.user.settings).toEqual({
-        ...userSettingsContent,
-        [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-      });
-      expect(settings.workspace.settings).toEqual({
-        ...workspaceSettingsContent,
-        [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-      });
+      expect(settings.systemDefaults.settings).toEqual(systemDefaultsContent);
+      expect(settings.system.settings).toEqual(systemSettingsContent);
+      expect(settings.user.settings).toEqual(userSettingsContent);
+      expect(settings.workspace.settings).toEqual(workspaceSettingsContent);
       expect(settings.merged).toEqual({
         context: {
           discoveryMaxDirs: 200,
@@ -794,14 +786,8 @@ describe('Settings Loading and Merging', () => {
 
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
 
-      expect(settings.user.settings).toEqual({
-        ...userSettingsContent,
-        [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-      });
-      expect(settings.workspace.settings).toEqual({
-        ...workspaceSettingsContent,
-        [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
-      });
+      expect(settings.user.settings).toEqual(userSettingsContent);
+      expect(settings.workspace.settings).toEqual(workspaceSettingsContent);
       expect(settings.merged.mcpServers).toEqual({
         'user-server': {
           command: 'user-command',
@@ -880,7 +866,7 @@ describe('Settings Loading and Merging', () => {
       (mockFsExistsSync as Mock).mockReturnValue(false); // No settings files exist
       (fs.readFileSync as Mock).mockReturnValue('{}');
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
-      expect(settings.merged.mcpServers).toBeUndefined();
+      expect(settings.merged.mcpServers).toEqual({});
     });
 
     it('should merge MCP servers from system, user, and workspace with system taking precedence', () => {
@@ -985,8 +971,8 @@ describe('Settings Loading and Merging', () => {
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
 
       expect(settings.merged.mcp).toEqual({
-        allowed: ['user-allowed', 'workspace-allowed', 'system-allowed'],
-        excluded: ['user-excluded', 'workspace-excluded'],
+        allowed: ['system-allowed'],
+        excluded: ['workspace-excluded'],
       });
     });
 
@@ -2061,7 +2047,6 @@ describe('Settings Loading and Merging', () => {
     afterEach(() => {
       vi.restoreAllMocks();
     });
-  });
 
     it('should not do anything if there are no deprecated settings', () => {
       const userSettingsContent = {
@@ -2475,8 +2460,6 @@ describe('Settings Loading and Merging', () => {
           },
         },
       };
-      expect(needsMigration(v2Settings)).toBe(false);
-    });
 
       vi.mocked(fs.existsSync).mockReturnValue(true);
       (fs.readFileSync as Mock).mockImplementation(

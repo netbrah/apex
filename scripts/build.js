@@ -30,7 +30,7 @@ if (!existsSync(join(root, 'node_modules'))) {
   execSync('npm install', { stdio: 'inherit', cwd: root });
 }
 
-// build all workspaces/packages in dependency order
+// build all workspaces/packages
 execSync('npm run generate', { stdio: 'inherit', cwd: root });
 
 if (process.env.CI) {

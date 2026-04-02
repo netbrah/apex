@@ -23,7 +23,7 @@ import { stripUnsafeCharacters } from './textUtils.js';
 interface TableRendererProps {
   headers: string[];
   rows: string[][];
-  contentWidth: number;
+  terminalWidth: number;
 }
 
 const MIN_COLUMN_WIDTH = 5;
@@ -65,7 +65,7 @@ interface ProcessedLine {
 export const TableRenderer: React.FC<TableRendererProps> = ({
   headers,
   rows,
-  contentWidth,
+  terminalWidth,
 }) => {
   const styledHeaders = useMemo<StyledLine[]>(
     () =>

@@ -10,9 +10,9 @@ import { readFile } from 'node:fs/promises';
 import { quote } from 'shell-quote';
 import { debugLogger, APEX_DIR } from '@apex-code/apex-core';
 
-export const LOCAL_DEV_SANDBOX_IMAGE_NAME = 'apex-sandbox';
-export const SANDBOX_NETWORK_NAME = 'apex-sandbox';
-export const SANDBOX_PROXY_NAME = 'apex-sandbox-proxy';
+export const LOCAL_DEV_SANDBOX_IMAGE_NAME = 'gemini-cli-sandbox';
+export const SANDBOX_NETWORK_NAME = 'gemini-cli-sandbox';
+export const SANDBOX_PROXY_NAME = 'gemini-cli-sandbox-proxy';
 export const BUILTIN_SEATBELT_PROFILES = [
   'permissive-open',
   'permissive-proxied',

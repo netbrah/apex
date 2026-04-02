@@ -1,10 +1,10 @@
-# Apex Companion
+# Gemini CLI Companion
 
 The Gemini CLI Companion extension pairs with
 [Gemini CLI](https://github.com/netbrah/apex). This extension is
 compatible with both VS Code and VS Code forks.
 
-## Features
+# Features
 
 - Open Editor File Context: Gemini CLI gains awareness of the files you have
   open in your editor, providing it with a richer understanding of your
@@ -21,15 +21,14 @@ compatible with both VS Code and VS Code forks.
   Palette (Cmd+Shift+P or Ctrl+Shift+P) by running the "Gemini CLI: Run"
   command.
 
-1. **Install** from a `.vsix` package or the extension marketplace
+# Requirements
 
-2. **Open the Chat panel** using one of these methods:
-   - Click the **Apex icon** in the top-right corner of the editor
-   - Run `Apex: Open` from the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+To use this extension, you'll need:
 
-3. **Start chatting** -- Ask Apex to help with coding tasks, explain code, fix bugs, or write new features
+- VS Code version 1.99.0 or newer
+- Gemini CLI (installed separately) running within the integrated terminal
 
-## Commands
+# Terms of Service and Privacy Notice
 
 By installing this extension, you agree to the
 [Terms of Service](https://geminicli.com/docs/resources/tos-privacy/).

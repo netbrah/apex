@@ -169,7 +169,7 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
             key={`table-${contentBlocks.length}`}
             headers={tableHeaders}
             rows={tableRows}
-            contentWidth={contentWidth}
+            terminalWidth={terminalWidth}
           />,
         );
       }
@@ -249,7 +249,6 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
           type="ul"
           marker={marker}
           leadingWhitespace={leadingWhitespace}
-          textColor={textColor}
         />,
       );
     } else if (olMatch) {
@@ -263,7 +262,6 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
           type="ol"
           marker={marker}
           leadingWhitespace={leadingWhitespace}
-          textColor={textColor}
         />,
       );
     } else {
@@ -308,7 +306,7 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
         key={`table-${contentBlocks.length}`}
         headers={tableHeaders}
         rows={tableRows}
-        contentWidth={contentWidth}
+        terminalWidth={terminalWidth}
       />,
     );
   }
@@ -323,7 +321,7 @@ interface RenderCodeBlockProps {
   lang: string | null;
   isPending: boolean;
   availableTerminalHeight?: number;
-  contentWidth: number;
+  terminalWidth: number;
 }
 
 const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
@@ -331,7 +329,7 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
   lang,
   isPending,
   availableTerminalHeight,
-  contentWidth,
+  terminalWidth,
 }) => {
   const settings = useSettings();
   const isAlternateBuffer = useAlternateBuffer();
@@ -391,7 +389,7 @@ const RenderCodeBlockInternal: React.FC<RenderCodeBlockProps> = ({
     <Box
       paddingLeft={CODE_BLOCK_PREFIX_PADDING}
       flexDirection="column"
-      width={contentWidth}
+      width={terminalWidth}
       flexShrink={0}
     >
       {colorizedCode}
@@ -406,7 +404,6 @@ interface RenderListItemProps {
   type: 'ul' | 'ol';
   marker: string;
   leadingWhitespace?: string;
-  textColor?: string;
 }
 
 const RenderListItemInternal: React.FC<RenderListItemProps> = ({
@@ -414,7 +411,6 @@ const RenderListItemInternal: React.FC<RenderListItemProps> = ({
   type,
   marker,
   leadingWhitespace = '',
-  textColor = theme.text.primary,
 }) => {
   const prefix = type === 'ol' ? `${marker}. ` : `${marker} `;
   const prefixWidth = prefix.length;
@@ -444,15 +440,15 @@ const RenderListItem = React.memo(RenderListItemInternal);
 interface RenderTableProps {
   headers: string[];
   rows: string[][];
-  contentWidth: number;
+  terminalWidth: number;
 }
 
 const RenderTableInternal: React.FC<RenderTableProps> = ({
   headers,
   rows,
-  contentWidth,
+  terminalWidth,
 }) => (
-  <TableRenderer headers={headers} rows={rows} contentWidth={contentWidth} />
+  <TableRenderer headers={headers} rows={rows} terminalWidth={terminalWidth} />
 );
 
 const RenderTable = React.memo(RenderTableInternal);

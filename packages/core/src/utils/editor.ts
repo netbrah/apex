@@ -108,7 +108,7 @@ async function commandExistsAsync(cmd: string): Promise<boolean> {
  * Editor command configurations for different platforms.
  * Each editor can have multiple possible command names, listed in order of preference.
  */
-export const editorCommands: Record<
+const editorCommands: Record<
   EditorType,
   { win32: string[]; default: string[] }
 > = {

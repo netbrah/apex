@@ -53,7 +53,7 @@ export class OAuth2AuthProvider extends BaseA2AAuthProvider {
     super();
     this.tokenStorage = new MCPOAuthTokenStorage(
       Storage.getA2AOAuthTokensPath(),
-      'apex-a2a',
+      'gemini-cli-a2a',
     );
 
     // Seed from user config.

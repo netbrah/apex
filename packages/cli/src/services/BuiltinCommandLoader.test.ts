@@ -19,8 +19,7 @@ vi.mock('../ui/commands/aboutCommand.js', async () => {
   const { CommandKind } = await import('../ui/commands/types.js');
   return {
     aboutCommand: {
-      name: 'status',
-      altNames: ['about'],
+      name: 'about',
       description: 'About the CLI',
       kind: CommandKind.BUILT_IN,
     },
@@ -88,6 +87,7 @@ vi.mock('../ui/commands/chatCommand.js', () => ({
 }));
 vi.mock('../ui/commands/clearCommand.js', () => ({ clearCommand: {} }));
 vi.mock('../ui/commands/compressCommand.js', () => ({ compressCommand: {} }));
+vi.mock('../ui/commands/corgiCommand.js', () => ({ corgiCommand: {} }));
 vi.mock('../ui/commands/docsCommand.js', () => ({ docsCommand: {} }));
 vi.mock('../ui/commands/editorCommand.js', () => ({ editorCommand: {} }));
 vi.mock('../ui/commands/extensionsCommand.js', () => ({
@@ -137,13 +137,6 @@ vi.mock('../ui/commands/mcpCommand.js', () => ({
   mcpCommand: {
     name: 'mcp',
     description: 'MCP command',
-    kind: 'BUILT_IN',
-  },
-}));
-vi.mock('../ui/commands/modelCommand.js', () => ({
-  modelCommand: {
-    name: 'model',
-    description: 'Model command',
     kind: 'BUILT_IN',
   },
 }));
@@ -229,8 +222,8 @@ describe('BuiltinCommandLoader', () => {
     expect(ideCmd).toBeDefined();
 
     // Other commands should still be present.
-    const statusCmd = commands.find((c) => c.name === 'status');
-    expect(statusCmd).toBeDefined();
+    const aboutCmd = commands.find((c) => c.name === 'about');
+    expect(aboutCmd).toBeDefined();
   });
 
   it('should handle a null config gracefully when calling factories', async () => {
@@ -245,60 +238,15 @@ describe('BuiltinCommandLoader', () => {
     const loader = new BuiltinCommandLoader(mockConfig);
     const commands = await loader.loadCommands(new AbortController().signal);
 
-    const statusCmd = commands.find((c) => c.name === 'status');
-    expect(statusCmd).toBeDefined();
-    expect(statusCmd?.kind).toBe(CommandKind.BUILT_IN);
-
-    const approvalModeCmd = commands.find((c) => c.name === 'approval-mode');
-    expect(approvalModeCmd).toBeDefined();
-    expect(approvalModeCmd?.kind).toBe(CommandKind.BUILT_IN);
+    const aboutCmd = commands.find((c) => c.name === 'about');
+    expect(aboutCmd).toBeDefined();
+    expect(aboutCmd?.kind).toBe(CommandKind.BUILT_IN);
 
     const ideCmd = commands.find((c) => c.name === 'ide');
     expect(ideCmd).toBeDefined();
 
     const mcpCmd = commands.find((c) => c.name === 'mcp');
     expect(mcpCmd).toBeDefined();
-
-    const modelCmd = commands.find((c) => c.name === 'model');
-    expect(modelCmd).toBeDefined();
-  });
-
-  it('should include trust command when folder trust is enabled', async () => {
-    const loader = new BuiltinCommandLoader(mockConfig);
-    const commands = await loader.loadCommands(new AbortController().signal);
-    const trustCmd = commands.find((c) => c.name === 'trust');
-    expect(trustCmd).toBeDefined();
-  });
-
-  it('should exclude trust command when folder trust is disabled', async () => {
-    (mockConfig.getFolderTrust as Mock).mockReturnValue(false);
-    const loader = new BuiltinCommandLoader(mockConfig);
-    const commands = await loader.loadCommands(new AbortController().signal);
-    const trustCmd = commands.find((c) => c.name === 'trust');
-    expect(trustCmd).toBeUndefined();
-  });
-
-  it('should always include modelCommand', async () => {
-    const loader = new BuiltinCommandLoader(mockConfig);
-    const commands = await loader.loadCommands(new AbortController().signal);
-    const modelCmd = commands.find((c) => c.name === 'model');
-    expect(modelCmd).toBeDefined();
-    expect(modelCmd?.name).toBe('model');
-  });
-
-  it('should include hooks command when enableHooks is true', async () => {
-    const loader = new BuiltinCommandLoader(mockConfig);
-    const commands = await loader.loadCommands(new AbortController().signal);
-    const hooksCmd = commands.find((c) => c.name === 'hooks');
-    expect(hooksCmd).toBeDefined();
-  });
-
-  it('should exclude hooks command when enableHooks is false', async () => {
-    (mockConfig.getEnableHooks as Mock).mockReturnValue(false);
-    const loader = new BuiltinCommandLoader(mockConfig);
-    const commands = await loader.loadCommands(new AbortController().signal);
-    const hooksCmd = commands.find((c) => c.name === 'hooks');
-    expect(hooksCmd).toBeUndefined();
   });
 
   it('should include permissions command when folder trust is enabled', async () => {

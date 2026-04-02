@@ -44,7 +44,7 @@ describe('Session Cleanup (Refactored)', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     testTempDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'apex-cleanup-test-'),
+      path.join(os.tmpdir(), 'gemini-cli-cleanup-test-'),
     );
     chatsDir = path.join(testTempDir, 'chats');
     logsDir = path.join(testTempDir, 'logs');

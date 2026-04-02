@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import type { Content } from '@google/genai';
 import { debugLogger } from './debugLogger.js';
 
@@ -16,16 +19,21 @@ interface ErrorReportData {
 /**
  * Generates an error report, writes it to a temporary file, and logs information to user
  * @param error The error object.
- * @param baseMessage The base message describing the error context.
  * @param context The relevant context (e.g., chat history, request contents).
  * @param type A string to identify the type of error (e.g., 'startChat', 'generateJson-api').
+ * @param baseMessage The initial message to log to console.error before the report path.
  */
 export async function reportError(
   error: Error | unknown,
   baseMessage: string,
   context?: Content[] | Record<string, unknown> | unknown[],
   type = 'general',
+  reportingDir = os.tmpdir(), // for testing
 ): Promise<void> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const reportFileName = `gemini-client-error-${type}-${timestamp}.json`;
+  const reportPath = path.join(reportingDir, reportFileName);
+
   let errorToReport: { message: string; stack?: string };
   if (error instanceof Error) {
     errorToReport = { message: error.message, stack: error.stack };
@@ -47,7 +55,6 @@ export async function reportError(
     reportContent.context = context;
   }
 
-  const reportLabel = `${baseMessage} [${type}]`;
   let stringifiedReportContent: string;
   try {
     stringifiedReportContent = JSON.stringify(reportContent, null, 2);
@@ -56,7 +63,6 @@ export async function reportError(
     debugLogger.error(
       `${baseMessage} Could not stringify report content (likely due to context):`,
       stringifyError,
-      error,
     );
     debugLogger.error(
       'Original error that triggered report generation:',

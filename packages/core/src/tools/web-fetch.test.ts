@@ -696,13 +696,11 @@ describe('WebFetchTool', () => {
     it('should convert github urls to raw format', async () => {
       const tool = new WebFetchTool(mockConfig, bus);
       const params = {
-        url: 'https://example.com',
-        prompt: 'summarize this page',
+        prompt:
+          'fetch https://github.com/google/gemini-react/blob/main/README.md',
       };
       const invocation = tool.build(params);
-      expect(await invocation.getDefaultPermission()).toBe('ask');
-
-      const confirmationDetails = await invocation.getConfirmationDetails(
+      const confirmationDetails = await invocation.shouldConfirmExecute(
         new AbortController().signal,
       );
 
@@ -710,9 +708,10 @@ describe('WebFetchTool', () => {
         type: 'info',
         title: 'Confirm Web Fetch',
         prompt:
-          'Fetch content from https://example.com and process with: summarize this page',
-        urls: ['https://example.com'],
-        permissionRules: ['WebFetch(example.com)'],
+          'fetch https://github.com/google/gemini-react/blob/main/README.md',
+        urls: [
+          'https://raw.githubusercontent.com/google/gemini-react/main/README.md',
+        ],
         onConfirm: expect.any(Function),
       });
     });
@@ -724,57 +723,18 @@ describe('WebFetchTool', () => {
       const tool = new WebFetchTool(mockConfig, bus);
       const params = { prompt: 'fetch https://example.com' };
       const invocation = tool.build(params);
-      expect(await invocation.getDefaultPermission()).toBe('ask');
-
-      const confirmationDetails = await invocation.getConfirmationDetails(
+      const confirmationDetails = await invocation.shouldConfirmExecute(
         new AbortController().signal,
       );
 
-      expect(confirmationDetails).toEqual({
-        type: 'info',
-        title: 'Confirm Web Fetch',
-        prompt:
-          'Fetch content from https://github.com/google/gemini-react/blob/main/README.md and process with: summarize the README',
-        urls: ['https://github.com/google/gemini-react/blob/main/README.md'],
-        permissionRules: ['WebFetch(github.com)'],
-        onConfirm: expect.any(Function),
-      });
+      expect(confirmationDetails).toBe(false);
     });
 
     it('should NOT call setApprovalMode when onConfirm is called with ProceedAlways (now handled by scheduler)', async () => {
       const tool = new WebFetchTool(mockConfig, bus);
       const params = { prompt: 'fetch https://example.com' };
       const invocation = tool.build(params);
-      expect(await invocation.getDefaultPermission()).toBe('ask');
-
-      const confirmationDetails = await invocation.getConfirmationDetails(
-        new AbortController().signal,
-      );
-
-      expect(confirmationDetails).toEqual({
-        type: 'info',
-        title: 'Confirm Web Fetch',
-        prompt:
-          'Fetch content from https://example.com and process with: summarize this page',
-        urls: ['https://example.com'],
-        permissionRules: ['WebFetch(example.com)'],
-        onConfirm: expect.any(Function),
-      });
-    });
-
-    it('should have onConfirm as a no-op (approval mode handled by scheduler)', async () => {
-      const setApprovalMode = vi.fn();
-      const testConfig = {
-        ...mockConfig,
-        setApprovalMode,
-      } as unknown as Config;
-      const tool = new WebFetchTool(testConfig);
-      const params = {
-        url: 'https://example.com',
-        prompt: 'summarize this page',
-      };
-      const invocation = tool.build(params);
-      const confirmationDetails = await invocation.getConfirmationDetails(
+      const confirmationDetails = await invocation.shouldConfirmExecute(
         new AbortController().signal,
       );
 

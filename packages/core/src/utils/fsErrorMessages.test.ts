@@ -41,9 +41,9 @@ describe('getFsErrorMessage', () => {
       {
         code: 'EACCES',
         message: 'EACCES: permission denied',
-        path: '/etc/apex/settings.json',
+        path: '/etc/gemini-cli/settings.json',
         expected:
-          "Permission denied: cannot access '/etc/apex/settings.json'. Check file permissions or run with elevated privileges.",
+          "Permission denied: cannot access '/etc/gemini-cli/settings.json'. Check file permissions or run with elevated privileges.",
       },
       {
         code: 'EACCES',

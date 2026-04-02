@@ -11,15 +11,6 @@ import { waitFor } from '../../../test-utils/async.js';
 import { DiffRenderer } from './DiffRenderer.js';
 import * as CodeColorizer from '../../utils/CodeColorizer.js';
 import { vi } from 'vitest';
-import type { LoadedSettings } from '../../../config/settings.js';
-
-const mockSettings: LoadedSettings = {
-  merged: {
-    ui: {
-      showLineNumbers: true,
-    },
-  },
-} as LoadedSettings;
 
 describe('<OverflowProvider><DiffRenderer /></OverflowProvider>', () => {
   const mockColorizeCode = vi.spyOn(CodeColorizer, 'colorizeCode');
@@ -28,8 +19,8 @@ describe('<OverflowProvider><DiffRenderer /></OverflowProvider>', () => {
     mockColorizeCode.mockClear();
   });
 
-  const sanitizeOutput = (output: string | undefined, contentWidth: number) =>
-    output?.replace(/GAP_INDICATOR/g, '═'.repeat(contentWidth));
+  const sanitizeOutput = (output: string | undefined, terminalWidth: number) =>
+    output?.replace(/GAP_INDICATOR/g, '═'.repeat(terminalWidth));
 
   describe.each([true, false])(
     'with useAlternateBuffer = %s',

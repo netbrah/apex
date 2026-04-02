@@ -8,9 +8,10 @@
   "workspaces": [
     "packages/*"
   ],
+  "private": "true",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QwenLM/qwen-code.git"
+    "url": "git+https://github.com/netbrah/apex.git"
   },
   "config": {
     "sandboxImageUri": "ghcr.io/netbrah/apex:0.13.0"
@@ -34,13 +35,6 @@
     "build-and-start": "npm run build && npm run start --",
     "build:vscode": "node scripts/build_vscode_companion.js",
     "build:all": "npm run build && npm run build:sandbox && npm run build:vscode",
-    "build:sea": "docker buildx build --platform linux/amd64 -f Dockerfile.sea -o type=local,dest=.bin/ .",
-    "relink": "npm run build && npm run bundle && npm link",
-    "deploy": ".bin/publish ship",
-    "deploy:remote": ".bin/publish deploy",
-    "publish:turnkey": ".bin/publish upload",
-    "publish:npm": ".bin/publish npm",
-    "publish:all": ".bin/publish ship",
     "build:packages": "npm run build --workspaces",
     "build:sandbox": "node scripts/build_sandbox.js",
     "build:binary": "node scripts/build_binary.js",
@@ -86,10 +80,10 @@
     "minimatch": "^10.2.2"
   },
   "bin": {
-    "apex": "dist/cli.js"
+    "gemini": "bundle/gemini.js"
   },
   "files": [
-    "dist/",
+    "bundle/",
     "README.md",
     "LICENSE"
   ],
@@ -142,9 +136,15 @@
     "yargs": "^17.7.2"
   },
   "dependencies": {
+    "cacheable-lookup": "^7.0.0",
+    "cacheable-request": "^13.0.18",
+    "defer-to-connect": "^2.0.1",
+    "http2-wrapper": "^2.2.1",
     "ink": "npm:@jrichman/ink@6.6.7",
     "latest-version": "^9.0.0",
+    "lowercase-keys": "^4.0.1",
     "node-fetch-native": "^1.6.7",
+    "p-cancelable": "^4.0.1",
     "proper-lockfile": "^4.1.2",
     "punycode": "^2.3.1",
     "simple-git": "^3.28.0"

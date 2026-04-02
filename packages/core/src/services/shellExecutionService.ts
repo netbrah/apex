@@ -107,17 +107,6 @@ export interface ShellExecutionConfig {
   sessionId?: string;
 }
 
-export interface ShellExecutionConfig {
-  terminalWidth?: number;
-  terminalHeight?: number;
-  pager?: string;
-  showColor?: boolean;
-  defaultFg?: string;
-  defaultBg?: string;
-  // Used for testing
-  disableDynamicLineTrimming?: boolean;
-}
-
 /**
  * Describes a structured event emitted during shell command execution.
  */
@@ -240,118 +229,6 @@ const writeBufferToLogStream = (
 
   return lastContentLine + 1;
 };
-
-interface ActivePty {
-  ptyProcess: IPty;
-  headlessTerminal: pkg.Terminal;
-}
-
-const getErrnoCode = (error: unknown): string | undefined => {
-  if (!error || typeof error !== 'object' || !('code' in error)) {
-    return undefined;
-  }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : undefined;
-};
-
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
-const isExpectedPtyReadExitError = (error: unknown): boolean => {
-  const code = getErrnoCode(error);
-  if (code === 'EIO') {
-    return true;
-  }
-
-  const message = getErrorMessage(error);
-  return message.includes('read EIO');
-};
-
-const isExpectedPtyExitRaceError = (error: unknown): boolean => {
-  const code = getErrnoCode(error);
-  if (code === 'ESRCH' || code === 'EBADF') {
-    return true;
-  }
-
-  const message = getErrorMessage(error);
-  return (
-    message.includes('ioctl(2) failed, EBADF') ||
-    message.includes('Cannot resize a pty that has already exited')
-  );
-};
-
-const getFullBufferText = (terminal: pkg.Terminal): string => {
-  const buffer = terminal.buffer.active;
-  const lines: string[] = [];
-  for (let i = 0; i < buffer.length; i++) {
-    const line = buffer.getLine(i);
-    const lineContent = line ? line.translateToString(true) : '';
-    lines.push(lineContent);
-  }
-  return lines.join('\n').trimEnd();
-};
-
-const replayTerminalOutput = async (
-  output: string,
-  cols: number,
-  rows: number,
-): Promise<string> => {
-  const replayTerminal = new Terminal({
-    allowProposedApi: true,
-    cols,
-    rows,
-    scrollback: 10000,
-    convertEol: true,
-  });
-
-  await new Promise<void>((resolve) => {
-    replayTerminal.write(output, () => resolve());
-  });
-
-  return getFullBufferText(replayTerminal);
-};
-
-interface ProcessCleanupStrategy {
-  killPty(pid: number, pty: ActivePty): void;
-  killChildProcesses(pids: Set<number>): void;
-}
-
-const windowsStrategy: ProcessCleanupStrategy = {
-  killPty: (_pid, pty) => {
-    pty.ptyProcess.kill();
-  },
-  killChildProcesses: (pids) => {
-    if (pids.size > 0) {
-      try {
-        const args = ['/f', '/t'];
-        for (const pid of pids) {
-          args.push('/pid', pid.toString());
-        }
-        spawnSync('taskkill', args);
-      } catch {
-        // ignore
-      }
-    }
-  },
-};
-
-const posixStrategy: ProcessCleanupStrategy = {
-  killPty: (pid, _pty) => {
-    process.kill(-pid, 'SIGKILL');
-  },
-  killChildProcesses: (pids) => {
-    for (const pid of pids) {
-      try {
-        process.kill(-pid, 'SIGKILL');
-      } catch {
-        // ignore
-      }
-    }
-  },
-};
-
-const getCleanupStrategy = () =>
-  os.platform() === 'win32' ? windowsStrategy : posixStrategy;
 
 /**
  * A centralized service for executing shell commands with robust process
@@ -635,9 +512,6 @@ export class ShellExecutionService {
   ): Promise<ShellExecutionHandle> {
     try {
       const isWindows = os.platform() === 'win32';
-      const { executable, argsPrefix, shell } = getShellConfiguration();
-      commandToExecute = applyPowerShellUtf8Prefix(commandToExecute, shell);
-      const shellArgs = [...argsPrefix, commandToExecute];
 
       const {
         program: finalExecutable,

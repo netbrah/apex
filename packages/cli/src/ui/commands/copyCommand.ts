@@ -14,9 +14,7 @@ import {
 
 export const copyCommand: SlashCommand = {
   name: 'copy',
-  get description() {
-    return t('Copy the last result or code snippet to clipboard');
-  },
+  description: 'Copy the last result or code snippet to clipboard',
   kind: CommandKind.BUILT_IN,
   autoExecute: true,
   action: async (context, _args): Promise<SlashCommandActionReturn | void> => {

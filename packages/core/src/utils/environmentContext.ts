@@ -41,6 +41,7 @@ ${folderStructure}`;
 /**
  * Retrieves environment-related information to be included in the chat context.
  * This includes the current working directory, date, operating system, and folder structure.
+ * Optionally, it can also include the full file context if enabled.
  * @param {Config} config - The runtime configuration and services.
  * @returns A promise that resolves to an array of `Part` objects containing environment information.
  */
@@ -80,40 +81,7 @@ ${environmentMemory}
 
   const initialParts: Part[] = [{ text: context }];
 
-  const envParts = await getEnvironmentContext(config);
-  const envContextString = envParts.map((part) => part.text || '').join('\n\n');
-
-  return [
-    {
-      role: 'user',
-      parts: [{ text: envContextString }],
-    },
-    {
-      role: 'model',
-      parts: [{ text: STARTUP_CONTEXT_MODEL_ACK }],
-    },
-    ...(extraHistory ?? []),
-  ];
-}
-
-/**
- * Strip the leading startup context (env-info user message + model ack)
- * from a chat history. Used when forwarding a parent session's history
- * to a child agent that will generate its own startup context for its
- * own working directory.
- */
-export function stripStartupContext(
-  history: readonly Content[],
-): readonly Content[] {
-  if (history.length < 2) return history;
-
-  const secondEntry = history[1];
-  const ackText = secondEntry?.parts?.[0]?.text;
-  if (secondEntry?.role === 'model' && ackText === STARTUP_CONTEXT_MODEL_ACK) {
-    return history.slice(2);
-  }
-
-  return history;
+  return initialParts;
 }
 
 export async function getInitialChatHistory(

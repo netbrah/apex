@@ -289,7 +289,7 @@ cwd context content
     });
   });
 
-  it('should load context files from CWD with custom filename (not subdirectories)', async () => {
+  it('should load context files by downward traversal with custom filename', async () => {
     const customFilename = 'LOCAL_CONTEXT.md';
     setGeminiMdFilename(customFilename);
 
@@ -312,7 +312,6 @@ cwd context content
       ),
     );
 
-    // Only upward traversal is performed, subdirectory files are not loaded
     expect(result).toEqual({
       memoryContent: `--- Project ---
 --- Context from: ${cwdCustomFile} ---
@@ -381,7 +380,6 @@ Src directory memory
       ),
     );
 
-    // Subdirectory files are not loaded, only CWD and upward
     expect(result).toEqual({
       memoryContent: `--- Project ---
 --- Context from: ${cwdGeminiFile} ---
@@ -396,7 +394,7 @@ Subdir memory
     });
   });
 
-  it('should load and correctly order global and upward context files', async () => {
+  it('should load and correctly order global, upward, and downward ORIGINAL_GEMINI_MD_FILENAME files', async () => {
     const defaultContextFile = await createTestFile(
       path.join(homedir, APEX_DIR, DEFAULT_CONTEXT_FILENAME),
       'default context content',
@@ -413,7 +411,7 @@ Subdir memory
       path.join(cwd, DEFAULT_CONTEXT_FILENAME),
       'CWD memory',
     );
-    await createTestFile(
+    const subDirGeminiFile = await createTestFile(
       path.join(cwd, 'sub', DEFAULT_CONTEXT_FILENAME),
       'Subdir memory',
     );
@@ -428,7 +426,6 @@ Subdir memory
       ),
     );
 
-    // Subdirectory files are not loaded, only global and upward from CWD
     expect(result).toEqual({
       memoryContent: `--- Global ---
 --- Context from: ${defaultContextFile} ---

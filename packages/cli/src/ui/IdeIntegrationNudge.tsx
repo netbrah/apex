@@ -74,15 +74,13 @@ export function IdeIntegrationNudge({
     },
   ];
 
-  const installText = isInSandbox
-    ? `Note: In sandbox environments, IDE integration requires manual setup on the host system. If you select Yes, you'll receive instructions on how to set this up.`
-    : isExtensionPreInstalled
-      ? `If you select Yes, the CLI will connect to your ${
-          ideName ?? 'editor'
-        } for session viewing and file navigation.`
-      : `If you select Yes, we'll install a companion extension for ${
-          ideName ?? 'your editor'
-        } that provides a session viewer, chat history browser, and file navigation panel.`;
+  const installText = isExtensionPreInstalled
+    ? `If you select Yes, the CLI will have access to your open files and display diffs directly in ${
+        ideName ?? 'your editor'
+      }.`
+    : `If you select Yes, we'll install an extension that allows the CLI to access your open files and display diffs directly in ${
+        ideName ?? 'your editor'
+      }.`;
 
   return (
     <Box

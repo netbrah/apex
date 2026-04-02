@@ -56,76 +56,6 @@ interface RunNonInteractiveParams {
   resumedSessionData?: ResumedSessionData;
 }
 
-const debugLogger = createDebugLogger('NON_INTERACTIVE_CLI');
-import {
-  normalizePartList,
-  extractPartsFromUserMessage,
-  buildSystemMessage,
-  createToolProgressHandler,
-  createAgentToolProgressHandler,
-  computeUsageFromMetrics,
-} from './utils/nonInteractiveHelpers.js';
-
-/**
- * Emits a final message for slash command results.
- * Note: systemMessage should already be emitted before calling this function.
- */
-async function emitNonInteractiveFinalMessage(params: {
-  message: string;
-  isError: boolean;
-  adapter: JsonOutputAdapterInterface;
-  config: Config;
-  startTimeMs: number;
-}): Promise<void> {
-  const { message, isError, adapter, config } = params;
-
-  // JSON output mode: emit assistant message and result
-  // (systemMessage should already be emitted by caller)
-  adapter.startAssistantMessage();
-  adapter.processEvent({
-    type: GeminiEventType.Content,
-    value: message,
-  } as unknown as Parameters<JsonOutputAdapterInterface['processEvent']>[0]);
-  adapter.finalizeAssistantMessage();
-
-  const metrics = uiTelemetryService.getMetrics();
-  const usage = computeUsageFromMetrics(metrics);
-  const outputFormat = config.getOutputFormat();
-  const stats =
-    outputFormat === OutputFormat.JSON
-      ? uiTelemetryService.getMetrics()
-      : undefined;
-
-  adapter.emitResult({
-    isError,
-    durationMs: Date.now() - params.startTimeMs,
-    apiDurationMs: 0,
-    numTurns: 0,
-    errorMessage: isError ? message : undefined,
-    usage,
-    stats,
-    summary: message,
-  });
-}
-
-/**
- * Provides optional overrides for `runNonInteractive` execution.
- *
- * @param abortController - Optional abort controller for cancellation.
- * @param adapter - Optional JSON output adapter for structured output formats.
- * @param userMessage - Optional CLI user message payload for preformatted input.
- * @param controlService - Optional control service for future permission handling.
- */
-export interface RunNonInteractiveOptions {
-  abortController?: AbortController;
-  adapter?: JsonOutputAdapterInterface;
-  userMessage?: CLIUserMessage;
-  controlService?: ControlService;
-}
-
-/**
- * Executes the non-interactive CLI flow for a single request.
- */
 export async function runNonInteractive(
   params: RunNonInteractiveParams,
 ): Promise<void> {
@@ -530,9 +460,6 @@ export async function runNonInteractive(
               `Error recording completed tool call information: ${error}`,
             );
           }
-          initialPartList = processedQuery as PartListUnion;
-        }
-      }
 
           // Check if any tool requested to stop execution immediately
           const stopExecutionTool = completedToolCalls.find(

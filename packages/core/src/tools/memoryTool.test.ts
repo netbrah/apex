@@ -55,7 +55,7 @@ vi.mock('fs', () => ({
 
 vi.mock('os');
 
-const MEMORY_SECTION_HEADER = '## APEX Memories';
+const MEMORY_SECTION_HEADER = '## Gemini Added Memories';
 
 describe('MemoryTool', () => {
   const mockAbortSignal = new AbortController().signal;
@@ -163,21 +163,6 @@ describe('MemoryTool', () => {
       expect(result.llmContent).toBe(
         JSON.stringify({ success: true, message: successMessage }),
       );
-
-      // For this test, we expect the actual fs methods to be passed
-      const expectedFsArgument = {
-        readFile: fs.readFile,
-        writeFile: fs.writeFile,
-        mkdir: fs.mkdir,
-      };
-
-      expect(performAddMemoryEntrySpy).toHaveBeenCalledWith(
-        params.fact,
-        expectedFilePath,
-        expectedFsArgument,
-      );
-      const successMessage = `Okay, I've remembered that in project memory: "${params.fact}"`;
-      expect(result.llmContent).toBe(successMessage);
       expect(result.returnDisplay).toBe(successMessage);
     });
 
@@ -247,7 +232,10 @@ describe('MemoryTool', () => {
       const result = await invocation.execute(mockAbortSignal);
 
       expect(result.llmContent).toBe(
-        `Error saving memory: ${underlyingError.message}`,
+        JSON.stringify({
+          success: false,
+          error: `Failed to save memory. Detail: ${underlyingError.message}`,
+        }),
       );
       expect(result.returnDisplay).toBe(
         `Error saving memory: ${underlyingError.message}`,
@@ -256,23 +244,9 @@ describe('MemoryTool', () => {
         ToolErrorType.MEMORY_TOOL_EXECUTION_ERROR,
       );
     });
-
-    it('should return error when executing without scope parameter', async () => {
-      const params = { fact: 'Test fact' };
-      const invocation = memoryTool.build(params);
-      const result = await invocation.execute(mockAbortSignal);
-
-      expect(result.llmContent).toContain(
-        'Please specify where to save this memory',
-      );
-      expect(result.llmContent).toContain('Global:');
-      expect(result.llmContent).toContain('Project:');
-      expect(result.returnDisplay).toContain('Global:');
-      expect(result.returnDisplay).toContain('Project:');
-    });
   });
 
-  describe('getDefaultPermission and getConfirmationDetails', () => {
+  describe('shouldConfirmExecute', () => {
     let memoryTool: MemoryTool;
 
     beforeEach(() => {
@@ -282,23 +256,13 @@ describe('MemoryTool', () => {
       vi.mocked(fs.readFile).mockResolvedValue('');
     });
 
-    it('should always return ask from getDefaultPermission', async () => {
-      const params = { fact: 'Test fact', scope: 'global' as const };
+    it('should return confirmation details when memory file is not allowlisted', async () => {
+      const params = { fact: 'Test fact' };
       const invocation = memoryTool.build(params);
-      const permission = await invocation.getDefaultPermission();
-
-      expect(permission).toBe('ask');
-    });
-
-    it('should return confirmation details for global scope', async () => {
-      const params = { fact: 'Test fact', scope: 'global' as const };
-      const invocation = memoryTool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
-
-      const result = await invocation.getConfirmationDetails(mockAbortSignal);
+      const result = await invocation.shouldConfirmExecute(mockAbortSignal);
 
       expect(result).toBeDefined();
+      expect(result).not.toBe(false);
 
       if (result && result.type === 'edit') {
         const expectedPath = path.join('~', APEX_DIR, 'APEX.md');
@@ -311,7 +275,7 @@ describe('MemoryTool', () => {
         expect(result.fileDiff).toContain('+## Gemini Added Memories');
         expect(result.fileDiff).toContain('+- Test fact');
         expect(result.originalContent).toBe('');
-        expect(result.newContent).toContain('## APEX Memories');
+        expect(result.newContent).toContain('## Gemini Added Memories');
         expect(result.newContent).toContain('- Test fact');
       }
     });
@@ -325,8 +289,9 @@ describe('MemoryTool', () => {
       );
 
       const invocation = memoryTool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
+      // Add the memory file to the allowlist
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (invocation.constructor as any).allowlist.add(memoryFilePath);
 
       const result = await invocation.shouldConfirmExecute(mockAbortSignal);
 
@@ -345,19 +310,17 @@ describe('MemoryTool', () => {
       const result = await invocation.shouldConfirmExecute(mockAbortSignal);
 
       expect(result).toBeDefined();
+      expect(result).not.toBe(false);
 
-      if (result.type === 'edit') {
-        const expectedPath = path.join(process.cwd(), 'APEX.md');
-        expect(result.title).toBe(
-          `Confirm Memory Save: ${expectedPath} (project)`,
-        );
-        expect(result.fileName).toBe(expectedPath);
-        expect(result.fileDiff).toContain('Index: APEX.md');
-        expect(result.fileDiff).toContain('+## APEX Memories');
-        expect(result.fileDiff).toContain('+- Test fact');
-        expect(result.originalContent).toBe('');
-        expect(result.newContent).toContain('## APEX Memories');
-        expect(result.newContent).toContain('- Test fact');
+      if (result && result.type === 'edit') {
+        // Simulate the onConfirm callback
+        await result.onConfirm(ToolConfirmationOutcome.ProceedAlways);
+
+        // Check that the memory file was added to the allowlist
+        expect(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (invocation.constructor as any).allowlist.has(memoryFilePath),
+        ).toBe(true);
       }
     });
 
@@ -370,36 +333,35 @@ describe('MemoryTool', () => {
       );
 
       const invocation = memoryTool.build(params);
-      const result = await invocation.getConfirmationDetails(mockAbortSignal);
+      const result = await invocation.shouldConfirmExecute(mockAbortSignal);
 
-      if (result.type === 'edit') {
-        // onConfirm should be a no-op — just verify it doesn't throw
-        await expect(
-          result.onConfirm(ToolConfirmationOutcome.ProceedAlways),
-        ).resolves.toBeUndefined();
-        await expect(
-          result.onConfirm(ToolConfirmationOutcome.ProceedOnce),
-        ).resolves.toBeUndefined();
-        await expect(
-          result.onConfirm(ToolConfirmationOutcome.Cancel),
-        ).resolves.toBeUndefined();
+      expect(result).toBeDefined();
+      expect(result).not.toBe(false);
+
+      if (result && result.type === 'edit') {
+        // Simulate the onConfirm callback with different outcomes
+        await result.onConfirm(ToolConfirmationOutcome.ProceedOnce);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const allowlist = (invocation.constructor as any).allowlist;
+        expect(allowlist.has(memoryFilePath)).toBe(false);
+
+        await result.onConfirm(ToolConfirmationOutcome.Cancel);
+        expect(allowlist.has(memoryFilePath)).toBe(false);
       }
     });
 
-    it('should handle existing memory file with content for global scope', async () => {
-      const params = { fact: 'New fact', scope: 'global' as const };
+    it('should handle existing memory file with content', async () => {
+      const params = { fact: 'New fact' };
       const existingContent =
-        'Some existing content.\n\n## APEX Memories\n- Old fact\n';
+        'Some existing content.\n\n## Gemini Added Memories\n- Old fact\n';
 
       vi.mocked(fs.readFile).mockResolvedValue(existingContent);
 
       const invocation = memoryTool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
-
-      const result = await invocation.getConfirmationDetails(mockAbortSignal);
+      const result = await invocation.shouldConfirmExecute(mockAbortSignal);
 
       expect(result).toBeDefined();
+      expect(result).not.toBe(false);
 
       if (result && result.type === 'edit') {
         const expectedPath = path.join('~', APEX_DIR, 'APEX.md');

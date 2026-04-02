@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -121,53 +121,16 @@ vi.mock('../utils/errorReporting', () => ({ reportError: vi.fn() }));
 vi.mock('../utils/nextSpeakerChecker', () => ({
   checkNextSpeaker: vi.fn().mockResolvedValue(null),
 }));
-vi.mock('../utils/environmentContext', () => ({
-  getEnvironmentContext: vi
-    .fn()
-    .mockResolvedValue([{ text: 'Mocked env context' }]),
-  getInitialChatHistory: vi.fn(async (_config, extraHistory) => [
-    {
-      role: 'user',
-      parts: [{ text: 'Mocked env context' }],
-    },
-    {
-      role: 'model',
-      parts: [{ text: 'Got it. Thanks for the context!' }],
-    },
-    ...(extraHistory ?? []),
-  ]),
-}));
 vi.mock('../utils/generateContentResponseUtilities', () => ({
   getResponseText: (result: GenerateContentResponse) =>
     result.candidates?.[0]?.content?.parts?.map((part) => part.text).join('') ||
     undefined,
-  getFunctionCalls: (result: GenerateContentResponse) => {
-    // Extract function calls from the response
-    const parts = result.candidates?.[0]?.content?.parts;
-    if (!parts) {
-      return undefined;
-    }
-    const functionCallParts = parts
-      .filter((part) => !!part.functionCall)
-      .map((part) => part.functionCall);
-    return functionCallParts.length > 0 ? functionCallParts : undefined;
-  },
 }));
-// Create shared mock for uiTelemetryService that's used by both telemetry mocks
-const mockUiTelemetryService = vi.hoisted(() => ({
-  setLastPromptTokenCount: vi.fn(),
-  getLastPromptTokenCount: vi.fn(),
+vi.mock('../telemetry/index.js', () => ({
+  logApiRequest: vi.fn(),
+  logApiResponse: vi.fn(),
+  logApiError: vi.fn(),
 }));
-
-vi.mock('../telemetry/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../telemetry/index.js')>();
-  return {
-    ...actual,
-    uiTelemetryService: mockUiTelemetryService,
-    // We keep the real implementations of logChatCompression, etc.
-    // but we can spy on ApexLogger if needed
-  };
-});
 vi.mock('../ide/ideContext.js');
 vi.mock('../telemetry/uiTelemetry.js', () => ({
   uiTelemetryService: {
@@ -269,10 +232,10 @@ describe('Gemini Client (client.ts)', () => {
       getWorkingDir: vi.fn().mockReturnValue('/test/dir'),
       getFileService: vi.fn().mockReturnValue(fileService),
       getMaxSessionTurns: vi.fn().mockReturnValue(0),
-      getSessionTokenLimit: vi.fn().mockReturnValue(32000),
+      getQuotaErrorOccurred: vi.fn().mockReturnValue(false),
+      setQuotaErrorOccurred: vi.fn(),
       getNoBrowser: vi.fn().mockReturnValue(false),
       getUsageStatisticsEnabled: vi.fn().mockReturnValue(true),
-      getApprovalMode: vi.fn().mockReturnValue(ApprovalMode.DEFAULT),
       getIdeModeFeature: vi.fn().mockReturnValue(false),
       getIdeMode: vi.fn().mockReturnValue(true),
       getDebugMode: vi.fn().mockReturnValue(false),
@@ -565,14 +528,6 @@ describe('Gemini Client (client.ts)', () => {
           newTokenCount: compressedTokenCount,
           originalTokenCount: 100,
         });
-        expect(compressedTokenCount).toBeLessThanOrEqual(100); // Ensure setup is correct
-
-        const result = await client.tryCompressChat('prompt-id-4', true); // Forced
-
-        expect(result.compressionStatus).toBe(CompressionStatus.COMPRESSED);
-        expect(result.originalTokenCount).toBe(100);
-        // newTokenCount might be clamped to originalTokenCount due to tolerance logic
-        expect(result.newTokenCount).toBeLessThanOrEqual(100);
       });
 
       it('yields the result even if the compression inflated the tokens', async () => {
@@ -604,7 +559,6 @@ describe('Gemini Client (client.ts)', () => {
           compressionStatus:
             CompressionStatus.COMPRESSION_FAILED_INFLATED_TOKEN_COUNT,
         });
-        expect(estimatedNewTokenCount).toBeGreaterThan(100); // Ensure setup is correct
 
         await client.tryCompressChat('prompt-id-4', false);
 
@@ -994,12 +948,7 @@ ${JSON.stringify(
   2,
 )}
 \`\`\`
-hello
-\`\`\`
-
-Other open files:
-  - /path/to/recent/file1.ts
-  - /path/to/recent/file2.ts`;
+      `.trim();
       const expectedRequest = [{ text: expectedContext }];
       expect(mockChat.addHistory).toHaveBeenCalledWith({
         role: 'user',
@@ -1121,8 +1070,7 @@ ${JSON.stringify(
   2,
 )}
 \`\`\`
-hello
-\`\`\``;
+      `.trim();
       const expectedRequest = [{ text: expectedContext }];
       expect(mockChat.addHistory).toHaveBeenCalledWith({
         role: 'user',
@@ -1516,7 +1464,6 @@ ${JSON.stringify(
         [{ text: 'Start conversation' }],
         signal,
         'prompt-id-3',
-        { type: SendMessageType.UserQuery },
         Number.MAX_SAFE_INTEGER, // Bypass the MAX_TURNS protection
       );
 
@@ -2516,9 +2463,11 @@ ${JSON.stringify(
         // Also verify it's the full context, not a delta.
         const call = mockChat.addHistory.mock.calls[0][0];
         const contextText = call.parts[0].text;
-        // Verify it contains the active file information in plain text format
-        expect(contextText).toContain('Active file:');
-        expect(contextText).toContain('Path: /path/to/active/file.ts');
+        const contextJson = JSON.parse(
+          contextText.match(/```json\n(.*)\n```/s)![1],
+        );
+        expect(contextJson).toHaveProperty('activeFile');
+        expect(contextJson.activeFile.path).toBe('/path/to/active/file.ts');
       });
     });
 
@@ -2872,7 +2821,7 @@ ${JSON.stringify(
         );
         expect(contextCall).toBeDefined();
         expect(JSON.stringify(contextCall![0])).toContain(
-          "Here is the user's editor context.",
+          "Here is the user's editor context as a JSON object",
         );
         // Check that the sent context is the new one (fileB.ts)
         expect(JSON.stringify(contextCall![0])).toContain('fileB.ts');
@@ -2908,7 +2857,9 @@ ${JSON.stringify(
 
         // Assert: Full context for fileA.ts was sent and stored.
         const initialCall = vi.mocked(mockChat.addHistory!).mock.calls[0][0];
-        expect(JSON.stringify(initialCall)).toContain("user's editor context.");
+        expect(JSON.stringify(initialCall)).toContain(
+          "user's editor context as a JSON object",
+        );
         expect(JSON.stringify(initialCall)).toContain('fileA.ts');
         // This implicitly tests that `lastSentIdeContext` is now set internally by the client.
         vi.mocked(mockChat.addHistory!).mockClear();
@@ -3006,9 +2957,9 @@ ${JSON.stringify(
         const finalCall = vi.mocked(mockChat.addHistory!).mock.calls[0][0];
         expect(JSON.stringify(finalCall)).toContain('summary of changes');
         // The delta should reflect fileA being closed and fileC being opened.
-        expect(JSON.stringify(finalCall)).toContain('Files closed');
+        expect(JSON.stringify(finalCall)).toContain('filesClosed');
         expect(JSON.stringify(finalCall)).toContain('fileA.ts');
-        expect(JSON.stringify(finalCall)).toContain('Active file changed');
+        expect(JSON.stringify(finalCall)).toContain('activeFileChanged');
         expect(JSON.stringify(finalCall)).toContain('fileC.ts');
       });
     });
@@ -3364,7 +3315,7 @@ ${JSON.stringify(
             topP: 1,
           },
           contents,
-        }),
+        },
         'test-session-id',
         LlmRole.MAIN,
       );
@@ -3729,47 +3680,5 @@ ${JSON.stringify(
         resetChatSpy.mockRestore();
       });
     });
-
-    it('should append config appendSystemPrompt after a config system prompt override', async () => {
-      const contents = [{ role: 'user', parts: [{ text: 'hello' }] }];
-      const abortSignal = new AbortController().signal;
-
-      vi.spyOn(client['config'], 'getSystemPrompt').mockReturnValue(
-        'Override prompt',
-      );
-      vi.spyOn(client['config'], 'getAppendSystemPrompt').mockReturnValue(
-        'Focus on findings only.',
-      );
-      vi.spyOn(client['config'], 'getUserMemory').mockReturnValue(
-        'Saved memory',
-      );
-      vi.mocked(getCustomSystemPrompt).mockReturnValueOnce(
-        'Override prompt with memory and append',
-      );
-
-      await client.generateContent(
-        contents,
-        {},
-        abortSignal,
-        DEFAULT_FLASH_MODEL,
-      );
-
-      expect(getCustomSystemPrompt).toHaveBeenCalledWith(
-        'Override prompt',
-        'Saved memory',
-        'Focus on findings only.',
-      );
-      expect(mockContentGenerator.generateContent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          config: expect.objectContaining({
-            systemInstruction: 'Override prompt with memory and append',
-          }),
-        }),
-        'test-session-id',
-      );
-    });
-
-    // Note: there is currently no "fallback mode" model routing; the model used
-    // is always the one explicitly requested by the caller.
   });
 });

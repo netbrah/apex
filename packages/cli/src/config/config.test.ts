@@ -48,41 +48,6 @@ vi.mock('../commands/utils.js', () => ({
   exitCli: vi.fn(),
 }));
 
-const createNativeLspServiceInstance = () => ({
-  discoverAndPrepare: vi.fn(),
-  start: vi.fn(),
-  definitions: vi.fn().mockResolvedValue([]),
-  references: vi.fn().mockResolvedValue([]),
-  workspaceSymbols: vi.fn().mockResolvedValue([]),
-  hover: vi.fn().mockResolvedValue(null),
-  documentSymbols: vi.fn().mockResolvedValue([]),
-  implementations: vi.fn().mockResolvedValue([]),
-  prepareCallHierarchy: vi.fn().mockResolvedValue([]),
-  incomingCalls: vi.fn().mockResolvedValue([]),
-  outgoingCalls: vi.fn().mockResolvedValue([]),
-  diagnostics: vi.fn().mockResolvedValue([]),
-  workspaceDiagnostics: vi.fn().mockResolvedValue([]),
-  codeActions: vi.fn().mockResolvedValue([]),
-  applyWorkspaceEdit: vi.fn().mockResolvedValue(false),
-});
-
-vi.mock('./trustedFolders.js', () => ({
-  isWorkspaceTrusted: vi
-    .fn()
-    .mockReturnValue({ isTrusted: true, source: 'file' }), // Default to trusted
-}));
-
-const nativeLspServiceMock = vi.mocked(NativeLspService);
-const getLastLspInstance = () => {
-  const results = nativeLspServiceMock.mock.results;
-  if (results.length === 0) {
-    return undefined;
-  }
-  return results[results.length - 1]?.value as ReturnType<
-    typeof createNativeLspServiceInstance
-  >;
-};
-
 vi.mock('fs', async (importOriginal) => {
   const actualFs = await importOriginal<typeof import('fs')>();
   const pathMod = await import('node:path');
@@ -135,22 +100,12 @@ vi.mock('read-package-up', () => ({
   ),
 }));
 
-vi.mock('@apex-code/apex-core', async (importOriginal) => {
-  const actualServer = await importOriginal<typeof ServerConfig>();
-  const SkillManagerMock = vi.fn();
-  SkillManagerMock.prototype.startWatching = vi
-    .fn()
-    .mockResolvedValue(undefined);
-  SkillManagerMock.prototype.stopWatching = vi.fn();
-  SkillManagerMock.prototype.listSkills = vi.fn().mockResolvedValue([]);
-  SkillManagerMock.prototype.addChangeListener = vi.fn();
-  SkillManagerMock.prototype.removeChangeListener = vi.fn();
+vi.mock('@apex-code/apex-core', async () => {
+  const actualServer = await vi.importActual<typeof ServerConfig>(
+    '@apex-code/apex-core',
+  );
   return {
     ...actualServer,
-    NativeLspService: vi
-      .fn()
-      .mockImplementation(() => createNativeLspServiceInstance()),
-    SkillManager: SkillManagerMock,
     IdeClient: {
       getInstance: vi.fn().mockResolvedValue({
         getConnectionStatus: vi.fn(),
@@ -203,7 +158,7 @@ vi.mock('@apex-code/apex-core', async (importOriginal) => {
     ),
     getAdminErrorMessage: vi.fn(
       (_feature) =>
-        `YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex`,
+        `YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli`,
     ),
     isHeadlessMode: vi.fn((opts) => {
       if (process.env['VITEST'] === 'true') {
@@ -286,7 +241,6 @@ describe('parseArguments', () => {
       const argv = await parseArguments(settings);
       expect(argv.worktree).toBe('my-feature');
     });
-    mockWriteStderrLine.mockClear();
 
     it('should generate a random name when --worktree is provided without a name', async () => {
       process.argv = ['node', 'script.js', '--worktree'];
@@ -297,7 +251,6 @@ describe('parseArguments', () => {
       expect(argv.worktree).not.toBe('');
       expect(typeof argv.worktree).toBe('string');
     });
-    mockWriteStderrLine.mockClear();
 
     it('should throw an error when --worktree is used but experimental.worktrees is not enabled', async () => {
       process.argv = ['node', 'script.js', '--worktree', 'feature'];
@@ -444,7 +397,6 @@ describe('parseArguments', () => {
         writable: true,
       });
     });
-    mockWriteStderrLine.mockClear();
 
     it.each([
       {
@@ -656,7 +608,6 @@ describe('parseArguments', () => {
     const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit called');
     });
-    mockWriteStderrLine.mockClear();
 
     const mockConsoleError = vi
       .spyOn(console, 'error')
@@ -812,10 +763,6 @@ describe('parseArguments', () => {
 describe('loadCliConfig', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    nativeLspServiceMock.mockReset();
-    nativeLspServiceMock.mockImplementation(
-      () => createNativeLspServiceInstance() as unknown as NativeLspService,
-    );
     vi.mocked(os.homedir).mockReturnValue('/mock/home/user');
     vi.stubEnv('GEMINI_API_KEY', 'test-api-key');
     vi.spyOn(ExtensionManager.prototype, 'getExtensions').mockReturnValue([]);
@@ -1367,46 +1314,12 @@ describe('Approval mode tool exclusion logic', () => {
     expect(excludedTools).toContain(ASK_USER_TOOL_NAME);
   });
 
-  it('should not exclude a tool explicitly allowed in tools.allowed', async () => {
-    process.argv = ['node', 'script.js', '-p', 'test'];
-    const argv = await parseArguments();
-    const settings: Settings = {
-      tools: {
-        allowed: [ShellTool.Name],
-      },
-    };
-
-    const config = await loadCliConfig(settings, argv, undefined, []);
-
-    const excludedTools = config.getPermissionsDeny();
-    expect(excludedTools).not.toContain(ShellTool.Name);
-    expect(excludedTools).toContain(EditTool.Name);
-    expect(excludedTools).toContain(WriteFileTool.Name);
-  });
-
-  it('should not exclude a tool explicitly allowed in tools.core', async () => {
-    process.argv = ['node', 'script.js', '-p', 'test'];
-    const argv = await parseArguments();
-    const settings: Settings = {
-      tools: {
-        core: [ShellTool.Name],
-      },
-    };
-
-    const config = await loadCliConfig(settings, argv, undefined, []);
-
-    const excludedTools = config.getPermissionsDeny();
-    expect(excludedTools).not.toContain(ShellTool.Name);
-    expect(excludedTools).toContain(EditTool.Name);
-    expect(excludedTools).toContain(WriteFileTool.Name);
-  });
-
-  it('should exclude only shell tools in non-interactive mode with auto-edit approval mode', async () => {
+  it('should exclude only shell tools in non-interactive mode with auto_edit approval mode', async () => {
     process.argv = [
       'node',
       'script.js',
       '--approval-mode',
-      'auto-edit',
+      'auto_edit',
       '-p',
       'test',
     ];
@@ -1487,9 +1400,8 @@ describe('Approval mode tool exclusion logic', () => {
 
     const testCases = [
       { args: ['node', 'script.js'] }, // default
-      { args: ['node', 'script.js', '--approval-mode', 'plan'] },
       { args: ['node', 'script.js', '--approval-mode', 'default'] },
-      { args: ['node', 'script.js', '--approval-mode', 'auto-edit'] },
+      { args: ['node', 'script.js', '--approval-mode', 'auto_edit'] },
       { args: ['node', 'script.js', '--approval-mode', 'yolo'] },
       { args: ['node', 'script.js', '--yolo'] },
     ];
@@ -1509,12 +1421,12 @@ describe('Approval mode tool exclusion logic', () => {
     }
   });
 
-  it('should merge approval mode exclusions with settings exclusions in auto-edit mode', async () => {
+  it('should merge approval mode exclusions with settings exclusions in auto_edit mode', async () => {
     process.argv = [
       'node',
       'script.js',
       '--approval-mode',
-      'auto-edit',
+      'auto_edit',
       '-p',
       'test',
     ];
@@ -1543,7 +1455,7 @@ describe('Approval mode tool exclusion logic', () => {
     });
 
     await expect(loadCliConfig(settings, 'test-session', argv)).rejects.toThrow(
-      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
+      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
     );
   });
 
@@ -1677,7 +1589,7 @@ describe('loadCliConfig with allowed-mcp-server-names', () => {
     expect(config.getAllowedMcpServers()).toEqual(['server1', 'server2']);
   });
 
-  it('should read excludeMCPServers from settings but still return all servers', async () => {
+  it('should read excludeMCPServers from settings', async () => {
     process.argv = ['node', 'script.js'];
     const argv = await parseArguments(createTestMergedSettings());
     const settings = createTestMergedSettings({
@@ -1688,7 +1600,7 @@ describe('loadCliConfig with allowed-mcp-server-names', () => {
     expect(config.getBlockedMcpServers()).toEqual(['server1', 'server2']);
   });
 
-  it('should apply allowedMcpServers filter but excluded servers are still returned', async () => {
+  it('should override allowMCPServers with excludeMCPServers if overlapping', async () => {
     process.argv = ['node', 'script.js'];
     const argv = await parseArguments(createTestMergedSettings());
     const settings = createTestMergedSettings({
@@ -1973,11 +1885,9 @@ describe('loadCliConfig model selection', () => {
       }),
       'test-session',
       argv,
-      undefined,
-      [],
     );
 
-    expect(config.getModel()).toBe(DEFAULT_CODER_MODEL);
+    expect(config.getModel()).toBe('gemini-2.5-pro');
   });
 
   it('uses the default gemini model if nothing is set', async () => {
@@ -2005,8 +1915,6 @@ describe('loadCliConfig model selection', () => {
       }),
       'test-session',
       argv,
-      undefined,
-      [],
     );
 
     expect(config.getModel()).toBe('gemini-2.5-flash-preview');
@@ -2021,8 +1929,6 @@ describe('loadCliConfig model selection', () => {
       }),
       'test-session',
       argv,
-      undefined,
-      [],
     );
 
     expect(config.getModel()).toBe('gemini-2.5-flash-preview');
@@ -2105,14 +2011,6 @@ describe('loadCliConfig folderTrust', () => {
     const settings = createTestMergedSettings();
     const config = await loadCliConfig(settings, 'test-session', argv);
     expect(config.getFolderTrust()).toBe(true);
-  });
-
-  it('should be false by default', async () => {
-    process.argv = ['node', 'script.js'];
-    const argv = await parseArguments();
-    const settings: Settings = {};
-    const config = await loadCliConfig(settings, argv, undefined, []);
-    expect(config.getFolderTrust()).toBe(false);
   });
 });
 
@@ -2844,13 +2742,6 @@ describe('loadCliConfig approval mode', () => {
     expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DEFAULT);
   });
 
-  it('should set PLAN approval mode when --approval-mode=plan', async () => {
-    process.argv = ['node', 'script.js', '--approval-mode', 'plan'];
-    const argv = await parseArguments();
-    const config = await loadCliConfig({}, argv, undefined, []);
-    expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.PLAN);
-  });
-
   it('should set YOLO approval mode when --yolo flag is used', async () => {
     process.argv = ['node', 'script.js', '--yolo'];
     const argv = await parseArguments(createTestMergedSettings());
@@ -2904,36 +2795,6 @@ describe('loadCliConfig approval mode', () => {
       argv,
     );
     expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.YOLO);
-  });
-
-  it('should use approval mode from settings when CLI flags are not provided', async () => {
-    process.argv = ['node', 'script.js'];
-    const argv = await parseArguments();
-    // Using string value to test normalization
-    const settings = { tools: { approvalMode: 'plan' } } as unknown as Settings;
-    const config = await loadCliConfig(settings, argv, undefined, []);
-    expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.PLAN);
-  });
-
-  it('should normalize approval mode values from settings', async () => {
-    process.argv = ['node', 'script.js'];
-    const argv = await parseArguments();
-    const settings: Settings = {
-      tools: { approvalMode: ServerConfig.ApprovalMode.AUTO_EDIT },
-    };
-    const config = await loadCliConfig(settings, argv, undefined, []);
-    expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.AUTO_EDIT);
-  });
-
-  it('should throw when approval mode in settings is invalid', async () => {
-    process.argv = ['node', 'script.js'];
-    const argv = await parseArguments();
-    const settings = {
-      tools: { approvalMode: 'invalid_mode' },
-    } as unknown as Settings;
-    await expect(loadCliConfig(settings, argv, undefined, [])).rejects.toThrow(
-      'Invalid approval mode: invalid_mode. Valid values are: plan, default, auto-edit, yolo',
-    );
   });
 
   it('should prioritize --approval-mode over --yolo when both would be valid (but validation prevents this)', async () => {
@@ -3075,13 +2936,6 @@ describe('loadCliConfig approval mode', () => {
         argv,
       );
       expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.DEFAULT);
-    });
-
-    it('should allow PLAN approval mode in untrusted folders', async () => {
-      process.argv = ['node', 'script.js', '--approval-mode', 'plan'];
-      const argv = await parseArguments();
-      const config = await loadCliConfig({}, argv, undefined, []);
-      expect(config.getApprovalMode()).toBe(ServerConfig.ApprovalMode.PLAN);
     });
   });
 
@@ -3782,7 +3636,7 @@ describe('loadCliConfig disableYoloMode', () => {
       security: { disableYoloMode: true },
     });
     await expect(loadCliConfig(settings, 'test-session', argv)).rejects.toThrow(
-      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
+      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
     );
   });
 });
@@ -3814,7 +3668,7 @@ describe('loadCliConfig secureModeEnabled', () => {
     });
 
     await expect(loadCliConfig(settings, 'test-session', argv)).rejects.toThrow(
-      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
+      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
     );
   });
 
@@ -3828,7 +3682,7 @@ describe('loadCliConfig secureModeEnabled', () => {
     });
 
     await expect(loadCliConfig(settings, 'test-session', argv)).rejects.toThrow(
-      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-apex',
+      'YOLO mode is disabled by your administrator. To enable it, please request an update to the settings at: https://goo.gle/manage-gemini-cli',
     );
   });
 

@@ -12,6 +12,7 @@ import {
   createElement,
 } from 'react';
 import { type PartListUnion } from '@google/genai';
+import process from 'node:process';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import type {
   Config,
@@ -21,10 +22,8 @@ import type {
   AgentDefinition,
 } from '@apex-code/apex-core';
 import {
-  type Logger,
-  type Config,
-  createDebugLogger,
   GitService,
+  Logger,
   logSlashCommand,
   makeSlashCommandEvent,
   SlashCommandStatus,
@@ -51,7 +50,6 @@ import type { LoadedSettings } from '../../config/settings.js';
 import { type CommandContext, type SlashCommand } from '../commands/types.js';
 import { CommandService } from '../../services/CommandService.js';
 import { BuiltinCommandLoader } from '../../services/BuiltinCommandLoader.js';
-import { BundledSkillLoader } from '../../services/BundledSkillLoader.js';
 import { FileCommandLoader } from '../../services/FileCommandLoader.js';
 import { McpPromptLoader } from '../../services/McpPromptLoader.js';
 import { SkillCommandLoader } from '../../services/SkillCommandLoader.js';
@@ -102,7 +100,6 @@ export const useSlashCommandProcessor = (
   loadHistory: UseHistoryManagerReturn['loadHistory'],
   refreshStatic: () => void,
   toggleVimEnabled: () => Promise<boolean>,
-  isProcessing: boolean,
   setIsProcessing: (isProcessing: boolean) => void,
   actions: SlashCommandProcessorActions,
   extensionsUpdateState: Map<string, ExtensionUpdateStatus>,
@@ -134,9 +131,15 @@ export const useSlashCommandProcessor = (
     return new GitService(config.getProjectRoot(), config.storage);
   }, [config]);
 
-  const [pendingItem, setPendingItem] = useState<HistoryItemWithoutId | null>(
-    null,
-  );
+  const logger = useMemo(() => {
+    const l = new Logger(
+      config?.getSessionId() || '',
+      config?.storage ?? new Storage(process.cwd()),
+    );
+    // The logger's initialize is async, but we can create the instance
+    // synchronously. Commands that use it will await its initialization.
+    return l;
+  }, [config]);
 
   const [pendingItem, setPendingItem] = useState<HistoryItemWithoutId | null>(
     null,
@@ -157,7 +160,13 @@ export const useSlashCommandProcessor = (
       if (message.type === MessageType.ABOUT) {
         historyItemContent = {
           type: 'about',
-          systemInfo: message.systemInfo,
+          cliVersion: message.cliVersion,
+          osVersion: message.osVersion,
+          sandboxEnv: message.sandboxEnv,
+          modelVersion: message.modelVersion,
+          selectedAuthType: message.selectedAuthType,
+          gcpProject: message.gcpProject,
+          ideClient: message.ideClient,
         };
       } else if (message.type === MessageType.HELP) {
         historyItemContent = {
@@ -186,16 +195,6 @@ export const useSlashCommandProcessor = (
         historyItemContent = {
           type: 'compression',
           compression: message.compression,
-        };
-      } else if (message.type === MessageType.SUMMARY) {
-        historyItemContent = {
-          type: 'summary',
-          summary: message.summary,
-        };
-      } else if (message.type === MessageType.INSIGHT_PROGRESS) {
-        historyItemContent = {
-          type: 'insight_progress',
-          progress: message.progress,
         };
       } else {
         historyItemContent = {
@@ -247,9 +246,8 @@ export const useSlashCommandProcessor = (
         toggleShortcutsHelp: actions.toggleShortcutsHelp,
       },
       session: {
-        stats: sessionStats,
+        stats: session.stats,
         sessionShellAllowlist,
-        startNewSession,
       },
     }),
     [
@@ -418,17 +416,12 @@ export const useSlashCommandProcessor = (
           if (commandToExecute.action) {
             const fullCommandContext: CommandContext = {
               ...commandContext,
-              ui: {
-                ...commandContext.ui,
-                addItem: addItemWithRecording,
-              },
               invocation: {
                 raw: trimmed,
                 name: commandToExecute.name,
                 args,
               },
               overwriteConfirmed,
-              abortSignal: abortController.signal,
             };
 
             // If a one-time list is provided for a "Proceed" action, temporarily
@@ -442,27 +435,10 @@ export const useSlashCommandProcessor = (
                 ]),
               };
             }
-            // Race the command action against the abort signal so that
-            // ESC cancellation immediately unblocks the await chain.
-            // Without this, commands like /compress whose underlying
-            // operation (tryCompressChat) doesn't accept an AbortSignal
-            // would keep submitQuery stuck until the operation completes.
-            const abortPromise = new Promise<undefined>((resolve) => {
-              abortController.signal.addEventListener(
-                'abort',
-                () => resolve(undefined),
-                { once: true },
-              );
-            });
-            const result = await Promise.race([
-              commandToExecute.action(fullCommandContext, args),
-              abortPromise,
-            ]);
-
-            // If the command was cancelled via ESC while executing, skip result processing
-            if (abortController.signal.aborted) {
-              return { type: 'handled' };
-            }
+            const result = await commandToExecute.action(
+              fullCommandContext,
+              args,
+            );
 
             if (result) {
               switch (result.type) {
@@ -474,19 +450,16 @@ export const useSlashCommandProcessor = (
                     postSubmitPrompt: result.postSubmitPrompt,
                   };
                 case 'message':
-                  if (result.messageType === 'info') {
-                    addMessage({
-                      type: MessageType.INFO,
-                      content: result.content,
-                      timestamp: new Date(),
-                    });
-                  } else {
-                    addMessage({
-                      type: MessageType.ERROR,
-                      content: result.content,
-                      timestamp: new Date(),
-                    });
-                  }
+                  addItem(
+                    {
+                      type:
+                        result.messageType === 'error'
+                          ? MessageType.ERROR
+                          : MessageType.INFO,
+                      text: result.content,
+                    },
+                    Date.now(),
+                  );
                   return { type: 'handled' };
                 case 'logout':
                   // Show logout confirmation dialog with Login/Exit options
@@ -506,18 +479,6 @@ export const useSlashCommandProcessor = (
                   return { type: 'handled' };
                 case 'dialog':
                   switch (result.dialog) {
-                    case 'arena_start':
-                      actions.openArenaDialog?.('start');
-                      return { type: 'handled' };
-                    case 'arena_select':
-                      actions.openArenaDialog?.('select');
-                      return { type: 'handled' };
-                    case 'arena_stop':
-                      actions.openArenaDialog?.('stop');
-                      return { type: 'handled' };
-                    case 'arena_status':
-                      actions.openArenaDialog?.('status');
-                      return { type: 'handled' };
                     case 'auth':
                       actions.openAuthDialog();
                       return { type: 'handled' };
@@ -586,7 +547,6 @@ export const useSlashCommandProcessor = (
                   });
                   return { type: 'handled' };
                 }
-
                 case 'quit':
                   actions.quit(result.messages);
                   return { type: 'handled' };
@@ -682,7 +642,7 @@ export const useSlashCommandProcessor = (
                   });
 
                   if (!confirmed) {
-                    addItemWithRecording(
+                    addItem(
                       {
                         type: MessageType.INFO,
                         text: 'Operation cancelled.',
@@ -727,10 +687,6 @@ export const useSlashCommandProcessor = (
 
         return { type: 'handled' };
       } catch (e: unknown) {
-        // If cancelled via ESC, the cancelSlashCommand callback already handled cleanup
-        if (abortController.signal.aborted) {
-          return { type: 'handled' };
-        }
         hasError = true;
         if (config) {
           const event = makeSlashCommandEvent({
@@ -741,7 +697,7 @@ export const useSlashCommandProcessor = (
           });
           logSlashCommand(config, event);
         }
-        addItemWithRecording(
+        addItem(
           {
             type: MessageType.ERROR,
             text: e instanceof Error ? e.message : String(e),
@@ -750,36 +706,6 @@ export const useSlashCommandProcessor = (
         );
         return { type: 'handled' };
       } finally {
-        if (config?.getChatRecordingService) {
-          const chatRecorder = config.getChatRecordingService();
-          const primaryCommand =
-            resolvedCommandPath[0] ||
-            trimmed.replace(/^[/?]/, '').split(/\s+/)[0] ||
-            trimmed;
-          const shouldRecord =
-            !SLASH_COMMANDS_SKIP_RECORDING.has(primaryCommand);
-          try {
-            if (shouldRecord) {
-              chatRecorder?.recordSlashCommand({
-                phase: 'invocation',
-                rawCommand: trimmed,
-              });
-              const outputItems = recordedItems
-                .filter((item) => item.type !== 'user')
-                .map(serializeHistoryItemForRecording);
-              chatRecorder?.recordSlashCommand({
-                phase: 'result',
-                rawCommand: trimmed,
-                outputHistoryItems: outputItems,
-              });
-            }
-          } catch (recordError) {
-            debugLogger.error(
-              '[slashCommand] Failed to record slash command:',
-              recordError,
-            );
-          }
-        }
         if (config && resolvedCommandPath[0] && !hasError) {
           const event = makeSlashCommandEvent({
             command: resolvedCommandPath[0],
@@ -810,9 +736,6 @@ export const useSlashCommandProcessor = (
     handleSlashCommand,
     slashCommands: commands,
     pendingHistoryItems,
-    btwItem,
-    setBtwItem,
-    cancelBtw,
     commandContext,
     confirmationRequest,
   };

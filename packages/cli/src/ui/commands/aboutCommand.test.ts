@@ -30,6 +30,7 @@ vi.mock('@apex-code/apex-core', async (importOriginal) => {
 
 describe('aboutCommand', () => {
   let mockContext: CommandContext;
+  const originalPlatform = process.platform;
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -70,6 +71,9 @@ describe('aboutCommand', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+    });
     process.env = originalEnv;
     vi.clearAllMocks();
   });
@@ -80,6 +84,7 @@ describe('aboutCommand', () => {
   });
 
   it('should call addItem with all version info', async () => {
+    process.env['SANDBOX'] = '';
     if (!aboutCommand.action) {
       throw new Error('The about command must have an action.');
     }
@@ -101,22 +106,7 @@ describe('aboutCommand', () => {
   });
 
   it('should show the correct sandbox environment variable', async () => {
-    vi.mocked(systemInfoUtils.getExtendedSystemInfo).mockResolvedValue({
-      cliVersion: 'test-version',
-      osPlatform: 'test-os',
-      osArch: 'x64',
-      osRelease: '22.0.0',
-      nodeVersion: 'v20.0.0',
-      npmVersion: '10.0.0',
-      sandboxEnv: 'gemini-sandbox',
-      modelVersion: 'test-model',
-      selectedAuthType: 'test-auth',
-      ideClient: 'test-ide',
-      sessionId: 'test-session-id',
-      memoryUsage: '100 MB',
-      baseUrl: undefined,
-    });
-
+    process.env['SANDBOX'] = 'gemini-sandbox';
     if (!aboutCommand.action) {
       throw new Error('The about command must have an action.');
     }
@@ -125,31 +115,14 @@ describe('aboutCommand', () => {
 
     expect(mockContext.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: MessageType.ABOUT,
-        systemInfo: expect.objectContaining({
-          sandboxEnv: 'gemini-sandbox',
-        }),
+        sandboxEnv: 'gemini-sandbox',
       }),
     );
   });
 
   it('should show sandbox-exec profile when applicable', async () => {
-    vi.mocked(systemInfoUtils.getExtendedSystemInfo).mockResolvedValue({
-      cliVersion: 'test-version',
-      osPlatform: 'test-os',
-      osArch: 'x64',
-      osRelease: '22.0.0',
-      nodeVersion: 'v20.0.0',
-      npmVersion: '10.0.0',
-      sandboxEnv: 'sandbox-exec (test-profile)',
-      modelVersion: 'test-model',
-      selectedAuthType: 'test-auth',
-      ideClient: 'test-ide',
-      sessionId: 'test-session-id',
-      memoryUsage: '100 MB',
-      baseUrl: undefined,
-    });
-
+    process.env['SANDBOX'] = 'sandbox-exec';
+    process.env['SEATBELT_PROFILE'] = 'test-profile';
     if (!aboutCommand.action) {
       throw new Error('The about command must have an action.');
     }
@@ -158,9 +131,7 @@ describe('aboutCommand', () => {
 
     expect(mockContext.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
-        systemInfo: expect.objectContaining({
-          sandboxEnv: 'sandbox-exec (test-profile)',
-        }),
+        sandboxEnv: 'sandbox-exec (test-profile)',
       }),
     );
   });
@@ -180,87 +151,13 @@ describe('aboutCommand', () => {
     expect(mockContext.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
         type: MessageType.ABOUT,
-        systemInfo: expect.objectContaining({
-          cliVersion: 'test-version',
-          osPlatform: 'test-os',
-          osArch: 'x64',
-          osRelease: '22.0.0',
-          nodeVersion: 'v20.0.0',
-          npmVersion: '10.0.0',
-          sandboxEnv: 'no sandbox',
-          modelVersion: 'test-model',
-          selectedAuthType: 'test-auth',
-          ideClient: '',
-          sessionId: 'test-session-id',
-          memoryUsage: '100 MB',
-          baseUrl: undefined,
-        }),
-      }),
-      expect.any(Number),
-    );
-  });
-
-  it('should show unknown npmVersion when npm command fails', async () => {
-    vi.mocked(systemInfoUtils.getExtendedSystemInfo).mockResolvedValue({
-      cliVersion: 'test-version',
-      osPlatform: 'test-os',
-      osArch: 'x64',
-      osRelease: '22.0.0',
-      nodeVersion: 'v20.0.0',
-      npmVersion: 'unknown',
-      sandboxEnv: 'no sandbox',
-      modelVersion: 'test-model',
-      selectedAuthType: 'test-auth',
-      ideClient: 'test-ide',
-      sessionId: 'test-session-id',
-      memoryUsage: '100 MB',
-      baseUrl: undefined,
-    });
-
-    if (!aboutCommand.action) {
-      throw new Error('The about command must have an action.');
-    }
-
-    await aboutCommand.action(mockContext, '');
-
-    expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemInfo: expect.objectContaining({
-          npmVersion: 'unknown',
-        }),
-      }),
-      expect.any(Number),
-    );
-  });
-
-  it('should show unknown sessionId when config is not available', async () => {
-    vi.mocked(systemInfoUtils.getExtendedSystemInfo).mockResolvedValue({
-      cliVersion: 'test-version',
-      osPlatform: 'test-os',
-      osArch: 'x64',
-      osRelease: '22.0.0',
-      nodeVersion: 'v20.0.0',
-      npmVersion: '10.0.0',
-      sandboxEnv: 'no sandbox',
-      modelVersion: 'Unknown',
-      selectedAuthType: 'test-auth',
-      ideClient: '',
-      sessionId: 'unknown',
-      memoryUsage: '100 MB',
-      baseUrl: undefined,
-    });
-
-    if (!aboutCommand.action) {
-      throw new Error('The about command must have an action.');
-    }
-
-    await aboutCommand.action(mockContext, '');
-
-    expect(mockContext.ui.addItem).toHaveBeenCalledWith(
-      expect.objectContaining({
-        systemInfo: expect.objectContaining({
-          sessionId: 'unknown',
-        }),
+        cliVersion: 'test-version',
+        osVersion: 'test-os',
+        sandboxEnv: 'no sandbox',
+        modelVersion: 'test-model',
+        selectedAuthType: 'test-auth',
+        gcpProject: 'test-gcp-project',
+        ideClient: '',
       }),
     );
   });

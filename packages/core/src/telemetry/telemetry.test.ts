@@ -34,6 +34,7 @@ describe('telemetry', () => {
     mockGetApplicationDefault.mockResolvedValue(undefined); // Simulate ADC available
 
     mockConfig = new Config({
+      sessionId: 'test-session-id',
       model: 'test-model',
       targetDir: '/test/dir',
       debugMode: false,
@@ -54,7 +55,7 @@ describe('telemetry', () => {
   afterEach(async () => {
     // Ensure we shut down telemetry even if a test fails.
     if (isTelemetrySdkInitialized()) {
-      await shutdownTelemetry();
+      await shutdownTelemetry(mockConfig);
     }
   });
 

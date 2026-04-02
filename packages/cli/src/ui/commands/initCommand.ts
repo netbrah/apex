@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -11,7 +11,6 @@ import type {
   SlashCommand,
   SlashCommandActionReturn,
 } from './types.js';
-import { getCurrentGeminiMdFilename } from '@apex-code/apex-core';
 import { CommandKind } from './types.js';
 import { performInit } from '@apex-code/apex-core';
 
@@ -28,7 +27,7 @@ export const initCommand: SlashCommand = {
       return {
         type: 'message',
         messageType: 'error',
-        content: t('Configuration not available.'),
+        content: 'Configuration not available.',
       };
     }
     const targetDir = context.services.agentContext.config.getTargetDir();

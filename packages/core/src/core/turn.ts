@@ -43,6 +43,10 @@ export interface ServerTool {
     params: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<ToolResult>;
+  shouldConfirmExecute(
+    params: Record<string, unknown>,
+    abortSignal: AbortSignal,
+  ): Promise<ToolCallConfirmationDetails | false>;
 }
 
 export enum GeminiEventType {
@@ -55,7 +59,6 @@ export enum GeminiEventType {
   ChatCompressed = 'chat_compressed',
   Thought = 'thought',
   MaxSessionTurns = 'max_session_turns',
-  SessionTokenLimitExceeded = 'session_token_limit_exceeded',
   Finished = 'finished',
   LoopDetected = 'loop_detected',
   Citation = 'citation',
@@ -196,11 +199,6 @@ export type ServerGeminiMaxSessionTurnsEvent = {
   type: GeminiEventType.MaxSessionTurns;
 };
 
-export type ServerGeminiSessionTokenLimitExceededEvent = {
-  type: GeminiEventType.SessionTokenLimitExceeded;
-  value: SessionTokenLimitExceededValue;
-};
-
 export type ServerGeminiFinishedEvent = {
   type: GeminiEventType.Finished;
   value: GeminiFinishedEventValue;
@@ -296,6 +294,7 @@ export class Turn {
             type: GeminiEventType.AgentExecutionBlocked,
             value: { reason: streamEvent.reason },
           };
+          continue;
         }
 
         // Assuming other events are chunks with a `value` property
@@ -382,7 +381,7 @@ export class Turn {
       ];
       await reportError(
         error,
-        'Error when talking to API',
+        'Error when talking to Gemini API',
         contextForReport,
         'Turn.run-sendMessageStream',
       );

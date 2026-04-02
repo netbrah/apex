@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QwenLM/qwen-code.git"
+    "url": "git+https://github.com/netbrah/apex.git"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -20,9 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "files": [
-    "dist",
-    "vendor",
-    "scripts/postinstall.js"
+    "dist"
   ],
   "dependencies": {
     "@a2a-js/sdk": "0.3.11",
@@ -57,7 +55,6 @@
     "@xterm/headless": "5.5.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.0",
-    "async-mutex": "^0.5.0",
     "chardet": "^2.1.0",
     "diff": "^8.0.3",
     "dotenv": "^17.2.4",
@@ -77,7 +74,6 @@
     "mime": "4.0.7",
     "mnemonist": "^0.40.3",
     "open": "^10.1.2",
-    "openai": "5.11.0",
     "picomatch": "^4.0.1",
     "proper-lockfile": "^4.1.2",
     "puppeteer-core": "^24.0.0",

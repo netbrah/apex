@@ -12,9 +12,7 @@ import {
 
 export const settingsCommand: SlashCommand = {
   name: 'settings',
-  get description() {
-    return t('View and edit Apex settings');
-  },
+  description: 'View and edit Gemini CLI settings',
   kind: CommandKind.BUILT_IN,
   autoExecute: true,
   isSafeConcurrent: true,

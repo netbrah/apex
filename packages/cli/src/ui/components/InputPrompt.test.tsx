@@ -352,21 +352,6 @@ describe('InputPrompt', () => {
 
     vi.mocked(clipboardy.read).mockResolvedValue('');
 
-    mockReverseSearchCompletion = {
-      suggestions: [],
-      activeSuggestionIndex: -1,
-      visibleStartIndex: 0,
-      showSuggestions: false,
-      isLoadingSuggestions: false,
-      navigateUp: vi.fn(),
-      navigateDown: vi.fn(),
-      handleAutocomplete: vi.fn(),
-      resetCompletionState: vi.fn(),
-    };
-    mockedUseReverseSearchCompletion.mockReturnValue(
-      mockReverseSearchCompletion,
-    );
-
     props = {
       onQueueMessage: vi.fn(),
 
@@ -717,7 +702,7 @@ describe('InputPrompt', () => {
     unmount();
   });
 
-  it('should call completion.navigateDown for down arrow when suggestions are showing', async () => {
+  it('should call completion.navigateDown for both down arrow and Ctrl+N when suggestions are showing', async () => {
     mockedUseCommandCompletion.mockReturnValue({
       ...mockCommandCompletion,
       showSuggestions: true,
@@ -812,8 +797,6 @@ describe('InputPrompt', () => {
   });
 
   describe('clipboard image paste', () => {
-    const isWindows = process.platform === 'win32';
-
     beforeEach(() => {
       vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(false);
       vi.mocked(clipboardUtils.saveClipboardImage).mockResolvedValue(null);
@@ -822,37 +805,10 @@ describe('InputPrompt', () => {
       );
     });
 
-    // Windows uses Alt+V (\x1Bv), non-Windows uses Ctrl+V (\x16)
-    const describeConditional = isWindows ? it.skip : it;
-    describeConditional(
-      'should handle Ctrl+V when clipboard has an image',
-      async () => {
-        vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(true);
-        vi.mocked(clipboardUtils.saveClipboardImage).mockResolvedValue(
-          '/Users/mochi/.apex/tmp/clipboard-123.png',
-        );
-
-        const { stdin, unmount } = renderWithProviders(
-          <InputPrompt {...props} />,
-        );
-        await wait();
-
-        // Send Ctrl+V
-        stdin.write('\x16'); // Ctrl+V
-        await wait();
-
-        expect(clipboardUtils.clipboardHasImage).toHaveBeenCalled();
-        expect(clipboardUtils.saveClipboardImage).toHaveBeenCalled();
-        expect(clipboardUtils.cleanupOldClipboardImages).toHaveBeenCalled();
-        // Note: The new implementation adds images as attachments rather than inserting into buffer
-        unmount();
-      },
-    );
-
-    it('should handle Cmd+V when clipboard has an image', async () => {
+    it('should handle Ctrl+V when clipboard has an image', async () => {
       vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(true);
       vi.mocked(clipboardUtils.saveClipboardImage).mockResolvedValue(
-        '/Users/mochi/.apex/tmp/clipboard-456.png',
+        '/test/.gemini-clipboard/clipboard-123.png',
       );
 
       const { stdin, unmount } = await renderWithProviders(
@@ -913,7 +869,11 @@ describe('InputPrompt', () => {
     });
 
     it('should insert image path at cursor position with proper spacing', async () => {
-      const imagePath = '/Users/mochi/.apex/tmp/clipboard-456.png';
+      const imagePath = path.join(
+        'test',
+        '.gemini-clipboard',
+        'clipboard-456.png',
+      );
       vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(true);
       vi.mocked(clipboardUtils.saveClipboardImage).mockResolvedValue(imagePath);
 
@@ -922,6 +882,7 @@ describe('InputPrompt', () => {
       mockBuffer.cursor = [0, 5]; // Cursor after "Hello"
       vi.mocked(mockBuffer.getOffset).mockReturnValue(5);
       mockBuffer.lines = ['Hello world'];
+      mockBuffer.replaceRangeByOffset = vi.fn();
 
       const { stdin, unmount } = await renderWithProviders(
         <InputPrompt {...props} />,
@@ -3073,7 +3034,6 @@ describe('InputPrompt', () => {
       await waitFor(() => {
         expect(stdout.lastFrame()).toContain('(r:)');
       });
-      await wait();
 
       // Press Tab to complete the highlighted entry
       await act(async () => {
@@ -3116,7 +3076,7 @@ describe('InputPrompt', () => {
 
       expect(mockHandleAutocomplete).not.toHaveBeenCalled();
       unmount();
-    }, 15000);
+    });
 
     it('submits the highlighted entry on Enter and exits reverse-search', async () => {
       // Mock the reverse search completion to return suggestions

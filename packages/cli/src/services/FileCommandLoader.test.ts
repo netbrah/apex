@@ -549,7 +549,7 @@ describe('FileCommandLoader', () => {
           'project.toml': 'prompt = "Project command"',
         },
         [extensionDir]: {
-          'apex-extension.json': JSON.stringify({
+          'gemini-extension.json': JSON.stringify({
             name: 'test-ext',
             version: '1.0.0',
           }),
@@ -598,7 +598,7 @@ describe('FileCommandLoader', () => {
 
       mock({
         [extensionDir]: {
-          'apex-extension.json': JSON.stringify({
+          'gemini-extension.json': JSON.stringify({
             name: 'test-ext',
             version: '1.0.0',
           }),
@@ -673,8 +673,8 @@ describe('FileCommandLoader', () => {
       const result2 = await commands[2].action?.(
         createMockCommandContext({
           invocation: {
-            raw: '/test-ext.deploy',
-            name: 'test-ext.deploy',
+            raw: '/deploy',
+            name: 'deploy',
             args: '',
           },
         }),
@@ -702,7 +702,7 @@ describe('FileCommandLoader', () => {
 
       mock({
         [extensionDir1]: {
-          'apex-extension.json': JSON.stringify({
+          'gemini-extension.json': JSON.stringify({
             name: 'active-ext',
             version: '1.0.0',
           }),
@@ -711,7 +711,7 @@ describe('FileCommandLoader', () => {
           },
         },
         [extensionDir2]: {
-          'apex-extension.json': JSON.stringify({
+          'gemini-extension.json': JSON.stringify({
             name: 'inactive-ext',
             version: '1.0.0',
           }),
@@ -759,7 +759,7 @@ describe('FileCommandLoader', () => {
 
       mock({
         [extensionDir]: {
-          'apex-extension.json': JSON.stringify({
+          'gemini-extension.json': JSON.stringify({
             name: 'no-commands',
             version: '1.0.0',
           }),
@@ -795,7 +795,7 @@ describe('FileCommandLoader', () => {
 
       mock({
         [extensionDir]: {
-          'apex-extension.json': JSON.stringify({
+          'gemini-extension.json': JSON.stringify({
             name: 'a',
             version: '1.0.0',
           }),
@@ -834,8 +834,8 @@ describe('FileCommandLoader', () => {
       const result = await nestedCmd!.action?.(
         createMockCommandContext({
           invocation: {
-            raw: '/a.b:c',
-            name: 'a.b:c',
+            raw: '/b:c',
+            name: 'b:c',
             args: '',
           },
         }),

@@ -49,10 +49,10 @@ describe('ExtensionManager Settings Scope', () => {
     });
     vi.mocked(loadSkillsFromDir).mockResolvedValue([]);
     currentTempHome = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'apex-test-home-'),
+      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
     );
     tempWorkspace = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'apex-test-workspace-'),
+      path.join(os.tmpdir(), 'gemini-cli-test-workspace-'),
     );
     extensionsDir = path.join(currentTempHome, '.apex', 'extensions');
     extensionDir = path.join(extensionsDir, extensionName);

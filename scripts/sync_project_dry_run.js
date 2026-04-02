@@ -8,8 +8,8 @@ import { execSync } from 'node:child_process';
 
 const PROJECT_ID = 36;
 const ORG = 'google-gemini';
-const REPO = 'google-gemini/apex';
-const MAINTAINERS_REPO = 'google-gemini/maintainers-apex';
+const REPO = 'google-gemini/gemini-cli';
+const MAINTAINERS_REPO = 'google-gemini/maintainers-gemini-cli';
 
 // Parent issues to recursively traverse
 const PARENT_ISSUES = [15374, 15456, 15324];
@@ -190,7 +190,7 @@ Total Open Gemini Issues: ${issues.length}`);
     // Protect Maintainers Repo
     if (
       item.content.repository === MAINTAINERS_REPO ||
-      (item.content.url && item.content.url.includes('maintainers-apex'))
+      (item.content.url && item.content.url.includes('maintainers-gemini-cli'))
     ) {
       continue;
     }

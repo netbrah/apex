@@ -117,7 +117,7 @@ describe('FileDiscoveryService', () => {
       await createTestFile(GEMINI_IGNORE_FILE_NAME, 'logs/');
     });
 
-    it('should filter out git-ignored and apex-ignored files by default', () => {
+    it('should filter out git-ignored and gemini-ignored files by default', () => {
       const files = [
         'src/index.ts',
         'node_modules/package/index.js',
@@ -146,7 +146,7 @@ describe('FileDiscoveryService', () => {
 
       const filtered = service.filterFiles(files, {
         respectGitIgnore: false,
-        respectApexIgnore: true, // still respect this one
+        respectGeminiIgnore: true, // still respect this one
       });
 
       expect(filtered).toEqual(
@@ -156,7 +156,7 @@ describe('FileDiscoveryService', () => {
       );
     });
 
-    it('should not filter files when respectApexIgnore is false', () => {
+    it('should not filter files when respectGeminiIgnore is false', () => {
       const files = [
         'src/index.ts',
         'node_modules/package/index.js',
@@ -167,7 +167,7 @@ describe('FileDiscoveryService', () => {
 
       const filtered = service.filterFiles(files, {
         respectGitIgnore: true,
-        respectApexIgnore: false,
+        respectGeminiIgnore: false,
       });
 
       expect(filtered).toEqual(
@@ -253,7 +253,7 @@ describe('FileDiscoveryService', () => {
       ).toBe(false);
     });
 
-    it('should return true for apex-ignored files', () => {
+    it('should return true for gemini-ignored files', () => {
       const service = new FileDiscoveryService(projectRoot);
 
       expect(
@@ -261,7 +261,7 @@ describe('FileDiscoveryService', () => {
       ).toBe(true);
     });
 
-    it('should return false for non-apex-ignored files', () => {
+    it('should return false for non-gemini-ignored files', () => {
       const service = new FileDiscoveryService(projectRoot);
 
       expect(

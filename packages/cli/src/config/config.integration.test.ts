@@ -26,6 +26,7 @@ import { createTestMergedSettings } from './settings.js';
 import { http, HttpResponse } from 'msw';
 
 import { setupServer } from 'msw/node';
+
 export const server = setupServer();
 
 // TODO(richieforeman): Consider moving this to test setup globally.
@@ -59,9 +60,9 @@ describe('Configuration Integration Tests', () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(tmpdir(), 'apex-test-'));
     server.resetHandlers(http.post(CLEARCUT_URL, () => HttpResponse.text()));
 
+    tempDir = fs.mkdtempSync(path.join(tmpdir(), 'gemini-cli-test-'));
     vi.stubEnv('GEMINI_API_KEY', 'test-api-key');
     vi.clearAllMocks();
   });
@@ -182,7 +183,7 @@ describe('Configuration Integration Tests', () => {
           'node',
           'script.js',
           '--approval-mode',
-          'auto-edit',
+          'auto_edit',
           '-p',
           'test',
         ],

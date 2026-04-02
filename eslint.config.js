@@ -146,7 +146,6 @@ export default tseslint.config(
       'no-duplicate-case': 'error',
       'no-restricted-syntax': ['error', ...commonRestrictedSyntaxRules],
       'no-unsafe-finally': 'error',
-      'no-console': 'error',
       'no-unused-expressions': 'off', // Disable base rule
       '@typescript-eslint/no-unused-expressions': [
         // Enable TS version
@@ -284,7 +283,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/*/src/**/*.test.{ts,tsx}', 'packages/**/test/**/*.test.{ts,tsx}'],
+    files: ['packages/*/src/**/*.test.{ts,tsx}'],
     plugins: {
       vitest,
     },
@@ -371,64 +370,6 @@ export default tseslint.config(
       ],
     },
   },
-  // extra settings for scripts that we run directly with node
-  {
-    files: ['./scripts/**/*.js', 'esbuild.config.js', 'packages/*/scripts/**/*.js'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        process: 'readonly',
-        console: 'readonly',
-      },
-    },
-    rules: {
-      'no-console': 'off', // Allow console in scripts
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_',
-        },
-      ],
-    },
-  },
-  {
-    files: ['**/*.cjs'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        module: 'readonly',
-        require: 'readonly',
-      },
-    },
-    rules: {
-      '@typescript-eslint/no-require-imports': 'off',
-      'no-undef': 'off',
-    },
-  },
-  // ==================== no-console allowlist ====================
-  // The following files/packages are allowed to use console.*
-
-  // VS Code IDE companion - out of scope for no-console rule
-  {
-    files: ['packages/vscode-ide-companion/**/*.ts', 'packages/vscode-ide-companion/**/*.tsx', 'packages/vscode-ide-companion/**/*.js'],
-    rules: { 'no-console': 'off' },
-  },
-  // WebUI package - UI component library with Storybook
-  {
-    files: ['packages/webui/**/*.ts', 'packages/webui/**/*.tsx', 'packages/webui/**/*.js'],
-    rules: { 'no-console': 'off' },
-  },
-  // Specific CLI files that intentionally wrap console usage
-  {
-    files: [
-      'packages/cli/src/acp-integration/acpAgent.ts',      // console infrastructure for ACP mode
-      'packages/cli/src/utils/stdioHelpers.ts',            // wraps console.clear()
-    ],
-    rules: { 'no-console': 'off' },
-  },
-  // Specific esbuild configs not covered by scripts pattern
   {
     files: ['packages/vscode-ide-companion/esbuild.js'],
     languageOptions: {
@@ -441,7 +382,6 @@ export default tseslint.config(
     rules: {
       'no-restricted-syntax': 'off',
       '@typescript-eslint/no-require-imports': 'off',
-      'no-console': 'off',
     },
   },
   // Examples should have access to standard globals like fetch
@@ -456,33 +396,7 @@ export default tseslint.config(
   },
   // extra settings for scripts that we run directly with node
   {
-    files: [
-      'packages/web-templates/src/**/*.{js,jsx,ts,tsx}',
-      'packages/web-templates/*.mjs',
-    ],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-    rules: {
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
-      'no-console': 'off',
-      'no-undef': 'off',
-    },
-  },
-  // Prettier config must be last
-  prettierConfig,
-  // extra settings for scripts that we run directly with node
-  {
-    files: ['./integration-tests/**/*.{js,ts,tsx}'],
+    files: ['packages/vscode-ide-companion/scripts/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -491,7 +405,23 @@ export default tseslint.config(
       },
     },
     rules: {
-      'no-console': 'off', // Allow console in integration tests
+      'no-restricted-syntax': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  // Prettier config must be last
+  prettierConfig,
+  // extra settings for scripts that we run directly with node
+  {
+    files: ['./integration-tests/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        process: 'readonly',
+        console: 'readonly',
+      },
+    },
+    rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -502,26 +432,4 @@ export default tseslint.config(
       ],
     },
   },
-  // Settings for docs-site directory
-  {
-    files: ['docs-site/**/*.{js,jsx}'],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-    rules: {
-      // Allow relaxed rules for documentation site
-      '@typescript-eslint/no-unused-vars': 'off',
-      'react/prop-types': 'off',
-      'react/react-in-jsx-scope': 'off',
-    },
-  },
-  storybook.configs['flat/recommended'],
 );

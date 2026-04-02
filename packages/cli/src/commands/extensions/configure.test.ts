@@ -84,7 +84,7 @@ describe('extensions configure command', () => {
     vi.spyOn(debugLogger, 'error');
     vi.clearAllMocks();
 
-    tempWorkspaceDir = fs.mkdtempSync('apex-test-workspace');
+    tempWorkspaceDir = fs.mkdtempSync('gemini-cli-test-workspace');
     vi.spyOn(process, 'cwd').mockReturnValue(tempWorkspaceDir);
     // Default behaviors
     mockLoadSettings.mockReturnValue({ merged: {} });

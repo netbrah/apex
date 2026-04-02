@@ -14,7 +14,7 @@ import {
   CACHE_EFFICIENCY_HIGH,
   CACHE_EFFICIENCY_MEDIUM,
 } from './displayUtils.js';
-import { theme } from '../semantic-colors.js';
+import { Colors } from '../colors.js';
 
 describe('displayUtils', () => {
   describe('getStatusColor', () => {

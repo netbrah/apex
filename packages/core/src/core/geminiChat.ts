@@ -34,7 +34,6 @@ import {
   logContentRetryFailure,
   logNetworkRetryAttempt,
 } from '../telemetry/loggers.js';
-import { type ChatRecordingService } from '../services/chatRecordingService.js';
 import {
   ChatRecordingService,
   type ResumedSessionData,
@@ -97,41 +96,16 @@ export const SYNTHETIC_THOUGHT_SIGNATURE = 'skip_thought_signature_validator';
 
 /**
  * Returns true if the response is valid, false otherwise.
- *
- * The DashScope provider may return the last 2 chunks as:
- * 1. A choice(candidate) with finishReason and empty content
- * 2. Empty choices with usage metadata
- * We'll check separately for both of these cases.
  */
 function isValidResponse(response: GenerateContentResponse): boolean {
-  if (response.usageMetadata) {
-    return true;
-  }
-
   if (response.candidates === undefined || response.candidates.length === 0) {
     return false;
   }
-
-  if (response.candidates.some((candidate) => candidate.finishReason)) {
-    return true;
-  }
-
   const content = response.candidates[0]?.content;
-  return content !== undefined && isValidContent(content);
-}
-
-export function isValidNonThoughtTextPart(part: Part): boolean {
-  return (
-    typeof part.text === 'string' &&
-    !part.thought &&
-    !part.thoughtSignature &&
-    // Technically, the model should never generate parts that have text and
-    //  any of these but we don't trust them so check anyways.
-    !part.functionCall &&
-    !part.functionResponse &&
-    !part.inlineData &&
-    !part.fileData
-  );
+  if (content === undefined) {
+    return false;
+  }
+  return isValidContent(content);
 }
 
 export function isValidNonThoughtTextPart(part: Part): boolean {
@@ -155,22 +129,11 @@ function isValidContent(content: Content): boolean {
     if (part === undefined || Object.keys(part).length === 0) {
       return false;
     }
-    if (!isValidContentPart(part)) {
+    if (!part.thought && part.text !== undefined && part.text === '') {
       return false;
     }
   }
   return true;
-}
-
-function isValidContentPart(part: Part): boolean {
-  const isInvalid =
-    !part.thought &&
-    !part.thoughtSignature &&
-    part.text !== undefined &&
-    part.text === '' &&
-    part.functionCall === undefined;
-
-  return !isInvalid;
 }
 
 /**
@@ -286,18 +249,6 @@ export class GeminiChat {
   private readonly chatRecordingService: ChatRecordingService;
   private lastPromptTokenCount: number;
 
-  /**
-   * Creates a new GeminiChat instance.
-   *
-   * @param config - The configuration object.
-   * @param generationConfig - Optional generation configuration.
-   * @param history - Optional initial conversation history.
-   * @param chatRecordingService - Optional recording service. If provided, chat
-   *   messages will be recorded.
-   * @param telemetryService - Optional UI telemetry service. When provided,
-   *   prompt token counts are reported on each API response. Pass `undefined`
-   *   for sub-agent chats to avoid overwriting the main agent's context usage.
-   */
   constructor(
     private readonly context: AgentLoopContext,
     private systemInstruction: string = '',
@@ -714,6 +665,8 @@ export class GeminiChat {
         validationError.validationDescription,
         validationError.learnMoreUrl,
       );
+    };
+
     const streamResponse = await retryWithBackoff(apiCall, {
       onPersistent429: onPersistent429Callback,
       onValidationRequired: onValidationRequiredCallback,
@@ -867,59 +820,6 @@ export class GeminiChat {
       }
     }
     return newContents;
-  }
-
-  stripThoughtsFromHistory(): void {
-    this.history = this.history
-      .map((content) => {
-        if (!content.parts) return content;
-
-        // Filter out thought parts entirely
-        const filteredParts = content.parts
-          .filter(
-            (part) =>
-              !(
-                part &&
-                typeof part === 'object' &&
-                'thought' in part &&
-                part.thought
-              ),
-          )
-          .map((part) => {
-            if (
-              part &&
-              typeof part === 'object' &&
-              'thoughtSignature' in part
-            ) {
-              const newPart = { ...part };
-              delete (newPart as { thoughtSignature?: string })
-                .thoughtSignature;
-              return newPart;
-            }
-            return part;
-          });
-
-        return {
-          ...content,
-          parts: filteredParts,
-        };
-      })
-      // Remove Content objects that have no parts left after filtering
-      .filter((content) => content.parts && content.parts.length > 0);
-  }
-
-  /**
-   * Pop all orphaned trailing user entries from chat history.
-   * In a valid conversation the last entry is always a model response;
-   * any trailing user entries are leftovers from a request that failed.
-   */
-  stripOrphanedUserEntriesFromHistory(): void {
-    while (
-      this.history.length > 0 &&
-      this.history[this.history.length - 1]!.role === 'user'
-    ) {
-      this.history.pop();
-    }
   }
 
   setTools(tools: Tool[]): void {

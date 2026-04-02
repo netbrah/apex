@@ -72,7 +72,6 @@ export const ModelStatsDisplay: React.FC<ModelStatsDisplayProps> = ({
         borderColor={theme.border.default}
         paddingTop={1}
         paddingX={2}
-        width={width}
       >
         <Text color={theme.text.primary}>
           No API calls have been made in this session.
@@ -327,7 +326,6 @@ export const ModelStatsDisplay: React.FC<ModelStatsDisplayProps> = ({
       flexDirection="column"
       paddingTop={1}
       paddingX={2}
-      width={width}
     >
       <Text bold color={theme.text.accent}>
         {statsTitle}

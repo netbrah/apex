@@ -27,7 +27,7 @@ import { sessionId } from '../utils/session.js';
 
 import { truncateString } from '../utils/textUtils.js';
 
-const TRACER_NAME = 'apex';
+const TRACER_NAME = 'gemini-cli';
 const TRACER_VERSION = 'v1';
 
 export function truncateForTelemetry(

@@ -105,7 +105,7 @@ describe('LinuxSandboxManager', () => {
 
       expect(fs.unlinkSync).toHaveBeenCalled();
       const unlinkCall = vi.mocked(fs.unlinkSync).mock.calls[0];
-      expect(unlinkCall[0]).toMatch(/apex-bwrap-args-.*\.args$/);
+      expect(unlinkCall[0]).toMatch(/gemini-cli-bwrap-args-.*\.args$/);
     });
 
     it('translates virtual commands', async () => {

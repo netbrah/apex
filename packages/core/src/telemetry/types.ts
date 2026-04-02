@@ -57,16 +57,17 @@ export const EVENT_CLI_CONFIG = 'gemini_cli.config';
 export class StartSessionEvent implements BaseTelemetryEvent {
   'event.name': 'cli_config';
   'event.timestamp': string;
-  session_id: string;
   model: string;
+  embedding_model: string;
   sandbox_enabled: boolean;
-  core_tools_enabled?: string;
+  core_tools_enabled: string;
   approval_mode: string;
+  api_key_enabled: boolean;
+  vertex_ai_enabled: boolean;
   debug_enabled: boolean;
-  truncate_tool_output_threshold: number;
-  truncate_tool_output_lines: number;
   mcp_servers: string;
   telemetry_enabled: boolean;
+  telemetry_log_user_prompts_enabled: boolean;
   file_filtering_respect_git_ignore: boolean;
   mcp_servers_count: number;
   mcp_tools_count?: number;
@@ -93,20 +94,18 @@ export class StartSessionEvent implements BaseTelemetryEvent {
     this['event.name'] = 'cli_config';
     this['event.timestamp'] = new Date().toISOString();
     this.model = config.getModel();
+    this.embedding_model = config.getEmbeddingModel();
     this.sandbox_enabled =
       typeof config.getSandbox() === 'string' || !!config.getSandbox();
-    this.core_tools_enabled = (
-      config.getPermissionManager?.()?.getAllowRawStrings() ??
-      config.getCoreTools() ??
-      []
-    ).join(',');
+    this.core_tools_enabled = (config.getCoreTools() ?? []).join(',');
     this.approval_mode = config.getApprovalMode();
+    this.api_key_enabled = useGemini || useVertex;
+    this.vertex_ai_enabled = useVertex;
     this.debug_enabled = config.getDebugMode();
-    this.truncate_tool_output_threshold =
-      config.getTruncateToolOutputThreshold();
-    this.truncate_tool_output_lines = config.getTruncateToolOutputLines();
     this.mcp_servers = mcpServers ? Object.keys(mcpServers).join(',') : '';
     this.telemetry_enabled = config.getTelemetryEnabled();
+    this.telemetry_log_user_prompts_enabled =
+      config.getTelemetryLogPromptsEnabled();
     this.file_filtering_respect_git_ignore =
       config.getFileFilteringRespectGitIgnore();
     this.mcp_servers_count = mcpServers ? Object.keys(mcpServers).length : 0;
@@ -238,13 +237,11 @@ export class ToolCallEvent implements BaseTelemetryEvent {
   function_name: string;
   function_args: Record<string, unknown>;
   duration_ms: number;
-  status: 'success' | 'error' | 'cancelled';
-  success: boolean; // Keep for backward compatibility
+  success: boolean;
   decision?: ToolCallDecision;
   error?: string;
   error_type?: string;
   prompt_id: string;
-  response_id?: string;
   tool_type: 'native' | 'mcp';
   content_length?: number;
   mcp_server_name?: string;
@@ -464,8 +461,7 @@ export class ApiRequestEvent implements BaseTelemetryEvent {
 export const EVENT_API_ERROR = 'gemini_cli.api_error';
 export class ApiErrorEvent implements BaseTelemetryEvent {
   'event.name': 'api_error';
-  'event.timestamp': string; // ISO 8601
-  response_id?: string;
+  'event.timestamp': string;
   model: string;
   prompt: GenAIPromptDetails;
   error: string;
@@ -486,27 +482,6 @@ export class ApiErrorEvent implements BaseTelemetryEvent {
     role?: LlmRole,
   ) {
     this['event.name'] = 'api_error';
-    this['event.timestamp'] = new Date().toISOString();
-    this.response_id = opts.responseId;
-    this.model = opts.model;
-    this.duration_ms = opts.durationMs;
-    this.prompt_id = opts.promptId;
-    this.auth_type = opts.authType;
-    this.error_message = opts.errorMessage;
-    this.error_type = opts.errorType;
-    this.status_code = opts.statusCode;
-  }
-}
-
-export class ApiCancelEvent implements BaseTelemetryEvent {
-  'event.name': 'api_cancel';
-  'event.timestamp': string;
-  model: string;
-  prompt_id: string;
-  auth_type?: string;
-
-  constructor(model: string, prompt_id: string, auth_type?: string) {
-    this['event.name'] = 'api_cancel';
     this['event.timestamp'] = new Date().toISOString();
     this.model = model;
     this.error = error;
@@ -658,7 +633,6 @@ export class ApiResponseEvent implements BaseTelemetryEvent {
   role?: LlmRole;
 
   constructor(
-    response_id: string,
     model: string,
     duration_ms: number,
     prompt_details: GenAIPromptDetails,
@@ -812,26 +786,6 @@ export class RipgrepFallbackEvent implements BaseTelemetryEvent {
 
   toLogBody(): string {
     return `Switching to grep as fallback.`;
-  }
-}
-
-export class RipgrepFallbackEvent implements BaseTelemetryEvent {
-  'event.name': 'ripgrep_fallback';
-  'event.timestamp': string;
-  use_ripgrep: boolean;
-  use_builtin_ripgrep: boolean;
-  error?: string;
-
-  constructor(
-    use_ripgrep: boolean,
-    use_builtin_ripgrep: boolean,
-    error?: string,
-  ) {
-    this['event.name'] = 'ripgrep_fallback';
-    this['event.timestamp'] = new Date().toISOString();
-    this.use_ripgrep = use_ripgrep;
-    this.use_builtin_ripgrep = use_builtin_ripgrep;
-    this.error = error;
   }
 }
 
@@ -1885,7 +1839,6 @@ export type TelemetryEvent =
   | ToolCallEvent
   | ApiRequestEvent
   | ApiErrorEvent
-  | ApiCancelEvent
   | ApiResponseEvent
   | FlashFallbackEvent
   | LoopDetectedEvent

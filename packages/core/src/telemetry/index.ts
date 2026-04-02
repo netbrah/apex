@@ -7,7 +7,6 @@
 export enum TelemetryTarget {
   GCP = 'gcp',
   LOCAL = 'local',
-  APEX = 'apex',
 }
 
 const DEFAULT_TELEMETRY_TARGET = TelemetryTarget.LOCAL;
@@ -33,11 +32,9 @@ export {
 export {
   logCliConfiguration,
   logUserPrompt,
-  logUserRetry,
   logToolCall,
   logApiRequest,
   logApiError,
-  logApiCancel,
   logApiResponse,
   logFlashFallback,
   logSlashCommand,
@@ -63,11 +60,9 @@ export {
   SlashCommandStatus,
   EndSessionEvent,
   UserPromptEvent,
-  UserRetryEvent,
   ApiRequestEvent,
   ApiErrorEvent,
   ApiResponseEvent,
-  ApiCancelEvent,
   FlashFallbackEvent,
   StartSessionEvent,
   ToolCallEvent,
@@ -84,13 +79,6 @@ export {
 } from './types.js';
 export { LlmRole } from './llmRole.js';
 export { makeSlashCommandEvent, makeChatCompressionEvent } from './types.js';
-export type {
-  ArenaSessionStartedEvent,
-  ArenaAgentCompletedEvent,
-  ArenaSessionEndedEvent,
-  ArenaSessionEndedStatus,
-  ArenaAgentCompletedStatus,
-} from './types.js';
 export type { TelemetryEvent } from './types.js';
 export { SpanStatusCode, ValueType } from '@opentelemetry/api';
 export { SemanticAttributes } from '@opentelemetry/semantic-conventions';

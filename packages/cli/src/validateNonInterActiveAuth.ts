@@ -18,6 +18,7 @@ import { handleError } from './utils/errors.js';
 import { runExitCleanup } from './utils/cleanup.js';
 
 export async function validateNonInteractiveAuth(
+  configuredAuthType: AuthType | undefined,
   useExternalAuth: boolean | undefined,
   nonInteractiveConfig: Config,
   settings: LoadedSettings,

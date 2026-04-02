@@ -25,9 +25,6 @@ import {
   coreEvents,
 } from '@apex-code/apex-core';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { t } from '../../i18n/index.js';
-
-const debugLogger = createDebugLogger('EDITOR_SETTINGS_DIALOG');
 
 interface EditorDialogProps {
   onSelect: (
@@ -46,8 +43,9 @@ export function EditorSettingsDialog({
   const [selectedScope, setSelectedScope] = useState<LoadableSettingScope>(
     SettingScope.User,
   );
-  const [mode, setMode] = useState<'editor' | 'scope'>('editor');
-
+  const [focusedSection, setFocusedSection] = useState<'editor' | 'scope'>(
+    'editor',
+  );
   useKeypress(
     (key) => {
       if (key.name === 'tab') {
@@ -108,11 +106,7 @@ export function EditorSettingsDialog({
 
   const handleScopeSelect = (scope: LoadableSettingScope) => {
     setSelectedScope(scope);
-    setMode('editor');
-  };
-
-  const handleScopeHighlight = (scope: SettingScope) => {
-    setSelectedScope(scope);
+    setFocusedSection('editor');
   };
 
   let otherScopeModifiedMessage = '';
@@ -177,11 +171,9 @@ export function EditorSettingsDialog({
             items={scopeItems}
             initialIndex={0}
             onSelect={handleScopeSelect}
-            onHighlight={handleScopeHighlight}
-            isFocused={mode === 'scope'}
-            initialScope={selectedScope}
+            isFocused={focusedSection === 'scope'}
           />
-        )}
+        </Box>
 
         <Box marginTop={1}>
           <Text color={theme.text.secondary}>

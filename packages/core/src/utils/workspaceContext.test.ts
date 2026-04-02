@@ -470,9 +470,10 @@ describe('WorkspaceContext with optional directories', () => {
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
   });
 
-  it('should skip a missing optional directory', () => {
+  it('should skip a missing optional directory and log a warning', () => {
     const workspaceContext = new WorkspaceContext(cwd, [
       nonExistentDir,
       existingDir1,

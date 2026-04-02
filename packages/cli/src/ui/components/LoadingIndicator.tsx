@@ -11,7 +11,7 @@ import { theme } from '../semantic-colors.js';
 import { useStreamingContext } from '../contexts/StreamingContext.js';
 import { StreamingState } from '../types.js';
 import { GeminiRespondingSpinner } from './GeminiRespondingSpinner.js';
-import { formatDuration, formatTokenCount } from '../utils/formatters.js';
+import { formatDuration } from '../utils/formatters.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { isNarrowWidth } from '../utils/isNarrowWidth.js';
 import { INTERACTIVE_SHELL_WAITING_PHRASE } from '../hooks/usePhraseCycler.js';
@@ -71,16 +71,6 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
             ? 'Thinking...'
             : undefined);
 
-  const outputTokens = candidatesTokens ?? 0;
-  const showTokens = !isNarrow && outputTokens > 0;
-
-  const timeStr =
-    elapsedTime < 60 ? `${elapsedTime}s` : formatDuration(elapsedTime * 1000);
-
-  const tokenStr = showTokens
-    ? ` · ↓ ${formatTokenCount(outputTokens)} tokens`
-    : '';
-
   const cancelAndTimerContent =
     showCancelAndTimer && streamingState === StreamingState.Responding
       ? `(esc to cancel, ${elapsedTime < 60 ? `${elapsedTime}s` : formatDuration(elapsedTime * 1000)})`
@@ -137,7 +127,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
   }
 
   return (
-    <Box paddingLeft={2} flexDirection="column">
+    <Box paddingLeft={0} flexDirection="column">
       {/* Main loading line */}
       <Box
         width="100%"

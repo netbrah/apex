@@ -50,8 +50,6 @@ export function expandPastePlaceholders(
   );
 }
 
-const debugLogger = createDebugLogger('TEXT_BUFFER');
-
 export type Direction =
   | 'left'
   | 'right'

@@ -421,9 +421,10 @@ function logRetryAttempt(
   error: unknown,
   errorStatus?: number,
 ): void {
-  const message = errorStatus
-    ? `Attempt ${attempt} failed with status ${errorStatus}. Retrying with backoff...`
-    : `Attempt ${attempt} failed. Retrying with backoff...`;
+  let message = `Attempt ${attempt} failed. Retrying with backoff...`;
+  if (errorStatus) {
+    message = `Attempt ${attempt} failed with status ${errorStatus}. Retrying with backoff...`;
+  }
 
   if (errorStatus === 429) {
     debugLogger.warn(message, error);

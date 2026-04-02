@@ -25,7 +25,13 @@ describe('parseAndFormatApiError', () => {
   it('should format a 429 API error with the default message', () => {
     const errorMessage =
       'got status: 429 Too Many Requests. {"error":{"code":429,"message":"Rate limit exceeded","status":"RESOURCE_EXHAUSTED"}}';
-    const result = parseAndFormatApiError(errorMessage, undefined);
+    const result = parseAndFormatApiError(
+      errorMessage,
+      undefined,
+      undefined,
+      'gemini-2.5-pro',
+      DEFAULT_GEMINI_FLASH_MODEL,
+    );
     expect(result).toContain('[API Error: Rate limit exceeded');
     expect(result).toContain(
       'Possible quota limitations in place or slow response times detected. Switching to the gemini-2.5-flash model',
@@ -58,14 +64,6 @@ describe('parseAndFormatApiError', () => {
     const errorMessage = '[Stream Error: {"not_an_error": "some other json"}]';
     expect(parseAndFormatApiError(errorMessage)).toBe(
       `[API Error: ${errorMessage}]`,
-    );
-  });
-
-  it('should omit status when the API error has no status field', () => {
-    const errorMessage =
-      '{"error":{"code":1302,"message":"您的账户已达到速率限制，请您控制请求频率"}}';
-    expect(parseAndFormatApiError(errorMessage)).toBe(
-      '[API Error: 您的账户已达到速率限制，请您控制请求频率]',
     );
   });
 

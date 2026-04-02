@@ -136,7 +136,7 @@ describe('oauth2', () => {
     beforeEach(() => {
       process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] = 'false';
       tempHomeDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'apex-test-home-'),
+        path.join(os.tmpdir(), 'gemini-cli-test-home-'),
       );
       vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
       vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
@@ -1552,7 +1552,7 @@ describe('oauth2', () => {
     beforeEach(() => {
       process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] = 'true';
       tempHomeDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'apex-test-home-'),
+        path.join(os.tmpdir(), 'gemini-cli-test-home-'),
       );
       vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
       vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);

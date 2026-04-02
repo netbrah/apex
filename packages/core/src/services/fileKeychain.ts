@@ -22,8 +22,8 @@ export class FileKeychain implements Keychain {
   }
 
   private deriveEncryptionKey(): Buffer {
-    const salt = `${os.hostname()}-${os.userInfo().username}-apex`;
-    return crypto.scryptSync('apex-oauth', salt, 32);
+    const salt = `${os.hostname()}-${os.userInfo().username}-gemini-cli`;
+    return crypto.scryptSync('gemini-cli-oauth', salt, 32);
   }
 
   private encrypt(text: string): string {

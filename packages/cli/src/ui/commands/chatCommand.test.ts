@@ -449,7 +449,7 @@ describe('chatCommand', () => {
     beforeEach(() => {
       shareCommand = getSubCommand('share');
       vi.spyOn(process, 'cwd').mockReturnValue(
-        path.resolve('/usr/local/google/home/myuser/apex'),
+        path.resolve('/usr/local/google/home/myuser/gemini-cli'),
       );
       vi.spyOn(Date, 'now').mockReturnValue(1234567890);
       mockGetHistory.mockReturnValue(mockHistory);

@@ -422,7 +422,7 @@ describe('<ToolGroupMessage />', () => {
           {...baseProps}
           item={item}
           toolCalls={toolCalls}
-          contentWidth={40}
+          terminalWidth={40}
         />,
         {
           config: baseMockConfig,

@@ -49,11 +49,6 @@ vi.mock('../config/trustedFolders.js', () => ({
 describe('getUserStartupWarnings', () => {
   let testRootDir: string;
   let homeDir: string;
-  let startupOptions: {
-    workspaceRoot: string;
-    useRipgrep: boolean;
-    useBuiltinRipgrep: boolean;
-  };
 
   beforeEach(async () => {
     testRootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'warnings-test-'));

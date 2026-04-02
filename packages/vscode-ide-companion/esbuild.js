@@ -1,24 +1,32 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import esbuild from 'esbuild';
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
-/** @type {import('esbuild').Plugin} */
+/**
+ * @type {import('esbuild').Plugin}
+ */
 const esbuildProblemMatcherPlugin = {
   name: 'esbuild-problem-matcher',
+
   setup(build) {
-    const isWatchMode = build.initialOptions.watch;
     build.onStart(() => {
-      if (isWatchMode) console.log('[watch] build started');
+      console.log('[watch] build started');
     });
     build.onEnd((result) => {
       result.errors.forEach(({ text, location }) => {
-        console.error(`\u2718 [ERROR] ${text}`);
+        console.error(`✘ [ERROR] ${text}`);
         console.error(
           `    ${location.file}:${location.line}:${location.column}:`,
         );
       });
-      if (isWatchMode) console.log('[watch] build finished');
+      console.log('[watch] build finished');
     });
   },
 };
@@ -50,7 +58,6 @@ async function main() {
     ],
     loader: { '.node': 'file', '.wasm': 'binary' },
   });
-
   if (watch) {
     await ctx.watch();
   } else {

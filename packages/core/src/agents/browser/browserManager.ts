@@ -476,7 +476,7 @@ export class BrowserManager {
     // Create raw MCP SDK Client (not the wrapper McpClient)
     this.rawMcpClient = new Client(
       {
-        name: 'apex-browser-agent',
+        name: 'gemini-cli-browser-agent',
         version: '1.0.0',
       },
       {

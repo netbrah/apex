@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -392,14 +392,10 @@ export class GeminiClient {
           return [{ functionDeclarations: toolDeclarations }];
         },
       );
-
-      this.setTools();
-
-      return this.chat;
     } catch (error) {
       await reportError(
         error,
-        'Error initializing chat session.',
+        'Error initializing Gemini chat session.',
         history,
         'startChat',
       );
@@ -417,48 +413,42 @@ export class GeminiClient {
     }
 
     if (forceFullContext || !this.lastSentIdeContext) {
-      // Send full context as plain text
+      // Send full context as JSON
       const openFiles = currentIdeContext.workspaceState?.openFiles || [];
       const activeFile = openFiles.find((f) => f.isActive);
       const otherOpenFiles = openFiles
         .filter((f) => !f.isActive)
         .map((f) => f.path);
 
-      const contextLines: string[] = [];
+      const contextData: Record<string, unknown> = {};
 
       if (activeFile) {
-        contextLines.push('Active file:');
-        contextLines.push(`  Path: ${activeFile.path}`);
-        if (activeFile.cursor) {
-          contextLines.push(
-            `  Cursor: line ${activeFile.cursor.line}, character ${activeFile.cursor.character}`,
-          );
-        }
-        if (activeFile.selectedText) {
-          contextLines.push('  Selected text:');
-          contextLines.push('```');
-          contextLines.push(activeFile.selectedText);
-          contextLines.push('```');
-        }
+        contextData['activeFile'] = {
+          path: activeFile.path,
+          cursor: activeFile.cursor
+            ? {
+                line: activeFile.cursor.line,
+                character: activeFile.cursor.character,
+              }
+            : undefined,
+          selectedText: activeFile.selectedText || undefined,
+        };
       }
 
       if (otherOpenFiles.length > 0) {
-        if (contextLines.length > 0) {
-          contextLines.push('');
-        }
-        contextLines.push('Other open files:');
-        for (const filePath of otherOpenFiles) {
-          contextLines.push(`  - ${filePath}`);
-        }
+        contextData['otherOpenFiles'] = otherOpenFiles;
       }
 
-      if (contextLines.length === 0) {
+      if (Object.keys(contextData).length === 0) {
         return { contextParts: [], newIdeContext: currentIdeContext };
       }
 
+      const jsonString = JSON.stringify(contextData, null, 2);
       const contextParts = [
-        "Here is the user's editor context. This is for your information only.",
-        contextLines.join('\n'),
+        "Here is the user's editor context as a JSON object. This is for your information only.",
+        '```json',
+        jsonString,
+        '```',
       ];
 
       if (this.config.getDebugMode()) {
@@ -469,8 +459,9 @@ export class GeminiClient {
         newIdeContext: currentIdeContext,
       };
     } else {
-      // Calculate and send delta as plain text
-      const changeLines: string[] = [];
+      // Calculate and send delta as JSON
+      const delta: Record<string, unknown> = {};
+      const changes: Record<string, unknown> = {};
 
       const lastFiles = new Map(
         (this.lastSentIdeContext.workspaceState?.openFiles || []).map(
@@ -491,10 +482,7 @@ export class GeminiClient {
         }
       }
       if (openedFiles.length > 0) {
-        changeLines.push('Files opened:');
-        for (const filePath of openedFiles) {
-          changeLines.push(`  - ${filePath}`);
-        }
+        changes['filesOpened'] = openedFiles;
       }
 
       const closedFiles: string[] = [];
@@ -504,13 +492,7 @@ export class GeminiClient {
         }
       }
       if (closedFiles.length > 0) {
-        if (changeLines.length > 0) {
-          changeLines.push('');
-        }
-        changeLines.push('Files closed:');
-        for (const filePath of closedFiles) {
-          changeLines.push(`  - ${filePath}`);
-        }
+        changes['filesClosed'] = closedFiles;
       }
 
       const lastActiveFile = (
@@ -522,22 +504,16 @@ export class GeminiClient {
 
       if (currentActiveFile) {
         if (!lastActiveFile || lastActiveFile.path !== currentActiveFile.path) {
-          if (changeLines.length > 0) {
-            changeLines.push('');
-          }
-          changeLines.push('Active file changed:');
-          changeLines.push(`  Path: ${currentActiveFile.path}`);
-          if (currentActiveFile.cursor) {
-            changeLines.push(
-              `  Cursor: line ${currentActiveFile.cursor.line}, character ${currentActiveFile.cursor.character}`,
-            );
-          }
-          if (currentActiveFile.selectedText) {
-            changeLines.push('  Selected text:');
-            changeLines.push('```');
-            changeLines.push(currentActiveFile.selectedText);
-            changeLines.push('```');
-          }
+          changes['activeFileChanged'] = {
+            path: currentActiveFile.path,
+            cursor: currentActiveFile.cursor
+              ? {
+                  line: currentActiveFile.cursor.line,
+                  character: currentActiveFile.cursor.character,
+                }
+              : undefined,
+            selectedText: currentActiveFile.selectedText || undefined,
+          };
         } else {
           const lastCursor = lastActiveFile.cursor;
           const currentCursor = currentActiveFile.cursor;
@@ -547,50 +523,42 @@ export class GeminiClient {
               lastCursor.line !== currentCursor.line ||
               lastCursor.character !== currentCursor.character)
           ) {
-            if (changeLines.length > 0) {
-              changeLines.push('');
-            }
-            changeLines.push('Cursor moved:');
-            changeLines.push(`  Path: ${currentActiveFile.path}`);
-            changeLines.push(
-              `  New position: line ${currentCursor.line}, character ${currentCursor.character}`,
-            );
+            changes['cursorMoved'] = {
+              path: currentActiveFile.path,
+              cursor: {
+                line: currentCursor.line,
+                character: currentCursor.character,
+              },
+            };
           }
 
           const lastSelectedText = lastActiveFile.selectedText || '';
           const currentSelectedText = currentActiveFile.selectedText || '';
           if (lastSelectedText !== currentSelectedText) {
-            if (changeLines.length > 0) {
-              changeLines.push('');
-            }
-            changeLines.push('Selection changed:');
-            changeLines.push(`  Path: ${currentActiveFile.path}`);
-            if (currentSelectedText) {
-              changeLines.push('  Selected text:');
-              changeLines.push('```');
-              changeLines.push(currentSelectedText);
-              changeLines.push('```');
-            } else {
-              changeLines.push('  Selected text: (none)');
-            }
+            changes['selectionChanged'] = {
+              path: currentActiveFile.path,
+              selectedText: currentSelectedText,
+            };
           }
         }
       } else if (lastActiveFile) {
-        if (changeLines.length > 0) {
-          changeLines.push('');
-        }
-        changeLines.push('Active file changed:');
-        changeLines.push('  No active file');
-        changeLines.push(`  Previous path: ${lastActiveFile.path}`);
+        changes['activeFileChanged'] = {
+          path: null,
+          previousPath: lastActiveFile.path,
+        };
       }
 
-      if (changeLines.length === 0) {
+      if (Object.keys(changes).length === 0) {
         return { contextParts: [], newIdeContext: currentIdeContext };
       }
 
+      delta['changes'] = changes;
+      const jsonString = JSON.stringify(delta, null, 2);
       const contextParts = [
-        "Here is a summary of changes in the user's editor context. This is for your information only.",
-        changeLines.join('\n'),
+        "Here is a summary of changes in the user's editor context, in JSON format. This is for your information only.",
+        '```json',
+        jsonString,
+        '```',
       ];
 
       if (this.config.getDebugMode()) {
@@ -684,28 +652,8 @@ export class GeminiClient {
       return turn;
     }
 
-    // Check session token limit after compression.
-    // `lastPromptTokenCount` is treated as authoritative for the (possibly compressed) history;
-    const sessionTokenLimit = this.config.getSessionTokenLimit();
-    if (sessionTokenLimit > 0) {
-      const lastPromptTokenCount = uiTelemetryService.getLastPromptTokenCount();
-      if (lastPromptTokenCount > sessionTokenLimit) {
-        yield {
-          type: GeminiEventType.SessionTokenLimitExceeded,
-          value: {
-            currentTokens: lastPromptTokenCount,
-            limit: sessionTokenLimit,
-            message:
-              `Session token limit exceeded: ${lastPromptTokenCount} tokens > ${sessionTokenLimit} limit. ` +
-              'Please start a new session or increase the sessionTokenLimit in your settings.json.',
-          },
-        };
-        return new Turn(this.getChat(), prompt_id);
-      }
-    }
-
     // Prevent context updates from being sent while a tool call is
-    // waiting for a response. The Qwen API requires that a functionResponse
+    // waiting for a response. The Gemini API requires that a functionResponse
     // part from the user immediately follows a functionCall part from the model
     // in the conversation history . The IDE context is not discarded; it will
     // be included in the next regular message sent to the model.
@@ -886,7 +834,6 @@ export class GeminiClient {
           nextRequest,
           signal,
           prompt_id,
-          options,
           boundedTurns - 1,
           true,
           displayContent,
@@ -928,12 +875,6 @@ export class GeminiClient {
         }
       }
     }
-
-    // Report cancelled to arena when user cancelled mid-stream
-    if (signal?.aborted && arenaAgentClient) {
-      await arenaAgentClient.reportCancelled();
-    }
-
     return turn;
   }
 

@@ -12,7 +12,7 @@ import { renderWithProviders } from '../../test-utils/render.js';
 describe('<MarkdownDisplay />', () => {
   const baseProps = {
     isPending: false,
-    contentWidth: 80,
+    terminalWidth: 80,
     availableTerminalHeight: 40,
   };
 

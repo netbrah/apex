@@ -12,46 +12,41 @@ import { getAsciiArtWidth } from '../utils/textUtils.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useSnowfall } from '../hooks/useSnowfall.js';
 
-/**
- * Auth display type for the Header component.
- * Simplified representation of authentication method shown to users.
- */
-export enum AuthDisplayType {
-  CODING_PLAN = 'Coding Plan',
-  API_KEY = 'API Key',
-  UNKNOWN = 'Unknown',
-}
-
 interface HeaderProps {
   customAsciiArt?: string; // For user-defined ASCII art
   version: string;
-  authDisplayType?: AuthDisplayType;
-  model: string;
-  workingDirectory: string;
+  nightly: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   customAsciiArt,
   version,
-  authDisplayType,
-  model,
-  workingDirectory,
+  nightly,
 }) => {
   const { columns: terminalWidth } = useTerminalSize();
+  let displayTitle;
+  const widthOfLongLogo = getAsciiArtWidth(longAsciiLogo);
+  const widthOfShortLogo = getAsciiArtWidth(shortAsciiLogo);
 
-  const displayLogo = customAsciiArt ?? shortAsciiLogo;
-  const logoWidth = getAsciiArtWidth(displayLogo);
-  const formattedAuthType = authDisplayType ?? AuthDisplayType.UNKNOWN;
+  if (customAsciiArt) {
+    displayTitle = customAsciiArt;
+  } else if (terminalWidth >= widthOfLongLogo) {
+    displayTitle = longAsciiLogo;
+  } else if (terminalWidth >= widthOfShortLogo) {
+    displayTitle = shortAsciiLogo;
+  } else {
+    displayTitle = tinyAsciiLogo;
+  }
 
   const artWidth = getAsciiArtWidth(displayTitle);
   const title = useSnowfall(displayTitle);
 
   return (
     <Box
-      flexDirection="row"
-      alignItems="center"
-      marginX={containerMarginX}
-      width={availableTerminalWidth}
+      alignItems="flex-start"
+      width={artWidth}
+      flexShrink={0}
+      flexDirection="column"
     >
       <ThemedGradient>{title}</ThemedGradient>
       {nightly && (
@@ -59,35 +54,6 @@ export const Header: React.FC<HeaderProps> = ({
           <ThemedGradient>v{version}</ThemedGradient>
         </Box>
       )}
-
-      {/* Right side: Info panel (flexible width, max 60 in two-column layout) */}
-      <Box
-        flexDirection="column"
-        borderStyle="single"
-        borderColor={theme.border.default}
-        paddingX={infoPanelPaddingX}
-        flexGrow={showLogo ? 0 : 1}
-        width={showLogo ? availableInfoPanelWidth : undefined}
-      >
-        {/* Title line: >_ Brand (v{version}) */}
-        <Text>
-          <Text bold color={theme.prompt?.prefix ?? theme.text.accent}>
-            &gt;_ {'Apex'}
-          </Text>
-          <Text color={theme.text.secondary}> (v{version})</Text>
-        </Text>
-        {/* Empty line for spacing */}
-        <Text> </Text>
-        {/* Auth and Model line */}
-        <Text>
-          <Text color={theme.text.secondary}>{authModelText}</Text>
-          {showModelHint && (
-            <Text color={theme.text.secondary}>{modelHintText}</Text>
-          )}
-        </Text>
-        {/* Directory line */}
-        <Text color={theme.text.secondary}>{displayPath}</Text>
-      </Box>
     </Box>
   );
 };

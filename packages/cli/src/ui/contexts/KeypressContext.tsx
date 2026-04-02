@@ -749,13 +749,11 @@ interface KeypressContextValue {
     priority?: KeypressPriority | boolean,
   ) => void;
   unsubscribe: (handler: KeypressHandler) => void;
-  pasteWorkaround: boolean;
 }
 
 const KeypressContext = createContext<KeypressContextValue | undefined>(
   undefined,
 );
-const debugLogger = createDebugLogger('KEYPRESS');
 
 export function useKeypressContext() {
   const context = useContext(KeypressContext);
@@ -886,23 +884,6 @@ export function KeypressProvider({
       stdin.removeListener('data', dataListener);
       if (wasRaw === false) {
         setRawMode(false);
-      }
-
-      if (draggingTimerRef.current) {
-        clearTimeout(draggingTimerRef.current);
-        draggingTimerRef.current = null;
-      }
-      if (isDraggingRef.current && dragBufferRef.current) {
-        broadcast({
-          name: '',
-          ctrl: false,
-          meta: false,
-          shift: false,
-          paste: true,
-          sequence: dragBufferRef.current,
-        });
-        isDraggingRef.current = false;
-        dragBufferRef.current = '';
       }
     };
   }, [stdin, setRawMode, config, debugKeystrokeLogging, broadcast]);

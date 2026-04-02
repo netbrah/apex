@@ -66,7 +66,11 @@ describe('file-system', () => {
     });
 
     // Accept multiple valid tools for editing files
-    const foundToolCall = await rig.waitForAnyToolCall(['write_file', 'edit']);
+    const foundToolCall = await rig.waitForAnyToolCall([
+      'write_file',
+      'edit',
+      'replace',
+    ]);
 
     // Add debugging information
     if (!foundToolCall) {
@@ -75,7 +79,7 @@ describe('file-system', () => {
 
     expect(
       foundToolCall,
-      'Expected to find a write_file or edit tool call',
+      'Expected to find a write_file, edit, or replace tool call',
     ).toBeTruthy();
 
     assertModelHasOutput(result);

@@ -15,17 +15,15 @@ import { Command } from '../key/keyBindings.js';
 
 interface Help {
   commands: readonly SlashCommand[];
-  width?: number;
 }
 
-export const Help: React.FC<Help> = ({ commands, width }) => (
+export const Help: React.FC<Help> = ({ commands }) => (
   <Box
     flexDirection="column"
     marginBottom={1}
     borderColor={theme.border.default}
     borderStyle="round"
     padding={1}
-    width={width}
   >
     {/* Basics */}
     <Text bold color={theme.text.primary}>
@@ -77,7 +75,7 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
           <Text color={theme.text.primary}>
             <Text bold color={theme.text.accent}>
               {' '}
-              {formatCommandLabel(command, '/')}
+              /{command.name}
             </Text>
             {command.kind === CommandKind.MCP_PROMPT && (
               <Text color={theme.text.secondary}> [MCP]</Text>
@@ -105,11 +103,7 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
         {' '}
         !{' '}
       </Text>
-      - {t('shell command')}
-    </Text>
-    <Text color={theme.text.primary}>
-      <Text color={theme.text.secondary}>[MCP]</Text> -{' '}
-      {t('Model Context Protocol command (from external servers)')}
+      - shell command
     </Text>
     <Text color={theme.text.primary}>
       <Text color={theme.text.secondary}>[MCP]</Text> - Model Context Protocol
@@ -127,13 +121,13 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
         {formatCommand(Command.MOVE_WORD_LEFT)}/
         {formatCommand(Command.MOVE_WORD_RIGHT)}
       </Text>{' '}
-      - {t('Jump through words in the input')}
+      - Jump through words in the input
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.QUIT)}
       </Text>{' '}
-      - {t('Close dialogs, cancel requests, or quit application')}
+      - Quit application
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
@@ -145,7 +139,7 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.CLEAR_SCREEN)}
       </Text>{' '}
-      - {t('Clear the screen')}
+      - Clear the screen
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
@@ -157,7 +151,7 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.OPEN_EXTERNAL_EDITOR)}
       </Text>{' '}
-      - {t('Open input in external editor')}
+      - Open input in external editor
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
@@ -169,13 +163,13 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.SUBMIT)}
       </Text>{' '}
-      - {t('Send message')}
+      - Send message
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.ESCAPE)}
       </Text>{' '}
-      - {t('Cancel operation / Clear input (double press)')}
+      - Cancel operation / Clear input (double press)
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
@@ -187,14 +181,14 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.CYCLE_APPROVAL_MODE)}
       </Text>{' '}
-      - {t('Cycle approval modes')}
+      - Toggle auto-accepting edits
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
         {formatCommand(Command.HISTORY_UP)}/
         {formatCommand(Command.HISTORY_DOWN)}
       </Text>{' '}
-      - {t('Cycle through your prompt history')}
+      - Cycle through your prompt history
     </Text>
     <Box height={1} />
     <Text color={theme.text.primary}>
@@ -205,17 +199,3 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
     </Text>
   </Box>
 );
-
-/**
- * Builds a display label for a slash command, including any alternate names.
- */
-function formatCommandLabel(command: SlashCommand, prefix = ''): string {
-  const altNames = command.altNames?.filter(Boolean);
-  const baseLabel = `${prefix}${command.name}`;
-
-  if (!altNames || altNames.length === 0) {
-    return baseLabel;
-  }
-
-  return `${baseLabel} (${altNames.join(', ')})`;
-}

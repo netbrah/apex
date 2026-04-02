@@ -16,7 +16,6 @@ import {
 
 import fs from 'node:fs';
 import * as actualNodeFs from 'node:fs'; // For setup/teardown
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -38,7 +37,6 @@ import {
   getRealPath,
   isEmpty,
 } from './fileUtils.js';
-import type { Config } from '../config/config.js';
 import { StandardFileSystemService } from '../services/fileSystemService.js';
 
 vi.mock('mime/lite', () => ({
@@ -59,19 +57,6 @@ describe('fileUtils', () => {
   let testBinaryFilePath: string;
   let nonexistentFilePath: string;
   let directoryPath: string;
-
-  const fsService = new StandardFileSystemService();
-
-  const mockConfig = {
-    getTruncateToolOutputThreshold: () => 2500,
-    getTruncateToolOutputLines: () => 500,
-    getTargetDir: () => tempRootDir,
-    getModel: () => 'qwen3.5-plus',
-    getContentGeneratorConfig: () => ({
-      modalities: { image: true, video: true },
-    }),
-    getFileSystemService: () => fsService,
-  } as unknown as Config;
 
   beforeEach(() => {
     vi.resetAllMocks(); // Reset all mocks, including mime.getType
@@ -227,25 +212,6 @@ describe('fileUtils', () => {
     it('should return true for a non-existent file (defensive)', async () => {
       const testFile = path.join(tempRootDir, 'ghost.txt');
       expect(await isEmpty(testFile)).toBe(true);
-    });
-  });
-
-  describe('fileExists', () => {
-    it('should return true if the file exists', async () => {
-      const testFile = path.join(tempRootDir, 'exists.txt');
-      actualNodeFs.writeFileSync(testFile, 'content');
-      await expect(fileExists(testFile)).resolves.toBe(true);
-    });
-
-    it('should return false if the file does not exist', async () => {
-      const testFile = path.join(tempRootDir, 'does-not-exist.txt');
-      await expect(fileExists(testFile)).resolves.toBe(false);
-    });
-
-    it('should return true for a directory that exists', async () => {
-      const testDir = path.join(tempRootDir, 'exists-dir');
-      actualNodeFs.mkdirSync(testDir);
-      await expect(fileExists(testDir)).resolves.toBe(true);
     });
   });
 
@@ -798,7 +764,8 @@ describe('fileUtils', () => {
       actualNodeFs.writeFileSync(testTextFilePath, content);
       const result = await processSingleFileContent(
         testTextFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
       expect(result.llmContent).toBe(content);
       expect(result.returnDisplay).toBe('');
@@ -808,7 +775,8 @@ describe('fileUtils', () => {
     it('should handle file not found', async () => {
       const result = await processSingleFileContent(
         nonexistentFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
       expect(result.error).toContain('File not found');
       expect(result.returnDisplay).toContain('File not found');
@@ -817,11 +785,12 @@ describe('fileUtils', () => {
     it('should handle read errors for text files', async () => {
       actualNodeFs.writeFileSync(testTextFilePath, 'content'); // File must exist for initial statSync
       const readError = new Error('Simulated read error');
-      vi.spyOn(fsService, 'readTextFile').mockRejectedValueOnce(readError);
+      vi.spyOn(fsPromises, 'readFile').mockRejectedValueOnce(readError);
 
       const result = await processSingleFileContent(
         testTextFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
       expect(result.error).toContain('Simulated read error');
       expect(result.returnDisplay).toContain('Simulated read error');
@@ -835,7 +804,8 @@ describe('fileUtils', () => {
 
       const result = await processSingleFileContent(
         testImageFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
       expect(result.error).toContain('Simulated image read error');
       expect(result.returnDisplay).toContain('Simulated image read error');
@@ -847,7 +817,8 @@ describe('fileUtils', () => {
       mockMimeGetType.mockReturnValue('image/png');
       const result = await processSingleFileContent(
         testImageFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
       expect(
         (result.llmContent as { inlineData: unknown }).inlineData,
@@ -859,72 +830,29 @@ describe('fileUtils', () => {
       expect(
         (result.llmContent as { inlineData: { data: string } }).inlineData.data,
       ).toBe(fakePngData.toString('base64'));
-      expect(
-        (result.llmContent as { inlineData: { displayName?: string } })
-          .inlineData.displayName,
-      ).toBe('image.png');
       expect(result.returnDisplay).toContain('Read image file: image.png');
     });
 
-    it('should reject image files when model does not support image', async () => {
-      const fakePngData = Buffer.from('fake png data');
-      actualNodeFs.writeFileSync(testImageFilePath, fakePngData);
-      mockMimeGetType.mockReturnValue('image/png');
-
-      const mockConfigNoImage = {
-        ...mockConfig,
-        getContentGeneratorConfig: () => ({ modalities: {} }),
-      } as unknown as Config;
-
-      const result = await processSingleFileContent(
-        testImageFilePath,
-        mockConfigNoImage,
-      );
-      expect(typeof result.llmContent).toBe('string');
-      expect(result.llmContent).toContain('Unsupported image file');
-      expect(result.llmContent).toContain('does not support image input');
-      expect(result.returnDisplay).toContain('Skipped image file');
-    });
-
-    it('should reject PDF files when model does not support PDF', async () => {
+    it('should process a PDF file', async () => {
       const fakePdfData = Buffer.from('fake pdf data');
       actualNodeFs.writeFileSync(testPdfFilePath, fakePdfData);
       mockMimeGetType.mockReturnValue('application/pdf');
       const result = await processSingleFileContent(
         testPdfFilePath,
-        mockConfigNoPdf,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
-      expect(typeof result.llmContent).toBe('string');
-      expect(result.llmContent).toContain('Unsupported pdf file');
-      expect(result.llmContent).toContain(
-        'does not support PDF input directly',
-      );
-      expect(result.llmContent).toContain('/extensions install');
-      expect(result.returnDisplay).toContain('Skipped pdf file');
-    });
-
-    it('should accept PDF files when model supports PDF', async () => {
-      const fakePdfData = Buffer.from('fake pdf data');
-      actualNodeFs.writeFileSync(testPdfFilePath, fakePdfData);
-      mockMimeGetType.mockReturnValue('application/pdf');
-
-      const mockConfigWithPdf = {
-        ...mockConfig,
-        getContentGeneratorConfig: () => ({
-          modalities: { image: true, pdf: true },
-        }),
-      } as unknown as Config;
-
-      const result = await processSingleFileContent(
-        testPdfFilePath,
-        mockConfigWithPdf,
-      );
-      expect(result.llmContent).toHaveProperty('inlineData');
+      expect(
+        (result.llmContent as { inlineData: unknown }).inlineData,
+      ).toBeDefined();
       expect(
         (result.llmContent as { inlineData: { mimeType: string } }).inlineData
           .mimeType,
       ).toBe('application/pdf');
-      expect(result.returnDisplay).toContain('Read pdf file');
+      expect(
+        (result.llmContent as { inlineData: { data: string } }).inlineData.data,
+      ).toBe(fakePdfData.toString('base64'));
+      expect(result.returnDisplay).toContain('Read pdf file: document.pdf');
     });
 
     it('should process an audio file', async () => {
@@ -965,7 +893,8 @@ describe('fileUtils', () => {
 
       const result = await processSingleFileContent(
         testSvgFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
 
       expect(result.llmContent).toBe(svgContent);
@@ -982,7 +911,8 @@ describe('fileUtils', () => {
 
       const result = await processSingleFileContent(
         testBinaryFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
       expect(result.llmContent).toContain(
         'Cannot display content of binary file',
@@ -991,7 +921,11 @@ describe('fileUtils', () => {
     });
 
     it('should handle path being a directory', async () => {
-      const result = await processSingleFileContent(directoryPath, mockConfig);
+      const result = await processSingleFileContent(
+        directoryPath,
+        tempRootDir,
+        new StandardFileSystemService(),
+      );
       expect(result.error).toContain('Path is a directory');
       expect(result.returnDisplay).toContain('Path is a directory');
     });
@@ -1066,16 +1000,17 @@ describe('fileUtils', () => {
 
       const result = await processSingleFileContent(
         testTextFilePath,
-        mockConfig,
+        tempRootDir,
+        new StandardFileSystemService(),
       );
 
       expect(result.llmContent).toContain('Short line');
       expect(result.llmContent).toContain(
         longLine.substring(0, 2000) + '... [truncated]',
       );
-      expect(result.llmContent).not.toContain('Another short line');
+      expect(result.llmContent).toContain('Another short line');
       expect(result.returnDisplay).toBe(
-        'Read lines 1-2 of 3 from test.txt (truncated)',
+        'Read all 3 lines from test.txt (some lines were shortened)',
       );
       expect(result.isTruncated).toBe(true);
     });
@@ -1115,7 +1050,7 @@ describe('fileUtils', () => {
 
       expect(result.isTruncated).toBe(true);
       expect(result.returnDisplay).toBe(
-        'Read lines 1-11 of 11 from test.txt (truncated)',
+        'Read all 11 lines from test.txt (some lines were shortened)',
       );
     });
 
@@ -1140,7 +1075,7 @@ describe('fileUtils', () => {
       );
       expect(result.isTruncated).toBe(true);
       expect(result.returnDisplay).toBe(
-        'Read lines 1-5 of 20 from test.txt (truncated)',
+        'Read lines 1-10 of 20 from test.txt (some lines were shortened)',
       );
     });
 

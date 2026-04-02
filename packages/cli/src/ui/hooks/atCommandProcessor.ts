@@ -6,13 +6,12 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { PartListUnion } from '@google/genai';
-import type { Config } from '@apex-code/apex-core';
+import type { PartListUnion, PartUnion } from '@google/genai';
+import type { AnyToolInvocation, Config } from '@apex-code/apex-core';
 import {
   debugLogger,
   getErrorMessage,
   isNodeError,
-  Storage,
   unescapePath,
   resolveToRealPath,
   fileExists,
@@ -66,6 +65,7 @@ export const AT_COMMAND_PATH_REGEX_SOURCE =
 interface HandleAtCommandParams {
   query: string;
   config: Config;
+  addItem: UseHistoryManagerReturn['addItem'];
   onDebugMessage: (message: string) => void;
   messageId: number;
   signal: AbortSignal;
@@ -242,31 +242,29 @@ async function resolveFilePaths(
       respectFileIgnore.respectGitIgnore &&
       fileDiscovery.shouldIgnoreFile(pathName, {
         respectGitIgnore: true,
-        respectApexIgnore: false,
+        respectGeminiIgnore: false,
       });
-    const apexIgnored =
-      respectFileIgnore.respectApexIgnore &&
+    const geminiIgnored =
+      respectFileIgnore.respectGeminiIgnore &&
       fileDiscovery.shouldIgnoreFile(pathName, {
         respectGitIgnore: false,
-        respectApexIgnore: true,
+        respectGeminiIgnore: true,
       });
 
-    if (gitIgnored || apexIgnored) {
+    if (gitIgnored || geminiIgnored) {
       const reason =
         gitIgnored && geminiIgnored ? 'both' : gitIgnored ? 'git' : 'gemini';
       ignoredFiles.push({ path: pathName, reason });
       const reasonText =
         reason === 'both'
-          ? 'ignored by both git and qwen'
+          ? 'ignored by both git and gemini'
           : reason === 'git'
             ? 'git-ignored'
-            : 'apex-ignored';
+            : 'gemini-ignored';
       onDebugMessage(`Path ${pathName} is ${reasonText} and will be skipped.`);
       continue;
     }
 
-    let resolvedSuccessfully = false;
-    let sawNotFound = false;
     for (const dir of config.getWorkspaceContext().getDirectories()) {
       try {
         const absolutePath = path.resolve(dir, pathName);
@@ -362,15 +360,10 @@ async function resolveFilePaths(
             `Error stating path ${pathName}: ${getErrorMessage(error)}`,
           );
           onDebugMessage(
-            `Error stating path ${pathName}: ${getErrorMessage(error)}. Path ${pathName} will be skipped.`,
+            `Error stating path ${pathName}. Path ${pathName} will be skipped.`,
           );
         }
       }
-    }
-    if (!resolvedSuccessfully && sawNotFound) {
-      onDebugMessage(
-        `Path ${pathName} not found. Path ${pathName} will be skipped.`,
-      );
     }
   }
 

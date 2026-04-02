@@ -38,6 +38,20 @@ vi.mock('../../utils/installationInfo.js', async (importOriginal) => {
   };
 });
 
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@apex-code/apex-core')>();
+  return {
+    ...original,
+    shortenPath: (p: string, len: number) => {
+      if (p.length > len) {
+        return '...' + p.slice(p.length - len + 3);
+      }
+      return p;
+    },
+  };
+});
+
 const defaultProps = {
   model: 'gemini-pro',
   targetDir: path.join(
@@ -351,7 +365,7 @@ describe('<Footer />', () => {
     });
 
     it('should display custom sandbox info when SANDBOX env is set', async () => {
-      vi.stubEnv('SANDBOX', 'apex-test-sandbox');
+      vi.stubEnv('SANDBOX', 'gemini-cli-test-sandbox');
       const { lastFrame, unmount } = await renderWithProviders(<Footer />, {
         config: mockConfig,
         width: 120,
@@ -392,7 +406,7 @@ describe('<Footer />', () => {
     });
 
     it('should prioritize untrusted message over sandbox info', async () => {
-      vi.stubEnv('SANDBOX', 'apex-test-sandbox');
+      vi.stubEnv('SANDBOX', 'gemini-cli-test-sandbox');
       const { lastFrame, unmount } = await renderWithProviders(<Footer />, {
         config: mockConfig,
         width: 120,

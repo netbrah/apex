@@ -5,6 +5,7 @@
  */
 
 import open from 'open';
+import process from 'node:process';
 import {
   type CommandContext,
   type SlashCommand,
@@ -98,7 +99,7 @@ export const bugCommand: SlashCommand = {
     let bugReportUrl =
       'https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title={title}&info={info}&problem={problem}';
 
-    const bugCommandSettings = context.services.config?.getBugCommand();
+    const bugCommandSettings = config?.getBugCommand();
     if (bugCommandSettings?.urlTemplate) {
       bugReportUrl = bugCommandSettings.urlTemplate;
     }

@@ -133,30 +133,3 @@ export class SchemaValidator {
     }
   }
 }
-
-/**
- * Coerces string boolean values to actual booleans.
- * This handles cases where LLMs return "true"/"false" strings instead of boolean values,
- * which is common with self-hosted LLMs.
- *
- * Converts:
- * - "true", "True", "TRUE" -> true
- * - "false", "False", "FALSE" -> false
- */
-function fixBooleanValues(data: Record<string, unknown>) {
-  for (const key of Object.keys(data)) {
-    if (!(key in data)) continue;
-    const value = data[key];
-
-    if (typeof value === 'object' && value !== null) {
-      fixBooleanValues(value as Record<string, unknown>);
-    } else if (typeof value === 'string') {
-      const lower = value.toLowerCase();
-      if (lower === 'true') {
-        data[key] = true;
-      } else if (lower === 'false') {
-        data[key] = false;
-      }
-    }
-  }
-}

@@ -5,19 +5,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QwenLM/qwen-code.git"
+    "url": "git+https://github.com/netbrah/apex.git"
   },
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "bin": {
-    "apex": "dist/index.js"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+    "gemini": "dist/index.js"
   },
   "scripts": {
     "build": "node ../../scripts/build_package.js",
@@ -58,7 +51,6 @@
     "highlight.js": "^11.11.1",
     "ink": "npm:@jrichman/ink@6.6.7",
     "ink-gradient": "^3.0.0",
-    "ink-link": "^4.1.0",
     "ink-spinner": "^5.0.0",
     "latest-version": "^9.0.0",
     "lowlight": "^3.3.0",
@@ -92,15 +84,6 @@
     "@xterm/headless": "^5.5.0",
     "typescript": "^5.3.3",
     "vitest": "^3.1.1"
-  },
-  "optionalDependencies": {
-    "@teddyzhu/clipboard": "^0.0.5",
-    "@teddyzhu/clipboard-darwin-arm64": "0.0.5",
-    "@teddyzhu/clipboard-darwin-x64": "0.0.5",
-    "@teddyzhu/clipboard-linux-arm64-gnu": "0.0.5",
-    "@teddyzhu/clipboard-linux-x64-gnu": "0.0.5",
-    "@teddyzhu/clipboard-win32-arm64-msvc": "0.0.5",
-    "@teddyzhu/clipboard-win32-x64-msvc": "0.0.5"
   },
   "engines": {
     "node": ">=20"

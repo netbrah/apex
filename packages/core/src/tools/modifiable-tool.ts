@@ -11,15 +11,12 @@ import fs from 'node:fs';
 import * as Diff from 'diff';
 import { DEFAULT_DIFF_OPTIONS } from './diffOptions.js';
 import { isNodeError } from '../utils/errors.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
 import type {
   AnyDeclarativeTool,
   DeclarativeTool,
   ToolResult,
 } from './tools.js';
 import { debugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('MODIFIABLE_TOOL');
 
 /**
  * A declarative tool that supports a modify operation.
@@ -68,7 +65,7 @@ function createTempFilesForModify(
   file_path: string,
 ): { oldPath: string; newPath: string; dirPath: string } {
   const diffDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'apex-tool-modify-'),
+    path.join(os.tmpdir(), 'gemini-cli-tool-modify-'),
   );
 
   try {
@@ -86,11 +83,11 @@ function createTempFilesForModify(
   const timestamp = Date.now();
   const tempOldPath = path.join(
     diffDir,
-    `apex-modify-${fileName}-old-${timestamp}${ext}`,
+    `gemini-cli-modify-${fileName}-old-${timestamp}${ext}`,
   );
   const tempNewPath = path.join(
     diffDir,
-    `apex-modify-${fileName}-new-${timestamp}${ext}`,
+    `gemini-cli-modify-${fileName}-new-${timestamp}${ext}`,
   );
 
   fs.writeFileSync(tempOldPath, currentContent, {

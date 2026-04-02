@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// File for 'qwen mcp add' command
+// File for 'gemini mcp add' command
 import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
 import { debugLogger, type MCPServerConfig } from '@apex-code/apex-core';
@@ -142,7 +142,7 @@ export const addCommand: CommandModule = {
   describe: 'Add a server',
   builder: (yargs) =>
     yargs
-      .usage('Usage: qwen mcp add [options] <name> <commandOrUrl> [args...]')
+      .usage('Usage: gemini mcp add [options] <name> <commandOrUrl> [args...]')
       .parserConfiguration({
         'unknown-options-as-args': true, // Pass unknown options as server args
         'populate--': true, // Populate server args after -- separator
@@ -161,13 +161,14 @@ export const addCommand: CommandModule = {
         alias: 's',
         describe: 'Configuration scope (user or project)',
         type: 'string',
-        default: 'user',
+        default: 'project',
         choices: ['user', 'project'],
       })
       .option('transport', {
         alias: ['t', 'type'],
         describe: 'Transport type (stdio, sse, http)',
         type: 'string',
+        default: 'stdio',
         choices: ['stdio', 'sse', 'http'],
       })
       .option('env', {
@@ -215,20 +216,6 @@ export const addCommand: CommandModule = {
           const existingArgs = (argv['args'] as Array<string | number>) || [];
           // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           argv['args'] = [...existingArgs, ...(argv['--'] as string[])];
-        }
-
-        // Auto-detect transport from URL if not explicitly specified
-        if (!argv['transport']) {
-          const commandOrUrl = argv['commandOrUrl'] as string;
-          if (
-            commandOrUrl &&
-            (commandOrUrl.startsWith('http://') ||
-              commandOrUrl.startsWith('https://'))
-          ) {
-            argv['transport'] = 'http';
-          } else {
-            argv['transport'] = 'stdio';
-          }
         }
       }),
   handler: async (argv) => {

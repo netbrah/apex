@@ -63,9 +63,9 @@ const rootDirectoryCheck: WarningCheck = {
   priority: WarningPriority.High,
   check: async (workspaceRoot: string, _settings: Settings) => {
     try {
-      const workspaceRealPath = await fs.realpath(options.workspaceRoot);
+      const workspaceRealPath = await fs.realpath(workspaceRoot);
       const errorMessage =
-        'Warning: You are running APEX in the root directory. Your entire folder structure will be used for context. It is strongly recommended to run in a project-specific directory.';
+        'Warning: You are running Gemini CLI in the root directory. Your entire folder structure will be used for context. It is strongly recommended to run in a project-specific directory.';
 
       // Check for Unix root directory
       if (path.dirname(workspaceRealPath) === workspaceRealPath) {
@@ -79,30 +79,10 @@ const rootDirectoryCheck: WarningCheck = {
   },
 };
 
-const ripgrepAvailabilityCheck: WarningCheck = {
-  id: 'ripgrep-availability',
-  check: async (options: WarningCheckOptions) => {
-    if (!options.useRipgrep) {
-      return null;
-    }
-
-    try {
-      const isAvailable = await canUseRipgrep(options.useBuiltinRipgrep);
-      if (!isAvailable) {
-        return 'Ripgrep not available: Please install ripgrep globally to enable faster file content search. Falling back to built-in grep.';
-      }
-      return null;
-    } catch (error) {
-      return `Ripgrep not available: ${error instanceof Error ? error.message : 'Unknown error'}. Falling back to built-in grep.`;
-    }
-  },
-};
-
 // All warning checks
 const WARNING_CHECKS: readonly WarningCheck[] = [
   homeDirectoryCheck,
   rootDirectoryCheck,
-  ripgrepAvailabilityCheck,
 ];
 
 export async function getUserStartupWarnings(

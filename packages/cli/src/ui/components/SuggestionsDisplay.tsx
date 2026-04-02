@@ -47,7 +47,7 @@ export function SuggestionsDisplay({
 }: SuggestionsDisplayProps) {
   if (isLoading) {
     return (
-      <Box width={width}>
+      <Box paddingX={1} width={width}>
         <Text color="gray">Loading suggestions...</Text>
       </Box>
     );
@@ -150,19 +150,6 @@ export function SuggestionsDisplay({
                 </Box>
               )}
             </Box>
-
-            {suggestion.description && (
-              <Box flexGrow={1} paddingLeft={2}>
-                <Text color={textColor} wrap="truncate">
-                  {suggestion.description}
-                </Text>
-              </Box>
-            )}
-            {isActive && isLong && (
-              <Box>
-                <Text color={Colors.Gray}>{isExpanded ? ' ← ' : ' → '}</Text>
-              </Box>
-            )}
           </Box>
         );
       })}

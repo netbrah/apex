@@ -17,7 +17,6 @@ import {
   type ToolConfirmationOutcome,
 } from './tools.js';
 import { makeRelative, shortenPath } from '../utils/paths.js';
-import { isSubpaths, isSubpath } from '../utils/paths.js';
 import type { Config } from '../config/config.js';
 import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
 import { ToolErrorType } from './tool-error.js';
@@ -47,7 +46,7 @@ export interface LSToolParams {
    */
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_apex_ignore?: boolean;
+    respect_gemini_ignore?: boolean;
   };
 }
 
@@ -280,9 +279,6 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
       let displayMessage = `Listed ${entries.length} item(s).`;
       if (ignoredCount > 0) {
         displayMessage += ` (${ignoredCount} ignored)`;
-      }
-      if (truncated) {
-        displayMessage += ' (truncated)';
       }
 
       return {

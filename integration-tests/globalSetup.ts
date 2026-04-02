@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -111,25 +111,8 @@ export async function setup() {
   // Clean up old test runs, but keep the latest few for debugging
   try {
     const testRuns = await readdir(integrationTestsDir);
-
-    // Clean up old CLI integration test runs (without sdk-e2e- prefix)
-    const cliTestRuns = testRuns.filter((run) => !run.startsWith('sdk-e2e-'));
-    if (cliTestRuns.length > 5) {
-      const oldRuns = cliTestRuns.sort().slice(0, cliTestRuns.length - 5);
-      await Promise.all(
-        oldRuns.map((oldRun) =>
-          rm(join(integrationTestsDir, oldRun), {
-            recursive: true,
-            force: true,
-          }),
-        ),
-      );
-    }
-
-    // Clean up old SDK E2E test runs (with sdk-e2e- prefix)
-    const sdkTestRuns = testRuns.filter((run) => run.startsWith('sdk-e2e-'));
-    if (sdkTestRuns.length > 5) {
-      const oldRuns = sdkTestRuns.sort().slice(0, sdkTestRuns.length - 5);
+    if (testRuns.length > 5) {
+      const oldRuns = testRuns.sort().slice(0, testRuns.length - 5);
       await Promise.all(
         oldRuns.map((oldRun) =>
           rm(join(integrationTestsDir, oldRun), {
@@ -151,13 +134,10 @@ export async function setup() {
 
   if (process.env['KEEP_OUTPUT']) {
     console.log(`Keeping output for test run in: ${runDir}`);
-    console.log(`Keeping output for SDK E2E test run in: ${sdkE2eRunDir}`);
   }
   process.env['VERBOSE'] = process.env['VERBOSE'] ?? 'false';
 
   console.log(`\nIntegration test output directory: ${runDir}`);
-  console.log(`SDK E2E test output directory: ${sdkE2eRunDir}`);
-  console.log(`CLI path: ${process.env['TEST_CLI_PATH']}`);
 }
 
 export async function teardown() {

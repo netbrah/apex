@@ -21,8 +21,6 @@ const DEFAULT_COUNT = 1;
 const DIGIT_1_TO_9 = /^[1-9]$/;
 const DOUBLE_ESCAPE_TIMEOUT_MS = 500; // Timeout for double-escape to clear input
 
-const debugLogger = createDebugLogger('VIM_MODE');
-
 // Command types
 const CMD_TYPES = {
   DELETE_WORD_FORWARD: 'dw',

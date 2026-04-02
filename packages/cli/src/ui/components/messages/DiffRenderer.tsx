@@ -98,7 +98,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
   filename,
   tabWidth = DEFAULT_TAB_WIDTH,
   availableTerminalHeight,
-  contentWidth,
+  terminalWidth,
   theme,
   disableColor = false,
 }) => {
@@ -249,8 +249,6 @@ export const renderDiffLines = ({
       </Box>,
     ];
   }
-
-  const showLineNumbers = settings?.merged.ui?.showLineNumbers ?? true;
 
   const maxLineNumber = Math.max(
     0,

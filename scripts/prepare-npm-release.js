@@ -38,7 +38,7 @@ if (fs.existsSync(sourceBundleDir)) {
 // Inherit optionalDependencies from root package.json, excluding dev-only packages.
 const rootPkg = readJson('package.json');
 const optionalDependencies = { ...(rootPkg.optionalDependencies || {}) };
-delete optionalDependencies['apex-devtools'];
+delete optionalDependencies['gemini-cli-devtools'];
 
 // Update @apex-code/apex package.json for bundled npm release
 const cliPkgPath = 'packages/cli/package.json';

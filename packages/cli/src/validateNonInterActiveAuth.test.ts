@@ -45,9 +45,6 @@ describe('validateNonInterActiveAuth', () => {
     originalEnvGeminiApiKey = process.env['GEMINI_API_KEY'];
     originalEnvVertexAi = process.env['GOOGLE_GENAI_USE_VERTEXAI'];
     originalEnvGcp = process.env['GOOGLE_GENAI_USE_GCA'];
-    originalEnvOpenAiApiKey = process.env['OPENAI_API_KEY'];
-    originalEnvGoogleApiKey = process.env['GOOGLE_API_KEY'];
-    originalEnvAnthropicApiKey = process.env['ANTHROPIC_API_KEY'];
     delete process.env['GEMINI_API_KEY'];
     delete process.env['GOOGLE_GENAI_USE_VERTEXAI'];
     delete process.env['GOOGLE_GENAI_USE_GCA'];
@@ -100,21 +97,6 @@ describe('validateNonInterActiveAuth', () => {
     } else {
       delete process.env['GOOGLE_GENAI_USE_GCA'];
     }
-    if (originalEnvOpenAiApiKey !== undefined) {
-      process.env['OPENAI_API_KEY'] = originalEnvOpenAiApiKey;
-    } else {
-      delete process.env['OPENAI_API_KEY'];
-    }
-    if (originalEnvGoogleApiKey !== undefined) {
-      process.env['GOOGLE_API_KEY'] = originalEnvGoogleApiKey;
-    } else {
-      delete process.env['GOOGLE_API_KEY'];
-    }
-    if (originalEnvAnthropicApiKey !== undefined) {
-      process.env['ANTHROPIC_API_KEY'] = originalEnvAnthropicApiKey;
-    } else {
-      delete process.env['ANTHROPIC_API_KEY'];
-    }
     vi.restoreAllMocks();
   });
 
@@ -127,6 +109,7 @@ describe('validateNonInterActiveAuth', () => {
     });
     try {
       await validateNonInteractiveAuth(
+        undefined,
         undefined,
         nonInteractiveConfig,
         mockSettings,
@@ -149,6 +132,7 @@ describe('validateNonInterActiveAuth', () => {
     process.env['GOOGLE_GENAI_USE_GCA'] = 'true';
     const nonInteractiveConfig = createLocalMockConfig({});
     await validateNonInteractiveAuth(
+      undefined,
       undefined,
       nonInteractiveConfig,
       mockSettings,
@@ -272,6 +256,7 @@ describe('validateNonInterActiveAuth', () => {
     });
     try {
       await validateNonInteractiveAuth(
+        AuthType.USE_GEMINI,
         undefined,
         nonInteractiveConfig,
         mockSettings,
@@ -297,6 +282,7 @@ describe('validateNonInterActiveAuth', () => {
     // Even with an invalid auth type, it should not exit
     // because validation is skipped.
     await validateNonInteractiveAuth(
+      'invalid-auth-type' as AuthType,
       true, // useExternalAuth = true
       nonInteractiveConfig,
       mockSettings,

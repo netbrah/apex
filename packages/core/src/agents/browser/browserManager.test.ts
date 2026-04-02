@@ -668,7 +668,7 @@ describe('BrowserManager', () => {
       // Verify we're using the raw Client from MCP SDK
       expect(Client).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'apex-browser-agent',
+          name: 'gemini-cli-browser-agent',
         }),
         expect.any(Object),
       );

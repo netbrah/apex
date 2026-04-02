@@ -485,11 +485,8 @@ export function useSlashCompletion(props: UseSlashCompletionProps): {
   const {
     enabled,
     query,
-    hookSuggestions,
-    isLoading,
-    isPerfectMatch,
-    calculatedStart,
-    calculatedEnd,
+    slashCommands,
+    commandContext,
     setSuggestions,
     setIsLoadingSuggestions,
     setIsPerfectMatch,
@@ -632,15 +629,4 @@ export function useSlashCompletion(props: UseSlashCompletionProps): {
     isArgumentCompletion: parserResult.isArgumentCompletion,
     leafCommand: parserResult.leafCommand,
   };
-}
-
-function formatSlashCommandLabel(command: SlashCommand): string {
-  const baseLabel = command.name;
-  const altNames = command.altNames?.filter(Boolean);
-
-  if (!altNames || altNames.length === 0) {
-    return baseLabel;
-  }
-
-  return `${baseLabel} (${altNames.join(', ')})`;
 }

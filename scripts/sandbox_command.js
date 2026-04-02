@@ -44,18 +44,18 @@ if (!geminiSandbox) {
       stripJsonComments(readFileSync(userSettingsFile, 'utf-8')),
     );
     if (settings.sandbox) {
-      sandboxMode = settings.sandbox;
+      geminiSandbox = settings.sandbox;
     }
   }
 }
 
-if (!sandboxMode) {
+if (!geminiSandbox) {
   let currentDir = process.cwd();
   while (true) {
     const geminiEnv = join(currentDir, APEX_DIR, '.env');
     const regularEnv = join(currentDir, '.env');
-    if (existsSync(qwenEnv)) {
-      dotenv.config({ path: qwenEnv, quiet: true });
+    if (existsSync(geminiEnv)) {
+      dotenv.config({ path: geminiEnv, quiet: true });
       break;
     } else if (existsSync(regularEnv)) {
       dotenv.config({ path: regularEnv, quiet: true });
@@ -67,20 +67,18 @@ if (!sandboxMode) {
     }
     currentDir = parentDir;
   }
-  sandboxMode = process.env.APEX_SANDBOX;
+  geminiSandbox = process.env.GEMINI_SANDBOX;
 }
 
-sandboxMode = (sandboxMode || '').toLowerCase();
+geminiSandbox = (geminiSandbox || '').toLowerCase();
 
 const commandExists = (cmd) => {
-  // Use 'where.exe' (not 'where') on Windows because PowerShell aliases
-  // 'where' to 'Where-Object', which breaks command detection.
-  const checkCommand = os.platform() === 'win32' ? 'where.exe' : 'command -v';
+  const checkCommand = os.platform() === 'win32' ? 'where' : 'command -v';
   try {
     execSync(`${checkCommand} ${cmd}`, { stdio: 'ignore' });
     return true;
   } catch {
-    if (os.platform() === 'win32' && !cmd.endsWith('.exe')) {
+    if (os.platform() === 'win32') {
       try {
         execSync(`${checkCommand} ${cmd}.exe`, { stdio: 'ignore' });
         return true;
@@ -93,23 +91,23 @@ const commandExists = (cmd) => {
 };
 
 let command = '';
-if (['1', 'true'].includes(sandboxMode)) {
+if (['1', 'true'].includes(geminiSandbox)) {
   if (commandExists('docker')) {
     command = 'docker';
   } else if (commandExists('podman')) {
     command = 'podman';
   } else {
     console.error(
-      'ERROR: install docker or podman or specify command in APEX_SANDBOX',
+      'ERROR: install docker or podman or specify command in GEMINI_SANDBOX',
     );
     process.exit(1);
   }
-} else if (sandboxMode && !['0', 'false'].includes(sandboxMode)) {
-  if (commandExists(sandboxMode)) {
-    command = sandboxMode;
+} else if (geminiSandbox && !['0', 'false'].includes(geminiSandbox)) {
+  if (commandExists(geminiSandbox)) {
+    command = geminiSandbox;
   } else {
     console.error(
-      `ERROR: missing sandbox command '${sandboxMode}' (from APEX_SANDBOX)`,
+      `ERROR: missing sandbox command '${geminiSandbox}' (from GEMINI_SANDBOX)`,
     );
     process.exit(1);
   }

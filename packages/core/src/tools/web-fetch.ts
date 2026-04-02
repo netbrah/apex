@@ -205,11 +205,7 @@ function sanitizeXml(text: string): string {
  */
 export interface WebFetchToolParams {
   /**
-   * The URL to fetch content from
-   */
-  url: string;
-  /**
-   * The prompt to run on the fetched content
+   * The prompt containing URL(s) (up to 20) and instructions for processing their content.
    */
   prompt?: string;
   /**
@@ -222,15 +218,10 @@ interface ErrorWithStatus extends Error {
   status?: number;
 }
 
-/**
- * Implementation of the WebFetch tool invocation logic
- */
 class WebFetchToolInvocation extends BaseToolInvocation<
   WebFetchToolParams,
   ToolResult
 > {
-  private readonly debugLogger: DebugLogger;
-
   constructor(
     private readonly context: AgentLoopContext,
     params: WebFetchToolParams,

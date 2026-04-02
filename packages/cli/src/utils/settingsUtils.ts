@@ -139,13 +139,6 @@ function isSettingsValue(value: unknown): value is SettingsValue {
   );
 }
 
-export function getNestedProperty(
-  obj: Record<string, unknown>,
-  path: string,
-): unknown {
-  return getNestedValue(obj, path.split('.'));
-}
-
 /**
  * Gets a value from a nested object using a key path array iteratively.
  */

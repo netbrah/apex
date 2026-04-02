@@ -6,6 +6,7 @@
 
 import * as path from 'node:path';
 import * as os from 'node:os';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import {
   APEX_DIR,
@@ -58,7 +59,7 @@ export class Storage {
   }
 
   static getMcpOAuthTokensPath(): string {
-    return path.join(Storage.getGlobalApexDir(), 'mcp-oauth-tokens.json');
+    return path.join(Storage.getGlobalGeminiDir(), 'mcp-oauth-tokens.json');
   }
 
   static getA2AOAuthTokensPath(): string {
@@ -66,19 +67,19 @@ export class Storage {
   }
 
   static getGlobalSettingsPath(): string {
-    return path.join(Storage.getGlobalApexDir(), 'settings.json');
+    return path.join(Storage.getGlobalGeminiDir(), 'settings.json');
   }
 
   static getInstallationIdPath(): string {
-    return path.join(Storage.getGlobalApexDir(), 'installation_id');
+    return path.join(Storage.getGlobalGeminiDir(), 'installation_id');
   }
 
   static getGoogleAccountsPath(): string {
-    return path.join(Storage.getGlobalApexDir(), GOOGLE_ACCOUNTS_FILENAME);
+    return path.join(Storage.getGlobalGeminiDir(), GOOGLE_ACCOUNTS_FILENAME);
   }
 
   static getUserCommandsDir(): string {
-    return path.join(Storage.getGlobalApexDir(), 'commands');
+    return path.join(Storage.getGlobalGeminiDir(), 'commands');
   }
 
   static getUserSkillsDir(): string {
@@ -90,7 +91,7 @@ export class Storage {
   }
 
   static getGlobalMemoryFilePath(): string {
-    return path.join(Storage.getGlobalApexDir(), 'memory.md');
+    return path.join(Storage.getGlobalGeminiDir(), 'memory.md');
   }
 
   static getUserPoliciesDir(): string {
@@ -121,9 +122,9 @@ export class Storage {
     if (os.platform() === 'darwin') {
       return '/Library/Application Support/GeminiCli';
     } else if (os.platform() === 'win32') {
-      return 'C:\\ProgramData\\apex';
+      return 'C:\\ProgramData\\gemini-cli';
     } else {
-      return '/etc/apex';
+      return '/etc/gemini-cli';
     }
   }
 
@@ -139,7 +140,7 @@ export class Storage {
   }
 
   static getGlobalTempDir(): string {
-    return path.join(Storage.getRuntimeBaseDir(), TMP_DIR_NAME);
+    return path.join(Storage.getGlobalGeminiDir(), TMP_DIR_NAME);
   }
 
   static getGlobalBinDir(): string {
@@ -278,11 +279,11 @@ export class Storage {
   }
 
   getWorkspaceSettingsPath(): string {
-    return path.join(this.getApexDir(), 'settings.json');
+    return path.join(this.getGeminiDir(), 'settings.json');
   }
 
   getProjectCommandsDir(): string {
-    return path.join(this.getApexDir(), 'commands');
+    return path.join(this.getGeminiDir(), 'commands');
   }
 
   getProjectSkillsDir(): string {
@@ -404,31 +405,11 @@ export class Storage {
   }
 
   getExtensionsDir(): string {
-    return path.join(this.getApexDir(), 'extensions');
+    return path.join(this.getGeminiDir(), 'extensions');
   }
 
   getExtensionsConfigPath(): string {
-    return path.join(this.getExtensionsDir(), 'apex-extension.json');
-  }
-
-  getUserSkillsDirs(): string[] {
-    const globalDir = Storage.getGlobalApexDir();
-    const dirs = [path.join(globalDir, 'skills')];
-    const homeDir = os.homedir() || os.tmpdir();
-    for (const dir of SKILL_PROVIDER_CONFIG_DIRS) {
-      const p = path.join(homeDir, dir, 'skills');
-      if (!dirs.includes(p)) dirs.push(p);
-    }
-    return dirs;
-  }
-
-  /**
-   * Returns the user-level extensions directory (~/.apex/extensions/).
-   * Extensions installed at user scope are stored here, as opposed to
-   * project-level extensions which live in <project>/.apex/extensions/.
-   */
-  static getUserExtensionsDir(): string {
-    return path.join(Storage.getGlobalApexDir(), 'extensions');
+    return path.join(this.getExtensionsDir(), 'gemini-extension.json');
   }
 
   getHistoryFilePath(): string {

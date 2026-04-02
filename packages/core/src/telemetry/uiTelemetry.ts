@@ -23,12 +23,6 @@ export type UiEvent =
   | (ApiErrorEvent & { 'event.name': typeof EVENT_API_ERROR })
   | (ToolCallEvent & { 'event.name': typeof EVENT_TOOL_CALL });
 
-export {
-  EVENT_API_ERROR,
-  EVENT_API_RESPONSE,
-  EVENT_TOOL_CALL,
-} from './constants.js';
-
 export interface ToolCallStats {
   count: number;
   success: number;
@@ -153,9 +147,6 @@ const createInitialMetrics = (): SessionMetrics => ({
 export class UiTelemetryService extends EventEmitter {
   #metrics: SessionMetrics = createInitialMetrics();
   #lastPromptTokenCount = 0;
-  #lastOutputTokenCount = 0;
-  #lastToolTokenCount = 0;
-  #lastCachedContentTokenCount = 0;
 
   addEvent(event: UiEvent) {
     switch (event['event.name']) {
@@ -176,9 +167,6 @@ export class UiTelemetryService extends EventEmitter {
     this.emit('update', {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
-      lastOutputTokenCount: this.#lastOutputTokenCount,
-      lastToolTokenCount: this.#lastToolTokenCount,
-      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
     });
   }
 
@@ -285,72 +273,6 @@ export class UiTelemetryService extends EventEmitter {
     this.emit('update', {
       metrics: this.#metrics,
       lastPromptTokenCount: this.#lastPromptTokenCount,
-      lastOutputTokenCount: this.#lastOutputTokenCount,
-      lastToolTokenCount: this.#lastToolTokenCount,
-      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
-    });
-  }
-
-  getLastOutputTokenCount(): number {
-    return this.#lastOutputTokenCount;
-  }
-
-  setLastOutputTokenCount(count: number): void {
-    this.#lastOutputTokenCount = count;
-    this.emit('update', {
-      metrics: this.#metrics,
-      lastPromptTokenCount: this.#lastPromptTokenCount,
-      lastOutputTokenCount: this.#lastOutputTokenCount,
-      lastToolTokenCount: this.#lastToolTokenCount,
-      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
-    });
-  }
-
-  getLastToolTokenCount(): number {
-    return this.#lastToolTokenCount;
-  }
-
-  setLastToolTokenCount(count: number): void {
-    this.#lastToolTokenCount = count;
-    this.emit('update', {
-      metrics: this.#metrics,
-      lastPromptTokenCount: this.#lastPromptTokenCount,
-      lastOutputTokenCount: this.#lastOutputTokenCount,
-      lastToolTokenCount: this.#lastToolTokenCount,
-      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
-    });
-  }
-
-  getLastCachedContentTokenCount(): number {
-    return this.#lastCachedContentTokenCount;
-  }
-
-  setLastCachedContentTokenCount(count: number): void {
-    this.#lastCachedContentTokenCount = count;
-    this.emit('update', {
-      metrics: this.#metrics,
-      lastPromptTokenCount: this.#lastPromptTokenCount,
-      lastOutputTokenCount: this.#lastOutputTokenCount,
-      lastToolTokenCount: this.#lastToolTokenCount,
-      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
-    });
-  }
-
-  /**
-   * Resets metrics to the initial state (used when resuming a session).
-   */
-  reset(): void {
-    this.#metrics = createInitialMetrics();
-    this.#lastPromptTokenCount = 0;
-    this.#lastOutputTokenCount = 0;
-    this.#lastToolTokenCount = 0;
-    this.#lastCachedContentTokenCount = 0;
-    this.emit('update', {
-      metrics: this.#metrics,
-      lastPromptTokenCount: this.#lastPromptTokenCount,
-      lastOutputTokenCount: this.#lastOutputTokenCount,
-      lastToolTokenCount: this.#lastToolTokenCount,
-      lastCachedContentTokenCount: this.#lastCachedContentTokenCount,
     });
   }
 

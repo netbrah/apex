@@ -725,31 +725,6 @@ describe('useSlashCompletion', () => {
       });
       unmount();
     });
-
-    it('should not suggest hidden commands', async () => {
-      const slashCommands = [
-        createTestCommand({
-          name: 'visible',
-          description: 'A visible command',
-        }),
-        createTestCommand({
-          name: 'hidden',
-          description: 'A hidden command',
-          hidden: true,
-        }),
-      ];
-      const { result } = renderHook(() =>
-        useTestHarnessForSlashCompletion(
-          true,
-          '/',
-          slashCommands,
-          mockCommandContext,
-        ),
-      );
-
-      expect(result.current.suggestions.length).toBe(1);
-      expect(result.current.suggestions[0].label).toBe('visible');
-    });
   });
 
   describe('Sub-Commands', () => {
@@ -993,7 +968,7 @@ describe('useSlashCompletion', () => {
       const { result, unmount } = await renderHook(() =>
         useTestHarnessForSlashCompletion(
           true,
-          '/memory show --project',
+          '/chat resume my-ch',
           slashCommands,
           mockCommandContext,
         ),
@@ -1018,46 +993,8 @@ describe('useSlashCompletion', () => {
 
       await waitFor(() => {
         expect(result.current.suggestions).toEqual([
-          { label: '--project', value: '--project' },
-        ]);
-      });
-    });
-
-    it('should map completion items with descriptions for argument suggestions', async () => {
-      const mockCompletionFn = vi.fn().mockResolvedValue([
-        { value: 'pdf', description: 'Create PDF documents' },
-        { value: 'xlsx', description: 'Work with spreadsheets' },
-      ]);
-
-      const slashCommands = [
-        createTestCommand({
-          name: 'skills',
-          description: 'List available skills',
-          completion: mockCompletionFn,
-        }),
-      ];
-
-      const { result } = renderHook(() =>
-        useTestHarnessForSlashCompletion(
-          true,
-          '/skills ',
-          slashCommands,
-          mockCommandContext,
-        ),
-      );
-
-      await waitFor(() => {
-        expect(result.current.suggestions).toEqual([
-          {
-            label: 'pdf',
-            value: 'pdf',
-            description: 'Create PDF documents',
-          },
-          {
-            label: 'xlsx',
-            value: 'xlsx',
-            description: 'Work with spreadsheets',
-          },
+          { label: 'my-chat-tag-1', value: 'my-chat-tag-1' },
+          { label: 'my-chat-tag-2', value: 'my-chat-tag-2' },
         ]);
         expect(result.current.completionStart).toBe(13);
         expect(result.current.isLoadingSuggestions).toBe(false);
@@ -1094,7 +1031,7 @@ describe('useSlashCompletion', () => {
       const { result, unmount } = await renderHook(() =>
         useTestHarnessForSlashCompletion(
           true,
-          '/workspace switch ',
+          '/chat resume ',
           slashCommands,
           mockCommandContext,
         ),

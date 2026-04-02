@@ -87,19 +87,6 @@ import {
 
 export const MCP_DEFAULT_TIMEOUT_MSEC = 10 * 60 * 1000; // default to 10 minutes
 
-const debugLogger = createDebugLogger('MCP');
-const NATIVE_ALIAS_MCP_SERVERS = new Set([
-  'mastra-search',
-  'mastra_search',
-  'vsim-mcp',
-  'vsim_mcp',
-]);
-const NATIVE_MASTRA_TOOL_ALIASES = new Map<string, string>([
-  ['search_jira', 'search_jira'],
-  ['get_confluence_page', 'get_confluence_page'],
-  ['get_jira_issue', 'get_jira'],
-]);
-
 export type DiscoveredMCPPrompt = Prompt & {
   serverName: string;
   invoke: (params: Record<string, unknown>) => Promise<GetPromptResult>;
@@ -316,26 +303,6 @@ export class McpClient implements McpProgressReporter {
    */
   getStatus(): MCPServerStatus {
     return this.status;
-  }
-
-  async readResource(
-    uri: string,
-    options?: { signal?: AbortSignal },
-  ): Promise<ReadResourceResult> {
-    if (this.status !== MCPServerStatus.CONNECTED) {
-      throw new Error('Client is not connected.');
-    }
-
-    // Only request resources if the server supports them.
-    if (this.client.getServerCapabilities()?.resources == null) {
-      throw new Error('MCP server does not support resources.');
-    }
-
-    return this.client.request(
-      { method: 'resources/read', params: { uri } },
-      ReadResourceResultSchema,
-      options,
-    );
   }
 
   private updateStatus(status: MCPServerStatus): void {
@@ -1207,7 +1174,6 @@ export function populateMcpServerCommand(
  * @param mcpServerName The name identifier for this MCP server
  * @param mcpServerConfig Configuration object containing connection details
  * @param toolRegistry The registry to register discovered tools with
- * @param sendSdkMcpMessage Optional callback for SDK MCP servers to route messages via control plane.
  * @returns Promise that resolves when discovery is complete
  */
 export async function connectAndDiscover(
@@ -1804,7 +1770,6 @@ export interface McpContext {
  *
  * @param mcpServerName The name of the MCP server, used for logging and identification.
  * @param mcpServerConfig The configuration specifying how to connect to the server.
- * @param sendSdkMcpMessage Optional callback for SDK MCP servers to route messages via control plane.
  * @returns A promise that resolves to a connected MCP `Client` instance.
  * @throws An error if the connection fails or the configuration is invalid.
  */
@@ -1818,7 +1783,7 @@ export async function connectToMcpServer(
 ): Promise<Client> {
   const mcpClient = new Client(
     {
-      name: 'apex-mcp-client',
+      name: 'gemini-cli-mcp-client',
       version: clientVersion,
     },
     {

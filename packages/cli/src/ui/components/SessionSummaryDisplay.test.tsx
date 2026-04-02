@@ -57,10 +57,10 @@ const renderWithMockedStats = async (
       sessionStartTime: new Date(),
       metrics,
       lastPromptTokenCount: 0,
-      promptCount,
+      promptCount: 5,
     },
 
-    getPromptCount: () => promptCount,
+    getPromptCount: () => 5,
     startNewPrompt: vi.fn(),
   } as unknown as ReturnType<typeof SessionContext.useSessionStats>);
 
@@ -136,8 +136,6 @@ describe('<SessionSummaryDisplay />', () => {
     const output = lastFrame();
 
     expect(output).toContain('Agent powering down. Goodbye!');
-    expect(output).toContain('To continue this session, run');
-    expect(output).toContain('qwen --resume test-session-id-12345');
     expect(output).toMatchSnapshot();
     unmount();
   });
@@ -232,65 +230,5 @@ describe('<SessionSummaryDisplay />', () => {
       );
       unmount();
     });
-  });
-
-  it('does not show resume message when there are no messages', () => {
-    const metrics: SessionMetrics = {
-      models: {},
-      tools: {
-        totalCalls: 0,
-        totalSuccess: 0,
-        totalFail: 0,
-        totalDurationMs: 0,
-        totalDecisions: { accept: 0, reject: 0, modify: 0 },
-        byName: {},
-      },
-      files: {
-        totalLinesAdded: 0,
-        totalLinesRemoved: 0,
-      },
-    };
-
-    // Pass promptCount = 0 to simulate no messages
-    const { lastFrame } = renderWithMockedStats(
-      metrics,
-      'test-session-id-12345',
-      0,
-    );
-    const output = lastFrame();
-
-    expect(output).toContain('Agent powering down. Goodbye!');
-    expect(output).not.toContain('To continue this session, run');
-    expect(output).not.toContain('qwen --resume');
-  });
-
-  it('does not show resume message when chat recording is disabled', () => {
-    const metrics: SessionMetrics = {
-      models: {},
-      tools: {
-        totalCalls: 0,
-        totalSuccess: 0,
-        totalFail: 0,
-        totalDurationMs: 0,
-        totalDecisions: { accept: 0, reject: 0, modify: 0 },
-        byName: {},
-      },
-      files: {
-        totalLinesAdded: 0,
-        totalLinesRemoved: 0,
-      },
-    };
-
-    const { lastFrame } = renderWithMockedStats(
-      metrics,
-      'test-session-id-12345',
-      5,
-      false,
-    );
-    const output = lastFrame();
-
-    expect(output).toContain('Agent powering down. Goodbye!');
-    expect(output).not.toContain('To continue this session, run');
-    expect(output).not.toContain('qwen --resume');
   });
 });

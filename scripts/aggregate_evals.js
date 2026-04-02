@@ -208,7 +208,7 @@ function generateMarkdown(currentStatsByModel, history) {
     }
 
     for (const name of Array.from(allTestNames).sort()) {
-      const searchUrl = `https://github.com/search?q=repo%3Agoogle-gemini%2Fapex%20%22${encodeURIComponent(name)}%22&type=code`;
+      const searchUrl = `https://github.com/search?q=repo%3Agoogle-gemini%2Fgemini-cli%20%22${encodeURIComponent(name)}%22&type=code`;
       let row = `| [${name}](${searchUrl}) |`;
 
       // History

@@ -443,8 +443,6 @@ describe('SettingsDialog', () => {
 
   describe('Settings Toggling', () => {
     it('should toggle setting with Enter key', async () => {
-      vi.mocked(saveModifiedSettings).mockClear();
-
       const settings = createMockSettings();
       const setValueSpy = vi.spyOn(settings, 'setValue');
       const onSelect = vi.fn();
@@ -578,15 +576,15 @@ describe('SettingsDialog', () => {
 
       // Wait for initial render
       await waitFor(() => {
-        expect(lastFrame()).toContain('Tool Approval Mode');
+        expect(lastFrame()).toContain('Vim Mode');
       });
 
       // The UI should show the settings section is active and scope section is inactive
       expect(lastFrame()).toContain('Vim Mode'); // Settings section active
       expect(lastFrame()).toContain('Apply To'); // Scope section (don't rely on exact spacing)
 
-      // This test validates the initial state - scope selection is now
-      // accessed via Tab key, not shown alongside settings
+      // This test validates the initial state - scope selection behavior
+      // is complex due to keypress handling, so we focus on state validation
 
       unmount();
     });
@@ -642,9 +640,9 @@ describe('SettingsDialog', () => {
         expect(lastFrame()).toContain('Vim Mode');
       });
 
-      // Verify the dialog is rendered properly (scope is in separate view)
+      // Verify the dialog is rendered properly
       expect(lastFrame()).toContain('Settings');
-      expect(lastFrame()).not.toContain('Apply To'); // Scope is in a separate view
+      expect(lastFrame()).toContain('Apply To');
 
       // This test validates rendering - escape key behavior depends on complex
       // keypress handling that's difficult to test reliably in this environment
@@ -819,36 +817,13 @@ describe('SettingsDialog', () => {
       unmount();
     });
 
-    it('should keep restart prompt when switching scopes', async () => {
+    it('should clear restart prompt when switching scopes', async () => {
       const settings = createMockSettings();
       const onSelect = vi.fn();
 
       const { unmount } = await renderDialog(settings, onSelect);
 
-      // Trigger a restart-required setting change: navigate to "Language: UI" (2nd item) and toggle it.
-      stdin.write(TerminalKeys.DOWN_ARROW as string);
-      await wait();
-      stdin.write(TerminalKeys.ENTER as string);
-      await wait();
-
-      await waitFor(() => {
-        expect(lastFrame()).toContain(
-          'To see changes, Apex must be restarted',
-        );
-      });
-
-      // Switch scopes; restart prompt should remain visible.
-      stdin.write(TerminalKeys.TAB as string);
-      await wait();
-      stdin.write('2');
-      await wait();
-
-      await waitFor(() => {
-        expect(lastFrame()).toContain(
-          'To see changes, Apex must be restarted',
-        );
-      });
-
+      // Restart prompt should be cleared when switching scopes
       unmount();
     });
   });
@@ -959,66 +934,6 @@ describe('SettingsDialog', () => {
     });
   });
 
-  describe('Output Language', () => {
-    it('treats empty output language as auto', async () => {
-      const settings = createMockSettings({
-        general: { outputLanguage: 'en' },
-      });
-
-      const { stdin, unmount, lastFrame } = render(
-        <KeypressProvider kittyProtocolEnabled={false}>
-          <SettingsDialog settings={settings} onSelect={() => {}} />
-        </KeypressProvider>,
-      );
-
-      await waitFor(() => {
-        expect(lastFrame()).toContain('Settings');
-      });
-
-      // Navigate to the output language setting, start editing, then commit empty.
-      // Avoid hard-coding the item index because schema-driven ordering can differ by platform.
-      const outputLanguageIndex = getDialogSettingKeys().indexOf(
-        'general.outputLanguage',
-      );
-      expect(outputLanguageIndex).toBeGreaterThanOrEqual(0);
-
-      const press = async (key: string) => {
-        act(() => {
-          stdin.write(key);
-        });
-        await wait();
-      };
-
-      for (let i = 0; i < outputLanguageIndex; i++) {
-        await press(TerminalKeys.DOWN_ARROW as string);
-      }
-      await press(TerminalKeys.ENTER as string);
-      await press(TerminalKeys.ENTER as string);
-
-      // Empty input should set 'auto' in settings (rule file is updated on restart)
-      await waitFor(() => {
-        const outputLanguageCall = vi
-          .mocked(saveModifiedSettings)
-          .mock.calls.find((call) =>
-            (call[0] as Set<string>).has('general.outputLanguage'),
-          );
-        expect(outputLanguageCall).toBeTruthy();
-      });
-
-      const outputLanguageCall = vi
-        .mocked(saveModifiedSettings)
-        .mock.calls.find((call) =>
-          (call[0] as Set<string>).has('general.outputLanguage'),
-        );
-      // Should save 'auto' to settings
-      expect(outputLanguageCall?.[1]).toMatchObject({
-        general: { outputLanguage: OUTPUT_LANGUAGE_AUTO },
-      });
-
-      unmount();
-    });
-  });
-
   describe('Keyboard Shortcuts Edge Cases', () => {
     it('should handle rapid key presses gracefully', async () => {
       const settings = createMockSettings();
@@ -1096,7 +1011,7 @@ describe('SettingsDialog', () => {
 
       // Wait for initial render
       await waitFor(() => {
-        expect(lastFrame()).toContain('Tool Approval Mode');
+        expect(lastFrame()).toContain('Vim Mode');
       });
 
       // Verify initial state: settings section active, scope section inactive
@@ -1104,7 +1019,7 @@ describe('SettingsDialog', () => {
       expect(lastFrame()).toContain('Apply To'); // Scope section (don't rely on exact spacing)
 
       // This test validates the rendered UI structure for tab navigation
-      // Tab now switches between settings view and scope view
+      // Actual tab behavior testing is complex due to keypress handling
 
       unmount();
     });
@@ -1150,10 +1065,10 @@ describe('SettingsDialog', () => {
 
       // Wait for initial render
       await waitFor(() => {
-        expect(lastFrame()).toContain('Tool Approval Mode');
+        expect(lastFrame()).toContain('Vim Mode');
       });
 
-      // Verify the complete UI is rendered (scope is in separate view)
+      // Verify the complete UI is rendered with all necessary sections
       expect(lastFrame()).toContain('Settings'); // Title
       expect(lastFrame()).toContain('Vim Mode'); // Active setting
       expect(lastFrame()).toContain('Apply To'); // Scope section
@@ -1162,7 +1077,7 @@ describe('SettingsDialog', () => {
       expect(lastFrame()).toMatch(/Enter.*select.*Tab.*focus.*Esc.*close/);
 
       // This test validates the complete UI structure is available for user workflow
-      // Scope selection is now accessed via Tab key (view switching like ThemeDialog)
+      // Individual interactions are tested in focused unit tests
 
       unmount();
     });

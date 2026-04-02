@@ -159,8 +159,6 @@ class RecursiveFileSearch implements FileSearch {
     pattern: string,
     options: SearchOptions = {},
   ): Promise<string[]> {
-    // Check if engine is properly initialized.
-    // If fuzzy search is enabled (or undefined, default true), fzf must be initialized.
     if (
       !this.resultCache ||
       (!this.fzf && this.options.enableFuzzySearch) ||

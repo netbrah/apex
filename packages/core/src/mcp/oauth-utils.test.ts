@@ -438,7 +438,7 @@ describe('OAuthUtils', () => {
   });
 
   describe('buildResourceParameter', () => {
-    it('should return canonical URI with full path', () => {
+    it('should build resource parameter from endpoint URL', () => {
       const result = OAuthUtils.buildResourceParameter(
         'https://example.com/oauth/token',
       );

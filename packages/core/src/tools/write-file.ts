@@ -27,12 +27,6 @@ import {
 } from './tools.js';
 import { buildFilePathArgsPattern } from '../policy/utils.js';
 import { ToolErrorType } from './tool-error.js';
-import {
-  FileEncoding,
-  needsUtf8Bom,
-  detectLineEnding,
-} from '../services/fileSystemService.js';
-import type { LineEnding } from '../services/fileSystemService.js';
 import { makeRelative, shortenPath } from '../utils/paths.js';
 import { getErrorMessage, isNodeError } from '../utils/errors.js';
 import { ensureCorrectFileContent } from '../utils/editCorrector.js';
@@ -231,7 +225,7 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     const fileDiff = Diff.createPatch(
       fileName,
       originalContent, // Original content (empty if new file or unreadable)
-      this.params.content, // Content after potential correction
+      correctedContent, // Content after potential correction
       'Current',
       'Proposed',
       DEFAULT_DIFF_OPTIONS,
@@ -303,21 +297,17 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       };
     }
 
-    if (!fileExists) {
-      fs.mkdirSync(dirName, { recursive: true });
-      const userEncoding = this.config.getDefaultFileEncoding();
-      if (userEncoding === FileEncoding.UTF8_BOM) {
-        // User explicitly configured UTF-8 BOM for all new files
-        useBOM = true;
-      } else if (userEncoding === undefined) {
-        // No explicit setting: auto-detect based on platform/extension.
-        // e.g. .ps1 on Windows with a non-UTF-8 code page needs BOM so
-        // PowerShell 5.1 reads the file as UTF-8 instead of the system ANSI page
-        useBOM = needsUtf8Bom(file_path);
-      }
-      // else: user explicitly set 'utf-8' (no BOM) — respect it
-      detectedEncoding = undefined;
-    }
+    const {
+      originalContent,
+      correctedContent: fileContent,
+      fileExists,
+    } = correctedContentResult;
+    // fileExists is true if the file existed (and was readable or unreadable but caught by readError).
+    // fileExists is false if the file did not exist (ENOENT).
+    const isNewFile =
+      !fileExists ||
+      (correctedContentResult.error !== undefined &&
+        !correctedContentResult.fileExists);
 
     try {
       const dirName = path.dirname(this.resolvedPath);
@@ -346,12 +336,14 @@ class WriteFileToolInvocation extends BaseToolInvocation<
       // If there was a readError, originalContent in correctedContentResult is '',
       // but for the diff, we want to show the original content as it was before the write if possible.
       // However, if it was unreadable, currentContentForDiff will be empty.
-      const currentContentForDiff = originalContent;
+      const currentContentForDiff = correctedContentResult.error
+        ? '' // Or some indicator of unreadable content
+        : originalContent;
 
       const fileDiff = Diff.createPatch(
         fileName,
         currentContentForDiff,
-        content,
+        fileContent,
         'Original',
         'Written',
         DEFAULT_DIFF_OPTIONS,
@@ -550,27 +542,28 @@ export class WriteFileTool
   }
 
   getModifyContext(
-    _abortSignal: AbortSignal,
+    abortSignal: AbortSignal,
   ): ModifyContext<WriteFileToolParams> {
     return {
       getFilePath: (params: WriteFileToolParams) => params.file_path,
       getCurrentContent: async (params: WriteFileToolParams) => {
-        const fileExists = await isFilefileExists(params.file_path);
-        if (fileExists) {
-          try {
-            const { content } = await this.config
-              .getFileSystemService()
-              .readTextFile({ path: params.file_path });
-            return content;
-          } catch (err) {
-            if (!isNodeError(err) || err.code !== 'ENOENT') throw err;
-            return '';
-          }
-        } else {
-          return '';
-        }
+        const correctedContentResult = await getCorrectedFileContent(
+          this.config,
+          params.file_path,
+          params.content,
+          abortSignal,
+        );
+        return correctedContentResult.originalContent;
       },
-      getProposedContent: async (params: WriteFileToolParams) => params.content,
+      getProposedContent: async (params: WriteFileToolParams) => {
+        const correctedContentResult = await getCorrectedFileContent(
+          this.config,
+          params.file_path,
+          params.content,
+          abortSignal,
+        );
+        return correctedContentResult.correctedContent;
+      },
       createUpdatedParams: (
         _oldContent: string,
         modifiedProposedContent: string,

@@ -10,7 +10,6 @@ import { Box, Text } from 'ink';
 import { CliSpinner } from '../components/CliSpinner.js';
 import { theme } from '../semantic-colors.js';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { t } from '../../i18n/index.js';
 
 interface AuthInProgressProps {
   onTimeout: () => void;

@@ -17,7 +17,7 @@ describe('AcknowledgedAgentsService', () => {
 
   beforeEach(async () => {
     // Create a unique temp directory for each test
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'apex-test-'));
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gemini-cli-test-'));
 
     // Override APEX_HOME to point to the temp directory
     originalGeminiCliHome = process.env['APEX_HOME'];

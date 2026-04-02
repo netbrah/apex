@@ -50,7 +50,7 @@ describe('LSTool', () => {
       getFileService: () => new FileDiscoveryService(tempRootDir),
       getFileFilteringOptions: () => ({
         respectGitIgnore: true,
-        respectApexIgnore: true,
+        respectGeminiIgnore: true,
       }),
       storage: mockStorage,
       isPathAllowed(this: Config, absolutePath: string): boolean {
@@ -74,11 +74,6 @@ describe('LSTool', () => {
     } as unknown as Config;
 
     lsTool = new LSTool(mockConfig, createMockMessageBus());
-  });
-
-  afterEach(async () => {
-    await fs.rm(tempRootDir, { recursive: true, force: true });
-    await fs.rm(tempSecondaryDir, { recursive: true, force: true });
   });
 
   afterEach(async () => {
@@ -119,20 +114,6 @@ describe('LSTool', () => {
       const invocation = lsTool.build({ dir_path: testPath });
 
       expect(invocation).toBeDefined();
-    });
-  });
-
-  describe('getDefaultPermission', () => {
-    it('should return allow for paths within workspace', async () => {
-      const invocation = lsTool.build({ path: tempRootDir });
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('allow');
-    });
-
-    it('should return ask for paths outside workspace', async () => {
-      const invocation = lsTool.build({ path: '/tmp' });
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
     });
   });
 

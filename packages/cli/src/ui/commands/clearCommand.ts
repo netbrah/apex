@@ -52,8 +52,7 @@ export const clearCommand: SlashCommand = {
       // which is the correct behavior to signal a failure to the user.
       await geminiClient.resetChat();
     } else {
-      context.ui.setDebugMessage(t('Starting a new session and clearing.'));
-      context.ui.clear();
+      context.ui.setDebugMessage('Clearing terminal.');
     }
 
     // Fire SessionStart hook after clearing

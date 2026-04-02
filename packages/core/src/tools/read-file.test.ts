@@ -114,7 +114,7 @@ describe('ReadFileTool', () => {
       );
     });
 
-    it('should allow path outside root (external path support)', () => {
+    it('should throw error if path is outside root', () => {
       const params: ReadFileToolParams = {
         file_path: '/outside/root.txt',
       };
@@ -171,36 +171,6 @@ describe('ReadFileTool', () => {
       expect(() => tool.build(params)).toThrow(
         'start_line cannot be greater than end_line',
       );
-    });
-  });
-
-  describe('getDefaultPermission', () => {
-    it('should return allow for paths within workspace', async () => {
-      const params: ReadFileToolParams = {
-        file_path: path.join(tempRootDir, 'test.txt'),
-      };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('allow');
-    });
-
-    it('should return ask for paths outside workspace', async () => {
-      const params: ReadFileToolParams = {
-        file_path: '/outside/workspace/file.txt',
-      };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
-    });
-
-    it('should return allow for paths within temp directory', async () => {
-      const tempDir = path.join(tempRootDir, '.temp');
-      const params: ReadFileToolParams = {
-        file_path: path.join(tempDir, 'temp-file.txt'),
-      };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('allow');
     });
   });
 
@@ -323,8 +293,8 @@ describe('ReadFileTool', () => {
 
     it('should return error for a file that is too large', async () => {
       const filePath = path.join(tempRootDir, 'largefile.txt');
-      // 11MB of content exceeds 10MB limit
-      const largeContent = 'x'.repeat(11 * 1024 * 1024);
+      // 21MB of content exceeds 20MB limit
+      const largeContent = 'x'.repeat(21 * 1024 * 1024);
       await fsp.writeFile(filePath, largeContent, 'utf-8');
       const params: ReadFileToolParams = { file_path: filePath };
       const invocation = tool.build(params);
@@ -333,7 +303,7 @@ describe('ReadFileTool', () => {
       expect(result).toHaveProperty('error');
       expect(result.error?.type).toBe(ToolErrorType.FILE_TOO_LARGE);
       expect(result.error?.message).toContain(
-        'File size exceeds the 10MB limit',
+        'File size exceeds the 20MB limit',
       );
     });
 
@@ -346,9 +316,11 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
-      expect(result.returnDisplay).toContain(
-        'Read lines 1-2 of 3 from longlines.txt (truncated)',
+      expect(result.llmContent).toContain(
+        'IMPORTANT: The file content has been truncated',
       );
+      expect(result.llmContent).toContain('--- FILE CONTENT (truncated) ---');
+      expect(result.returnDisplay).toContain('some lines were shortened');
     });
 
     it('should handle image file and return appropriate content', async () => {
@@ -366,7 +338,6 @@ describe('ReadFileTool', () => {
         inlineData: {
           data: pngHeader.toString('base64'),
           mimeType: 'image/png',
-          displayName: 'image.png',
         },
       });
       expect(result.returnDisplay).toBe('Read image file: image.png');
@@ -385,7 +356,6 @@ describe('ReadFileTool', () => {
         inlineData: {
           data: pdfHeader.toString('base64'),
           mimeType: 'application/pdf',
-          displayName: 'document.pdf',
         },
       });
       expect(result.returnDisplay).toBe('Read pdf file: document.pdf');
@@ -461,7 +431,10 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Showing lines 6-8 of 20 total lines',
+        'IMPORTANT: The file content has been truncated',
+      );
+      expect(result.llmContent).toContain(
+        'Status: Showing lines 6-8 of 20 total lines',
       );
       expect(result.llmContent).toContain('Line 6');
       expect(result.llmContent).toContain('Line 7');

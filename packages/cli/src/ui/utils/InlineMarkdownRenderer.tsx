@@ -9,8 +9,6 @@ import { Text } from 'ink';
 import { parseMarkdownToANSI } from './markdownParsingUtils.js';
 import { stripUnsafeCharacters } from './textUtils.js';
 
-const debugLogger = createDebugLogger('INLINE_MARKDOWN');
-
 interface RenderInlineProps {
   text: string;
   defaultColor?: string;

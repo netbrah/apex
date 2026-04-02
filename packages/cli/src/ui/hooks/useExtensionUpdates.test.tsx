@@ -69,11 +69,11 @@ describe('useExtensionUpdates', () => {
     });
     vi.mocked(loadSkillsFromDir).mockResolvedValue([]);
     tempHomeDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'apex-test-home-'),
+      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
     );
     vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
     tempWorkspaceDir = fs.mkdtempSync(
-      path.join(tempHomeDir, 'apex-test-workspace-'),
+      path.join(tempHomeDir, 'gemini-cli-test-workspace-'),
     );
     vi.spyOn(process, 'cwd').mockReturnValue(tempWorkspaceDir);
     userExtensionsDir = path.join(tempHomeDir, APEX_DIR, 'extensions');

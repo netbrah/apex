@@ -36,12 +36,9 @@ export * from './commands/types.js';
 export * from './core/baseLlmClient.js';
 export * from './core/client.js';
 export * from './core/contentGenerator.js';
-export * from './core/coreToolScheduler.js';
-export * from './core/permission-helpers.js';
+export * from './core/loggingContentGenerator.js';
 export * from './core/geminiChat.js';
-export * from './core/geminiRequest.js';
 export * from './core/logger.js';
-export * from './core/nonInteractiveToolExecutor.js';
 export * from './core/prompts.js';
 export * from './core/tokenLimits.js';
 export * from './core/turn.js';
@@ -137,8 +134,6 @@ export * from './services/fileDiscoveryService.js';
 export * from './services/gitService.js';
 export * from './services/FolderTrustDiscoveryService.js';
 export * from './services/chatRecordingService.js';
-export * from './services/toolOutputMaskingService.js';
-export * from './services/fileDiscoveryService.js';
 export * from './services/fileSystemService.js';
 export * from './services/sandboxedFileSystemService.js';
 export * from './services/modelConfigService.js';
@@ -153,6 +148,7 @@ export * from './services/keychainTypes.js';
 export * from './skills/skillManager.js';
 export * from './skills/skillLoader.js';
 
+// Export IDE specific logic
 export * from './ide/ide-client.js';
 export * from './ide/ideContext.js';
 export * from './ide/ide-installer.js';
@@ -181,9 +177,8 @@ export * from './tools/tool-registry.js';
 export * from './tools/tool-names.js';
 export * from './resources/resource-registry.js';
 
-// ============================================================================
-// MCP (Model Context Protocol)
-// ============================================================================
+// Export prompt logic
+export * from './prompts/mcp-prompts.js';
 
 // Export agent definitions
 export * from './agents/types.js';
@@ -241,27 +236,18 @@ export * from './tools/ask-user.js';
 // MCP OAuth
 export { MCPOAuthProvider } from './mcp/oauth-provider.js';
 export type {
-  MCPOAuthConfig,
-  OAuthDisplayMessage,
-  OAuthDisplayPayload,
-} from './mcp/oauth-provider.js';
-export { MCPOAuthTokenStorage } from './mcp/oauth-token-storage.js';
-export { KeychainTokenStorage } from './mcp/token-storage/keychain-token-storage.js';
-export type {
-  OAuthCredentials,
   OAuthToken,
+  OAuthCredentials,
 } from './mcp/token-storage/types.js';
-export { OAuthUtils } from './mcp/oauth-utils.js';
+export { MCPOAuthTokenStorage } from './mcp/oauth-token-storage.js';
+export type { MCPOAuthConfig } from './mcp/oauth-provider.js';
 export type {
   OAuthAuthorizationServerMetadata,
   OAuthProtectedResourceMetadata,
 } from './mcp/oauth-utils.js';
+export { OAuthUtils } from './mcp/oauth-utils.js';
 
-// ============================================================================
-// Telemetry
-// ============================================================================
-
-export { ApexLogger } from './telemetry/apex-logger/apex-logger.js';
+// Export telemetry functions
 export * from './telemetry/index.js';
 export * from './telemetry/billingEvents.js';
 export { logBillingEvent } from './telemetry/loggers.js';

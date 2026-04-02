@@ -165,9 +165,8 @@ describe('themeManager.loadCustomThemes', () => {
     });
     const result = themeManager.getTheme('Legacy Custom Theme')!;
 
-    // Should use DEFAULT_THEME (ApexDark) values for missing fields
-    expect(result.colors.DiffAdded).toBe('#1a2e1a');
-    expect(result.colors.DiffRemoved).toBe('#2e1a1a');
+    expect(result.colors.DiffAdded).toBe(darkTheme.DiffAdded);
+    expect(result.colors.DiffRemoved).toBe(darkTheme.DiffRemoved);
     expect(result.colors.AccentBlue).toBe(legacyTheme.AccentBlue);
     expect(result.name).toBe(legacyTheme.name);
   });

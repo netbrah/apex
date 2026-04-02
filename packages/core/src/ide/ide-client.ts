@@ -163,10 +163,6 @@ export class IdeClient {
         if (connected) {
           return;
         }
-        const fallbackConnected = await this.tryFallbackPorts();
-        if (fallbackConnected) {
-          return;
-        }
       }
       if (connectionConfig.stdio) {
         const connected = await this.establishStdioConnection(
@@ -484,11 +480,11 @@ export class IdeClient {
       }
       if (details) {
         if (logToConsole) {
-          debugLogger.error(details);
+          logger.error(details);
         } else {
           // We only want to log disconnect messages to debug
           // if they are not already being logged to the console.
-          debugLogger.debug(details);
+          logger.debug(details);
         }
       }
     }
@@ -539,7 +535,7 @@ export class IdeClient {
           resolver({ status: 'accepted', content });
           this.diffResponses.delete(filePath);
         } else {
-          debugLogger.debug(`No resolver found for ${filePath}`);
+          logger.debug(`No resolver found for ${filePath}`);
         }
       },
     );
@@ -569,7 +565,7 @@ export class IdeClient {
           resolver({ status: 'rejected', content: undefined });
           this.diffResponses.delete(filePath);
         } else {
-          debugLogger.debug(`No resolver found for ${filePath}`);
+          logger.debug(`No resolver found for ${filePath}`);
         }
       },
     );
@@ -611,7 +607,7 @@ export class IdeClient {
         try {
           await transport.close();
         } catch (closeError) {
-          debugLogger.debug('Failed to close transport:', closeError);
+          logger.debug('Failed to close transport:', closeError);
         }
       }
       return false;
@@ -624,7 +620,7 @@ export class IdeClient {
   }: StdioConfig): Promise<boolean> {
     let transport: StdioClientTransport | undefined;
     try {
-      debugLogger.debug('Attempting to connect to IDE via stdio');
+      logger.debug('Attempting to connect to IDE via stdio');
       this.client = new Client({
         name: 'stdio-client',
         // TODO(#3487): use the CLI version here.
@@ -645,7 +641,7 @@ export class IdeClient {
         try {
           await transport.close();
         } catch (closeError) {
-          debugLogger.debug('Failed to close transport:', closeError);
+          logger.debug('Failed to close transport:', closeError);
         }
       }
       return false;

@@ -22,28 +22,6 @@ import { tryParseJSON } from '../../../utils/jsonoutput.js';
 vi.mock('../GeminiRespondingSpinner.js', () => ({
   GeminiRespondingSpinner: () => <Text>MockRespondingSpinner</Text>,
 }));
-vi.mock('../subagents/index.js', () => ({
-  AgentExecutionDisplay: function MockAgentExecutionDisplay({
-    data,
-  }: {
-    data: { subagentName: string; taskDescription: string };
-  }) {
-    return (
-      <Text>
-        🤖 {data.subagentName} • Task: {data.taskDescription}
-      </Text>
-    );
-  },
-}));
-
-// Mock settings
-const mockSettings: LoadedSettings = {
-  merged: {
-    ui: {
-      showLineNumbers: true,
-    },
-  },
-} as LoadedSettings;
 
 vi.mock('../TerminalOutput.js', () => ({
   TerminalOutput: function MockTerminalOutput({
@@ -60,8 +38,6 @@ vi.mock('../TerminalOutput.js', () => ({
 }));
 
 describe('<ToolMessage />', () => {
-  const mockConfig = {} as Config;
-
   const baseProps: ToolMessageProps = {
     callId: 'tool-123',
     name: 'test-tool',
@@ -538,110 +514,5 @@ describe('<ToolMessage />', () => {
       expect(output).toContain('Line 30');
       unmount();
     });
-  });
-
-  it('shows subagent execution display for task tool with proper result display', () => {
-    const subagentResultDisplay = {
-      type: 'task_execution' as const,
-      subagentName: 'file-search',
-      taskDescription: 'Search for files matching pattern',
-      taskPrompt: 'Search for files matching pattern',
-      status: 'running' as const,
-    };
-
-    const props: ToolMessageProps = {
-      name: 'task',
-      description: 'Delegate task to subagent',
-      resultDisplay: subagentResultDisplay,
-      status: ToolCallStatus.Executing,
-      contentWidth: 80,
-      callId: 'test-call-id-2',
-      confirmationDetails: undefined,
-      config: mockConfig,
-    };
-
-    const { lastFrame } = renderWithContext(
-      <ToolMessage {...props} />,
-      StreamingState.Responding,
-    );
-
-    const output = lastFrame();
-    expect(output).toContain('🤖'); // Subagent execution display should show
-    expect(output).toContain('file-search'); // Actual subagent name
-    expect(output).toContain('Search for files matching pattern'); // Actual task description
-  });
-
-  it('renders AnsiOutputText for AnsiOutput results', () => {
-    const ansiResult: AnsiOutput = [
-      [
-        {
-          text: 'hello',
-          fg: '#ffffff',
-          bg: '#000000',
-          bold: false,
-          italic: false,
-          underline: false,
-          dim: false,
-          inverse: false,
-        },
-      ],
-    ];
-    const ansiOutputDisplay: AnsiOutputDisplay = { ansiOutput: ansiResult };
-    const { lastFrame } = renderWithContext(
-      <ToolMessage {...baseProps} resultDisplay={ansiOutputDisplay} />,
-      StreamingState.Idle,
-    );
-    expect(lastFrame()).toContain('MockAnsiOutput:hello');
-  });
-
-  it('renders rejected plan content with plan text still visible', () => {
-    const planResultDisplay = {
-      type: 'plan_summary' as const,
-      message: 'Plan was rejected. Remaining in plan mode.',
-      plan: '# My Plan\n- Step 1: Do something\n- Step 2: Do another thing',
-      rejected: true,
-    };
-
-    const { lastFrame } = renderWithContext(
-      <ToolMessage
-        {...baseProps}
-        name="ExitPlanMode"
-        description="Plan:"
-        status={ToolCallStatus.Canceled}
-        resultDisplay={planResultDisplay}
-      />,
-      StreamingState.Idle,
-    );
-
-    const output = lastFrame();
-    expect(output).toContain('Plan was rejected. Remaining in plan mode.');
-    expect(output).toContain('MockMarkdown:# My Plan');
-    expect(output).toContain('- Step 1: Do something');
-    expect(output).toContain('- Step 2: Do another thing');
-  });
-
-  it('renders approved plan content with approval message', () => {
-    const planResultDisplay = {
-      type: 'plan_summary' as const,
-      message: 'User approved the plan.',
-      plan: '# My Plan\n- Step 1\n- Step 2',
-    };
-
-    const { lastFrame } = renderWithContext(
-      <ToolMessage
-        {...baseProps}
-        name="ExitPlanMode"
-        description="Plan:"
-        status={ToolCallStatus.Success}
-        resultDisplay={planResultDisplay}
-      />,
-      StreamingState.Idle,
-    );
-
-    const output = lastFrame();
-    expect(output).toContain('User approved the plan.');
-    expect(output).toContain('MockMarkdown:# My Plan');
-    expect(output).toContain('- Step 1');
-    expect(output).toContain('- Step 2');
   });
 });

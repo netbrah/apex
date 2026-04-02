@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const SERVICE_NAME = 'apex';
+export const SERVICE_NAME = 'gemini-cli';
 export const SERVICE_DESCRIPTION =
   'Gemini CLI is an open-source AI agent that brings the power of Gemini directly into your terminal. It is designed to be a terminal-first, extensible, and powerful tool for developers, engineers, SREs, and beyond.';
 

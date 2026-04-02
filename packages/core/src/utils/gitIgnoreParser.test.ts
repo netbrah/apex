@@ -103,16 +103,6 @@ describe('GitIgnoreParser', () => {
         parser.isIgnored('ignored-at-root/should-not-work.txt', false),
       ).toBe(true);
     });
-
-    it('should handle backslash-prefixed files without crashing', () => {
-      expect(() => parser.isIgnored('\\backslash-file-test.txt')).not.toThrow();
-      expect(parser.isIgnored('\\backslash-file-test.txt')).toBe(false);
-    });
-
-    it('should handle files with absolute-like names', () => {
-      expect(() => parser.isIgnored('/backslash-file-test.txt')).not.toThrow();
-      expect(parser.isIgnored('/backslash-file-test.txt')).toBe(false);
-    });
   });
 
   describe('Advanced Pattern Matching', () => {

@@ -71,14 +71,7 @@ if (isInDebugMode) {
   // than the relaunched process making it harder to debug.
   env.APEX_NO_RELAUNCH = 'true';
 }
-// Use process.cwd() to inherit the working directory from launch.json cwd setting
-// This allows debugging from a specific directory (e.g., .todo)
-const workingDir = process.env.APEX_WORKING_DIR || process.cwd();
-const child = spawn('node', nodeArgs, {
-  stdio: 'inherit',
-  env,
-  cwd: workingDir,
-});
+const child = spawn('node', nodeArgs, { stdio: 'inherit', env });
 
 child.on('close', (code) => {
   process.exit(code);

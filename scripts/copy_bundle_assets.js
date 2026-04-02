@@ -20,24 +20,21 @@
 import { copyFileSync, existsSync, mkdirSync, cpSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
 import { glob } from 'glob';
-import fs from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const distDir = join(root, 'dist');
-const coreVendorDir = join(root, 'packages', 'core', 'vendor');
+const bundleDir = join(root, 'bundle');
 
-// Create the dist directory if it doesn't exist
-if (!existsSync(distDir)) {
-  mkdirSync(distDir);
+// Create the bundle directory if it doesn't exist
+if (!existsSync(bundleDir)) {
+  mkdirSync(bundleDir);
 }
 
 // 1. Copy Sandbox definitions (.sb)
 const sbFiles = glob.sync('packages/**/*.sb', { cwd: root });
 for (const file of sbFiles) {
-  copyFileSync(join(root, file), join(distDir, basename(file)));
+  copyFileSync(join(root, file), join(bundleDir, basename(file)));
 }
 
 // 2. Copy Policy definitions (.toml)
@@ -82,7 +79,7 @@ const devtoolsDest = join(
   bundleDir,
   'node_modules',
   '@google',
-  'apex-devtools',
+  'gemini-cli-devtools',
 );
 const devtoolsDistSrc = join(devtoolsSrc, 'dist');
 if (existsSync(devtoolsDistSrc)) {

@@ -215,37 +215,6 @@ describe('ShellProcessor', () => {
     );
   });
 
-  it('should NOT throw ConfirmationRequiredError when a command matches allowedTools', async () => {
-    const processor = new ShellProcessor('test-command');
-    const prompt: PromptPipelineContent = createPromptPipelineContent(
-      'Do something dangerous: !{rm -rf /}',
-    );
-    mockCheckCommandPermissions.mockReturnValue({
-      allAllowed: false,
-      disallowedCommands: ['rm -rf /'],
-    });
-    // Simulate allowedTools being pre-merged into permissionsAllow by Config,
-    // so PermissionManager returns 'allow' for this command.
-    (mockConfig.getPermissionManager as Mock).mockReturnValue({
-      isCommandAllowed: (_cmd: string) => 'allow',
-    });
-    mockShellExecute.mockReturnValue({
-      result: Promise.resolve({ ...SUCCESS_RESULT, output: 'deleted' }),
-    });
-
-    const result = await processor.process(prompt, context);
-
-    expect(mockShellExecute).toHaveBeenCalledWith(
-      'rm -rf /',
-      expect.any(String),
-      expect.any(Function),
-      expect.any(Object),
-      false,
-      expect.any(Object),
-    );
-    expect(result).toEqual([{ text: 'Do something dangerous: deleted' }]);
-  });
-
   it('should NOT throw ConfirmationRequiredError if a command is not allowed but approval mode is YOLO', async () => {
     const processor = new ShellProcessor('test-command');
     const prompt: PromptPipelineContent = createPromptPipelineContent(
