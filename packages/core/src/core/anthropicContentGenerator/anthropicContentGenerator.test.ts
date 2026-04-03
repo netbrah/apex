@@ -875,5 +875,90 @@ describe('AnthropicContentGenerator', () => {
         totalTokenCount: 14,
       });
     });
+
+    it('emits redacted_thinking blocks at content_block_stop in streaming', async () => {
+      const { AnthropicContentGenerator } = await importGenerator();
+      anthropicState.createImpl.mockResolvedValue(
+        (async function* () {
+          yield {
+            type: 'message_start',
+            message: {
+              id: 'msg-2',
+              model: 'claude-test',
+              usage: { input_tokens: 5 },
+            },
+          };
+          yield {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'redacted_thinking',
+              data: 'opaque_blob_stream',
+            },
+          };
+          yield { type: 'content_block_stop', index: 0 };
+          yield {
+            type: 'content_block_start',
+            index: 1,
+            content_block: { type: 'text' },
+          };
+          yield {
+            type: 'content_block_delta',
+            index: 1,
+            delta: { type: 'text_delta', text: 'Answer' },
+          };
+          yield { type: 'content_block_stop', index: 1 };
+          yield {
+            type: 'message_delta',
+            delta: { stop_reason: 'end_turn' },
+            usage: { output_tokens: 3 },
+          };
+          yield { type: 'message_stop' };
+        })(),
+      );
+
+      const generator = new AnthropicContentGenerator(
+        {
+          model: 'claude-test',
+          apiKey: 'test-key',
+          timeout: 10_000,
+          maxRetries: 2,
+          samplingParams: { max_tokens: 100 },
+          schemaCompliance: 'auto',
+        },
+        mockConfig,
+      );
+
+      const stream = await generator.generateContentStream(
+        {
+          model: 'models/ignored',
+          contents: 'Hello',
+        } as unknown as GenerateContentParameters,
+        'test-prompt-id',
+        LlmRole.MAIN,
+      );
+
+      const chunks: GenerateContentResponse[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+
+      // Redacted thinking chunk emitted at content_block_stop
+      const redactedChunk = chunks[0];
+      const redactedPart = redactedChunk?.candidates?.[0]?.content?.parts?.[0];
+      expect(redactedPart).toBeDefined();
+      expect(redactedPart?.thought).toBe(true);
+      expect(redactedPart?.text).toBe('');
+      expect(
+        (redactedPart as unknown as Record<string, unknown>)?.[
+          '_redactedThinkingData'
+        ],
+      ).toBe('opaque_blob_stream');
+
+      // Text chunk follows
+      expect(chunks[1]?.candidates?.[0]?.content?.parts?.[0]).toEqual({
+        text: 'Answer',
+      });
+    });
   });
 });

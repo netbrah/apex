@@ -199,6 +199,7 @@ describe('AnthropicContentConverter', () => {
               type: 'tool_result',
               tool_use_id: 'call-1',
               content: 'ok',
+              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -287,6 +288,7 @@ describe('AnthropicContentConverter', () => {
             tool_use_id: 'call-1',
             content: 'boom',
             is_error: true,
+            cache_control: { type: 'ephemeral' },
           },
         ],
       });
@@ -320,6 +322,7 @@ describe('AnthropicContentConverter', () => {
             type: 'tool_result',
             tool_use_id: 'call-1',
             content: '',
+            cache_control: { type: 'ephemeral' },
           },
         ],
       });
@@ -370,6 +373,7 @@ describe('AnthropicContentConverter', () => {
                   },
                 },
               ],
+              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -468,6 +472,7 @@ describe('AnthropicContentConverter', () => {
                   },
                 },
               ],
+              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -519,6 +524,7 @@ describe('AnthropicContentConverter', () => {
                   },
                 },
               ],
+              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -570,6 +576,7 @@ describe('AnthropicContentConverter', () => {
                   },
                 },
               ],
+              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -699,6 +706,7 @@ describe('AnthropicContentConverter', () => {
                 },
               },
             ],
+            cache_control: { type: 'ephemeral' },
           },
         ],
       });
@@ -907,6 +915,50 @@ describe('AnthropicContentConverter', () => {
         { functionCall: { id: 't1', name: 'tool', args: { x: 1 } } },
       ]);
     });
+
+    it('extracts cache_read_input_tokens and cache_creation_input_tokens into usageMetadata', () => {
+      const response = converter.convertAnthropicResponseToGemini({
+        id: 'msg-cache',
+        model: 'claude-test',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'hello' }],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 50,
+          cache_read_input_tokens: 200,
+          cache_creation_input_tokens: 30,
+        },
+      } as unknown as Anthropic.Message);
+
+      expect(response.usageMetadata).toEqual({
+        promptTokenCount: 330, // 200 + 30 + 100
+        candidatesTokenCount: 50,
+        totalTokenCount: 380, // 200 + 30 + 100 + 50
+        cachedContentTokenCount: 230, // 200 + 30
+      });
+    });
+
+    it('handles zero cache tokens without setting cachedContentTokenCount', () => {
+      const response = converter.convertAnthropicResponseToGemini({
+        id: 'msg-nocache',
+        model: 'claude-test',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'hello' }],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      } as unknown as Anthropic.Message);
+
+      expect(response.usageMetadata).toEqual({
+        promptTokenCount: 10,
+        candidatesTokenCount: 5,
+        totalTokenCount: 15,
+        cachedContentTokenCount: undefined,
+      });
+    });
   });
 
   describe('mapAnthropicFinishReasonToGemini', () => {
@@ -999,6 +1051,62 @@ describe('AnthropicContentConverter', () => {
         },
       });
       expect(result[0]).not.toHaveProperty('cache_control');
+    });
+
+    it('adds cache_control to last tool_result block (non-text)', () => {
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: 'call-1',
+                  name: 'tool',
+                  response: { output: 'result' },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const content = messages[0]?.content as Array<Record<string, unknown>>;
+      expect(content).toHaveLength(1);
+      expect(content[0]?.['cache_control']).toEqual({ type: 'ephemeral' });
+    });
+
+    it('adds cache_control to image block when it is the last content', () => {
+      const { messages } = converter.convertGeminiRequestToAnthropic({
+        model: 'models/test',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: 'call-1',
+                  name: 'Read',
+                  response: { output: 'img' },
+                  parts: [
+                    {
+                      inlineData: {
+                        mimeType: 'image/png',
+                        data: 'abc',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const content = messages[0]?.content as Array<Record<string, unknown>>;
+      expect(content).toHaveLength(1);
+      expect(content[0]?.['cache_control']).toEqual({ type: 'ephemeral' });
     });
   });
 

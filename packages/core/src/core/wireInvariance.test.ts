@@ -940,10 +940,13 @@ describe('Wire Protocol Invariance (Schema-Driven)', () => {
         ),
       );
       expect(gemini.usageMetadata).toBeDefined();
-      expect(gemini.usageMetadata!.promptTokenCount).toBe(100);
+      // promptTokenCount = cache_creation(10) + cache_read(30) + input(100)
+      expect(gemini.usageMetadata!.promptTokenCount).toBe(140);
       expect(gemini.usageMetadata!.candidatesTokenCount).toBe(50);
-      expect(gemini.usageMetadata!.totalTokenCount).toBe(150);
-      // cache_creation_input_tokens: documented gap — not mapped
+      // totalTokenCount = 140 + 50
+      expect(gemini.usageMetadata!.totalTokenCount).toBe(190);
+      // cachedContentTokenCount = cache_creation(10) + cache_read(30)
+      expect(gemini.usageMetadata!.cachedContentTokenCount).toBe(40);
     });
 
     it('all Anthropic stop_reasons produce valid Gemini FinishReason', () => {
@@ -1298,7 +1301,7 @@ describe('Wire Protocol Invariance (Schema-Driven)', () => {
   // ═══════════════════════════════════════════════════════════════════
 
   describe('§5 — Known gap regression guards', () => {
-    it('Anthropic: cache_creation_input_tokens is not mapped (documented gap)', () => {
+    it('Anthropic: cache_creation_input_tokens is now mapped to cachedContentTokenCount', () => {
       const converter = new AnthropicContentConverter('test', 'auto');
       const gemini = converter.convertAnthropicResponseToGemini(
         makeAnthropicResponse(
@@ -1311,11 +1314,11 @@ describe('Wire Protocol Invariance (Schema-Driven)', () => {
           },
         ),
       );
-      // If someone adds cache_creation mapping, this will fail — update the docs!
       const metadata = gemini.usageMetadata;
       expect(metadata).toBeDefined();
-      // There's no field for cache_creation in Gemini UsageMetadata
-      expect(metadata!.totalTokenCount).toBe(150);
+      // cache_creation(42) + cache_read(0) + input(100) + output(50)
+      expect(metadata!.totalTokenCount).toBe(192);
+      expect(metadata!.cachedContentTokenCount).toBe(42);
     });
 
     it('OpenAI: refusal text is not mapped (documented gap)', () => {

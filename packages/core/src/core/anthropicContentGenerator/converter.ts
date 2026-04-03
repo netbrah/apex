@@ -235,10 +235,30 @@ export class AnthropicContentConverter {
     if (response.usage) {
       const promptTokens = response.usage.input_tokens || 0;
       const completionTokens = response.usage.output_tokens || 0;
+      // Extract cache token counts — Anthropic SDK includes these in usage but
+      // the TypeScript type definitions may not expose them directly.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const usageRecord = response.usage as unknown as Record<string, unknown>;
+      const cacheReadRaw = usageRecord['cache_read_input_tokens'];
+      const cacheReadTokens =
+        cacheReadRaw !== null &&
+        cacheReadRaw !== undefined &&
+        typeof cacheReadRaw === 'number'
+          ? cacheReadRaw
+          : 0;
+      const cacheCreationRaw = usageRecord['cache_creation_input_tokens'];
+      const cacheCreationTokens =
+        cacheCreationRaw !== null &&
+        cacheCreationRaw !== undefined &&
+        typeof cacheCreationRaw === 'number'
+          ? cacheCreationRaw
+          : 0;
+      const cachedTokens = cacheReadTokens + cacheCreationTokens;
       geminiResponse.usageMetadata = {
-        promptTokenCount: promptTokens,
+        promptTokenCount: cachedTokens + promptTokens,
         candidatesTokenCount: completionTokens,
-        totalTokenCount: promptTokens + completionTokens,
+        totalTokenCount: cachedTokens + promptTokens + completionTokens,
+        cachedContentTokenCount: cachedTokens || undefined,
       };
     }
 
@@ -645,6 +665,7 @@ export class AnthropicContentConverter {
   /**
    * Add cache_control to the last user message's content.
    * This enables prompt caching for the conversation context.
+   * Supports text, image, tool_result, and document blocks.
    */
   private addCacheControlToMessages(messages: Anthropic.MessageParam[]): void {
     // Find the last user message to add cache_control
@@ -657,19 +678,24 @@ export class AnthropicContentConverter {
 
         if (content.length > 0) {
           const lastContent = content[content.length - 1];
-          // Only add cache_control if the last block is a non-empty text block
-          if (
-            typeof lastContent === 'object' &&
-            'type' in lastContent &&
-            lastContent.type === 'text' &&
-            'text' in lastContent &&
-            lastContent.text
-          ) {
-            lastContent.cache_control = {
-              type: 'ephemeral',
-            };
+          // Add cache_control to any object block type (text, image, tool_result, document)
+          if (typeof lastContent === 'object' && 'type' in lastContent) {
+            // For text blocks, only add if text is non-empty
+            if (
+              lastContent.type === 'text' &&
+              'text' in lastContent &&
+              !lastContent.text
+            ) {
+              // Skip empty text blocks
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              (lastContent as unknown as Record<string, unknown>)[
+                'cache_control'
+              ] = {
+                type: 'ephemeral',
+              };
+            }
           }
-          // If last block is not text or is empty, don't add cache_control
           msg.content = content;
         }
         break;

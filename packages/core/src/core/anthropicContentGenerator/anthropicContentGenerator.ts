@@ -47,6 +47,7 @@ type StreamingBlockState = {
   name?: string;
   inputJson: string;
   signature: string;
+  data: string;
 };
 
 type MessageCreateParamsWithThinking = MessageCreateParamsNonStreaming & {
@@ -364,6 +365,12 @@ export class AnthropicContentGenerator implements ContentGenerator {
               typeof event.content_block.signature === 'string'
                 ? event.content_block.signature
                 : '',
+            data:
+              type === 'redacted_thinking' &&
+              'data' in event.content_block &&
+              typeof event.content_block.data === 'string'
+                ? event.content_block.data
+                : '',
           });
           break;
         }
@@ -429,6 +436,19 @@ export class AnthropicContentGenerator implements ContentGenerator {
                   args,
                 },
               },
+              messageId,
+              model,
+            );
+            collectedResponses.push(chunk);
+            yield chunk;
+          } else if (blockState?.type === 'redacted_thinking') {
+            // Emit redacted thinking as a thought part with opaque data
+            const chunk = this.buildGeminiChunk(
+              {
+                text: '',
+                thought: true,
+                _redactedThinkingData: blockState.data,
+              } as Part & { _redactedThinkingData: string },
               messageId,
               model,
             );
