@@ -217,7 +217,7 @@ describe('MemoryContextManager', () => {
         expect.any(Set),
         ['.git'],
       );
-      expect(result).toMatch(/--- Context from: \/app\/src\/GEMINI\.md ---/);
+      expect(result).toMatch(/--- Context from: \/app\/src\/APEX\.md ---/);
       expect(result).toContain('Src Content');
       expect(memoryContextManager.getLoadedPaths()).toContain(
         '/app/src/APEX.md',

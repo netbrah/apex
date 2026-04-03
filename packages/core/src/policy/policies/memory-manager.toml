@@ -7,7 +7,7 @@ subagent = "save_memory"
 toolName = ["read_file", "list_directory", "glob", "grep_search"]
 decision = "allow"
 priority = 100
-argsPattern = "(^|.*/)\\.gemini/.*"
+argsPattern = "(^|.*/)\\.apex/.*"
 denyMessage = "Memory Manager is only allowed to access the .gemini folder."
 
 # Write tools: only allow .md files under .gemini/
@@ -16,5 +16,5 @@ subagent = "save_memory"
 toolName = ["write_file", "replace"]
 decision = "allow"
 priority = 100
-argsPattern = "(^|.*/)\\.gemini/.*\\.md\""
+argsPattern = "(^|.*/)\\.apex/.*\\.md\""
 denyMessage = "Memory Manager is only allowed to write .md files in the .gemini folder."
