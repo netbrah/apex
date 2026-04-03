@@ -49,6 +49,20 @@ export interface ContentGenerator {
 
   embedContent(request: EmbedContentParameters): Promise<EmbedContentResponse>;
 
+  /**
+   * Whether this provider returns thinking/reasoning as a summarized text
+   * block rather than raw chain-of-thought tokens.
+   *
+   * - `true` — the provider emits a condensed reasoning summary (e.g. OpenAI
+   *   Responses API `reasoning_summary`). The caller should display it as-is.
+   * - `false` (default) — the provider returns full thinking tokens
+   *   (Gemini native thinking, Anthropic `thinking` blocks, OpenAI Chat
+   *   reasoning_content). The caller may truncate or transform for display.
+   *
+   * Implementations that do not support thinking at all should return `false`.
+   */
+  useSummarizedThinking?(): boolean;
+
   userTier?: UserTierId;
 
   userTierName?: string;

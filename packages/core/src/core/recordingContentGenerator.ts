@@ -39,6 +39,10 @@ export class RecordingContentGenerator implements ContentGenerator {
     return this.realGenerator.userTierName;
   }
 
+  useSummarizedThinking(): boolean {
+    return this.realGenerator.useSummarizedThinking?.() ?? false;
+  }
+
   async generateContent(
     request: GenerateContentParameters,
     userPromptId: string,
