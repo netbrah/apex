@@ -183,7 +183,8 @@ export class ResponsesWebSocketManager {
   ): AsyncGenerator<ResponsesWsEvent> {
     // Acquire the stream lock so concurrent callers don't interleave on
     // the same WebSocket connection.
-    let releaseLock: () => void;
+     
+    let releaseLock: () => void = () => {};
     const prevLock = this.streamLock;
     this.streamLock = new Promise<void>((resolve) => {
       releaseLock = resolve;
@@ -241,7 +242,7 @@ export class ResponsesWebSocketManager {
         throw err;
       }
     } finally {
-      releaseLock!();
+      releaseLock();
     }
   }
 
