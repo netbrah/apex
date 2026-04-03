@@ -188,6 +188,10 @@ export function validateModelConfig(
   if (!config.model) {
     errors.push(new Error(`Missing model for auth type: ${config.authType}`));
   }
+  // Anthropic requires an explicit baseUrl
+  if (config.authType === AuthType.USE_ANTHROPIC && !config.baseUrl) {
+    errors.push(new Error('Anthropic requires ANTHROPIC_BASE_URL to be set'));
+  }
   return { valid: errors.length === 0, errors };
 }
 
@@ -268,8 +272,7 @@ export async function createContentGeneratorConfig(
       apiKey || process.env['ANTHROPIC_API_KEY'] || undefined;
     contentGeneratorConfig.baseUrl =
       baseUrl || process.env['ANTHROPIC_BASE_URL'] || undefined;
-    contentGeneratorConfig.model =
-      process.env['ANTHROPIC_MODEL'] || undefined;
+    contentGeneratorConfig.model = process.env['ANTHROPIC_MODEL'] || undefined;
     return contentGeneratorConfig;
   }
 
@@ -331,8 +334,7 @@ export async function createContentGenerator(
       gcConfig.getHasAccessToPreviewModel?.() ?? true,
       gcConfig,
     );
-    const customHeadersEnv =
-      process.env['APEX_CUSTOM_HEADERS'] || undefined;
+    const customHeadersEnv = process.env['APEX_CUSTOM_HEADERS'] || undefined;
     const clientName = gcConfig.getClientName();
     const surface = determineSurface();
 

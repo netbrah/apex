@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect } from 'vitest';
@@ -551,7 +553,7 @@ describe('ModelsConfig', () => {
       modelProvidersConfig,
       generationConfig: {},
     });
-    expect(config3.getModel()).toBe('coder-model'); // Falls back to DEFAULT_CODER_MODEL
+    expect(config3.getModel()).toBe('qwen3-coder'); // Falls back to DEFAULT_CODER_MODEL
     expect(config3.getGenerationConfig().model).toBeUndefined();
   });
 
@@ -652,7 +654,7 @@ describe('ModelsConfig', () => {
             envKey: 'ANTHROPIC_API_KEY',
           },
         ],
-        gemini: [
+        'gemini-api-key': [
           {
             id: 'gemini-model-1',
             name: 'Gemini Model 1',
@@ -1244,7 +1246,7 @@ describe('ModelsConfig', () => {
       // Reload with different config
       modelsConfig.reloadModelProvidersConfig({
         openai: [{ id: 'gpt-3.5', name: 'GPT-3.5' }],
-        gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+        'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
       });
 
       const updatedModels = modelsConfig.getAllConfiguredModels();
@@ -1258,7 +1260,7 @@ describe('ModelsConfig', () => {
         initialAuthType: AuthType.USE_OPENAI,
         modelProvidersConfig: {
           openai: [{ id: 'gpt-4', name: 'GPT-4' }],
-          gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+          'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
         },
       });
 
@@ -1332,7 +1334,7 @@ describe('ModelsConfig', () => {
             { id: 'gpt-4', name: 'GPT-4' },
             { id: 'gpt-3.5', name: 'GPT-3.5' },
           ],
-          gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+          'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
         },
       });
 
@@ -1340,7 +1342,7 @@ describe('ModelsConfig', () => {
       modelsConfig.reloadModelProvidersConfig({
         openai: [{ id: 'new-openai', name: 'New OpenAI' }],
         anthropic: [{ id: 'claude', name: 'Claude' }],
-        gemini: [{ id: 'gemini-ultra', name: 'Gemini Ultra' }],
+        'gemini-api-key': [{ id: 'gemini-ultra', name: 'Gemini Ultra' }],
       });
 
       const allModels = modelsConfig.getAllConfiguredModels();
@@ -1450,7 +1452,7 @@ describe('ModelsConfig', () => {
             baseUrl: 'https://api.anthropic.example.com/v1',
           },
         ],
-        gemini: [
+        'gemini-api-key': [
           {
             id: 'gemini-pro',
             name: 'Gemini Pro',

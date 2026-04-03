@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -214,7 +216,7 @@ describe('ModelRegistry', () => {
     it('should accept valid authType keys', () => {
       const registry = new ModelRegistry({
         openai: [{ id: 'gpt-4', name: 'GPT-4' }],
-        gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+        'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
       });
 
       const openaiModels = registry.getModelsForAuthType(AuthType.USE_OPENAI);
@@ -244,7 +246,7 @@ describe('ModelRegistry', () => {
       const registry = new ModelRegistry({
         openai: [{ id: 'gpt-4', name: 'GPT-4' }],
         'bad-key-1': [{ id: 'model-1', name: 'Model 1' }],
-        gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+        'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
         'bad-key-2': [{ id: 'model-2', name: 'Model 2' }],
       } as unknown as ModelProvidersConfig);
 
@@ -324,7 +326,7 @@ describe('ModelRegistry', () => {
     it('should treat same id in different authTypes as different models', () => {
       const registry = new ModelRegistry({
         openai: [{ id: 'shared-model', name: 'OpenAI Shared' }],
-        gemini: [{ id: 'shared-model', name: 'Gemini Shared' }],
+        'gemini-api-key': [{ id: 'shared-model', name: 'Gemini Shared' }],
       });
 
       const openaiModel = registry.getModel(
@@ -364,7 +366,7 @@ describe('ModelRegistry', () => {
     it('should clear user-configured models when reload with empty config', () => {
       const registry = new ModelRegistry({
         openai: [{ id: 'gpt-4', name: 'GPT-4' }],
-        gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+        'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
       });
 
       expect(registry.getModelsForAuthType(AuthType.USE_OPENAI).length).toBe(1);
@@ -387,7 +389,7 @@ describe('ModelRegistry', () => {
           { id: 'gpt-4', name: 'GPT-4 Updated' },
           { id: 'gpt-3.5', name: 'GPT-3.5' },
         ],
-        gemini: [{ id: 'gemini-pro', name: 'Gemini Pro' }],
+        'gemini-api-key': [{ id: 'gemini-pro', name: 'Gemini Pro' }],
       });
 
       const openaiModels = registry.getModelsForAuthType(AuthType.USE_OPENAI);
