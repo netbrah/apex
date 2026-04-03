@@ -41,11 +41,13 @@ function toOpenAPI30(schema: Record<string, unknown>): Record<string, unknown> {
       return obj.map(convert);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const source = obj as Record<string, unknown>;
     const target: Record<string, unknown> = {};
 
     // 1. Type Handling
     if (Array.isArray(source['type'])) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const types = source['type'] as string[];
       // Handle ["string", "null"] pattern common in modern schemas
       if (types.length === 2 && types.includes('null')) {
@@ -69,10 +71,12 @@ function toOpenAPI30(schema: Record<string, unknown>): Record<string, unknown> {
 
     // 3. Exclusive Limits (Draft 6+ number) -> (Draft 4 boolean)
     // exclusiveMinimum: 10 -> minimum: 10, exclusiveMinimum: true
+    // eslint-disable-next-line no-restricted-syntax
     if (typeof source['exclusiveMinimum'] === 'number') {
       target['minimum'] = source['exclusiveMinimum'];
       target['exclusiveMinimum'] = true;
     }
+    // eslint-disable-next-line no-restricted-syntax
     if (typeof source['exclusiveMaximum'] === 'number') {
       target['maximum'] = source['exclusiveMaximum'];
       target['exclusiveMaximum'] = true;
@@ -89,6 +93,7 @@ function toOpenAPI30(schema: Record<string, unknown>): Record<string, unknown> {
       // Ideally, we could use `oneOf` on the items if we wanted to be stricter.
       delete target['items'];
     } else if (
+      // eslint-disable-next-line no-restricted-syntax
       typeof source['items'] === 'object' &&
       source['items'] !== null
     ) {
@@ -131,5 +136,6 @@ function toOpenAPI30(schema: Record<string, unknown>): Record<string, unknown> {
     return target;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return convert(schema) as Record<string, unknown>;
 }

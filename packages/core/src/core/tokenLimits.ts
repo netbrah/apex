@@ -23,7 +23,10 @@ export const DEFAULT_OUTPUT_TOKEN_LIMIT = 16_384;
  * Strips deployment prefixes (e.g. "accounts/.../models/") and lowercases.
  */
 export function normalize(model: string): string {
-  const stripped = model.replace(/^(accounts\/[^/]+\/)?models\//, '');
+  // Strip Google-style prefixes: accounts/{id}/models/{model}
+  let stripped = model.replace(/^(accounts\/[^/]+\/)?models\//, '');
+  // Strip provider prefixes: openai/gpt-4o → gpt-4o, anthropic/claude-3 → claude-3
+  stripped = stripped.replace(/^[a-zA-Z0-9_-]+\//, '');
   return stripped.toLowerCase();
 }
 
@@ -38,7 +41,7 @@ const OUTPUT_LIMITS: Record<string, number> = {
   'gpt-4.1': 32_768,
   'gpt-4.1-mini': 16_384,
   'gpt-4.1-nano': 16_384,
-  'o3': 100_000,
+  o3: 100_000,
   'o4-mini': 100_000,
 };
 
@@ -53,7 +56,10 @@ export function hasExplicitOutputLimit(model: string): boolean {
   return false;
 }
 
-export function tokenLimit(model: Model, kind?: 'input' | 'output'): TokenCount {
+export function tokenLimit(
+  model: Model,
+  kind?: 'input' | 'output',
+): TokenCount {
   if (kind === 'output') {
     const norm = normalize(model);
     for (const [key, limit] of Object.entries(OUTPUT_LIMITS)) {

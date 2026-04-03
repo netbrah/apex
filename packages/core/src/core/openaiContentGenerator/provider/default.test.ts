@@ -1,10 +1,19 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
-import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  type MockedFunction,
+} from 'vitest';
 import OpenAI from 'openai';
 import { DefaultOpenAICompatibleProvider } from './default.js';
 import type { Config } from '../../../config/config.js';

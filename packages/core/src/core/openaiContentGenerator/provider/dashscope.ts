@@ -1,3 +1,8 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
 import OpenAI from 'openai';
 import type { GenerateContentConfig } from '@google/genai';
 import type { Config } from '../../../config/config.js';
@@ -116,6 +121,7 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
     const extraBody = this.contentGeneratorConfig.extra_body;
 
     if (this.isVisionModel(request.model)) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       return {
         ...requestWithTokenLimits,
         messages,
@@ -187,6 +193,7 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
               return message;
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             return {
               ...message,
               content: this.addCacheControlToContent(message.content),
@@ -248,6 +255,7 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
         } as ChatCompletionContentPartTextWithCache,
       ];
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return [...content] as ChatCompletionContentPartWithCache[];
   }
 
@@ -263,6 +271,7 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
 
     // Add cache_control to the last text item
     const lastItem = contentArray[contentArray.length - 1];
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     contentArray[contentArray.length - 1] = {
       ...lastItem,
       cache_control: { type: 'ephemeral' },

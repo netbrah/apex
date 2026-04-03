@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type { Mock } from 'vitest';
@@ -1098,7 +1100,7 @@ describe('ContentGenerationPipeline', () => {
       expect(results[0]).toBe(mockContentResponse);
 
       // The merged result should have the function call and usage metadata
-      const mergedResult = results[1]!;
+      const mergedResult = results[1];
       expect(mergedResult.candidates?.[0]?.finishReason).toBe(
         FinishReason.STOP,
       );

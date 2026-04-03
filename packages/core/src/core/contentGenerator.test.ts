@@ -350,10 +350,7 @@ describe('createContentGenerator', () => {
       models: {},
     } as unknown as GoogleGenAI;
     vi.mocked(GoogleGenAI).mockImplementation(() => mockGenerator as never);
-    vi.stubEnv(
-      'APEX_CUSTOM_HEADERS',
-      'X-Test-Header: test, Another: value',
-    );
+    vi.stubEnv('APEX_CUSTOM_HEADERS', 'X-Test-Header: test, Another: value');
 
     await createContentGenerator(
       {

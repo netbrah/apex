@@ -95,9 +95,7 @@ export function getStdioConfigFromEnv(): StdioConfig | undefined {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         args = parsedArgs;
       } else {
-        logger.error(
-          'APEX_IDE_SERVER_STDIO_ARGS must be a JSON array string.',
-        );
+        logger.error('APEX_IDE_SERVER_STDIO_ARGS must be a JSON array string.');
       }
     } catch (e) {
       logger.error('Failed to parse APEX_IDE_SERVER_STDIO_ARGS:', e);

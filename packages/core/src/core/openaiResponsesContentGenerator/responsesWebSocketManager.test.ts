@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -10,7 +12,7 @@ import { ResponsesWebSocketManager } from './responsesWebSocketManager.js';
 import type { ResponsesApiRequest } from './types.js';
 import type { ResponsesWsEvent, WebSocketManagerConfig } from './wsTypes.js';
 
-import net from 'net';
+import net from 'node:net';
 
 function findPort(): Promise<number> {
   return new Promise((resolve) => {
@@ -321,7 +323,7 @@ describe('ResponsesWebSocketManager', () => {
   it('should fallback on 426 Upgrade Required', async () => {
     await new Promise<void>((resolve) => wss.close(() => resolve()));
 
-    const { createServer } = await import('http');
+    const { createServer } = await import('node:http');
     const httpServer = createServer((_req, res) => {
       res.writeHead(426);
       res.end();

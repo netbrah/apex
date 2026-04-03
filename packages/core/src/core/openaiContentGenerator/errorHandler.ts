@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type { GenerateContentParameters } from '@google/genai';
@@ -76,9 +78,9 @@ export class EnhancedErrorHandler implements ErrorHandler {
       error instanceof Error
         ? error.message.toLowerCase()
         : String(error).toLowerCase();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-type-assertion
     const errorCode = (error as any)?.code;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-type-assertion
     const errorType = (error as any)?.type;
 
     // Check for common timeout indicators

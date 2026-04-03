@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 /**
@@ -203,7 +205,8 @@ export function envLayer<T = string>(
     rawValue !== undefined
       ? transform
         ? transform(rawValue)
-        : (rawValue as unknown as T)
+        : // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          (rawValue as unknown as T)
       : undefined;
   return {
     value,

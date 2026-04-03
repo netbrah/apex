@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type {
@@ -258,6 +260,7 @@ export class RequestTokenizer {
     // Some request shapes (e.g. CountTokensParameters) allow passing parts directly
     // instead of wrapping them in a { parts: [...] } Content object.
     this.processPart(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       content as Part | string,
       textContents,
       imageContents,

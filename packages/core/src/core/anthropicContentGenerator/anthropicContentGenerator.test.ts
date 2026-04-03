@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -272,7 +274,11 @@ describe('AnthropicContentGenerator', () => {
         },
       };
 
-      const result = await generator.generateContent(request, 'test-prompt-id', LlmRole.MAIN);
+      const result = await generator.generateContent(
+        request,
+        'test-prompt-id',
+        LlmRole.MAIN,
+      );
       expect(result.responseId).toBe('gemini-1');
 
       expect(anthropicState.lastCreateArgs).toBeDefined();
@@ -317,11 +323,15 @@ describe('AnthropicContentGenerator', () => {
         mockConfig,
       );
 
-      await generator.generateContent({
-        model: 'models/ignored',
-        contents: 'Hello',
-        config: { thinkingConfig: { includeThoughts: false } },
-      } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+      await generator.generateContent(
+        {
+          model: 'models/ignored',
+          contents: 'Hello',
+          config: { thinkingConfig: { includeThoughts: false } },
+        } as unknown as GenerateContentParameters,
+        'test-prompt-id',
+        LlmRole.MAIN,
+      );
 
       const [anthropicRequest] =
         anthropicState.lastCreateArgs as AnthropicCreateArgs;
@@ -351,10 +361,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
@@ -383,11 +397,15 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-          config: { maxOutputTokens: 100_000 },
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+            config: { maxOutputTokens: 100_000 },
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
@@ -416,10 +434,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
@@ -448,10 +470,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
@@ -480,11 +506,15 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-          config: { maxOutputTokens: null as unknown as undefined },
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+            config: { maxOutputTokens: null as unknown as undefined },
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
@@ -516,10 +546,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
         expect(req).toEqual(
@@ -551,10 +585,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
         expect(req).toEqual(
@@ -586,10 +624,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
         expect(req).toEqual(
@@ -621,10 +663,14 @@ describe('AnthropicContentGenerator', () => {
           mockConfig,
         );
 
-        await generator.generateContent({
-          model: 'models/ignored',
-          contents: 'Hello',
-        } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+        await generator.generateContent(
+          {
+            model: 'models/ignored',
+            contents: 'Hello',
+          } as unknown as GenerateContentParameters,
+          'test-prompt-id',
+          LlmRole.MAIN,
+        );
 
         const [req] = anthropicState.lastCreateArgs as AnthropicCreateArgs;
         expect(req).toEqual(expect.objectContaining({ max_tokens: 500 }));
@@ -777,10 +823,14 @@ describe('AnthropicContentGenerator', () => {
         mockConfig,
       );
 
-      const stream = await generator.generateContentStream({
-        model: 'models/ignored',
-        contents: 'Hello',
-      } as unknown as GenerateContentParameters, 'test-prompt-id', LlmRole.MAIN);
+      const stream = await generator.generateContentStream(
+        {
+          model: 'models/ignored',
+          contents: 'Hello',
+        } as unknown as GenerateContentParameters,
+        'test-prompt-id',
+        LlmRole.MAIN,
+      );
 
       const chunks: GenerateContentResponse[] = [];
       for await (const chunk of stream) {
@@ -816,7 +866,7 @@ describe('AnthropicContentGenerator', () => {
       });
 
       // Usage/finish chunks exist; check the last one.
-      const last = chunks[chunks.length - 1]!;
+      const last = chunks[chunks.length - 1];
       expect(last.candidates?.[0]?.finishReason).toBe(FinishReason.STOP);
       expect(last.usageMetadata).toEqual({
         cachedContentTokenCount: 2,

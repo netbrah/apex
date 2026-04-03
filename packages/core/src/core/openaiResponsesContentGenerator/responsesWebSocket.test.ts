@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -9,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import { ResponsesWebSocket } from './responsesWebSocket.js';
 import type { ResponseCreateWsRequest } from './wsTypes.js';
 
-import net from 'net';
+import net from 'node:net';
 
 function findPort(): Promise<number> {
   return new Promise((resolve) => {
@@ -111,9 +113,9 @@ describe('ResponsesWebSocket', () => {
     }
 
     expect(events).toHaveLength(3);
-    expect(events[0]!.type).toBe('response.created');
-    expect(events[1]!.type).toBe('response.output_text.delta');
-    expect(events[2]!.type).toBe('response.completed');
+    expect(events[0].type).toBe('response.created');
+    expect(events[1].type).toBe('response.output_text.delta');
+    expect(events[2].type).toBe('response.completed');
   });
 
   it('should handle idle timeout', async () => {
@@ -312,7 +314,7 @@ describe('ResponsesWebSocket', () => {
       events.push(event);
     }
     expect(events).toHaveLength(2);
-    expect(events[0]!.type).toBe('response.created');
+    expect(events[0].type).toBe('response.created');
   });
 
   it('should enable permessage-deflate', async () => {

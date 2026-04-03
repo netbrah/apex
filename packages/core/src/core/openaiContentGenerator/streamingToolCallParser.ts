@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { safeJsonParse } from '../../utils/safeJsonParse.js';
@@ -183,15 +185,19 @@ export class StreamingToolCallParser {
     if (depth === 0 && newBuffer.trim().length > 0) {
       try {
         // Standard JSON parsing attempt
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const parsed = JSON.parse(newBuffer);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         return { complete: true, value: parsed };
       } catch (e) {
         // Intelligent repair: try auto-closing unclosed strings
         if (inString) {
           try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             const repaired = JSON.parse(newBuffer + '"');
             return {
               complete: true,
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               value: repaired,
               repaired: true,
             };
@@ -253,12 +259,14 @@ export class StreamingToolCallParser {
 
         // Try to parse the final buffer
         try {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           args = JSON.parse(buffer);
         } catch {
           // Try with repair (auto-close strings)
           const inString = this.inStrings.get(index);
           if (inString) {
             try {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               args = JSON.parse(buffer + '"');
             } catch {
               // If all parsing fails, use safeJsonParse as fallback

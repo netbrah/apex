@@ -1,6 +1,7 @@
 # Provider Structure
 
-This folder contains the different provider implementations for the Qwen Code refactor system.
+This folder contains the different provider implementations for the Qwen Code
+refactor system.
 
 ## File Structure
 
@@ -15,15 +16,19 @@ This folder contains the different provider implementations for the Qwen Code re
 
 ### Default Provider
 
-The `DefaultOpenAICompatibleProvider` is the fallback provider for standard OpenAI-compatible APIs. It provides basic functionality without special enhancements and passes through all request parameters.
+The `DefaultOpenAICompatibleProvider` is the fallback provider for standard
+OpenAI-compatible APIs. It provides basic functionality without special
+enhancements and passes through all request parameters.
 
 ### DashScope Provider
 
-The `DashScopeOpenAICompatibleProvider` handles DashScope (Qwen) specific features like cache control and metadata.
+The `DashScopeOpenAICompatibleProvider` handles DashScope (Qwen) specific
+features like cache control and metadata.
 
 ### OpenRouter Provider
 
-The `OpenRouterOpenAICompatibleProvider` handles OpenRouter specific headers and configurations.
+The `OpenRouterOpenAICompatibleProvider` handles OpenRouter specific headers and
+configurations.
 
 ## Adding a New Provider
 

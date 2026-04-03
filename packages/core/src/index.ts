@@ -48,6 +48,49 @@ export * from './scheduler/types.js';
 export * from './scheduler/tool-executor.js';
 export * from './scheduler/policy.js';
 export * from './core/recordingContentGenerator.js';
+export * from './core/modalityDefaults.js';
+
+// Export Models configuration (fork-specific: OpenAI/Anthropic model providers)
+// Selective re-exports to avoid conflicts with services/modelConfigService.ts
+export {
+  type ModelCapabilities,
+  type ModelGenerationConfig,
+  type ModelProvidersConfig,
+  type AvailableModel,
+  type ModelSwitchMetadata,
+  type RuntimeModelSnapshot,
+  ModelRegistry,
+  ModelsConfig,
+  type ModelsConfigOptions,
+  type OnModelChangeCallback,
+  AUTH_ENV_MAPPINGS,
+  CREDENTIAL_FIELDS,
+  DEFAULT_MODELS,
+  MODEL_GENERATION_CONFIG_FIELDS,
+  PROVIDER_SOURCED_FIELDS,
+  resolveModelConfig,
+  type ModelConfigSourcesInput,
+  type ModelConfigCliInput,
+  type ModelConfigSettingsInput,
+  type ModelConfigResolutionResult,
+} from './models/index.js';
+
+// Export fork-specific utilities
+export {
+  resolveField,
+  resolveOptionalField,
+  layer,
+  envLayer,
+  cliSource,
+  settingsSource,
+  modelProvidersSource,
+  defaultSource,
+  computedSource,
+  type ConfigSources,
+  type ConfigLayer,
+} from './utils/configResolver.js';
+export * from './utils/safeJsonParse.js';
+export * from './utils/schemaConverter.js';
 
 // Export Routing
 export * from './routing/routingStrategy.js';

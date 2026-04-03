@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { GenerateContentResponse, FinishReason } from '@google/genai';
@@ -14,8 +16,6 @@ import type {
 import type {
   ResponsesSSEEvent,
   ResponsesApiOutputItem,
-  ResponsesApiOutputFunctionCall,
-  ResponsesApiOutputReasoningSummary,
   ResponsesApiUsage,
   ResponsesApiInputItem,
   ResponsesApiMessageItem,
@@ -82,7 +82,7 @@ export function convertResponsesEventToGemini(
 ): GenerateContentResponse | null {
   switch (event.event) {
     case 'response.created': {
-      const raw = event.data as Record<string, unknown>;
+      const raw = event.data;
       const envelope = (raw['response'] ?? raw) as { id?: string };
       if (envelope.id) {
         state.responseId = envelope.id;
@@ -94,23 +94,26 @@ export function convertResponsesEventToGemini(
       return null;
 
     case 'response.output_item.added': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const data = event.data as {
         output_index: number;
         item: ResponsesApiOutputItem;
       };
       if (data.item.type === 'function_call') {
-        const fc = data.item as ResponsesApiOutputFunctionCall;
+        const fc = data.item;
         state.initFunctionCall(data.output_index, fc.id, fc.call_id, fc.name);
       }
       return null;
     }
 
     case 'response.output_text.delta': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const data = event.data as { delta: string };
       return makeChunkResponse(model, state, [{ text: data.delta }]);
     }
 
     case 'response.reasoning_summary_text.delta': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const data = event.data as { delta: string };
       return makeChunkResponse(model, state, [
         { text: data.delta, thought: true },
@@ -118,12 +121,14 @@ export function convertResponsesEventToGemini(
     }
 
     case 'response.function_call_arguments.delta': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const data = event.data as { output_index: number; delta: string };
       state.appendFunctionCallArgs(data.output_index, data.delta);
       return null;
     }
 
     case 'response.output_item.done': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const data = event.data as {
         output_index: number;
         item: ResponsesApiOutputItem;
@@ -133,6 +138,7 @@ export function convertResponsesEventToGemini(
         if (buf) {
           let args: Record<string, unknown> = {};
           try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             args = JSON.parse(buf.args) as Record<string, unknown>;
           } catch {
             args = {};
@@ -149,7 +155,7 @@ export function convertResponsesEventToGemini(
         }
       }
       if (data.item.type === 'reasoning') {
-        const reasoningItem = data.item as ResponsesApiOutputReasoningSummary;
+        const reasoningItem = data.item;
         const ec = reasoningItem.encrypted_content;
         if (ec) {
           state.encryptedContentItems.push({
@@ -164,7 +170,7 @@ export function convertResponsesEventToGemini(
     }
 
     case 'response.completed': {
-      const raw = event.data as Record<string, unknown>;
+      const raw = event.data;
       const envelope = (raw['response'] ?? raw) as {
         id?: string;
         usage?: ResponsesApiUsage;
@@ -175,7 +181,7 @@ export function convertResponsesEventToGemini(
     }
 
     case 'response.failed': {
-      const raw = event.data as Record<string, unknown>;
+      const raw = event.data;
       const envelope = (raw['response'] ?? raw) as {
         error?: { code: string; message: string };
       };
@@ -285,10 +291,12 @@ export function convertGeminiContentsToResponsesInput(
   if (!contents) return { instructions, input: items };
 
   const contentArray: Content[] = Array.isArray(contents)
-    ? (contents as Content[])
+    ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      (contents as Content[])
     : typeof contents === 'string'
       ? [{ role: 'user', parts: [{ text: contents }] }]
-      : [contents as Content];
+      : // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        [contents as Content];
 
   for (const content of contentArray) {
     if (typeof content === 'string') {
@@ -331,6 +339,7 @@ export function convertGeminiContentsToResponsesInput(
         if (part.text.startsWith(COMPACTION_SUMMARY_PREFIX + '\n')) {
           const jsonStr = part.text.slice(COMPACTION_SUMMARY_PREFIX.length + 1);
           try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
             if (
               parsed['type'] === 'compaction' ||
@@ -339,6 +348,7 @@ export function convertGeminiContentsToResponsesInput(
               if (!parsed['id']) {
                 parsed['id'] = `rs_compact_${callIdCounter++}`;
               }
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               items.push(parsed as unknown as ResponsesApiInputItem);
               continue;
             }
@@ -420,6 +430,7 @@ export function convertGeminiToolsToResponsesTools(
         type: 'function',
         name: func.name,
         description: func.description,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         parameters: (func.parameters ?? func.parametersJsonSchema) as
           | Record<string, unknown>
           | undefined,

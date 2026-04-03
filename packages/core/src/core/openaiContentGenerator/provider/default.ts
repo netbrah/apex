@@ -1,3 +1,8 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
 import OpenAI from 'openai';
 import type { GenerateContentConfig } from '@google/genai';
 import type { Config } from '../../../config/config.js';

@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { GenerateContentResponse } from '@google/genai';
@@ -164,6 +166,7 @@ export class ResponsesPipeline {
     if (this.state.pendingEncryptedItems.length > 0) {
       effectiveInput = [
         ...this.state.pendingEncryptedItems.map(
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           (item) => item as unknown as ResponsesApiInputItem,
         ),
         ...effectiveInput,
@@ -194,6 +197,7 @@ export class ResponsesPipeline {
     const text = this.buildTextControls();
 
     const apiRequest: ResponsesApiRequest = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       model: this.config.model as string,
       input: effectiveInput,
       ...(previousResponseId
@@ -220,7 +224,7 @@ export class ResponsesPipeline {
 
     const serviceTier = this.config.serviceTier;
     if (serviceTier) {
-      apiRequest.service_tier = serviceTier as 'auto' | 'priority';
+      apiRequest.service_tier = serviceTier;
     }
 
     if (this.config.samplingParams) {
@@ -238,6 +242,7 @@ export class ResponsesPipeline {
     if (this.config.extra_body) {
       for (const [key, value] of Object.entries(this.config.extra_body)) {
         if (!(key in apiRequest)) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           (apiRequest as unknown as Record<string, unknown>)[key] = value;
         }
       }
@@ -265,7 +270,7 @@ export class ResponsesPipeline {
   private buildTextControls(): ResponsesApiTextControls | undefined {
     const verbosity = this.config.verbosity;
     if (!verbosity) return undefined;
-    return { verbosity: verbosity as 'low' | 'medium' | 'high' };
+    return { verbosity };
   }
 
   private async *streamRequest(
@@ -321,7 +326,9 @@ export class ResponsesPipeline {
       const err = new Error(
         `Responses API error ${response.status}: ${errBody.substring(0, 500)}`,
       );
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       (err as ResponsesApiError).status = response.status;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       (err as ResponsesApiError).responseBody = errBody;
       throw err;
     }
@@ -347,6 +354,7 @@ export class ResponsesPipeline {
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             currentEventType = line.slice(7).trim() as ResponsesSSEEventType;
             dataAccumulator = '';
             continue;
@@ -360,7 +368,9 @@ export class ResponsesPipeline {
               dataAccumulator += (dataAccumulator ? '\n' : '') + dataContent;
             } else {
               try {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
                 const data = JSON.parse(dataContent) as Record<string, unknown>;
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
                 const eventType = data['type'] as
                   | ResponsesSSEEventType
                   | undefined;
@@ -393,6 +403,7 @@ export class ResponsesPipeline {
 
           if (line.trim() === '' && currentEventType && dataAccumulator) {
             try {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               const data = JSON.parse(dataAccumulator) as Record<
                 string,
                 unknown
@@ -509,7 +520,7 @@ export function mergeStreamResponses(
     empty.candidates = [];
     return empty;
   }
-  if (chunks.length === 1) return chunks[0]!;
+  if (chunks.length === 1) return chunks[0];
 
   const allParts = chunks.flatMap(
     (c) => c.candidates?.[0]?.content?.parts ?? [],

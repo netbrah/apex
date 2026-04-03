@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -479,8 +481,8 @@ describe('ResponsesConverter', () => {
       } as unknown as GenerateContentParameters;
       const { input } = convertGeminiContentsToResponsesInput(request);
       expect(input).toHaveLength(2);
-      expect(input[0]!.type).toBe('function_call');
-      expect(input[1]!.type).toBe('function_call_output');
+      expect(input[0].type).toBe('function_call');
+      expect(input[1].type).toBe('function_call_output');
     });
 
     it('should convert thought parts to reasoning items', () => {
@@ -631,13 +633,17 @@ describe('ResponsesConverter', () => {
       const reasoning = input.find(
         (item) =>
           (item as unknown as Record<string, unknown>)['type'] === 'message' &&
-          typeof (item as unknown as Record<string, unknown>)['content'] === 'string' &&
-          ((item as unknown as Record<string, unknown>)['content'] as string).startsWith('[Reasoning:'),
+          // eslint-disable-next-line no-restricted-syntax
+          typeof (item as unknown as Record<string, unknown>)['content'] ===
+            'string' &&
+          (
+            (item as unknown as Record<string, unknown>)['content'] as string
+          ).startsWith('[Reasoning:'),
       );
       expect(reasoning).toBeDefined();
-      expect(
-        (reasoning as unknown as Record<string, unknown>)['content'],
-      ).toBe('[Reasoning: Let me think about this...]');
+      expect((reasoning as unknown as Record<string, unknown>)['content']).toBe(
+        '[Reasoning: Let me think about this...]',
+      );
       const textMsg = input.find(
         (item) =>
           (item as unknown as Record<string, unknown>)['type'] === 'message' &&

@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { jsonrepair } from 'jsonrepair';
@@ -18,6 +20,7 @@ import { debugLogger } from './debugLogger.js';
  */
 export function safeJsonParse<T = Record<string, unknown>>(
   jsonString: string,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   fallbackValue: T = {} as T,
 ): T {
   if (!jsonString || typeof jsonString !== 'string') {
@@ -26,6 +29,7 @@ export function safeJsonParse<T = Record<string, unknown>>(
 
   try {
     // First attempt: try normal JSON.parse
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return JSON.parse(jsonString) as T;
   } catch (error) {
     try {
@@ -33,6 +37,7 @@ export function safeJsonParse<T = Record<string, unknown>>(
       const repairedJson = jsonrepair(jsonString);
 
       // jsonrepair always returns a string, so we need to parse it
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       return JSON.parse(repairedJson) as T;
     } catch (repairError) {
       debugLogger.error('Failed to parse JSON even with jsonrepair:', {

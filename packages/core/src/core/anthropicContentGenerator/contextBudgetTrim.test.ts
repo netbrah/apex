@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect } from 'vitest';
@@ -71,7 +73,7 @@ describe('trimAnthropicMessagesForContextBudget', () => {
       throw new Error('Expected array content');
     }
     const block = toolMsg.content.find(
-      (b) => (b as Anthropic.ContentBlockParam).type === 'tool_result',
+      (b) => b.type === 'tool_result',
     ) as Anthropic.ContentBlockParam;
     expect(block).toBeDefined();
     expect(block.type).toBe('tool_result');

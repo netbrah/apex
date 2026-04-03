@@ -2258,8 +2258,7 @@ export async function createTransport(
     });
 
     const finalEnv: Record<string, string> = {
-      [APEX_IDENTIFICATION_ENV_VAR]:
-        APEX_IDENTIFICATION_ENV_VAR_VALUE,
+      [APEX_IDENTIFICATION_ENV_VAR]: APEX_IDENTIFICATION_ENV_VAR_VALUE,
       ...extensionEnv,
     };
     for (const [key, value] of Object.entries(sanitizedEnv)) {

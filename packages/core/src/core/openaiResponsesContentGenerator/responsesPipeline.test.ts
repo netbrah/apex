@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect } from 'vitest';
@@ -48,9 +50,7 @@ function callBuildRequest(
   ).buildRequest(request, promptId);
 }
 
-function getInternalState(
-  pipeline: ResponsesPipeline,
-): ResponsesPipelineState {
+function getInternalState(pipeline: ResponsesPipeline): ResponsesPipelineState {
   return (pipeline as unknown as { state: ResponsesPipelineState }).state;
 }
 
@@ -247,10 +247,11 @@ describe('ResponsesPipeline', () => {
       const request = makeRequest([
         { role: 'user', parts: [{ text: 'hello' }] },
       ]);
-      const result = callBuildRequest(pipeline, request, 'p-1') as unknown as Record<
-        string,
-        unknown
-      >;
+      const result = callBuildRequest(
+        pipeline,
+        request,
+        'p-1',
+      ) as unknown as Record<string, unknown>;
 
       expect(result['metadata']).toEqual({ session_id: 'abc' });
       expect(result['custom_field']).toBe(42);
@@ -417,11 +418,11 @@ describe('ResponsesPipeline', () => {
       const result = mergeStreamResponses([chunk1, chunk2]);
 
       expect(result.candidates).toHaveLength(1);
-      expect(result.candidates![0]!.content!.parts).toHaveLength(2);
-      expect(result.candidates![0]!.content!.parts![0]).toEqual({
+      expect(result.candidates![0].content!.parts).toHaveLength(2);
+      expect(result.candidates![0].content!.parts![0]).toEqual({
         text: 'hel',
       });
-      expect(result.candidates![0]!.content!.parts![1]).toEqual({
+      expect(result.candidates![0].content!.parts![1]).toEqual({
         text: 'lo',
       });
     });

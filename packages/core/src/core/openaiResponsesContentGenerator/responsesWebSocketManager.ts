@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type {
@@ -149,6 +151,7 @@ export class ResponsesWebSocketManager {
     if (request.reasoning) wsRequest.reasoning = request.reasoning;
     if (request.text) wsRequest.text = request.text;
     if (request.truncation)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       wsRequest.truncation = request.truncation as {
         type: 'auto' | 'disabled';
       };

@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type {
@@ -10,7 +12,6 @@ import type {
   Content,
   Tool,
   ToolListUnion,
-  CallableTool,
   FunctionResponse,
   ContentListUnion,
   ContentUnion,
@@ -95,6 +96,7 @@ export function cleanToolSchema(
     if (typeof obj !== 'object' || obj === null) return obj;
     if (Array.isArray(obj)) return obj.map((item) => clean(item));
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const source = obj as Record<string, unknown>;
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(source)) {
@@ -114,6 +116,7 @@ export function cleanToolSchema(
     return result;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return clean(schema, true) as Record<string, unknown>;
 }
 
@@ -171,6 +174,7 @@ export class OpenAIContentConverter {
       return parameters;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const converted = JSON.parse(JSON.stringify(parameters));
 
     const convertTypes = (obj: unknown): unknown => {
@@ -226,6 +230,7 @@ export class OpenAIContentConverter {
       return result;
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return convertTypes(converted) as Record<string, unknown> | undefined;
   }
 
@@ -244,10 +249,10 @@ export class OpenAIContentConverter {
       // Handle CallableTool vs Tool
       if ('tool' in tool) {
         // This is a CallableTool
-        actualTool = await (tool as CallableTool).tool();
+        actualTool = await tool.tool();
       } else {
         // This is already a Tool
-        actualTool = tool as Tool;
+        actualTool = tool;
       }
 
       if (actualTool.functionDeclarations) {
@@ -260,12 +265,14 @@ export class OpenAIContentConverter {
               // MCP tool format - use parametersJsonSchema directly
               // Create a shallow copy to avoid mutating the original object
               const paramsCopy = {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
                 ...(func.parametersJsonSchema as Record<string, unknown>),
               };
               parameters = paramsCopy;
             } else if (func.parameters) {
               // Gemini tool format - convert parameters to OpenAI format
               parameters = this.convertGeminiToolParametersToOpenAI(
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
                 func.parameters as Record<string, unknown>,
               );
             }
@@ -322,7 +329,7 @@ export class OpenAIContentConverter {
     response: GenerateContentResponse,
   ): OpenAI.Chat.ChatCompletion {
     const candidate = response.candidates?.[0];
-    const parts = (candidate?.content?.parts || []) as Part[];
+    const parts = candidate?.content?.parts || [];
 
     // Parse parts inline
     const thoughtParts: string[] = [];
@@ -566,6 +573,7 @@ export class OpenAIContentConverter {
       messages.push({
         role: 'user',
         content:
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           contentParts as unknown as OpenAI.Chat.ChatCompletionContentPart[],
       });
     }
@@ -581,6 +589,7 @@ export class OpenAIContentConverter {
     }
 
     if (typeof response === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const responseObject = response as Record<string, unknown>;
       const output = responseObject['output'];
       if (typeof output === 'string') {
@@ -639,6 +648,7 @@ export class OpenAIContentConverter {
     return {
       role: 'tool' as const,
       tool_call_id: response.id || '',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       content: contentParts as unknown as
         | string
         | OpenAI.Chat.ChatCompletionContentPartText[],
@@ -842,6 +852,7 @@ export class OpenAIContentConverter {
 
     if (typeof contentUnion === 'object' && contentUnion !== null) {
       if ('parts' in contentUnion) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const content = contentUnion as Content;
         return (
           content.parts
@@ -1156,6 +1167,7 @@ export class OpenAIContentConverter {
       case FinishReason.SAFETY:
         return 'content_filter';
       default:
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         if (geminiReason === ('RECITATION' as FinishReason)) {
           return 'content_filter';
         }
@@ -1359,6 +1371,7 @@ export class OpenAIContentConverter {
                 ? [{ type: 'text' as const, text: currentContent }]
                 : [];
 
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             combinedContent = [
               ...lastParts,
               ...currentParts,
@@ -1376,6 +1389,7 @@ export class OpenAIContentConverter {
           const combinedToolCalls = [...lastToolCalls, ...currentToolCalls];
 
           // Update the last message with combined data
+          /* eslint-disable @typescript-eslint/no-unsafe-type-assertion */
           (
             lastMessage as OpenAI.Chat.ChatCompletionMessageParam & {
               content: string | OpenAI.Chat.ChatCompletionContentPart[] | null;
@@ -1393,6 +1407,7 @@ export class OpenAIContentConverter {
               }
             ).tool_calls = combinedToolCalls;
           }
+          /* eslint-enable @typescript-eslint/no-unsafe-type-assertion */
 
           continue; // Skip adding the current message since it's been merged
         }

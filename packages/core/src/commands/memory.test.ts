@@ -169,9 +169,7 @@ describe('memory commands', () => {
       expect(result.type).toBe('message');
       if (result.type === 'message') {
         expect(result.messageType).toBe('info');
-        expect(result.content).toContain(
-          'There are 2 APEX.md file(s) in use:',
-        );
+        expect(result.content).toContain('There are 2 APEX.md file(s) in use:');
         expect(result.content).toContain(filePaths.join('\n'));
       }
     });

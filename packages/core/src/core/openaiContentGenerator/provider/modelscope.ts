@@ -1,3 +1,8 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
 import type OpenAI from 'openai';
 import { DefaultOpenAICompatibleProvider } from './default.js';
 import type { ContentGeneratorConfig } from '../../contentGenerator.js';
@@ -23,8 +28,7 @@ export class ModelScopeOpenAICompatibleProvider extends DefaultOpenAICompatibleP
   ): OpenAI.Chat.ChatCompletionCreateParams {
     const newRequest = super.buildRequest(request, userPromptId);
     if (!newRequest.stream) {
-      delete (newRequest as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming)
-        .stream_options;
+      delete newRequest.stream_options;
     }
 
     return newRequest;

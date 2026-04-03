@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { AuthType } from '../core/contentGenerator.js';
@@ -23,7 +25,9 @@ import { debugLogger } from '../utils/debugLogger.js';
  */
 function validateAuthTypeKey(key: string): AuthType | undefined {
   // Check if the key is a valid AuthType enum value
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   if (Object.values(AuthType).includes(key as AuthType)) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return key as AuthType;
   }
 

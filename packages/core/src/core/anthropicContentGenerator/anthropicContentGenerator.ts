@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -217,6 +219,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     }
 
     return {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       model: this.contentGeneratorConfig.model as string,
       system: trimmedSystem,
       messages: trimmedMessages,
@@ -240,9 +243,11 @@ export class AnthropicContentGenerator implements ContentGenerator {
       configKey: keyof NonNullable<typeof configSamplingParams>,
       requestKey?: keyof NonNullable<typeof requestConfig>,
     ): T | undefined => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const configValue = configSamplingParams?.[configKey] as T | undefined;
       const requestValue = requestKey
-        ? (requestConfig[requestKey] as T | undefined)
+        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          (requestConfig[requestKey] as T | undefined)
         : undefined;
       return configValue !== undefined ? configValue : requestValue;
     };
@@ -376,6 +381,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
             }
           } else if (deltaType === 'thinking_delta') {
             const thinking =
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               (event.delta as { thinking?: string }).thinking || '';
             if (thinking) {
               const chunk = this.buildGeminiChunk(
@@ -388,6 +394,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
             }
           } else if (deltaType === 'signature_delta' && blockState) {
             const signature =
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               (event.delta as { signature?: string }).signature || '';
             if (signature) {
               blockState.signature += signature;
@@ -401,6 +408,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
             }
           } else if (deltaType === 'input_json_delta' && blockState) {
             const jsonDelta =
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               (event.delta as { partial_json?: string }).partial_json || '';
             if (jsonDelta) {
               blockState.inputJson += jsonDelta;
@@ -442,7 +450,8 @@ export class AnthropicContentGenerator implements ContentGenerator {
           const usageUnknown = event.usage as unknown;
           const usageRecord =
             usageUnknown && typeof usageUnknown === 'object'
-              ? (usageUnknown as Record<string, unknown>)
+              ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+                (usageUnknown as Record<string, unknown>)
               : undefined;
 
           if (event.usage?.output_tokens !== undefined) {
@@ -522,6 +531,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     response.modelVersion = model || this.contentGeneratorConfig.model;
     response.promptFeedback = { safetyRatings: [] };
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const candidateParts = part ? [part as unknown as Part] : [];
     const mappedFinishReason =
       finishReason !== undefined

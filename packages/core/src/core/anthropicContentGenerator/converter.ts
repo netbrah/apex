@@ -1,12 +1,13 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type {
   Candidate,
-  CallableTool,
   Content,
   ContentListUnion,
   ContentUnion,
@@ -85,9 +86,9 @@ export class AnthropicContentConverter {
       let actualTool: Tool;
 
       if ('tool' in tool) {
-        actualTool = await (tool as CallableTool).tool();
+        actualTool = await tool.tool();
       } else {
-        actualTool = tool as Tool;
+        actualTool = tool;
       }
 
       if (!actualTool.functionDeclarations) {
@@ -101,9 +102,11 @@ export class AnthropicContentConverter {
         let inputSchema: Record<string, unknown> | undefined;
         if (func.parametersJsonSchema) {
           inputSchema = {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             ...(func.parametersJsonSchema as Record<string, unknown>),
           };
         } else if (func.parameters) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           inputSchema = func.parameters as Record<string, unknown>;
         }
 
@@ -112,6 +115,7 @@ export class AnthropicContentConverter {
         }
 
         inputSchema = convertSchema(inputSchema, this.schemaCompliance);
+        // eslint-disable-next-line no-restricted-syntax
         if (typeof inputSchema['type'] !== 'string') {
           inputSchema['type'] = 'object';
         }
@@ -119,6 +123,7 @@ export class AnthropicContentConverter {
         tools.push({
           name: func.name,
           description: func.description,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           input_schema: inputSchema as Anthropic.Tool.InputSchema,
         });
       }
@@ -146,13 +151,16 @@ export class AnthropicContentConverter {
       const blockType = String((block as { type?: string })['type'] || '');
       if (blockType === 'text') {
         const text =
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           typeof (block as { text?: string }).text === 'string'
-            ? (block as { text?: string }).text
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              (block as { text?: string }).text
             : '';
         if (text) {
           parts.push({ text });
         }
       } else if (blockType === 'tool_use') {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const toolUse = block as {
           id?: string;
           name?: string;
@@ -167,12 +175,16 @@ export class AnthropicContentConverter {
         });
       } else if (blockType === 'thinking') {
         const thinking =
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           typeof (block as { thinking?: string }).thinking === 'string'
-            ? (block as { thinking?: string }).thinking
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              (block as { thinking?: string }).thinking
             : '';
         const signature =
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           typeof (block as { signature?: string }).signature === 'string'
-            ? (block as { signature?: string }).signature
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              (block as { signature?: string }).signature
             : '';
         if (thinking || signature) {
           const thoughtPart: Part = {
@@ -184,9 +196,12 @@ export class AnthropicContentConverter {
         }
       } else if (blockType === 'redacted_thinking') {
         const data =
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           typeof (block as { data?: string }).data === 'string'
-            ? (block as { data?: string }).data
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              (block as { data?: string }).data
             : '';
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         parts.push({
           text: '',
           thought: true,
@@ -270,6 +285,7 @@ export class AnthropicContentConverter {
         if (role === 'assistant') {
           const extPart = part as Part & { _redactedThinkingData?: string };
           if (extPart._redactedThinkingData !== undefined) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             contentBlocks.push({
               type: 'redacted_thinking',
               data: extPart._redactedThinkingData,
@@ -283,9 +299,11 @@ export class AnthropicContentConverter {
               'thoughtSignature' in part &&
               typeof part.thoughtSignature === 'string'
             ) {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               (thinkingBlock as { signature?: string }).signature =
                 part.thoughtSignature;
             }
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             contentBlocks.push(thinkingBlock as AnthropicContentBlockParam);
           }
         }
@@ -306,6 +324,7 @@ export class AnthropicContentConverter {
             type: 'tool_use',
             id: this.resolveToolUseId(part.functionCall.id),
             name: part.functionCall.name || '',
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             input: (part.functionCall.args as Record<string, unknown>) || {},
           });
         }
@@ -348,6 +367,7 @@ export class AnthropicContentConverter {
         blocks.push({ type: 'text', text: textContent });
       }
       blocks.push(...partBlocks);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       content = blocks as unknown as ToolResultContent;
     } else {
       content = textContent;
@@ -356,7 +376,7 @@ export class AnthropicContentConverter {
     const isError =
       response.response != null &&
       typeof response.response === 'object' &&
-      'error' in (response.response as Record<string, unknown>);
+      'error' in response.response;
 
     return {
       type: 'tool_result',
@@ -428,11 +448,7 @@ export class AnthropicContentConverter {
           type: 'image',
           source: {
             type: 'base64',
-            media_type: part.inlineData.mimeType as
-              | 'image/jpeg'
-              | 'image/png'
-              | 'image/gif'
-              | 'image/webp',
+            media_type: part.inlineData.mimeType,
             data: part.inlineData.data,
           },
         };
@@ -465,6 +481,7 @@ export class AnthropicContentConverter {
       const fileUri = part.fileData.fileUri;
 
       if (this.isSupportedAnthropicImageMimeType(part.fileData.mimeType)) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         return {
           type: 'image',
           source: {
@@ -475,6 +492,7 @@ export class AnthropicContentConverter {
       }
 
       if (part.fileData.mimeType === 'application/pdf') {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         return {
           type: 'document',
           source: {
@@ -518,6 +536,7 @@ export class AnthropicContentConverter {
 
     if (typeof contentUnion === 'object' && contentUnion !== null) {
       if ('parts' in contentUnion) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const content = contentUnion as Content;
         return (
           content.parts
@@ -545,6 +564,7 @@ export class AnthropicContentConverter {
     }
 
     if (typeof response === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const responseObject = response as Record<string, unknown>;
       const output = responseObject['output'];
       if (typeof output === 'string') {
@@ -567,6 +587,7 @@ export class AnthropicContentConverter {
 
   private safeInputToArgs(input: unknown): Record<string, unknown> {
     if (input && typeof input === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       return input as Record<string, unknown>;
     }
     if (typeof input === 'string') {

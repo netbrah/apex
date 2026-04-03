@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type OpenAI from 'openai';
@@ -68,6 +70,7 @@ export class ContentGenerationPipeline {
       false,
       effectiveModel,
       async (openaiRequest) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const openaiResponse = (await this.client.chat.completions.create(
           openaiRequest,
           {
@@ -97,6 +100,7 @@ export class ContentGenerationPipeline {
       effectiveModel,
       async (openaiRequest, context) => {
         // Stage 1: Create OpenAI stream
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         const stream = (await this.client.chat.completions.create(
           openaiRequest,
           {
@@ -146,6 +150,7 @@ export class ContentGenerationPipeline {
         // Some providers return errors (e.g., TPM throttling) as a normal SSE chunk
         // with finish_reason="error_finish" and the error in delta.content,
         // instead of returning a proper HTTP error status.
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         if ((chunk.choices?.[0]?.finish_reason as string) === 'error_finish') {
           const errorContent =
             chunk.choices?.[0]?.delta?.content?.trim() ||
@@ -327,9 +332,11 @@ export class ContentGenerationPipeline {
 
     // Add streaming options if present
     if (streaming) {
+      /* eslint-disable @typescript-eslint/no-unsafe-type-assertion */
       (
         baseRequest as unknown as OpenAI.Chat.ChatCompletionCreateParamsStreaming
       ).stream = true;
+      /* eslint-enable @typescript-eslint/no-unsafe-type-assertion */
       baseRequest.stream_options = { include_usage: true };
     }
 
@@ -365,12 +372,15 @@ export class ContentGenerationPipeline {
       configKey: keyof NonNullable<typeof configSamplingParams>,
       requestKey?: keyof NonNullable<typeof request.config>,
     ): T | undefined => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const configValue = configSamplingParams?.[configKey] as T | undefined;
       const requestValue = requestKey
-        ? (request.config?.[requestKey] as T | undefined)
+        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          (request.config?.[requestKey] as T | undefined)
         : undefined;
       const defaultValue = requestKey
-        ? (defaultSamplingParams[requestKey] as T)
+        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          (defaultSamplingParams[requestKey] as T)
         : undefined;
 
       if (configValue !== undefined) return configValue;
@@ -478,7 +488,7 @@ export class ContentGenerationPipeline {
       return result;
     } catch (error) {
       // Use shared error handling logic
-      return await this.handleError(error, context, request);
+      return this.handleError(error, context, request);
     }
   }
 

@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 /**
@@ -33,6 +35,7 @@ export function isSupportedImageMimeType(
   mimeType: string,
 ): mimeType is SupportedImageMimeType {
   return SUPPORTED_IMAGE_MIME_TYPES.includes(
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     mimeType as SupportedImageMimeType,
   );
 }

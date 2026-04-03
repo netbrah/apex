@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import { describe, it, expect } from 'vitest';
@@ -114,15 +116,14 @@ describe('trimMessagesForContextBudget', () => {
       const toolResultIds = new Set<string>();
       for (const msg of out) {
         if (msg.role === 'tool') {
-          const toolMsg = msg as OpenAI.Chat.ChatCompletionToolMessageParam;
+          const toolMsg = msg;
           toolResultIds.add(toolMsg.tool_call_id);
         }
       }
 
       for (const msg of out) {
         if (msg.role === 'assistant') {
-          const assistantMsg =
-            msg as OpenAI.Chat.ChatCompletionAssistantMessageParam;
+          const assistantMsg = msg;
           if (assistantMsg.tool_calls) {
             for (const tc of assistantMsg.tool_calls) {
               expect(toolResultIds.has(tc.id)).toBe(true);
@@ -159,14 +160,12 @@ describe('trimMessagesForContextBudget', () => {
       const toolResultIds = new Set<string>();
       for (const msg of out) {
         if (msg.role === 'tool') {
-          toolResultIds.add(
-            (msg as OpenAI.Chat.ChatCompletionToolMessageParam).tool_call_id,
-          );
+          toolResultIds.add(msg.tool_call_id);
         }
       }
       for (const msg of out) {
         if (msg.role === 'assistant') {
-          const asst = msg as OpenAI.Chat.ChatCompletionAssistantMessageParam;
+          const asst = msg;
           if (asst.tool_calls) {
             for (const tc of asst.tool_calls) {
               expect(toolResultIds.has(tc.id)).toBe(true);

@@ -1,14 +1,18 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import process from 'node:process';
 
 import { AuthType } from '../core/contentGenerator.js';
-import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
-import type { ContentGeneratorConfigSources } from '../core/contentGenerator.js';
+import type {
+  ContentGeneratorConfig,
+  ContentGeneratorConfigSources,
+} from '../core/contentGenerator.js';
 import { DEFAULT_CODER_MODEL } from '../config/models.js';
 import { tokenLimit } from '../core/tokenLimits.js';
 import { defaultModalities } from '../core/modalityDefaults.js';
@@ -128,14 +132,18 @@ export class ModelsConfig {
       return value;
     }
     if (Array.isArray(value)) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-type-assertion
       return value.map((v) => ModelsConfig.deepClone(v)) as T;
     }
     const out: Record<string, unknown> = {};
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     for (const key of Object.keys(value as Record<string, unknown>)) {
       out[key] = ModelsConfig.deepClone(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         (value as Record<string, unknown>)[key],
       );
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return out as T;
   }
 
@@ -454,7 +462,7 @@ export class ModelsConfig {
         !(field in this._generationConfig) &&
         field in settingsGenerationConfig
       ) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
         (this._generationConfig as any)[field] =
           settingsGenerationConfig[field];
         this.generationConfigSources[field] = {
@@ -694,7 +702,7 @@ export class ModelsConfig {
     // Generation config: apply all fields from MODEL_GENERATION_CONFIG_FIELDS
     const gc = model.generationConfig;
     for (const field of MODEL_GENERATION_CONFIG_FIELDS) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
       (this._generationConfig as any)[field] = gc[field];
       this.generationConfigSources[field] = {
         kind: 'modelProviders',

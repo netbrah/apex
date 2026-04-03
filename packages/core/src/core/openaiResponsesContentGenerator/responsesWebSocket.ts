@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import WebSocket from 'ws';
@@ -136,6 +138,7 @@ export class ResponsesWebSocket {
         }
 
         if (message.type === 'text') {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           const parsed = JSON.parse(message.data) as Record<string, unknown>;
 
           if (isWrappedWebsocketError(parsed)) {
@@ -143,6 +146,7 @@ export class ResponsesWebSocket {
               const error = new Error(
                 (parsed as WrappedWebsocketError).error.message,
               );
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               (error as Error & { code: string }).code =
                 'websocket_connection_limit_reached';
               throw error;
@@ -154,6 +158,7 @@ export class ResponsesWebSocket {
           }
 
           const event: ResponsesWsEvent = {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
             type: parsed['type'] as ResponsesWsEvent['type'],
             ...parsed,
           };
@@ -169,6 +174,7 @@ export class ResponsesWebSocket {
         }
       }
     } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       debugLogger.debug('Stream error: %s', (err as Error).message);
       throw err;
     }

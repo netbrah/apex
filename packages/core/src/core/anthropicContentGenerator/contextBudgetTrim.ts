@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
@@ -30,19 +32,17 @@ function estimateContentBlockTokens(block: AnthropicContentBlockParam): number {
       return BASE64_IMAGE_TOKEN_ESTIMATE;
     }
     case 'text': {
-      return Math.ceil(
-        ((block as Anthropic.TextBlockParam).text?.length ?? 0) / 3,
-      );
+      return Math.ceil((block.text?.length ?? 0) / 3);
     }
     case 'tool_use': {
       // Estimate based on the text portions (name + JSON input), skip any binary data
-      const toolUse = block as Anthropic.ToolUseBlockParam;
+      const toolUse = block;
       const inputStr = JSON.stringify(toolUse.input ?? {});
       const nameLen = (toolUse.name ?? '').length;
       return Math.ceil((nameLen + inputStr.length) / 3) + 10; // +10 for overhead
     }
     case 'tool_result': {
-      const toolResult = block as Anthropic.ToolResultBlockParam;
+      const toolResult = block;
       const content = toolResult.content;
       if (typeof content === 'string') {
         return Math.ceil(content.length / 3);
@@ -55,12 +55,7 @@ function estimateContentBlockTokens(block: AnthropicContentBlockParam): number {
           ) => {
             if (inner.type === 'image')
               return sum + BASE64_IMAGE_TOKEN_ESTIMATE;
-            return (
-              sum +
-              Math.ceil(
-                ((inner as Anthropic.TextBlockParam).text?.length ?? 0) / 3,
-              )
-            );
+            return sum + Math.ceil((inner.text?.length ?? 0) / 3);
           },
           0,
         );
@@ -88,9 +83,7 @@ function estimateTokens(
       total += Math.ceil(msg.content.length / 3);
     } else if (Array.isArray(msg.content)) {
       for (const block of msg.content) {
-        total += estimateContentBlockTokens(
-          block as AnthropicContentBlockParam,
-        );
+        total += estimateContentBlockTokens(block);
       }
     }
   }
@@ -137,7 +130,7 @@ export function trimAnthropicMessagesForContextBudget(
     const msg = messages[i];
     if (msg.role !== 'user') continue;
     if (typeof msg.content === 'string') continue;
-    const blocks = msg.content as AnthropicContentBlockParam[];
+    const blocks = msg.content;
     for (let j = 0; j < blocks.length; j++) {
       const block = blocks[j];
       if (block.type === 'tool_result') {
@@ -159,7 +152,7 @@ export function trimAnthropicMessagesForContextBudget(
     content:
       typeof m.content === 'string'
         ? m.content
-        : (m.content as AnthropicContentBlockParam[]).map((b) => ({ ...b })),
+        : m.content.map((b) => ({ ...b })),
   })) as AnthropicMessageParam[];
 
   for (const { msgIdx, blockIdx } of toolResultIndices) {
@@ -167,7 +160,7 @@ export function trimAnthropicMessagesForContextBudget(
 
     const msg = trimmed[msgIdx];
     if (typeof msg.content === 'string') continue;
-    const blocks = msg.content as AnthropicContentBlockParam[];
+    const blocks = msg.content;
     const block = blocks[blockIdx];
     if (block.type !== 'tool_result') continue;
     const content = block.content;
@@ -202,7 +195,7 @@ export function trimAnthropicMessagesForContextBudget(
       if (i < 2) return false;
       if (m.role !== 'user') return false;
       if (typeof m.content === 'string') return false;
-      const blocks = m.content as AnthropicContentBlockParam[];
+      const blocks = m.content;
       return blocks.some((b) => b.type === 'tool_result');
     });
     if (dropIdx === -1) break;
@@ -238,11 +231,11 @@ function ensureAlternation(messages: AnthropicMessageParam[]): void {
       const prevBlocks =
         typeof prev.content === 'string'
           ? [{ type: 'text' as const, text: prev.content }]
-          : (prev.content as AnthropicContentBlockParam[]);
+          : prev.content;
       const currBlocks =
         typeof curr.content === 'string'
           ? [{ type: 'text' as const, text: curr.content }]
-          : (curr.content as AnthropicContentBlockParam[]);
+          : curr.content;
 
       messages[i - 1] = {
         role: prev.role,

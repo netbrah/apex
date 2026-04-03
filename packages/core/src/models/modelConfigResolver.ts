@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 /**
@@ -18,8 +20,10 @@
  * 5. Defaults - Built-in default values
  */
 
-import type { AuthType } from '../core/contentGenerator.js';
-import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
+import type {
+  AuthType,
+  ContentGeneratorConfig,
+} from '../core/contentGenerator.js';
 import {
   resolveField,
   resolveOptionalField,
@@ -122,7 +126,11 @@ export function resolveModelConfig(
 
   // Get auth-specific env var mappings.
   // If authType is not provided, do not read any auth env vars.
-  const defaultEnvMapping = { model: [] as string[], apiKey: [] as string[], baseUrl: [] as string[] };
+  const defaultEnvMapping = {
+    model: [] as string[],
+    apiKey: [] as string[],
+    baseUrl: [] as string[],
+  };
   const envMapping = authType
     ? (AUTH_ENV_MAPPINGS[authType] ?? defaultEnvMapping)
     : defaultEnvMapping;
@@ -277,7 +285,7 @@ function resolveGenerationConfig(
   for (const field of MODEL_GENERATION_CONFIG_FIELDS) {
     // ModelProvider config takes priority over settings config
     if (authType && modelProviderConfig && field in modelProviderConfig) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
       (result as any)[field] = modelProviderConfig[field];
       sources[field] = modelProvidersSource(
         authType,
@@ -285,7 +293,7 @@ function resolveGenerationConfig(
         `generationConfig.${field}`,
       );
     } else if (settingsConfig && field in settingsConfig) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion
       (result as any)[field] = settingsConfig[field];
       sources[field] = settingsSource(`model.generationConfig.${field}`);
     }

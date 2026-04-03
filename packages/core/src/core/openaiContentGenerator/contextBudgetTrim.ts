@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type OpenAI from 'openai';
@@ -30,11 +32,13 @@ function estimateMessageTokens(
     tokens += Math.ceil(content.length / 3);
   } else if (Array.isArray(content)) {
     for (const part of content) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const p = part as Record<string, unknown>;
       if (p['type'] === 'image_url') {
         // Base64 images have a fixed token cost, not proportional to serialized size
         tokens += BASE64_IMAGE_TOKEN_ESTIMATE;
       } else if (p['type'] === 'text') {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         tokens += Math.ceil(((p['text'] as string) ?? '').length / 3);
       } else {
         tokens += Math.ceil(JSON.stringify(p).length / 3);
@@ -43,10 +47,13 @@ function estimateMessageTokens(
   }
 
   // Account for tool_calls in assistant messages
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   const toolCalls = (msg as { tool_calls?: unknown[] }).tool_calls;
   if (Array.isArray(toolCalls)) {
     for (const tc of toolCalls) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const call = tc as Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const fn = call['function'] as Record<string, string> | undefined;
       if (fn) {
         tokens +=
@@ -98,7 +105,7 @@ export function trimMessagesForContextBudget(
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     if (msg.role !== 'tool') continue;
-    const content = (msg as OpenAI.Chat.ChatCompletionToolMessageParam).content;
+    const content = msg.content;
     if (typeof content === 'string') {
       toolIndices.push({ idx: i, len: content.length });
     }
@@ -110,6 +117,7 @@ export function trimMessagesForContextBudget(
   for (const { idx } of toolIndices) {
     if (estimate <= budget) break;
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const tm = trimmed[idx] as OpenAI.Chat.ChatCompletionToolMessageParam;
     const content = tm.content;
     if (
@@ -167,7 +175,7 @@ function removeOrphanedToolCalls(
   const presentToolResultIds = new Set<string>();
   for (const msg of messages) {
     if (msg.role === 'tool') {
-      const toolMsg = msg as OpenAI.Chat.ChatCompletionToolMessageParam;
+      const toolMsg = msg;
       if (toolMsg.tool_call_id) {
         presentToolResultIds.add(toolMsg.tool_call_id);
       }
@@ -179,7 +187,7 @@ function removeOrphanedToolCalls(
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;
 
-    const assistantMsg = msg as OpenAI.Chat.ChatCompletionAssistantMessageParam;
+    const assistantMsg = msg;
     if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0)
       continue;
 

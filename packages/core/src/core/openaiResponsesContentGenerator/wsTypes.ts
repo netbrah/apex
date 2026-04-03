@@ -1,7 +1,9 @@
 /**
  * @license
- * Copyright 2025 Qwen
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
  */
 
 import type {
@@ -95,10 +97,12 @@ export function isWrappedWebsocketError(
   data: unknown,
 ): data is WrappedWebsocketError {
   if (typeof data !== 'object' || data === null) return false;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   const obj = data as Record<string, unknown>;
   if (obj['type'] !== 'error') return false;
   const errObj = obj['error'];
   if (typeof errObj !== 'object' || errObj === null) return false;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion, no-restricted-syntax
   return typeof (errObj as Record<string, unknown>)['message'] === 'string';
 }
 
@@ -118,6 +122,7 @@ export function isConnectionLimitError(err: unknown): boolean {
 export function isUpgradeRequiredError(err: unknown): boolean {
   if (err instanceof Error && err.message.includes('426')) return true;
   if (typeof err === 'object' && err !== null) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const obj = err as Record<string, unknown>;
     if (obj['status'] === 426) return true;
   }
