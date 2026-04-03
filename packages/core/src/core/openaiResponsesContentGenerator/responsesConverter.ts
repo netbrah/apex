@@ -43,6 +43,19 @@ export class ResponsesStreamState {
     { id: string; name: string; args: string }
   > = new Map();
 
+  /**
+   * Tracks the active `content_index` per `output_index` for text delta
+   * events.  When the API emits deltas for a new content part (different
+   * `content_index`), we can separate them so they don't merge.
+   */
+  private activeContentIndex: Map<number, number> = new Map();
+
+  /**
+   * Tracks the active `summary_index` per `output_index` for reasoning
+   * summary delta events, analogous to `activeContentIndex`.
+   */
+  private activeSummaryIndex: Map<number, number> = new Map();
+
   getFunctionCallBuffer(
     outputIndex: number,
   ): { id: string; name: string; args: string } | undefined {
@@ -63,10 +76,32 @@ export class ResponsesStreamState {
     if (buf) buf.args += delta;
   }
 
+  /**
+   * Returns true if the content_index changed for the given output_index,
+   * indicating a new content part within the same output item.
+   */
+  trackContentIndex(outputIndex: number, contentIndex: number): boolean {
+    const prev = this.activeContentIndex.get(outputIndex);
+    this.activeContentIndex.set(outputIndex, contentIndex);
+    return prev !== undefined && prev !== contentIndex;
+  }
+
+  /**
+   * Returns true if the summary_index changed for the given output_index,
+   * indicating a new summary segment within the same reasoning item.
+   */
+  trackSummaryIndex(outputIndex: number, summaryIndex: number): boolean {
+    const prev = this.activeSummaryIndex.get(outputIndex);
+    this.activeSummaryIndex.set(outputIndex, summaryIndex);
+    return prev !== undefined && prev !== summaryIndex;
+  }
+
   reset(): void {
     this.responseId = null;
     this.encryptedContentItems = [];
     this.funcCallArgs.clear();
+    this.activeContentIndex.clear();
+    this.activeSummaryIndex.clear();
   }
 }
 
@@ -108,13 +143,23 @@ export function convertResponsesEventToGemini(
 
     case 'response.output_text.delta': {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      const data = event.data as { delta: string };
+      const data = event.data as {
+        output_index: number;
+        content_index: number;
+        delta: string;
+      };
+      state.trackContentIndex(data.output_index, data.content_index);
       return makeChunkResponse(model, state, [{ text: data.delta }]);
     }
 
     case 'response.reasoning_summary_text.delta': {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      const data = event.data as { delta: string };
+      const data = event.data as {
+        output_index: number;
+        summary_index: number;
+        delta: string;
+      };
+      state.trackSummaryIndex(data.output_index, data.summary_index);
       return makeChunkResponse(model, state, [
         { text: data.delta, thought: true },
       ]);
@@ -126,6 +171,22 @@ export function convertResponsesEventToGemini(
       state.appendFunctionCallArgs(data.output_index, data.delta);
       return null;
     }
+
+    // ── Intentional no-ops ────────────────────────────────────────────
+    // These events are lifecycle bookends for their respective delta
+    // streams.  The converter already handles the corresponding delta
+    // events (output_text.delta, function_call_arguments.delta,
+    // reasoning_summary_text.delta) and the terminal output_item.done,
+    // so these intermediate start/done signals carry no additional data
+    // that the Gemini response format needs.
+    case 'response.output_text.done':
+    case 'response.function_call_arguments.done':
+    case 'response.content_part.added':
+    case 'response.content_part.done':
+    case 'response.reasoning_summary_part.added':
+    case 'response.reasoning_summary_part.done':
+    case 'response.reasoning_summary_text.done':
+      return null;
 
     case 'response.output_item.done': {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
@@ -202,6 +263,7 @@ export function convertResponsesEventToGemini(
     }
 
     default:
+      // Unknown/future event types — safe to ignore.
       return null;
   }
 }

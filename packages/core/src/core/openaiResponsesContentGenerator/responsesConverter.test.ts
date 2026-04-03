@@ -178,9 +178,31 @@ describe('ResponsesConverter', () => {
       );
     });
 
-    it('should return null for unknown events', () => {
+    it('should return null for documented no-op lifecycle events', () => {
+      const noOpEvents: Array<ResponsesSSEEvent['event']> = [
+        'response.output_text.done',
+        'response.function_call_arguments.done',
+        'response.content_part.added',
+        'response.content_part.done',
+        'response.reasoning_summary_part.added',
+        'response.reasoning_summary_part.done',
+        'response.reasoning_summary_text.done',
+      ];
+      for (const eventType of noOpEvents) {
+        const event: ResponsesSSEEvent = {
+          event: eventType,
+          data: {},
+        };
+        expect(
+          convertResponsesEventToGemini(event, model, state),
+          `${eventType} should return null`,
+        ).toBeNull();
+      }
+    });
+
+    it('should return null for unknown/future events', () => {
       const event: ResponsesSSEEvent = {
-        event: 'response.content_part.added' as ResponsesSSEEvent['event'],
+        event: 'response.some_future_event' as ResponsesSSEEvent['event'],
         data: {},
       };
       expect(convertResponsesEventToGemini(event, model, state)).toBeNull();
@@ -415,6 +437,79 @@ describe('ResponsesConverter', () => {
         encrypted_content: 'enc_abc123',
         summary: [],
       });
+    });
+
+    it('should track content_index from output_text.delta events', () => {
+      const event: ResponsesSSEEvent = {
+        event: 'response.output_text.delta',
+        data: { output_index: 0, content_index: 0, delta: 'Hello' },
+      };
+      const result = convertResponsesEventToGemini(event, model, state);
+      expect(result).not.toBeNull();
+      expect(result!.candidates?.[0]?.content?.parts).toEqual([
+        { text: 'Hello' },
+      ]);
+
+      // Same content_index → no index change
+      const event2: ResponsesSSEEvent = {
+        event: 'response.output_text.delta',
+        data: { output_index: 0, content_index: 0, delta: ' world' },
+      };
+      const result2 = convertResponsesEventToGemini(event2, model, state);
+      expect(result2!.candidates?.[0]?.content?.parts).toEqual([
+        { text: ' world' },
+      ]);
+    });
+
+    it('should detect content_index changes across output_text.delta events', () => {
+      // First content part
+      state.trackContentIndex(0, 0);
+      // Switch to a different content part
+      const changed = state.trackContentIndex(0, 1);
+      expect(changed).toBe(true);
+    });
+
+    it('should track summary_index from reasoning_summary_text.delta events', () => {
+      const event: ResponsesSSEEvent = {
+        event: 'response.reasoning_summary_text.delta',
+        data: { output_index: 0, summary_index: 0, delta: 'Think' },
+      };
+      const result = convertResponsesEventToGemini(event, model, state);
+      expect(result!.candidates?.[0]?.content?.parts).toEqual([
+        { text: 'Think', thought: true },
+      ]);
+    });
+
+    it('should detect summary_index changes', () => {
+      state.trackSummaryIndex(0, 0);
+      const changed = state.trackSummaryIndex(0, 1);
+      expect(changed).toBe(true);
+    });
+
+    it('should track indices independently per output_index', () => {
+      // output_index 0, content_index 0
+      const changed1 = state.trackContentIndex(0, 0);
+      expect(changed1).toBe(false);
+
+      // output_index 1, content_index 0 — different output, no conflict
+      const changed2 = state.trackContentIndex(1, 0);
+      expect(changed2).toBe(false);
+
+      // output_index 0, content_index 1 — same output, changed
+      const changed3 = state.trackContentIndex(0, 1);
+      expect(changed3).toBe(true);
+    });
+
+    it('should clear index tracking on state.reset()', () => {
+      state.trackContentIndex(0, 5);
+      state.trackSummaryIndex(0, 3);
+      state.reset();
+
+      // After reset, first track should not report a change
+      const changed1 = state.trackContentIndex(0, 0);
+      expect(changed1).toBe(false);
+      const changed2 = state.trackSummaryIndex(0, 0);
+      expect(changed2).toBe(false);
     });
   });
 

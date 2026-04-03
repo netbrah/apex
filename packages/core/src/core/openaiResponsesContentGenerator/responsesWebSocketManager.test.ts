@@ -415,4 +415,39 @@ describe('ResponsesWebSocketManager', () => {
     expect(wsReq.generate).toBe(false);
     expect(wsReq.type).toBe('response.create');
   });
+
+  it('should serialise concurrent streamViaWebSocket calls', async () => {
+    // Track request order on the server side
+    const receivedOrder: number[] = [];
+    let requestCounter = 0;
+    wss.on('connection', (socket) => {
+      socket.on('message', () => {
+        const reqNum = ++requestCounter;
+        receivedOrder.push(reqNum);
+        // Delay first response to ensure second caller would interleave
+        // without the mutex
+        const delay = reqNum === 1 ? 50 : 10;
+        setTimeout(() => {
+          socket.send(
+            JSON.stringify({
+              type: 'response.completed',
+              response: { id: `resp_${reqNum}` },
+            }),
+          );
+        }, delay);
+      });
+    });
+
+    manager = new ResponsesWebSocketManager(makeConfig(port));
+
+    // Launch two concurrent streams — the mutex should serialise them
+    const p1 = collectEvents(manager.streamViaWebSocket(makeRequest(), null));
+    const p2 = collectEvents(manager.streamViaWebSocket(makeRequest(), null));
+
+    const [events1, events2] = await Promise.all([p1, p2]);
+    expect(events1.some((e) => e.type === 'response.completed')).toBe(true);
+    expect(events2.some((e) => e.type === 'response.completed')).toBe(true);
+    // Server should have received requests sequentially (1 then 2)
+    expect(receivedOrder).toEqual([1, 2]);
+  });
 });

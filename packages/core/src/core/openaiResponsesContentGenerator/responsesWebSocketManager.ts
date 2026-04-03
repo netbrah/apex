@@ -27,6 +27,12 @@ export class ResponsesWebSocketManager {
   private httpFallbackActivated: boolean = false;
   private connectionReused: boolean = false;
   private retryCount: number = 0;
+  /**
+   * Serialises access to the shared WebSocket connection so that
+   * concurrent `streamViaWebSocket()` calls don't interleave responses.
+   * Each call awaits the previous one's completion before starting.
+   */
+  private streamLock: Promise<void> = Promise.resolve();
 
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -175,54 +181,67 @@ export class ResponsesWebSocketManager {
     responseId: string | null,
     signal?: AbortSignal,
   ): AsyncGenerator<ResponsesWsEvent> {
-    const conn = await this.ensureConnection();
-    const wsRequest = this.prepareWsRequest(request, responseId);
+    // Acquire the stream lock so concurrent callers don't interleave on
+    // the same WebSocket connection.
+    let releaseLock: () => void;
+    const prevLock = this.streamLock;
+    this.streamLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    await prevLock;
 
     try {
-      yield* conn.streamRequest(wsRequest, signal);
-      this.lastRequest = request;
-      this.retryCount = 0;
-    } catch (err) {
-      if (isUpgradeRequiredError(err)) {
-        debugLogger.debug('426 Upgrade Required — falling back to HTTP');
-        throw err;
-      }
+      const conn = await this.ensureConnection();
+      const wsRequest = this.prepareWsRequest(request, responseId);
 
-      if (isConnectionLimitError(err)) {
-        debugLogger.debug('Connection limit reached — reconnecting');
-        await this.connection?.close();
-        this.connection = null;
-        this.lastRequest = null;
-        const newConn = await this.ensureConnection();
-        const freshRequest = this.prepareWsRequest(request, null);
-        yield* newConn.streamRequest(freshRequest, signal);
+      try {
+        yield* conn.streamRequest(wsRequest, signal);
         this.lastRequest = request;
-        return;
-      }
+        this.retryCount = 0;
+      } catch (err) {
+        if (isUpgradeRequiredError(err)) {
+          debugLogger.debug('426 Upgrade Required — falling back to HTTP');
+          throw err;
+        }
 
-      if (isRetryableWsError(err)) {
-        this.retryCount++;
-        if (this.retryCount > this.streamMaxRetries) {
+        if (isConnectionLimitError(err)) {
+          debugLogger.debug('Connection limit reached — reconnecting');
+          await this.connection?.close();
+          this.connection = null;
+          this.lastRequest = null;
+          const newConn = await this.ensureConnection();
+          const freshRequest = this.prepareWsRequest(request, null);
+          yield* newConn.streamRequest(freshRequest, signal);
+          this.lastRequest = request;
+          return;
+        }
+
+        if (isRetryableWsError(err)) {
+          this.retryCount++;
+          if (this.retryCount > this.streamMaxRetries) {
+            debugLogger.debug(
+              'Retry budget exhausted (%d/%d) — activating HTTP fallback',
+              this.retryCount,
+              this.streamMaxRetries,
+            );
+            this.activateHttpFallback();
+            throw err;
+          }
           debugLogger.debug(
-            'Retry budget exhausted (%d/%d) — activating HTTP fallback',
+            'Retryable error, attempt %d/%d',
             this.retryCount,
             this.streamMaxRetries,
           );
-          this.activateHttpFallback();
+          await this.connection?.close();
+          this.connection = null;
+          this.lastRequest = null;
           throw err;
         }
-        debugLogger.debug(
-          'Retryable error, attempt %d/%d',
-          this.retryCount,
-          this.streamMaxRetries,
-        );
-        await this.connection?.close();
-        this.connection = null;
-        this.lastRequest = null;
+
         throw err;
       }
-
-      throw err;
+    } finally {
+      releaseLock!();
     }
   }
 
