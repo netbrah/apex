@@ -63,7 +63,22 @@ export enum AuthType {
   LEGACY_CLOUD_SHELL = 'cloud-shell',
   COMPUTE_ADC = 'compute-default-credentials',
   GATEWAY = 'gateway',
+  // Fork-specific auth types for OpenAI-compatible and Anthropic backends
+  USE_OPENAI = 'openai',
+  USE_OPENAI_RESPONSES = 'openai-responses',
+  USE_ANTHROPIC = 'anthropic',
 }
+
+/**
+ * Supported input modalities for a model.
+ * Omitted or false fields mean the model does not support that input type.
+ */
+export type InputModalities = {
+  image?: boolean;
+  pdf?: boolean;
+  audio?: boolean;
+  video?: boolean;
+};
 
 /**
  * Detects the best authentication type based on environment variables.
@@ -74,6 +89,18 @@ export enum AuthType {
  * 3. GEMINI_API_KEY -> USE_GEMINI
  */
 export function getAuthTypeFromEnv(): AuthType | undefined {
+  // Fork-specific: detect OpenAI/Anthropic auth from env before Google checks
+  if (process.env['ANTHROPIC_API_KEY'] && process.env['ANTHROPIC_BASE_URL']) {
+    return AuthType.USE_ANTHROPIC;
+  }
+  if (process.env['OPENAI_API_KEY']) {
+    // Use responses API if explicitly requested, otherwise default to openai-responses
+    const apiType = process.env['OPENAI_API_TYPE']?.toLowerCase();
+    if (apiType === 'chat-completions' || apiType === 'openai') {
+      return AuthType.USE_OPENAI;
+    }
+    return AuthType.USE_OPENAI_RESPONSES;
+  }
   if (process.env['GOOGLE_GENAI_USE_GCA'] === 'true') {
     return AuthType.LOGIN_WITH_GOOGLE;
   }
@@ -99,6 +126,39 @@ export type ContentGeneratorConfig = {
   proxy?: string;
   baseUrl?: string;
   customHeaders?: Record<string, string>;
+  // Fork-specific fields for OpenAI/Anthropic backends
+  model?: string;
+  apiKeyEnvKey?: string;
+  enableOpenAILogging?: boolean;
+  openAILoggingDir?: string;
+  timeout?: number;
+  maxRetries?: number;
+  retryErrorCodes?: number[];
+  enableCacheControl?: boolean;
+  samplingParams?: {
+    top_p?: number;
+    top_k?: number;
+    repetition_penalty?: number;
+    presence_penalty?: number;
+    frequency_penalty?: number;
+    temperature?: number;
+    max_tokens?: number;
+  };
+  reasoning?:
+    | false
+    | {
+        effort?: 'low' | 'medium' | 'high';
+        budget_tokens?: number;
+        summary?: 'auto' | 'concise' | 'detailed';
+      };
+  verbosity?: 'low' | 'medium' | 'high';
+  serviceTier?: 'auto' | 'priority';
+  userAgent?: string;
+  schemaCompliance?: 'auto' | 'openapi_30';
+  contextWindowSize?: number;
+  extra_body?: Record<string, unknown>;
+  modalities?: InputModalities;
+  enableEncryptedContentReplay?: boolean;
 };
 
 export async function createContentGeneratorConfig(
@@ -159,6 +219,30 @@ export async function createContentGeneratorConfig(
     return contentGeneratorConfig;
   }
 
+  // Fork-specific: handle OpenAI/Anthropic auth config from environment
+  if (
+    authType === AuthType.USE_OPENAI ||
+    authType === AuthType.USE_OPENAI_RESPONSES
+  ) {
+    contentGeneratorConfig.apiKey =
+      apiKey || process.env['OPENAI_API_KEY'] || undefined;
+    contentGeneratorConfig.baseUrl =
+      baseUrl || process.env['OPENAI_BASE_URL'] || undefined;
+    contentGeneratorConfig.model =
+      process.env['OPENAI_MODEL'] || process.env['APEX_MODEL'] || undefined;
+    return contentGeneratorConfig;
+  }
+
+  if (authType === AuthType.USE_ANTHROPIC) {
+    contentGeneratorConfig.apiKey =
+      apiKey || process.env['ANTHROPIC_API_KEY'] || undefined;
+    contentGeneratorConfig.baseUrl =
+      baseUrl || process.env['ANTHROPIC_BASE_URL'] || undefined;
+    contentGeneratorConfig.model =
+      process.env['ANTHROPIC_MODEL'] || undefined;
+    return contentGeneratorConfig;
+  }
+
   return contentGeneratorConfig;
 }
 
@@ -174,6 +258,36 @@ export async function createContentGenerator(
       );
       return new LoggingContentGenerator(fakeGenerator, gcConfig);
     }
+
+    // Fork-specific: dispatch to OpenAI/Anthropic backends
+    if (config.authType === AuthType.USE_OPENAI) {
+      const { createOpenAIContentGenerator } = await import(
+        './openaiContentGenerator/index.js'
+      );
+      const baseGenerator = createOpenAIContentGenerator(config, gcConfig);
+      return new LoggingContentGenerator(baseGenerator, gcConfig);
+    }
+
+    if (config.authType === AuthType.USE_OPENAI_RESPONSES) {
+      const { createOpenAIResponsesContentGenerator } = await import(
+        './openaiResponsesContentGenerator/index.js'
+      );
+      const baseGenerator = createOpenAIResponsesContentGenerator(
+        config,
+        gcConfig,
+      );
+      return new LoggingContentGenerator(baseGenerator, gcConfig);
+    }
+
+    if (config.authType === AuthType.USE_ANTHROPIC) {
+      const { createAnthropicContentGenerator } = await import(
+        './anthropicContentGenerator/index.js'
+      );
+      const baseGenerator = createAnthropicContentGenerator(config, gcConfig);
+      return new LoggingContentGenerator(baseGenerator, gcConfig);
+    }
+
+    // Upstream Google-specific auth flows below
     const version = await getVersion();
     const model = resolveModel(
       gcConfig.getModel(),
