@@ -13,14 +13,12 @@ import {
   afterEach,
   type Mock,
 } from 'vitest';
-import type { Content } from '@google/genai';
 import {
   getEnvironmentContext,
   getDirectoryContextString,
-  getInitialChatHistory,
-  stripStartupContext,
 } from './environmentContext.js';
 import type { Config } from '../config/config.js';
+import type { Storage } from '../config/storage.js';
 import { getFolderStructure } from './getFolderStructure.js';
 
 vi.mock('../config/config.js');
@@ -38,6 +36,9 @@ describe('getDirectoryContextString', () => {
         getDirectories: vi.fn().mockReturnValue(['/test/dir']),
       }),
       getFileService: vi.fn(),
+      storage: {
+        getProjectTempDir: vi.fn().mockReturnValue('/tmp/project-temp'),
+      } as unknown as Storage,
     };
     vi.mocked(getFolderStructure).mockResolvedValue('Mock Folder Structure');
   });
@@ -48,11 +49,10 @@ describe('getDirectoryContextString', () => {
 
   it('should return context string for a single directory', async () => {
     const contextString = await getDirectoryContextString(mockConfig as Config);
+    expect(contextString).toContain('- **Workspace Directories:**');
+    expect(contextString).toContain('  - /test/dir');
     expect(contextString).toContain(
-      "I'm currently working in the directory: /test/dir",
-    );
-    expect(contextString).toContain(
-      'Here is the folder structure of the current working directories:\n\nMock Folder Structure',
+      '- **Directory Structure:**\n\nMock Folder Structure',
     );
   });
 
@@ -65,43 +65,42 @@ describe('getDirectoryContextString', () => {
       .mockResolvedValueOnce('Structure 2');
 
     const contextString = await getDirectoryContextString(mockConfig as Config);
+    expect(contextString).toContain('- **Workspace Directories:**');
+    expect(contextString).toContain('  - /test/dir1');
+    expect(contextString).toContain('  - /test/dir2');
     expect(contextString).toContain(
-      "I'm currently working in the following directories:\n  - /test/dir1\n  - /test/dir2",
-    );
-    expect(contextString).toContain(
-      'Here is the folder structure of the current working directories:\n\nStructure 1\nStructure 2',
+      '- **Directory Structure:**\n\nStructure 1\nStructure 2',
     );
   });
 });
 
 describe('getEnvironmentContext', () => {
   let mockConfig: Partial<Config>;
+  let mockToolRegistry: { getTool: Mock };
 
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2025-08-05T12:00:00Z'));
-
-    // Mock the locale to ensure consistent English date formatting
-    vi.stubGlobal('Intl', {
-      ...global.Intl,
-      DateTimeFormat: vi.fn().mockImplementation(() => ({
-        format: vi.fn().mockReturnValue('Tuesday, August 5, 2025'),
-      })),
-    });
+    mockToolRegistry = {
+      getTool: vi.fn(),
+    };
 
     mockConfig = {
       getWorkspaceContext: vi.fn().mockReturnValue({
         getDirectories: vi.fn().mockReturnValue(['/test/dir']),
       }),
       getFileService: vi.fn(),
+      getIncludeDirectoryTree: vi.fn().mockReturnValue(true),
+      getEnvironmentMemory: vi.fn().mockReturnValue('Mock Environment Memory'),
+
+      getToolRegistry: vi.fn().mockReturnValue(mockToolRegistry),
+      storage: {
+        getProjectTempDir: vi.fn().mockReturnValue('/tmp/project-temp'),
+      } as unknown as Storage,
     };
 
     vi.mocked(getFolderStructure).mockResolvedValue('Mock Folder Structure');
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
     vi.resetAllMocks();
   });
 
@@ -111,15 +110,14 @@ describe('getEnvironmentContext', () => {
     expect(parts.length).toBe(1);
     const context = parts[0].text;
 
-    expect(context).toContain("Today's date is");
-    expect(context).toContain("(formatted according to the user's locale)");
-    expect(context).toContain(`My operating system is: ${process.platform}`);
+    expect(context).toContain('<session_context>');
+    expect(context).toContain('- **Workspace Directories:**');
+    expect(context).toContain('  - /test/dir');
     expect(context).toContain(
-      "I'm currently working in the directory: /test/dir",
+      '- **Directory Structure:**\n\nMock Folder Structure',
     );
-    expect(context).toContain(
-      'Here is the folder structure of the current working directories:\n\nMock Folder Structure',
-    );
+    expect(context).toContain('Mock Environment Memory');
+    expect(context).toContain('</session_context>');
     expect(getFolderStructure).toHaveBeenCalledWith('/test/dir', {
       fileService: undefined,
     });
@@ -138,162 +136,87 @@ describe('getEnvironmentContext', () => {
     expect(parts.length).toBe(1);
     const context = parts[0].text;
 
+    expect(context).toContain('<session_context>');
+    expect(context).toContain('- **Workspace Directories:**');
+    expect(context).toContain('  - /test/dir1');
+    expect(context).toContain('  - /test/dir2');
     expect(context).toContain(
-      "I'm currently working in the following directories:\n  - /test/dir1\n  - /test/dir2",
+      '- **Directory Structure:**\n\nStructure 1\nStructure 2',
     );
-    expect(context).toContain(
-      'Here is the folder structure of the current working directories:\n\nStructure 1\nStructure 2',
-    );
+    expect(context).toContain('</session_context>');
     expect(getFolderStructure).toHaveBeenCalledTimes(2);
   });
-});
 
-describe('getInitialChatHistory', () => {
-  let mockConfig: Partial<Config>;
-
-  beforeEach(() => {
-    vi.mocked(getFolderStructure).mockResolvedValue('Mock Folder Structure');
-    mockConfig = {
-      getSkipStartupContext: vi.fn().mockReturnValue(false),
-      getWorkspaceContext: vi.fn().mockReturnValue({
-        getDirectories: vi.fn().mockReturnValue(['/test/dir']),
-      }),
-      getFileService: vi.fn(),
-    };
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
-  });
-
-  it('includes startup context when skipStartupContext is false', async () => {
-    const history = await getInitialChatHistory(mockConfig as Config);
-
-    expect(mockConfig.getSkipStartupContext).toHaveBeenCalled();
-    expect(history).toHaveLength(2);
-    expect(history).toEqual([
-      expect.objectContaining({
-        role: 'user',
-        parts: [
-          expect.objectContaining({
-            text: expect.stringContaining(
-              "I'm currently working in the directory",
-            ),
-          }),
-        ],
-      }),
-      {
-        role: 'model',
-        parts: [{ text: 'Got it. Thanks for the context!' }],
-      },
-    ]);
-  });
-
-  it('returns only extra history when skipStartupContext is true', async () => {
-    mockConfig.getSkipStartupContext = vi.fn().mockReturnValue(true);
-    mockConfig.getWorkspaceContext = vi.fn(() => {
-      throw new Error(
-        'getWorkspaceContext should not be called when skipping startup context',
-      );
-    });
-    const extraHistory: Content[] = [
-      { role: 'user', parts: [{ text: 'custom context' }] },
-    ];
-
-    const history = await getInitialChatHistory(
-      mockConfig as Config,
-      extraHistory,
+  it('should omit directory structure when getIncludeDirectoryTree is false', async () => {
+    (vi.mocked(mockConfig.getIncludeDirectoryTree!) as Mock).mockReturnValue(
+      false,
     );
 
-    expect(mockConfig.getSkipStartupContext).toHaveBeenCalled();
-    expect(history).toEqual(extraHistory);
-    expect(history).not.toBe(extraHistory);
+    const parts = await getEnvironmentContext(mockConfig as Config);
+
+    expect(parts.length).toBe(1);
+    const context = parts[0].text;
+
+    expect(context).toContain('<session_context>');
+    expect(context).not.toContain('Directory Structure:');
+    expect(context).not.toContain('Mock Folder Structure');
+    expect(context).toContain('Mock Environment Memory');
+    expect(context).toContain('</session_context>');
+    expect(getFolderStructure).not.toHaveBeenCalled();
   });
 
-  it('returns empty history when skipping startup context without extras', async () => {
-    mockConfig.getSkipStartupContext = vi.fn().mockReturnValue(true);
-    mockConfig.getWorkspaceContext = vi.fn(() => {
-      throw new Error(
-        'getWorkspaceContext should not be called when skipping startup context',
+  it('should use session memory instead of environment memory when JIT context is enabled', async () => {
+    (mockConfig as Record<string, unknown>)['isJitContextEnabled'] = vi
+      .fn()
+      .mockReturnValue(true);
+    (mockConfig as Record<string, unknown>)['getSessionMemory'] = vi
+      .fn()
+      .mockReturnValue(
+        '\n<loaded_context>\n<extension_context>\nExt Memory\n</extension_context>\n<project_context>\nProj Memory\n</project_context>\n</loaded_context>',
       );
-    });
 
-    const history = await getInitialChatHistory(mockConfig as Config);
+    const parts = await getEnvironmentContext(mockConfig as Config);
 
-    expect(history).toEqual([]);
-  });
-});
-
-describe('stripStartupContext', () => {
-  it('should strip the env context + model ack from the start of history', () => {
-    const history: Content[] = [
-      { role: 'user', parts: [{ text: 'This is the APEX...' }] },
-      {
-        role: 'model',
-        parts: [{ text: 'Got it. Thanks for the context!' }],
-      },
-      { role: 'user', parts: [{ text: 'Hello' }] },
-      { role: 'model', parts: [{ text: 'Hi there' }] },
-    ];
-
-    const result = stripStartupContext(history);
-    expect(result).toEqual([
-      { role: 'user', parts: [{ text: 'Hello' }] },
-      { role: 'model', parts: [{ text: 'Hi there' }] },
-    ]);
+    const context = parts[0].text;
+    expect(context).not.toContain('Mock Environment Memory');
+    expect(mockConfig.getEnvironmentMemory).not.toHaveBeenCalled();
+    expect(context).toContain('<loaded_context>');
+    expect(context).toContain('<extension_context>');
+    expect(context).toContain('Ext Memory');
+    expect(context).toContain('<project_context>');
+    expect(context).toContain('Proj Memory');
+    expect(context).toContain('</loaded_context>');
   });
 
-  it('should return history unchanged when no startup context is present', () => {
-    const history: Content[] = [
-      { role: 'user', parts: [{ text: 'Hello' }] },
-      { role: 'model', parts: [{ text: 'Hi there' }] },
-    ];
+  it('should include environment memory when JIT context is disabled', async () => {
+    (mockConfig as Record<string, unknown>)['isJitContextEnabled'] = vi
+      .fn()
+      .mockReturnValue(false);
 
-    const result = stripStartupContext(history);
-    expect(result).toEqual(history);
+    const parts = await getEnvironmentContext(mockConfig as Config);
+
+    const context = parts[0].text;
+    expect(context).toContain('Mock Environment Memory');
   });
 
-  it('should return empty array when history is only the startup context', () => {
-    const history: Content[] = [
-      { role: 'user', parts: [{ text: 'This is the APEX...' }] },
-      {
-        role: 'model',
-        parts: [{ text: 'Got it. Thanks for the context!' }],
-      },
-    ];
-
-    const result = stripStartupContext(history);
-    expect(result).toEqual([]);
-  });
-
-  it('should return history unchanged when it has fewer than 2 entries', () => {
-    expect(stripStartupContext([])).toEqual([]);
-    expect(
-      stripStartupContext([{ role: 'user', parts: [{ text: 'Hello' }] }]),
-    ).toEqual([{ role: 'user', parts: [{ text: 'Hello' }] }]);
-  });
-
-  it('should round-trip with getInitialChatHistory', async () => {
-    const mockConfig = {
-      getSkipStartupContext: vi.fn().mockReturnValue(false),
-      getWorkspaceContext: vi.fn().mockReturnValue({
-        getDirectories: vi.fn().mockReturnValue(['/test/dir']),
+  it('should handle read_many_files returning no content', async () => {
+    const mockReadManyFilesTool = {
+      build: vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue({ llmContent: '' }),
       }),
-      getFileService: vi.fn(),
     };
+    mockToolRegistry.getTool.mockReturnValue(mockReadManyFilesTool);
 
-    const conversation: Content[] = [
-      { role: 'user', parts: [{ text: 'Hello' }] },
-      { role: 'model', parts: [{ text: 'Hi' }] },
-    ];
+    const parts = await getEnvironmentContext(mockConfig as Config);
 
-    const withStartup = await getInitialChatHistory(
-      mockConfig as unknown as Config,
-      conversation,
-    );
-    const stripped = stripStartupContext(withStartup);
+    expect(parts.length).toBe(1); // No extra part added
+  });
 
-    expect(stripped).toEqual(conversation);
+  it('should handle read_many_files tool not being found', async () => {
+    mockToolRegistry.getTool.mockReturnValue(null);
+
+    const parts = await getEnvironmentContext(mockConfig as Config);
+
+    expect(parts.length).toBe(1); // No extra part added
   });
 });

@@ -5,359 +5,321 @@
  */
 
 import type React from 'react';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
+import { ModelQuotaDisplay } from './ModelQuotaDisplay.js';
+import { useUIState } from '../contexts/UIStateContext.js';
 import {
-  AuthType,
+  PREVIEW_GEMINI_MODEL,
+  PREVIEW_GEMINI_3_1_MODEL,
+  PREVIEW_GEMINI_FLASH_MODEL,
+  PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL,
+  PREVIEW_GEMINI_MODEL_AUTO,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GEMINI_FLASH_MODEL,
+  DEFAULT_GEMINI_FLASH_LITE_MODEL,
+  DEFAULT_GEMINI_MODEL_AUTO,
   ModelSlashCommandEvent,
   logModelSlashCommand,
-  MAINLINE_CODER_MODEL,
-  type AvailableModel as CoreAvailableModel,
-  type ContentGeneratorConfig,
-  type InputModalities,
+  getDisplayString,
+  AuthType,
+  PREVIEW_GEMINI_3_1_CUSTOM_TOOLS_MODEL,
+  isProModel,
 } from '@apex-code/apex-core';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { theme } from '../semantic-colors.js';
 import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSelect.js';
 import { ConfigContext } from '../contexts/ConfigContext.js';
-import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
-import { getPersistScopeForModelSelection } from '../../config/modelProvidersScope.js';
-import { t } from '../../i18n/index.js';
-
-function formatModalities(modalities?: InputModalities): string {
-  if (!modalities) return t('text-only');
-  const parts: string[] = [];
-  if (modalities.image) parts.push(t('image'));
-  if (modalities.pdf) parts.push(t('pdf'));
-  if (modalities.audio) parts.push(t('audio'));
-  if (modalities.video) parts.push(t('video'));
-  if (parts.length === 0) return t('text-only');
-  return `${t('text')} · ${parts.join(' · ')}`;
-}
 
 interface ModelDialogProps {
   onClose: () => void;
 }
 
-function maskApiKey(apiKey: string | undefined): string {
-  if (!apiKey) return `(${t('not set')})`;
-  const trimmed = apiKey.trim();
-  if (trimmed.length === 0) return `(${t('not set')})`;
-  if (trimmed.length <= 6) return '***';
-  const head = trimmed.slice(0, 3);
-  const tail = trimmed.slice(-4);
-  return `${head}…${tail}`;
-}
-
-function persistModelSelection(
-  settings: ReturnType<typeof useSettings>,
-  modelId: string,
-): void {
-  const scope = getPersistScopeForModelSelection(settings);
-  settings.setValue(scope, 'model.name', modelId);
-}
-
-function persistAuthTypeSelection(
-  settings: ReturnType<typeof useSettings>,
-  authType: AuthType,
-): void {
-  const scope = getPersistScopeForModelSelection(settings);
-  settings.setValue(scope, 'security.auth.selectedType', authType);
-}
-
-interface HandleModelSwitchSuccessParams {
-  settings: ReturnType<typeof useSettings>;
-  uiState: UIState | null;
-  after: ContentGeneratorConfig | undefined;
-  effectiveAuthType: AuthType | undefined;
-  effectiveModelId: string;
-  isRuntime: boolean;
-}
-
-function handleModelSwitchSuccess({
-  settings,
-  uiState,
-  after,
-  effectiveAuthType,
-  effectiveModelId,
-  isRuntime,
-}: HandleModelSwitchSuccessParams): void {
-  persistModelSelection(settings, effectiveModelId);
-  if (effectiveAuthType) {
-    persistAuthTypeSelection(settings, effectiveAuthType);
-  }
-
-  const baseUrl = after?.baseUrl ?? t('(default)');
-  const maskedKey = maskApiKey(after?.apiKey);
-  uiState?.historyManager.addItem(
-    {
-      type: 'info',
-      text:
-        `authType: ${effectiveAuthType ?? `(${t('none')})`}` +
-        `\n` +
-        `Using ${isRuntime ? 'runtime ' : ''}model: ${effectiveModelId}` +
-        `\n` +
-        `Base URL: ${baseUrl}` +
-        `\n` +
-        `API key: ${maskedKey}`,
-    },
-    Date.now(),
-  );
-}
-
-function formatContextWindow(size?: number): string {
-  if (!size) return `(${t('unknown')})`;
-  return `${size.toLocaleString('en-US')} tokens`;
-}
-
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <Box>
-      <Box minWidth={16} flexShrink={0}>
-        <Text color={theme.text.secondary}>{label}:</Text>
-      </Box>
-      <Box flexGrow={1} flexDirection="row" flexWrap="wrap">
-        <Text>{value}</Text>
-      </Box>
-    </Box>
-  );
-}
-
 export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
   const config = useContext(ConfigContext);
-  const uiState = useContext(UIStateContext);
   const settings = useSettings();
+  const { terminalWidth } = useUIState();
+  const [hasAccessToProModel, setHasAccessToProModel] = useState<boolean>(
+    () => !(config?.getProModelNoAccessSync() ?? false),
+  );
+  const [view, setView] = useState<'main' | 'manual'>(() =>
+    config?.getProModelNoAccessSync() ? 'manual' : 'main',
+  );
+  const [persistMode, setPersistMode] = useState(false);
 
-  // Local error state for displaying errors within the dialog
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
-
-  const authType = config?.getAuthType();
-
-  const availableModelEntries = useMemo(() => {
-    const allModels = config ? config.getAllConfiguredModels() : [];
-
-    // Separate runtime models from registry models
-    const runtimeModels = allModels.filter((m) => m.isRuntimeModel);
-    const registryModels = allModels.filter((m) => !m.isRuntimeModel);
-
-    // Group registry models by authType
-    const modelsByAuthTypeMap = new Map<AuthType, CoreAvailableModel[]>();
-    for (const model of registryModels) {
-      const authType = model.authType;
-      if (!modelsByAuthTypeMap.has(authType)) {
-        modelsByAuthTypeMap.set(authType, []);
-      }
-      modelsByAuthTypeMap.get(authType)!.push(model);
-    }
-
-    const authTypeOrder: AuthType[] = [
-      AuthType.USE_OPENAI,
-      AuthType.USE_OPENAI_RESPONSES,
-      AuthType.USE_ANTHROPIC,
-      AuthType.USE_GEMINI,
-      AuthType.USE_VERTEX_AI,
-    ];
-
-    // Filter to only include authTypes that have registry models and maintain order
-    const availableAuthTypes = new Set(modelsByAuthTypeMap.keys());
-    const orderedAuthTypes = authTypeOrder.filter((t) =>
-      availableAuthTypes.has(t),
-    );
-
-    // Build ordered list: runtime models first, then registry models grouped by authType
-    const result: Array<{
-      authType: AuthType;
-      model: CoreAvailableModel;
-      isRuntime?: boolean;
-      snapshotId?: string;
-    }> = [];
-
-    // Add all runtime models first
-    for (const runtimeModel of runtimeModels) {
-      result.push({
-        authType: runtimeModel.authType,
-        model: runtimeModel,
-        isRuntime: true,
-        snapshotId: runtimeModel.runtimeSnapshotId,
-      });
-    }
-
-    // Add registry models grouped by authType
-    for (const t of orderedAuthTypes) {
-      for (const model of modelsByAuthTypeMap.get(t) ?? []) {
-        result.push({ authType: t, model, isRuntime: false });
+  useEffect(() => {
+    async function checkAccess() {
+      if (!config) return;
+      const noAccess = await config.getProModelNoAccess();
+      setHasAccessToProModel(!noAccess);
+      if (noAccess) {
+        setView('manual');
       }
     }
-
-    return result;
+    void checkAccess();
   }, [config]);
 
-  const MODEL_OPTIONS = useMemo(
-    () =>
-      availableModelEntries.map(
-        ({ authType: t2, model, isRuntime, snapshotId }) => {
-          // Runtime models use snapshotId directly (format: $runtime|${authType}|${modelId})
-          const value =
-            isRuntime && snapshotId ? snapshotId : `${t2}::${model.id}`;
+  // Determine the Preferred Model (read once when the dialog opens).
+  const preferredModel = config?.getModel() || DEFAULT_GEMINI_MODEL_AUTO;
 
-          const title = (
-            <Text>
-              <Text
-                bold
-                color={isRuntime ? theme.status.warning : theme.text.accent}
-              >
-                [{t2}]
-              </Text>
-              <Text>{` ${model.label}`}</Text>
-              {isRuntime && (
-                <Text color={theme.status.warning}> (Runtime)</Text>
-              )}
-            </Text>
-          );
+  const shouldShowPreviewModels = config?.getHasAccessToPreviewModel();
+  const useGemini31 = config?.getGemini31LaunchedSync?.() ?? false;
+  const useGemini31FlashLite =
+    config?.getGemini31FlashLiteLaunchedSync?.() ?? false;
+  const selectedAuthType = settings.merged.security.auth.selectedType;
+  const useCustomToolModel =
+    useGemini31 && selectedAuthType === AuthType.USE_GEMINI;
 
-          // Include runtime indicator in description
-          let description = model.description || '';
-          if (isRuntime) {
-            description = description
-              ? `${description} (Runtime)`
-              : 'Runtime model';
-          }
+  const manualModelSelected = useMemo(() => {
+    if (
+      config?.getExperimentalDynamicModelConfiguration?.() === true &&
+      config.getModelConfigService
+    ) {
+      const def = config
+        .getModelConfigService()
+        .getModelDefinition(preferredModel);
+      // Only treat as manual selection if it's a visible, non-auto model.
+      return def && def.tier !== 'auto' && def.isVisible === true
+        ? preferredModel
+        : '';
+    }
 
-          return {
-            value,
-            title,
-            description,
-            key: value,
-          };
-        },
-      ),
-    [availableModelEntries],
-  );
-
-  const preferredModelId = config?.getModel() || MAINLINE_CODER_MODEL;
-  // Check if current model is a runtime model
-  // Runtime snapshot ID is already in $runtime|${authType}|${modelId} format
-  const activeRuntimeSnapshot = config?.getActiveRuntimeModelSnapshot?.();
-  const preferredKey = activeRuntimeSnapshot
-    ? activeRuntimeSnapshot.id
-    : authType
-      ? `${authType}::${preferredModelId}`
-      : '';
+    const manualModels = [
+      DEFAULT_GEMINI_MODEL,
+      DEFAULT_GEMINI_FLASH_MODEL,
+      DEFAULT_GEMINI_FLASH_LITE_MODEL,
+      PREVIEW_GEMINI_MODEL,
+      PREVIEW_GEMINI_3_1_MODEL,
+      PREVIEW_GEMINI_3_1_CUSTOM_TOOLS_MODEL,
+      PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL,
+      PREVIEW_GEMINI_FLASH_MODEL,
+    ];
+    if (manualModels.includes(preferredModel)) {
+      return preferredModel;
+    }
+    return '';
+  }, [preferredModel, config]);
 
   useKeypress(
     (key) => {
       if (key.name === 'escape') {
-        onClose();
+        if (view === 'manual' && hasAccessToProModel) {
+          setView('main');
+        } else {
+          onClose();
+        }
+        return true;
       }
+      if (key.name === 'tab') {
+        setPersistMode((prev) => !prev);
+        return true;
+      }
+      return false;
     },
     { isActive: true },
   );
 
-  const initialIndex = useMemo(() => {
-    const index = MODEL_OPTIONS.findIndex(
-      (option) => option.value === preferredKey,
-    );
-    return index === -1 ? 0 : index;
-  }, [MODEL_OPTIONS, preferredKey]);
+  const mainOptions = useMemo(() => {
+    // --- DYNAMIC PATH ---
+    if (
+      config?.getExperimentalDynamicModelConfiguration?.() === true &&
+      config.getModelConfigService
+    ) {
+      const allOptions = config
+        .getModelConfigService()
+        .getAvailableModelOptions({
+          useGemini3_1: useGemini31,
+          useGemini3_1FlashLite: useGemini31FlashLite,
+          useCustomTools: useCustomToolModel,
+          hasAccessToPreview: shouldShowPreviewModels,
+          hasAccessToProModel,
+        });
 
-  const handleHighlight = useCallback((value: string) => {
-    setHighlightedValue(value);
-  }, []);
+      const list = allOptions
+        .filter((o) => o.tier === 'auto')
+        .map((o) => ({
+          value: o.modelId,
+          title: o.name,
+          description: o.description,
+          key: o.modelId,
+        }));
 
-  const highlightedEntry = useMemo(() => {
-    const key = highlightedValue ?? preferredKey;
-    return availableModelEntries.find(
-      ({ authType: t2, model, isRuntime, snapshotId }) => {
-        const v = isRuntime && snapshotId ? snapshotId : `${t2}::${model.id}`;
-        return v === key;
-      },
-    );
-  }, [highlightedValue, preferredKey, availableModelEntries]);
-
-  const handleSelect = useCallback(
-    async (selected: string) => {
-      setErrorMessage(null);
-
-      let after: ContentGeneratorConfig | undefined;
-      let effectiveAuthType: AuthType | undefined;
-      let effectiveModelId = selected;
-      let isRuntime = false;
-
-      if (!config) {
-        onClose();
-        return;
-      }
-
-      try {
-        // Determine if this is a runtime model selection
-        // Runtime model format: $runtime|${authType}|${modelId}
-        isRuntime = selected.startsWith('$runtime|');
-
-        let selectedAuthType: AuthType;
-        let modelId: string;
-
-        if (isRuntime) {
-          // For runtime models, extract authType from the snapshot ID
-          // Format: $runtime|${authType}|${modelId}
-          const parts = selected.split('|');
-          if (parts.length >= 2 && parts[0] === '$runtime') {
-            selectedAuthType = parts[1] as AuthType;
-          } else {
-            selectedAuthType = authType as AuthType;
-          }
-          modelId = selected; // Pass the full snapshot ID to switchModel
-        } else {
-          const sep = '::';
-          const idx = selected.indexOf(sep);
-          selectedAuthType = (
-            idx >= 0 ? selected.slice(0, idx) : authType
-          ) as AuthType;
-          modelId = idx >= 0 ? selected.slice(idx + sep.length) : selected;
-        }
-
-        await config.switchModel(selectedAuthType, modelId);
-
-        if (!isRuntime) {
-          const event = new ModelSlashCommandEvent(modelId);
-          logModelSlashCommand(config, event);
-        }
-
-        after = config.getContentGeneratorConfig?.() as
-          | ContentGeneratorConfig
-          | undefined;
-        effectiveAuthType = after?.authType ?? selectedAuthType ?? authType;
-        effectiveModelId = after?.model ?? modelId;
-      } catch (e) {
-        const baseErrorMessage = e instanceof Error ? e.message : String(e);
-        const errorPrefix = isRuntime
-          ? 'Failed to switch to runtime model.'
-          : `Failed to switch model to '${effectiveModelId ?? selected}'.`;
-        setErrorMessage(`${errorPrefix}\n\n${baseErrorMessage}`);
-        return;
-      }
-
-      handleModelSwitchSuccess({
-        settings,
-        uiState,
-        after,
-        effectiveAuthType,
-        effectiveModelId,
-        isRuntime,
+      list.push({
+        value: 'Manual',
+        title: manualModelSelected
+          ? `Manual (${getDisplayString(manualModelSelected, config ?? undefined)})`
+          : 'Manual',
+        description: 'Manually select a model',
+        key: 'Manual',
       });
+      return list;
+    }
+
+    // --- LEGACY PATH ---
+    const list = [
+      {
+        value: DEFAULT_GEMINI_MODEL_AUTO,
+        title: getDisplayString(DEFAULT_GEMINI_MODEL_AUTO),
+        description:
+          'Let Gemini CLI decide the best model for the task: gemini-2.5-pro, gemini-2.5-flash',
+        key: DEFAULT_GEMINI_MODEL_AUTO,
+      },
+      {
+        value: 'Manual',
+        title: manualModelSelected
+          ? `Manual (${getDisplayString(manualModelSelected)})`
+          : 'Manual',
+        description: 'Manually select a model',
+        key: 'Manual',
+      },
+    ];
+
+    if (shouldShowPreviewModels) {
+      list.unshift({
+        value: PREVIEW_GEMINI_MODEL_AUTO,
+        title: getDisplayString(PREVIEW_GEMINI_MODEL_AUTO),
+        description: useGemini31
+          ? 'Let Gemini CLI decide the best model for the task: gemini-3.1-pro, gemini-3-flash'
+          : 'Let Gemini CLI decide the best model for the task: gemini-3-pro, gemini-3-flash',
+        key: PREVIEW_GEMINI_MODEL_AUTO,
+      });
+    }
+    return list;
+  }, [
+    config,
+    shouldShowPreviewModels,
+    manualModelSelected,
+    useGemini31,
+    useGemini31FlashLite,
+    useCustomToolModel,
+    hasAccessToProModel,
+  ]);
+
+  const manualOptions = useMemo(() => {
+    // --- DYNAMIC PATH ---
+    if (
+      config?.getExperimentalDynamicModelConfiguration?.() === true &&
+      config.getModelConfigService
+    ) {
+      const allOptions = config
+        .getModelConfigService()
+        .getAvailableModelOptions({
+          useGemini3_1: useGemini31,
+          useGemini3_1FlashLite: useGemini31FlashLite,
+          useCustomTools: useCustomToolModel,
+          hasAccessToPreview: shouldShowPreviewModels,
+          hasAccessToProModel,
+        });
+
+      return allOptions
+        .filter((o) => o.tier !== 'auto')
+        .map((o) => ({
+          value: o.modelId,
+          title: o.name,
+          key: o.modelId,
+        }));
+    }
+
+    // --- LEGACY PATH ---
+    const list = [
+      {
+        value: DEFAULT_GEMINI_MODEL,
+        title: getDisplayString(DEFAULT_GEMINI_MODEL),
+        key: DEFAULT_GEMINI_MODEL,
+      },
+      {
+        value: DEFAULT_GEMINI_FLASH_MODEL,
+        title: getDisplayString(DEFAULT_GEMINI_FLASH_MODEL),
+        key: DEFAULT_GEMINI_FLASH_MODEL,
+      },
+      {
+        value: DEFAULT_GEMINI_FLASH_LITE_MODEL,
+        title: getDisplayString(DEFAULT_GEMINI_FLASH_LITE_MODEL),
+        key: DEFAULT_GEMINI_FLASH_LITE_MODEL,
+      },
+    ];
+
+    if (shouldShowPreviewModels) {
+      const previewProModel = useGemini31
+        ? PREVIEW_GEMINI_3_1_MODEL
+        : PREVIEW_GEMINI_MODEL;
+
+      const previewProValue = useCustomToolModel
+        ? PREVIEW_GEMINI_3_1_CUSTOM_TOOLS_MODEL
+        : previewProModel;
+
+      const previewOptions = [
+        {
+          value: previewProValue,
+          title: getDisplayString(previewProModel),
+          key: previewProModel,
+        },
+        {
+          value: PREVIEW_GEMINI_FLASH_MODEL,
+          title: getDisplayString(PREVIEW_GEMINI_FLASH_MODEL),
+          key: PREVIEW_GEMINI_FLASH_MODEL,
+        },
+      ];
+
+      if (useGemini31FlashLite) {
+        previewOptions.push({
+          value: PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL,
+          title: getDisplayString(PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL),
+          key: PREVIEW_GEMINI_3_1_FLASH_LITE_MODEL,
+        });
+      }
+
+      list.unshift(...previewOptions);
+    }
+
+    if (!hasAccessToProModel) {
+      // Filter out all Pro models for free tier
+      return list.filter((option) => !isProModel(option.value));
+    }
+
+    return list;
+  }, [
+    shouldShowPreviewModels,
+    useGemini31,
+    useGemini31FlashLite,
+    useCustomToolModel,
+    hasAccessToProModel,
+    config,
+  ]);
+
+  const options = view === 'main' ? mainOptions : manualOptions;
+
+  // Calculate the initial index based on the preferred model.
+  const initialIndex = useMemo(() => {
+    const idx = options.findIndex((option) => option.value === preferredModel);
+    if (idx !== -1) {
+      return idx;
+    }
+    if (view === 'main') {
+      const manualIdx = options.findIndex((o) => o.value === 'Manual');
+      return manualIdx !== -1 ? manualIdx : 0;
+    }
+    return 0;
+  }, [preferredModel, options, view]);
+
+  // Handle selection internally (Autonomous Dialog).
+  const handleSelect = useCallback(
+    (model: string) => {
+      if (model === 'Manual') {
+        setView('manual');
+        return;
+      }
+
+      if (config) {
+        config.setModel(model, persistMode ? false : true);
+        const event = new ModelSlashCommandEvent(model);
+        logModelSlashCommand(config, event);
+      }
       onClose();
     },
-    [authType, config, onClose, settings, uiState, setErrorMessage],
+    [config, onClose, persistMode],
   );
-
-  const hasModels = MODEL_OPTIONS.length > 0;
 
   return (
     <Box
@@ -367,81 +329,38 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
       padding={1}
       width="100%"
     >
-      <Text bold>{t('Select Model')}</Text>
+      <Text bold>Select Model</Text>
 
-      {!hasModels ? (
-        <Box marginTop={1} flexDirection="column">
-          <Text color={theme.status.warning}>
-            {t(
-              'No models available for the current authentication type ({{authType}}).',
-              {
-                authType: authType ? String(authType) : t('(none)'),
-              },
-            )}
-          </Text>
-          <Box marginTop={1}>
-            <Text color={theme.text.secondary}>
-              {t(
-                'Please configure models in settings.modelProviders or use environment variables.',
-              )}
-            </Text>
-          </Box>
-        </Box>
-      ) : (
-        <Box marginTop={1}>
-          <DescriptiveRadioButtonSelect
-            items={MODEL_OPTIONS}
-            onSelect={handleSelect}
-            onHighlight={handleHighlight}
-            initialIndex={initialIndex}
-            showNumbers={true}
-          />
-        </Box>
-      )}
-
-      {highlightedEntry && (
-        <Box marginTop={1} flexDirection="column">
-          <Box
-            borderStyle="single"
-            borderTop
-            borderBottom={false}
-            borderLeft={false}
-            borderRight={false}
-            borderColor={theme.border.default}
-          />
-          <DetailRow
-            label={t('Modality')}
-            value={formatModalities(highlightedEntry.model.modalities)}
-          />
-          <DetailRow
-            label={t('Context Window')}
-            value={formatContextWindow(
-              highlightedEntry.model.contextWindowSize,
-            )}
-          />
-          <DetailRow
-            label="Base URL"
-            value={highlightedEntry.model.baseUrl ?? t('(default)')}
-          />
-          <DetailRow
-            label="API Key"
-            value={highlightedEntry.model.envKey ?? t('(not set)')}
-          />
-        </Box>
-      )}
-
-      {errorMessage && (
-        <Box marginTop={1} flexDirection="column" paddingX={1}>
-          <Text color={theme.status.error} wrap="wrap">
-            ✕ {errorMessage}
-          </Text>
-        </Box>
-      )}
-
+      <Box marginTop={1}>
+        <DescriptiveRadioButtonSelect
+          items={options}
+          onSelect={handleSelect}
+          initialIndex={initialIndex}
+          showNumbers={true}
+        />
+      </Box>
       <Box marginTop={1} flexDirection="column">
+        <Box>
+          <Text bold color={theme.text.primary}>
+            Remember model for future sessions:{' '}
+          </Text>
+          <Text color={theme.status.success}>
+            {persistMode ? 'true' : 'false'}
+          </Text>
+          <Text color={theme.text.secondary}> (Press Tab to toggle)</Text>
+        </Box>
+      </Box>
+      <Box flexDirection="column">
         <Text color={theme.text.secondary}>
-          {t('Enter to select, ↑↓ to navigate, Esc to close')}
+          {'> To use a specific Gemini model on startup, use the --model flag.'}
         </Text>
+      </Box>
+      <ModelQuotaDisplay
+        buckets={config?.getLastRetrievedQuota()?.buckets}
+        availableWidth={terminalWidth - 2}
+      />
+      <Box marginTop={1} flexDirection="column">
+        <Text color={theme.text.secondary}>(Press Esc to close)</Text>
       </Box>
     </Box>
   );

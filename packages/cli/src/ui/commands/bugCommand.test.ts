@@ -6,49 +6,95 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import open from 'open';
+import path from 'node:path';
 import { bugCommand } from './bugCommand.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
+import { getVersion } from '@apex-code/apex-core';
 import { GIT_COMMIT_INFO } from '../../generated/git-commit.js';
-import { AuthType } from '@apex-code/apex-core';
-import * as systemInfoUtils from '../../utils/systemInfo.js';
+import { formatBytes } from '../utils/formatters.js';
 
 // Mock dependencies
 vi.mock('open');
-vi.mock('../../utils/systemInfo.js');
+vi.mock('../utils/formatters.js');
+vi.mock('../utils/historyExportUtils.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../utils/historyExportUtils.js')>();
+  return {
+    ...actual,
+    exportHistoryToFile: vi.fn(),
+  };
+});
+import { exportHistoryToFile } from '../utils/historyExportUtils.js';
+
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@apex-code/apex-core')>();
+  return {
+    ...actual,
+    IdeClient: {
+      getInstance: () => ({
+        getDetectedIdeDisplayName: vi.fn().mockReturnValue('VSCode'),
+      }),
+    },
+    sessionId: 'test-session-id',
+    getVersion: vi.fn(),
+    INITIAL_HISTORY_LENGTH: 1,
+    debugLogger: {
+      error: vi.fn(),
+      log: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    },
+  };
+});
+vi.mock('node:process', () => ({
+  default: {
+    platform: 'test-platform',
+    version: 'v20.0.0',
+    // Keep other necessary process properties if needed by other parts of the code
+    env: process.env,
+    memoryUsage: () => ({ rss: 0 }),
+  },
+}));
+
+vi.mock('../utils/terminalCapabilityManager.js', () => ({
+  terminalCapabilityManager: {
+    getTerminalName: vi.fn().mockReturnValue('Test Terminal'),
+    getTerminalBackgroundColor: vi.fn().mockReturnValue('#000000'),
+    isKittyProtocolEnabled: vi.fn().mockReturnValue(true),
+  },
+}));
 
 describe('bugCommand', () => {
   beforeEach(() => {
-    vi.mocked(systemInfoUtils.getExtendedSystemInfo).mockResolvedValue({
-      cliVersion: '0.1.0',
-      osPlatform: 'test-platform',
-      osArch: 'x64',
-      osRelease: '22.0.0',
-      nodeVersion: 'v20.0.0',
-      npmVersion: '10.0.0',
-      sandboxEnv: 'test',
-      modelVersion: 'qwen3-coder-plus',
-      selectedAuthType: '',
-      ideClient: 'VSCode',
-      sessionId: 'test-session-id',
-      memoryUsage: '100 MB',
-      gitCommit:
-        GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-          ? GIT_COMMIT_INFO
-          : undefined,
-    });
-    vi.stubEnv('SANDBOX', 'qwen-test');
+    vi.mocked(getVersion).mockResolvedValue('0.1.0');
+    vi.mocked(formatBytes).mockReturnValue('100 MB');
+    vi.stubEnv('SANDBOX', 'gemini-test');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('should generate the default GitHub issue URL', async () => {
     const mockContext = createMockCommandContext({
       services: {
-        config: {
-          getBugCommand: () => undefined,
+        agentContext: {
+          config: {
+            getModel: () => 'gemini-pro',
+            getBugCommand: () => undefined,
+            getIdeMode: () => true,
+            getContentGeneratorConfig: () => ({ authType: 'oauth-personal' }),
+          },
+          geminiClient: {
+            getChat: () => ({
+              getHistory: () => [],
+            }),
+          },
         },
       },
     });
@@ -56,24 +102,73 @@ describe('bugCommand', () => {
     if (!bugCommand.action) throw new Error('Action is not defined');
     await bugCommand.action(mockContext, 'A test bug');
 
-    const qwenCodeLine =
-      GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-        ? `Apex: 0.1.0 (${GIT_COMMIT_INFO})`
-        : 'Apex: 0.1.0';
-    const expectedInfo = `${qwenCodeLine}
-Runtime: Node.js v20.0.0 / npm 10.0.0
-IDE Client: VSCode
-OS: test-platform x64 (22.0.0)
-Model: qwen3-coder-plus
-Session ID: test-session-id
-Sandbox: test
-Proxy: no proxy
-Memory Usage: 100 MB`;
-    const expectedUrl =
-      'https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title=A%20test%20bug&info=' +
-      encodeURIComponent(`\n${expectedInfo}\n`);
+    const expectedInfo = `
+* **CLI Version:** 0.1.0
+* **Git Commit:** ${GIT_COMMIT_INFO}
+* **Session ID:** test-session-id
+* **Operating System:** test-platform v20.0.0
+* **Sandbox Environment:** test
+* **Model Version:** gemini-pro
+* **Auth Type:** oauth-personal
+* **Memory Usage:** 100 MB
+* **Terminal Name:** Test Terminal
+* **Terminal Background:** #000000
+* **Kitty Keyboard Protocol:** Supported
+* **IDE Client:** VSCode
+`;
+    const expectedUrl = `https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title=A%20test%20bug&info=${encodeURIComponent(expectedInfo)}&problem=A%20test%20bug`;
 
     expect(open).toHaveBeenCalledWith(expectedUrl);
+  });
+
+  it('should export chat history if available', async () => {
+    const history = [
+      { role: 'user', parts: [{ text: 'hello' }] },
+      { role: 'model', parts: [{ text: 'hi' }] },
+    ];
+    const mockContext = createMockCommandContext({
+      services: {
+        agentContext: {
+          config: {
+            getModel: () => 'gemini-pro',
+            getBugCommand: () => undefined,
+            getIdeMode: () => true,
+            getContentGeneratorConfig: () => ({ authType: 'vertex-ai' }),
+            storage: {
+              getProjectTempDir: () => '/tmp/gemini',
+            },
+          },
+          geminiClient: {
+            getChat: () => ({
+              getHistory: () => history,
+            }),
+          },
+        },
+      },
+    });
+
+    if (!bugCommand.action) throw new Error('Action is not defined');
+    await bugCommand.action(mockContext, 'Bug with history');
+
+    const expectedPath = path.join(
+      '/tmp/gemini',
+      'bug-report-history-1704067200000.json',
+    );
+    expect(exportHistoryToFile).toHaveBeenCalledWith({
+      history,
+      filePath: expectedPath,
+    });
+
+    const addItemCall = vi.mocked(mockContext.ui.addItem).mock.calls[0];
+    const messageText = addItemCall[0].text;
+    expect(messageText).toContain(expectedPath);
+    expect(messageText).toContain('📄 **Chat History Exported**');
+    expect(messageText).toContain('Privacy Disclaimer:');
+    expect(messageText).not.toContain('additional-context=');
+    expect(messageText).toContain('problem=');
+    const reminder =
+      '\n\n[ACTION REQUIRED] 📎 PLEASE ATTACH THE EXPORTED CHAT HISTORY JSON FILE TO THIS ISSUE IF YOU FEEL COMFORTABLE SHARING IT.';
+    expect(messageText).toContain(encodeURIComponent(reminder));
   });
 
   it('should use a custom URL template from config if provided', async () => {
@@ -81,8 +176,18 @@ Memory Usage: 100 MB`;
       'https://internal.bug-tracker.com/new?desc={title}&details={info}';
     const mockContext = createMockCommandContext({
       services: {
-        config: {
-          getBugCommand: () => ({ urlTemplate: customTemplate }),
+        agentContext: {
+          config: {
+            getModel: () => 'gemini-pro',
+            getBugCommand: () => ({ urlTemplate: customTemplate }),
+            getIdeMode: () => true,
+            getContentGeneratorConfig: () => ({ authType: 'vertex-ai' }),
+          },
+          geminiClient: {
+            getChat: () => ({
+              getHistory: () => [],
+            }),
+          },
         },
       },
     });
@@ -90,76 +195,23 @@ Memory Usage: 100 MB`;
     if (!bugCommand.action) throw new Error('Action is not defined');
     await bugCommand.action(mockContext, 'A custom bug');
 
-    const qwenCodeLine =
-      GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-        ? `Apex: 0.1.0 (${GIT_COMMIT_INFO})`
-        : 'Apex: 0.1.0';
-    const expectedInfo = `${qwenCodeLine}
-Runtime: Node.js v20.0.0 / npm 10.0.0
-IDE Client: VSCode
-OS: test-platform x64 (22.0.0)
-Model: qwen3-coder-plus
-Session ID: test-session-id
-Sandbox: test
-Proxy: no proxy
-Memory Usage: 100 MB`;
+    const expectedInfo = `
+* **CLI Version:** 0.1.0
+* **Git Commit:** ${GIT_COMMIT_INFO}
+* **Session ID:** test-session-id
+* **Operating System:** test-platform v20.0.0
+* **Sandbox Environment:** test
+* **Model Version:** gemini-pro
+* **Auth Type:** vertex-ai
+* **Memory Usage:** 100 MB
+* **Terminal Name:** Test Terminal
+* **Terminal Background:** #000000
+* **Kitty Keyboard Protocol:** Supported
+* **IDE Client:** VSCode
+`;
     const expectedUrl = customTemplate
       .replace('{title}', encodeURIComponent('A custom bug'))
-      .replace('{info}', encodeURIComponent(`\n${expectedInfo}\n`));
-
-    expect(open).toHaveBeenCalledWith(expectedUrl);
-  });
-
-  it('should include Base URL when auth type is OpenAI', async () => {
-    vi.mocked(systemInfoUtils.getExtendedSystemInfo).mockResolvedValue({
-      cliVersion: '0.1.0',
-      osPlatform: 'test-platform',
-      osArch: 'x64',
-      osRelease: '22.0.0',
-      nodeVersion: 'v20.0.0',
-      npmVersion: '10.0.0',
-      sandboxEnv: 'test',
-      modelVersion: 'qwen3-coder-plus',
-      selectedAuthType: AuthType.USE_OPENAI,
-      ideClient: 'VSCode',
-      sessionId: 'test-session-id',
-      memoryUsage: '100 MB',
-      baseUrl: 'https://api.openai.com/v1',
-      gitCommit:
-        GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-          ? GIT_COMMIT_INFO
-          : undefined,
-    });
-
-    const mockContext = createMockCommandContext({
-      services: {
-        config: {
-          getBugCommand: () => undefined,
-        },
-      },
-    });
-
-    if (!bugCommand.action) throw new Error('Action is not defined');
-    await bugCommand.action(mockContext, 'OpenAI bug');
-
-    const qwenCodeLine =
-      GIT_COMMIT_INFO && !['N/A'].includes(GIT_COMMIT_INFO)
-        ? `Apex: 0.1.0 (${GIT_COMMIT_INFO})`
-        : 'Apex: 0.1.0';
-    const expectedInfo = `${qwenCodeLine}
-Runtime: Node.js v20.0.0 / npm 10.0.0
-IDE Client: VSCode
-OS: test-platform x64 (22.0.0)
-Auth: API Key - ${AuthType.USE_OPENAI}
-Base URL: https://api.openai.com/v1
-Model: qwen3-coder-plus
-Session ID: test-session-id
-Sandbox: test
-Proxy: no proxy
-Memory Usage: 100 MB`;
-    const expectedUrl =
-      'https://github.com/netbrah/apex/issues/new?template=bug_report.yml&title=OpenAI%20bug&info=' +
-      encodeURIComponent(`\n${expectedInfo}\n`);
+      .replace('{info}', encodeURIComponent(expectedInfo));
 
     expect(open).toHaveBeenCalledWith(expectedUrl);
   });

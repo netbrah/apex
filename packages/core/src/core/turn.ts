@@ -5,20 +5,18 @@
  */
 
 import {
-  FinishReason,
-  type Part,
+  createUserContent,
   type PartListUnion,
   type GenerateContentResponse,
   type FunctionCall,
   type FunctionDeclaration,
+  type FinishReason,
   type GenerateContentResponseUsageMetadata,
 } from '@google/genai';
 import type {
   ToolCallConfirmationDetails,
   ToolResult,
-  ToolResultDisplay,
 } from '../tools/tools.js';
-import type { ToolErrorType } from '../tools/tool-error.js';
 import { getResponseText } from '../utils/partUtils.js';
 import { reportError } from '../utils/errorReporting.js';
 import {
@@ -26,15 +24,17 @@ import {
   UnauthorizedError,
   toFriendlyError,
 } from '../utils/errors.js';
-import type { GeminiChat } from './geminiChat.js';
-import type { RetryInfo } from '../utils/rateLimit.js';
-import {
-  getThoughtText,
-  parseThought,
-  type ThoughtSummary,
-} from '../utils/thoughtUtils.js';
+import { InvalidStreamError, type GeminiChat } from './geminiChat.js';
+import { parseThought, type ThoughtSummary } from '../utils/thoughtUtils.js';
+import type { ModelConfigKey } from '../services/modelConfigService.js';
+import { getCitations } from '../utils/generateContentResponseUtilities.js';
+import { LlmRole } from '../telemetry/types.js';
 
-// Define a structure for tools passed to the server
+import {
+  type ToolCallRequestInfo,
+  type ToolCallResponseInfo,
+} from '../scheduler/types.js';
+
 export interface ServerTool {
   name: string;
   schema: FunctionDeclaration;
@@ -43,6 +43,10 @@ export interface ServerTool {
     params: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<ToolResult>;
+  shouldConfirmExecute(
+    params: Record<string, unknown>,
+    abortSignal: AbortSignal,
+  ): Promise<ToolCallConfirmationDetails | false>;
 }
 
 export enum GeminiEventType {
@@ -55,17 +59,54 @@ export enum GeminiEventType {
   ChatCompressed = 'chat_compressed',
   Thought = 'thought',
   MaxSessionTurns = 'max_session_turns',
-  SessionTokenLimitExceeded = 'session_token_limit_exceeded',
   Finished = 'finished',
   LoopDetected = 'loop_detected',
   Citation = 'citation',
   Retry = 'retry',
-  HookSystemMessage = 'hook_system_message',
+  ContextWindowWillOverflow = 'context_window_will_overflow',
+  InvalidStream = 'invalid_stream',
+  ModelInfo = 'model_info',
+  AgentExecutionStopped = 'agent_execution_stopped',
+  AgentExecutionBlocked = 'agent_execution_blocked',
 }
 
 export type ServerGeminiRetryEvent = {
   type: GeminiEventType.Retry;
-  retryInfo?: RetryInfo;
+};
+
+export type ServerGeminiAgentExecutionStoppedEvent = {
+  type: GeminiEventType.AgentExecutionStopped;
+  value: {
+    reason: string;
+    systemMessage?: string;
+    contextCleared?: boolean;
+  };
+};
+
+export type ServerGeminiAgentExecutionBlockedEvent = {
+  type: GeminiEventType.AgentExecutionBlocked;
+  value: {
+    reason: string;
+    systemMessage?: string;
+    contextCleared?: boolean;
+  };
+};
+
+export type ServerGeminiContextWindowWillOverflowEvent = {
+  type: GeminiEventType.ContextWindowWillOverflow;
+  value: {
+    estimatedRequestTokenCount: number;
+    remainingTokenCount: number;
+  };
+};
+
+export type ServerGeminiInvalidStreamEvent = {
+  type: GeminiEventType.InvalidStream;
+};
+
+export type ServerGeminiModelInfoEvent = {
+  type: GeminiEventType.ModelInfo;
+  value: string;
 };
 
 export interface StructuredError {
@@ -74,38 +115,12 @@ export interface StructuredError {
 }
 
 export interface GeminiErrorEventValue {
-  error: StructuredError;
-}
-
-export interface SessionTokenLimitExceededValue {
-  currentTokens: number;
-  limit: number;
-  message: string;
+  error: unknown;
 }
 
 export interface GeminiFinishedEventValue {
   reason: FinishReason | undefined;
   usageMetadata: GenerateContentResponseUsageMetadata | undefined;
-}
-
-export interface ToolCallRequestInfo {
-  callId: string;
-  name: string;
-  args: Record<string, unknown>;
-  isClientInitiated: boolean;
-  prompt_id: string;
-  response_id?: string;
-  /** Set to true when the LLM response was truncated due to max_tokens. */
-  wasOutputTruncated?: boolean;
-}
-
-export interface ToolCallResponseInfo {
-  callId: string;
-  responseParts: Part[];
-  resultDisplay: ToolResultDisplay | undefined;
-  error: Error | undefined;
-  errorType: ToolErrorType | undefined;
-  contentLength?: number;
 }
 
 export interface ServerToolCallConfirmationDetails {
@@ -116,11 +131,13 @@ export interface ServerToolCallConfirmationDetails {
 export type ServerGeminiContentEvent = {
   type: GeminiEventType.Content;
   value: string;
+  traceId?: string;
 };
 
 export type ServerGeminiThoughtEvent = {
   type: GeminiEventType.Thought;
   value: ThoughtSummary;
+  traceId?: string;
 };
 
 export type ServerGeminiToolCallRequestEvent = {
@@ -157,11 +174,14 @@ export enum CompressionStatus {
   /** The compression failed due to an error counting tokens */
   COMPRESSION_FAILED_TOKEN_COUNT_ERROR,
 
-  /** The compression failed due to receiving an empty or null summary */
+  /** The compression failed because the summary was empty */
   COMPRESSION_FAILED_EMPTY_SUMMARY,
 
   /** The compression was not necessary and no action was taken */
   NOOP,
+
+  /** The compression was skipped due to previous failure, but content was truncated to budget */
+  CONTENT_TRUNCATED,
 }
 
 export interface ChatCompressionInfo {
@@ -179,11 +199,6 @@ export type ServerGeminiMaxSessionTurnsEvent = {
   type: GeminiEventType.MaxSessionTurns;
 };
 
-export type ServerGeminiSessionTokenLimitExceededEvent = {
-  type: GeminiEventType.SessionTokenLimitExceeded;
-  value: SessionTokenLimitExceededValue;
-};
-
 export type ServerGeminiFinishedEvent = {
   type: GeminiEventType.Finished;
   value: GeminiFinishedEventValue;
@@ -198,11 +213,6 @@ export type ServerGeminiCitationEvent = {
   value: string;
 };
 
-export type ServerGeminiHookSystemMessageEvent = {
-  type: GeminiEventType.HookSystemMessage;
-  value: string;
-};
-
 // The original union type, now composed of the individual types
 export type ServerGeminiStreamEvent =
   | ServerGeminiChatCompressedEvent
@@ -210,7 +220,6 @@ export type ServerGeminiStreamEvent =
   | ServerGeminiContentEvent
   | ServerGeminiErrorEvent
   | ServerGeminiFinishedEvent
-  | ServerGeminiHookSystemMessageEvent
   | ServerGeminiLoopDetectedEvent
   | ServerGeminiMaxSessionTurnsEvent
   | ServerGeminiThoughtEvent
@@ -218,40 +227,46 @@ export type ServerGeminiStreamEvent =
   | ServerGeminiToolCallRequestEvent
   | ServerGeminiToolCallResponseEvent
   | ServerGeminiUserCancelledEvent
-  | ServerGeminiSessionTokenLimitExceededEvent
-  | ServerGeminiRetryEvent;
+  | ServerGeminiRetryEvent
+  | ServerGeminiContextWindowWillOverflowEvent
+  | ServerGeminiInvalidStreamEvent
+  | ServerGeminiModelInfoEvent
+  | ServerGeminiAgentExecutionStoppedEvent
+  | ServerGeminiAgentExecutionBlockedEvent;
 
 // A turn manages the agentic loop turn within the server context.
 export class Turn {
+  private callCounter = 0;
+
   readonly pendingToolCalls: ToolCallRequestInfo[] = [];
   private debugResponses: GenerateContentResponse[] = [];
   private pendingCitations = new Set<string>();
-  finishReason: FinishReason | undefined = undefined;
-  private currentResponseId?: string;
   private cachedResponseText: string | undefined = undefined;
+  finishReason: FinishReason | undefined = undefined;
 
   constructor(
     private readonly chat: GeminiChat,
     private readonly prompt_id: string,
   ) {}
+
   // The run method yields simpler events suitable for server logic
   async *run(
-    model: string,
+    modelConfigKey: ModelConfigKey,
     req: PartListUnion,
     signal: AbortSignal,
+    displayContent?: PartListUnion,
+    role: LlmRole = LlmRole.MAIN,
   ): AsyncGenerator<ServerGeminiStreamEvent> {
     try {
       // Note: This assumes `sendMessageStream` yields events like
       // { type: StreamEventType.RETRY } or { type: StreamEventType.CHUNK, value: GenerateContentResponse }
       const responseStream = await this.chat.sendMessageStream(
-        model,
-        {
-          message: req,
-          config: {
-            abortSignal: signal,
-          },
-        },
+        modelConfigKey,
+        req,
         this.prompt_id,
+        signal,
+        role,
+        displayContent,
       );
 
       for await (const streamEvent of responseStream) {
@@ -262,41 +277,55 @@ export class Turn {
 
         // Handle the new RETRY event
         if (streamEvent.type === 'retry') {
-          yield {
-            type: GeminiEventType.Retry,
-            retryInfo: streamEvent.retryInfo,
-          };
+          yield { type: GeminiEventType.Retry };
           continue; // Skip to the next event in the stream
         }
 
+        if (streamEvent.type === 'agent_execution_stopped') {
+          yield {
+            type: GeminiEventType.AgentExecutionStopped,
+            value: { reason: streamEvent.reason },
+          };
+          return;
+        }
+
+        if (streamEvent.type === 'agent_execution_blocked') {
+          yield {
+            type: GeminiEventType.AgentExecutionBlocked,
+            value: { reason: streamEvent.reason },
+          };
+          continue;
+        }
+
         // Assuming other events are chunks with a `value` property
-        const resp = streamEvent.value as GenerateContentResponse;
+        const resp = streamEvent.value;
         if (!resp) continue; // Skip if there's no response body
 
         this.debugResponses.push(resp);
 
-        // Track the current response ID for tool call correlation
-        if (resp.responseId) {
-          this.currentResponseId = resp.responseId;
-        }
+        const traceId = resp.responseId;
 
-        const thoughtText = getThoughtText(resp);
-        if (thoughtText) {
-          yield {
-            type: GeminiEventType.Thought,
-            value: parseThought(thoughtText),
-          };
+        const parts = resp.candidates?.[0]?.content?.parts ?? [];
+        for (const part of parts) {
+          if (part.thought) {
+            const thought = parseThought(part.text ?? '');
+            yield {
+              type: GeminiEventType.Thought,
+              value: thought,
+              traceId,
+            };
+          }
         }
 
         const text = getResponseText(resp);
         if (text) {
-          yield { type: GeminiEventType.Content, value: text };
+          yield { type: GeminiEventType.Content, value: text, traceId };
         }
 
         // Handle function calls (requesting tool execution)
         const functionCalls = resp.functionCalls ?? [];
         for (const fnCall of functionCalls) {
-          const event = this.handlePendingFunctionCall(fnCall);
+          const event = this.handlePendingFunctionCall(fnCall, traceId);
           if (event) {
             yield event;
           }
@@ -311,14 +340,6 @@ export class Turn {
 
         // This is the key change: Only yield 'Finished' if there is a finishReason.
         if (finishReason) {
-          // Mark pending tool calls so downstream can distinguish
-          // truncation from real parameter errors.
-          if (finishReason === FinishReason.MAX_TOKENS) {
-            for (const tc of this.pendingToolCalls) {
-              tc.wasOutputTruncated = true;
-            }
-          }
-
           if (this.pendingCitations.size > 0) {
             yield {
               type: GeminiEventType.Citation,
@@ -344,15 +365,23 @@ export class Turn {
         return;
       }
 
+      if (e instanceof InvalidStreamError) {
+        yield { type: GeminiEventType.InvalidStream };
+        return;
+      }
+
       const error = toFriendlyError(e);
       if (error instanceof UnauthorizedError) {
         throw error;
       }
 
-      const contextForReport = [...this.chat.getHistory(/*curated*/ true), req];
+      const contextForReport = [
+        ...this.chat.getHistory(/*curated*/ true),
+        createUserContent(req),
+      ];
       await reportError(
         error,
-        'Error when talking to API',
+        'Error when talking to Gemini API',
         contextForReport,
         'Turn.run-sendMessageStream',
       );
@@ -361,7 +390,8 @@ export class Turn {
         error !== null &&
         'status' in error &&
         typeof (error as { status: unknown }).status === 'number'
-          ? (error as { status: number }).status
+          ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+            (error as { status: number }).status
           : undefined;
       const structuredError: StructuredError = {
         message: getErrorMessage(error),
@@ -375,12 +405,11 @@ export class Turn {
 
   private handlePendingFunctionCall(
     fnCall: FunctionCall,
+    traceId?: string,
   ): ServerGeminiStreamEvent | null {
-    const callId =
-      fnCall.id ??
-      `${fnCall.name}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const name = fnCall.name || 'undefined_tool_name';
-    const args = (fnCall.args || {}) as Record<string, unknown>;
+    const args = fnCall.args || {};
+    const callId = fnCall.id ?? `${name}_${Date.now()}_${this.callCounter++}`;
 
     const toolCallRequest: ToolCallRequestInfo = {
       callId,
@@ -388,7 +417,7 @@ export class Turn {
       args,
       isClientInitiated: false,
       prompt_id: this.prompt_id,
-      response_id: this.currentResponseId,
+      traceId,
     };
 
     this.pendingToolCalls.push(toolCallRequest);
@@ -401,28 +430,18 @@ export class Turn {
     return this.debugResponses;
   }
 
+  /**
+   * Get the concatenated response text from all responses in this turn.
+   * This extracts and joins all text content from the model's responses.
+   * The result is cached since this is called multiple times per turn.
+   */
   getResponseText(): string {
-    if (this.cachedResponseText !== undefined) {
-      return this.cachedResponseText;
+    if (this.cachedResponseText === undefined) {
+      this.cachedResponseText = this.debugResponses
+        .map((response) => getResponseText(response))
+        .filter((text): text is string => text !== null)
+        .join(' ');
     }
-    const text = this.debugResponses
-      .map((response) => getResponseText(response))
-      .filter((t): t is string => t !== null)
-      .join(' ');
-    if (this.finishReason !== undefined) {
-      this.cachedResponseText = text;
-    }
-    return text;
+    return this.cachedResponseText;
   }
-}
-
-function getCitations(resp: GenerateContentResponse): string[] {
-  return (resp.candidates?.[0]?.citationMetadata?.citations ?? [])
-    .filter((citation) => citation.uri !== undefined)
-    .map((citation) => {
-      if (citation.title) {
-        return `(${citation.title}) ${citation.uri}`;
-      }
-      return citation.uri!;
-    });
 }

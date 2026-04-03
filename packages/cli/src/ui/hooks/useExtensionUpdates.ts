@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ExtensionManager } from '@apex-code/apex-core';
-import { getErrorMessage } from '../../utils/errors.js';
+import {
+  debugLogger,
+  checkExhaustive,
+  getErrorMessage,
+  type GeminiCLIExtension,
+} from '@apex-code/apex-core';
 import {
   ExtensionUpdateState,
   extensionUpdatesReducer,
@@ -13,13 +17,13 @@ import {
 } from '../state/extensions.js';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
+import { MessageType, type ConfirmationRequest } from '../types.js';
 import {
-  MessageType,
-  type ConfirmationRequest,
-  type SettingInputRequest,
-  type PluginChoiceRequest,
-} from '../types.js';
-import { checkExhaustive } from '../../utils/checks.js';
+  checkForAllExtensionUpdates,
+  updateExtension,
+} from '../../config/extensions/update.js';
+import { type ExtensionUpdateInfo } from '../../config/extension.js';
+import type { ExtensionManager } from '../../config/extension-manager.js';
 
 type ConfirmationRequestWrapper = {
   prompt: React.ReactNode;
@@ -41,7 +45,6 @@ function confirmationRequestsReducer(
       return state.filter((r) => r !== action.request);
     default:
       checkExhaustive(action);
-      return state;
   }
 }
 
@@ -77,172 +80,34 @@ export const useConfirmUpdateRequests = () => {
   };
 };
 
-type SettingInputRequestWrapper = {
-  settingName: string;
-  settingDescription: string;
-  sensitive: boolean;
-  onSubmit: (value: string) => void;
-  onCancel: () => void;
-};
-
-type SettingInputRequestAction =
-  | { type: 'add'; request: SettingInputRequestWrapper }
-  | { type: 'remove'; request: SettingInputRequestWrapper };
-
-function settingInputRequestsReducer(
-  state: SettingInputRequestWrapper[],
-  action: SettingInputRequestAction,
-): SettingInputRequestWrapper[] {
-  switch (action.type) {
-    case 'add':
-      return [...state, action.request];
-    case 'remove':
-      return state.filter((r) => r !== action.request);
-    default:
-      checkExhaustive(action);
-      return state;
-  }
-}
-
-export const useSettingInputRequests = () => {
-  const [settingInputRequests, dispatchSettingInputRequests] = useReducer(
-    settingInputRequestsReducer,
-    [],
-  );
-  const addSettingInputRequest = useCallback(
-    (original: SettingInputRequest) => {
-      const wrappedRequest: SettingInputRequestWrapper = {
-        settingName: original.settingName,
-        settingDescription: original.settingDescription,
-        sensitive: original.sensitive,
-        onSubmit: (value: string) => {
-          // Remove it from the outstanding list of requests by identity.
-          dispatchSettingInputRequests({
-            type: 'remove',
-            request: wrappedRequest,
-          });
-          original.onSubmit(value);
-        },
-        onCancel: () => {
-          dispatchSettingInputRequests({
-            type: 'remove',
-            request: wrappedRequest,
-          });
-          original.onCancel();
-        },
-      };
-      dispatchSettingInputRequests({
-        type: 'add',
-        request: wrappedRequest,
-      });
-    },
-    [dispatchSettingInputRequests],
-  );
-  return {
-    addSettingInputRequest,
-    settingInputRequests,
-    dispatchSettingInputRequests,
-  };
-};
-
-type PluginChoiceRequestWrapper = {
-  marketplaceName: string;
-  plugins: Array<{ name: string; description?: string }>;
-  onSelect: (pluginName: string) => void;
-  onCancel: () => void;
-};
-
-type PluginChoiceRequestAction =
-  | { type: 'add'; request: PluginChoiceRequestWrapper }
-  | { type: 'remove'; request: PluginChoiceRequestWrapper };
-
-function pluginChoiceRequestsReducer(
-  state: PluginChoiceRequestWrapper[],
-  action: PluginChoiceRequestAction,
-): PluginChoiceRequestWrapper[] {
-  switch (action.type) {
-    case 'add':
-      return [...state, action.request];
-    case 'remove':
-      return state.filter((r) => r !== action.request);
-    default:
-      checkExhaustive(action);
-      return state;
-  }
-}
-
-export const usePluginChoiceRequests = () => {
-  const [pluginChoiceRequests, dispatchPluginChoiceRequests] = useReducer(
-    pluginChoiceRequestsReducer,
-    [],
-  );
-  const addPluginChoiceRequest = useCallback(
-    (original: PluginChoiceRequest) => {
-      const wrappedRequest: PluginChoiceRequestWrapper = {
-        marketplaceName: original.marketplaceName,
-        plugins: original.plugins,
-        onSelect: (pluginName: string) => {
-          dispatchPluginChoiceRequests({
-            type: 'remove',
-            request: wrappedRequest,
-          });
-          original.onSelect(pluginName);
-        },
-        onCancel: () => {
-          dispatchPluginChoiceRequests({
-            type: 'remove',
-            request: wrappedRequest,
-          });
-          original.onCancel();
-        },
-      };
-      dispatchPluginChoiceRequests({
-        type: 'add',
-        request: wrappedRequest,
-      });
-    },
-    [dispatchPluginChoiceRequests],
-  );
-  return {
-    addPluginChoiceRequest,
-    pluginChoiceRequests,
-    dispatchPluginChoiceRequests,
-  };
-};
-
 export const useExtensionUpdates = (
   extensionManager: ExtensionManager,
   addItem: UseHistoryManagerReturn['addItem'],
-  cwd: string,
+  enableExtensionReloading: boolean,
 ) => {
   const [extensionsUpdateState, dispatchExtensionStateUpdate] = useReducer(
     extensionUpdatesReducer,
     initialExtensionUpdatesState,
   );
-  const extensions = extensionManager.getLoadedExtensions();
+  const extensions = extensionManager.getExtensions();
 
   useEffect(() => {
-    (async () => {
-      const extensionsToCheck = extensions.filter((extension) => {
-        const currentStatus = extensionsUpdateState.extensionStatuses.get(
-          extension.name,
-        );
-        if (!currentStatus) return true;
-        const currentState = currentStatus.status;
-        return !currentState || currentState === ExtensionUpdateState.UNKNOWN;
-      });
-      if (extensionsToCheck.length === 0) return;
-      dispatchExtensionStateUpdate({ type: 'BATCH_CHECK_START' });
-      await extensionManager.checkForAllExtensionUpdates(
-        (extensionName: string, state: ExtensionUpdateState) => {
-          dispatchExtensionStateUpdate({
-            type: 'SET_STATE',
-            payload: { name: extensionName, state },
-          });
-        },
+    const extensionsToCheck = extensions.filter((extension) => {
+      const currentStatus = extensionsUpdateState.extensionStatuses.get(
+        extension.name,
       );
-      dispatchExtensionStateUpdate({ type: 'BATCH_CHECK_END' });
-    })();
+      if (!currentStatus) return true;
+      const currentState = currentStatus.status;
+      return !currentState || currentState === ExtensionUpdateState.UNKNOWN;
+    });
+    if (extensionsToCheck.length === 0) return;
+    void checkForAllExtensionUpdates(
+      extensionsToCheck,
+      extensionManager,
+      dispatchExtensionStateUpdate,
+    ).catch((e) => {
+      debugLogger.warn(getErrorMessage(e));
+    });
   }, [
     extensions,
     extensionManager,
@@ -254,38 +119,58 @@ export const useExtensionUpdates = (
     if (extensionsUpdateState.batchChecksInProgress > 0) {
       return;
     }
+    const scheduledUpdate = extensionsUpdateState.scheduledUpdate;
+    if (scheduledUpdate) {
+      dispatchExtensionStateUpdate({
+        type: 'CLEAR_SCHEDULED_UPDATE',
+      });
+    }
 
-    let extensionsWithUpdatesCount = 0;
+    function shouldDoUpdate(extension: GeminiCLIExtension): boolean {
+      if (scheduledUpdate) {
+        if (scheduledUpdate.all) {
+          return true;
+        }
+        return scheduledUpdate.names?.includes(extension.name) === true;
+      } else {
+        return extension.installMetadata?.autoUpdate === true;
+      }
+    }
+
+    // We only notify if we have unprocessed extensions in the UPDATE_AVAILABLE
+    // state.
+    const pendingUpdates = [];
+    const updatePromises: Array<Promise<ExtensionUpdateInfo | undefined>> = [];
     for (const extension of extensions) {
       const currentState = extensionsUpdateState.extensionStatuses.get(
         extension.name,
       );
       if (
         !currentState ||
-        currentState.processed ||
         currentState.status !== ExtensionUpdateState.UPDATE_AVAILABLE
       ) {
         continue;
       }
-
-      // Mark as processed immediately to avoid re-triggering.
-      dispatchExtensionStateUpdate({
-        type: 'SET_PROCESSED',
-        payload: { name: extension.name, processed: true },
-      });
-
-      if (extension.installMetadata?.autoUpdate) {
-        extensionManager
-          .updateExtension(
-            extension,
-            currentState.status,
-            (extensionName, state) => {
-              dispatchExtensionStateUpdate({
-                type: 'SET_STATE',
-                payload: { name: extensionName, state },
-              });
-            },
-          )
+      const shouldUpdate = shouldDoUpdate(extension);
+      if (!shouldUpdate) {
+        if (!currentState.notified) {
+          // Mark as processed immediately to avoid re-triggering.
+          dispatchExtensionStateUpdate({
+            type: 'SET_NOTIFIED',
+            payload: { name: extension.name, notified: true },
+          });
+          pendingUpdates.push(extension.name);
+        }
+      } else {
+        const updatePromise = updateExtension(
+          extension,
+          extensionManager,
+          currentState.status,
+          dispatchExtensionStateUpdate,
+          enableExtensionReloading,
+        );
+        updatePromises.push(updatePromise);
+        updatePromise
           .then((result) => {
             if (!result) return;
             addItem(
@@ -305,21 +190,44 @@ export const useExtensionUpdates = (
               Date.now(),
             );
           });
-      } else {
-        extensionsWithUpdatesCount++;
       }
     }
-    if (extensionsWithUpdatesCount > 0) {
-      const s = extensionsWithUpdatesCount > 1 ? 's' : '';
+    if (pendingUpdates.length > 0) {
+      const s = pendingUpdates.length > 1 ? 's' : '';
       addItem(
         {
           type: MessageType.INFO,
-          text: `You have ${extensionsWithUpdatesCount} extension${s} with an update available, run "/extensions list" for more information.`,
+          text: `You have ${pendingUpdates.length} extension${s} with an update available. Run "/extensions update ${pendingUpdates.join(' ')}".`,
         },
         Date.now(),
       );
     }
-  }, [extensions, extensionManager, extensionsUpdateState, addItem, cwd]);
+    if (scheduledUpdate) {
+      void Promise.allSettled(updatePromises).then((results) => {
+        const successfulUpdates = results
+          .filter(
+            (r): r is PromiseFulfilledResult<ExtensionUpdateInfo | undefined> =>
+              r.status === 'fulfilled',
+          )
+          .map((r) => r.value)
+          .filter((v): v is ExtensionUpdateInfo => v !== undefined);
+
+        scheduledUpdate.onCompleteCallbacks.forEach((callback) => {
+          try {
+            callback(successfulUpdates);
+          } catch (e) {
+            debugLogger.warn(getErrorMessage(e));
+          }
+        });
+      });
+    }
+  }, [
+    extensions,
+    extensionManager,
+    extensionsUpdateState,
+    addItem,
+    enableExtensionReloading,
+  ]);
 
   const extensionsUpdateStateComputed = useMemo(() => {
     const result = new Map<string, ExtensionUpdateState>();

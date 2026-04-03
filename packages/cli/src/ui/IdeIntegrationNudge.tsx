@@ -6,8 +6,10 @@
 
 import type { IdeInfo } from '@apex-code/apex-core';
 import { Box, Text } from 'ink';
-import type { RadioSelectItem } from './components/shared/RadioButtonSelect.js';
-import { RadioButtonSelect } from './components/shared/RadioButtonSelect.js';
+import {
+  RadioButtonSelect,
+  type RadioSelectItem,
+} from './components/shared/RadioButtonSelect.js';
 import { useKeypress } from './hooks/useKeypress.js';
 import { theme } from './semantic-colors.js';
 
@@ -32,13 +34,14 @@ export function IdeIntegrationNudge({
           userSelection: 'no',
           isExtensionPreInstalled: false,
         });
+        return true;
       }
+      return false;
     },
     { isActive: true },
   );
 
   const { displayName: ideName } = ide;
-  const isInSandbox = !!process.env['SANDBOX'];
   // Assume extension is already installed if the env variables are set.
   const isExtensionPreInstalled =
     !!process.env['APEX_IDE_SERVER_PORT'] &&
@@ -71,15 +74,13 @@ export function IdeIntegrationNudge({
     },
   ];
 
-  const installText = isInSandbox
-    ? `Note: In sandbox environments, IDE integration requires manual setup on the host system. If you select Yes, you'll receive instructions on how to set this up.`
-    : isExtensionPreInstalled
-      ? `If you select Yes, the CLI will connect to your ${
-          ideName ?? 'editor'
-        } for session viewing and file navigation.`
-      : `If you select Yes, we'll install a companion extension for ${
-          ideName ?? 'your editor'
-        } that provides a session viewer, chat history browser, and file navigation panel.`;
+  const installText = isExtensionPreInstalled
+    ? `If you select Yes, the CLI will have access to your open files and display diffs directly in ${
+        ideName ?? 'your editor'
+      }.`
+    : `If you select Yes, we'll install an extension that allows the CLI to access your open files and display diffs directly in ${
+        ideName ?? 'your editor'
+      }.`;
 
   return (
     <Box
@@ -93,7 +94,7 @@ export function IdeIntegrationNudge({
       <Box marginBottom={1} flexDirection="column">
         <Text>
           <Text color={theme.status.warning}>{'> '}</Text>
-          {`Do you want to connect ${ideName ?? 'your editor'} to Apex?`}
+          {`Do you want to connect ${ideName ?? 'your editor'} to Gemini CLI?`}
         </Text>
         <Text color={theme.text.secondary}>{installText}</Text>
       </Box>

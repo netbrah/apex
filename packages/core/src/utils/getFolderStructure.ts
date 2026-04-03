@@ -8,22 +8,30 @@ import * as fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
 import { getErrorMessage, isNodeError } from './errors.js';
-import type { FileDiscoveryService } from '../services/fileDiscoveryService.js';
-import type { FileFilteringOptions } from '../config/constants.js';
-import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
-import { createDebugLogger } from './debugLogger.js';
+import type {
+  FileDiscoveryService,
+  FilterFilesOptions,
+} from '../services/fileDiscoveryService.js';
+import {
+  DEFAULT_FILE_FILTERING_OPTIONS,
+  type FileFilteringOptions,
+} from '../config/constants.js';
+import { debugLogger } from './debugLogger.js';
 
-const debugLogger = createDebugLogger('FOLDER_STRUCTURE');
-
-const MAX_ITEMS = 20;
+const MAX_ITEMS = 200;
 const TRUNCATION_INDICATOR = '...';
-const DEFAULT_IGNORED_FOLDERS = new Set(['node_modules', '.git', 'dist']);
+const DEFAULT_IGNORED_FOLDERS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  '__pycache__',
+]);
 
 // --- Interfaces ---
 
 /** Options for customizing folder structure retrieval. */
 interface FolderStructureOptions {
-  /** Maximum number of files and folders combined to display. Defaults to 20. */
+  /** Maximum number of files and folders combined to display. Defaults to 200. */
   maxItems?: number;
   /** Set of folder names to ignore completely. Case-sensitive. */
   ignoredFolders?: Set<string>;
@@ -121,6 +129,10 @@ async function readFullStructure(
 
     const filesInCurrentDir: string[] = [];
     const subFoldersInCurrentDir: FullFolderInfo[] = [];
+    const filterFileOptions: FilterFilesOptions = {
+      respectGitIgnore: options.fileFilteringOptions?.respectGitIgnore,
+      respectGeminiIgnore: options.fileFilteringOptions?.respectGeminiIgnore,
+    };
 
     // Process files first in the current directory
     for (const entry of entries) {
@@ -131,15 +143,10 @@ async function readFullStructure(
         }
         const fileName = entry.name;
         const filePath = path.join(currentPath, fileName);
-        if (options.fileService) {
-          const shouldIgnore =
-            (options.fileFilteringOptions.respectGitIgnore &&
-              options.fileService.shouldGitIgnoreFile(filePath)) ||
-            (options.fileFilteringOptions.respectApexIgnore &&
-              options.fileService.shouldApexIgnoreFile(filePath));
-          if (shouldIgnore) {
-            continue;
-          }
+        if (
+          options.fileService?.shouldIgnoreFile(filePath, filterFileOptions)
+        ) {
+          continue;
         }
         if (
           !options.fileIncludePattern ||
@@ -170,14 +177,11 @@ async function readFullStructure(
         const subFolderName = entry.name;
         const subFolderPath = path.join(currentPath, subFolderName);
 
-        let isIgnored = false;
-        if (options.fileService) {
-          isIgnored =
-            (options.fileFilteringOptions.respectGitIgnore &&
-              options.fileService.shouldGitIgnoreFile(subFolderPath)) ||
-            (options.fileFilteringOptions.respectApexIgnore &&
-              options.fileService.shouldApexIgnoreFile(subFolderPath));
-        }
+        const isIgnored =
+          options.fileService?.shouldIgnoreDirectory(
+            subFolderPath,
+            filterFileOptions,
+          ) ?? false;
 
         if (options.ignoredFolders.has(subFolderName) || isIgnored) {
           const ignoredSubFolder: FullFolderInfo = {
@@ -325,9 +329,27 @@ export async function getFolderStructure(
     formatStructure(structureRoot, '', true, true, structureLines);
 
     // 3. Build the final output string
-    return `Showing up to ${mergedOptions.maxItems} items:\n\n${resolvedPath}${path.sep}\n${structureLines.join('\n')}`;
+    function isTruncated(node: FullFolderInfo): boolean {
+      if (node.hasMoreFiles || node.hasMoreSubfolders || node.isIgnored) {
+        return true;
+      }
+      for (const sub of node.subFolders) {
+        if (isTruncated(sub)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    let summary = `Showing up to ${mergedOptions.maxItems} items (files + folders).`;
+
+    if (isTruncated(structureRoot)) {
+      summary += ` Folders or files indicated with ${TRUNCATION_INDICATOR} contain more items not shown, were ignored, or the display limit (${mergedOptions.maxItems} items) was reached.`;
+    }
+
+    return `${summary}\n\n${resolvedPath}${path.sep}\n${structureLines.join('\n')}`;
   } catch (error: unknown) {
-    debugLogger.error(
+    debugLogger.warn(
       `Error getting folder structure for ${resolvedPath}:`,
       error,
     );

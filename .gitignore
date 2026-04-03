@@ -11,6 +11,8 @@
 .gemini/*
 !.gemini/config.yaml
 !.gemini/commands/
+!.gemini/skills/
+!.gemini/settings.json
 
 # Note: .qwen-clipboard/ is NOT in gitignore so Gemini can access pasted images
 
@@ -49,9 +51,10 @@ packages/*/coverage/
 # Generated files
 packages/cli/src/generated/
 packages/core/src/generated/
-packages/web-templates/src/generated/
+packages/devtools/src/_client-assets.ts
 .integration-tests/
 packages/vscode-ide-companion/*.vsix
+packages/cli/download-ripgrep*/
 
 # APEX Configs
 
@@ -66,65 +69,11 @@ gha-creds-*.json
 
 # Log files
 patch_output.log
+gemini-debug.log
 
-# docs build
-docs-site/.next
-# content is a symlink to ../docs
-docs-site/content
+.genkit
+.gemini-clipboard/
+.eslintcache
+evals/logs/
 
-# python cache
-__pycache__/
-
-integration-tests/concurrent-runner/output/
-integration-tests/concurrent-runner/task-*
-
-integration-tests/terminal-capture/scenarios/screenshots/
-
-# storybook
-*storybook.log
-storybook-static
-
-# SEA binary build artifacts
-.bin/*
-!.bin/.gitkeep
-!.bin/ontap-apex
-sea-config.json
-
-# APEX overlay assets — deployed skill definitions (SKILL.md) and config.
-# Tracked on feat/apex-embed-assets; bundled into binary at build time.
-apex-assets/
-
-# Local scratch files
-*.md.bak
-tmp*.md
-CONTAP-*.md
-RCAs/
-AGENT-PROMPTS.md
-CONTRIBUTION-ROADMAP.md
-
-# ONTAP work directories
-bsd_net/
-
-# Analysis/strategy docs written by agents at repo root (not source)
-00-*.md
-01-*.md
-02-*.md
-token-banner-*.md
-
-# apex-assets/ tracked only on feat/apex-embed-assets (see line 95)
-
-# Symlink to external api-reference (local only)
-api-reference
-
-# Integration test runtime output dirs (debug logs, runtime state)
-custom/
-first/
-from-env/
-workspace/
-.superset/
-packages/cli/custom/
-packages/cli/first/
-packages/cli/from-env/
-packages/cli/workspace/
-tests/*.jsonl
-netapp-seclab-apex-*.tgz
+temp_agents/

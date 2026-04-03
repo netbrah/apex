@@ -55,7 +55,10 @@ describe('getVersion', () => {
     if (command.includes('git rev-parse --short HEAD')) return 'd3bf8a3d';
 
     // For doesVersionExist checks - default to not found
-    if (command.includes('npm view') && command.includes('@apex-code/apex@')) {
+    if (
+      command.includes('npm view') &&
+      command.includes('@apex-code/apex@')
+    ) {
       throw new Error('NPM version not found');
     }
     if (command.includes('git tag -l')) return '';
@@ -77,10 +80,13 @@ describe('getVersion', () => {
 
     it('should calculate the next preview version from the latest nightly', () => {
       vi.mocked(execSync).mockImplementation(mockExecSync);
-      const result = getVersion({ type: 'preview' });
+      const result = getVersion({
+        type: 'preview',
+        'stable-base-version': '0.7.0',
+      });
       expect(result.releaseVersion).toBe('0.8.0-preview.0');
       expect(result.npmTag).toBe('preview');
-      expect(result.previousReleaseTag).toBe('v0.6.1');
+      expect(result.previousReleaseTag).toBe('v0.7.0-preview.1');
     });
 
     it('should calculate the next nightly version from package.json', () => {
@@ -89,7 +95,7 @@ describe('getVersion', () => {
       // Note: The base version now comes from package.json, not the previous nightly tag.
       expect(result.releaseVersion).toBe('0.8.0-nightly.20250917.d3bf8a3d');
       expect(result.npmTag).toBe('nightly');
-      expect(result.previousReleaseTag).toBe('v0.6.1');
+      expect(result.previousReleaseTag).toBe('v0.8.0-nightly.20250916.abcdef');
     });
 
     it('should calculate the next patch version for a stable release', () => {
@@ -105,7 +111,7 @@ describe('getVersion', () => {
       const result = getVersion({ type: 'patch', 'patch-from': 'preview' });
       expect(result.releaseVersion).toBe('0.7.0-preview.2');
       expect(result.npmTag).toBe('preview');
-      expect(result.previousReleaseTag).toBe('v0.6.1');
+      expect(result.previousReleaseTag).toBe('v0.7.0-preview.1');
     });
   });
 
@@ -133,7 +139,10 @@ describe('getVersion', () => {
       };
       vi.mocked(execSync).mockImplementation(mockWithDeprecated);
 
-      const result = getVersion({ type: 'preview' });
+      const result = getVersion({
+        type: 'preview',
+        'stable-base-version': '0.7.0',
+      });
       // It should base the preview off 0.8.0, not the deprecated 0.9.0
       expect(result.releaseVersion).toBe('0.8.0-preview.0');
     });
@@ -158,12 +167,16 @@ describe('getVersion', () => {
       const mockWithConflict = (command) => {
         // The calculated preview 0.8.0-preview.0 already exists on NPM
         if (
-          command.includes('npm view @apex-code/apex@0.8.0-preview.0 version')
+          command.includes(
+            'npm view @apex-code/apex@0.8.0-preview.0 version',
+          )
         )
           return '0.8.0-preview.0';
         // The next one is available
         if (
-          command.includes('npm view @apex-code/apex@0.8.0-preview.1 version')
+          command.includes(
+            'npm view @apex-code/apex@0.8.0-preview.1 version',
+          )
         )
           throw new Error('Not found');
 
@@ -171,7 +184,10 @@ describe('getVersion', () => {
       };
       vi.mocked(execSync).mockImplementation(mockWithConflict);
 
-      const result = getVersion({ type: 'preview' });
+      const result = getVersion({
+        type: 'preview',
+        'stable-base-version': '0.7.0',
+      });
       // Should have skipped preview.0 and landed on preview.1
       expect(result.releaseVersion).toBe('0.8.0-preview.1');
     });

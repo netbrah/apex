@@ -15,7 +15,7 @@ export const Colors: ColorsTheme = {
     return themeManager.getActiveTheme().colors.Foreground;
   },
   get Background() {
-    return themeManager.getActiveTheme().colors.Background;
+    return themeManager.getColors().Background;
   },
   get LightBlue() {
     return themeManager.getActiveTheme().colors.LightBlue;
@@ -38,12 +38,6 @@ export const Colors: ColorsTheme = {
   get AccentRed() {
     return themeManager.getActiveTheme().colors.AccentRed;
   },
-  get AccentYellowDim() {
-    return themeManager.getActiveTheme().colors.AccentYellowDim;
-  },
-  get AccentRedDim() {
-    return themeManager.getActiveTheme().colors.AccentRedDim;
-  },
   get DiffAdded() {
     return themeManager.getActiveTheme().colors.DiffAdded;
   },
@@ -55,6 +49,15 @@ export const Colors: ColorsTheme = {
   },
   get Gray() {
     return themeManager.getActiveTheme().colors.Gray;
+  },
+  get DarkGray() {
+    return themeManager.getColors().DarkGray;
+  },
+  get InputBackground() {
+    return themeManager.getColors().InputBackground;
+  },
+  get MessageBackground() {
+    return themeManager.getColors().MessageBackground;
   },
   get GradientColors() {
     return themeManager.getActiveTheme().colors.GradientColors;

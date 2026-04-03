@@ -123,175 +123,92 @@ describe('SchemaValidator', () => {
     expect(SchemaValidator.validate(schema, params)).not.toBeNull();
   });
 
-  describe('boolean string coercion', () => {
-    const booleanSchema = {
+  it('allows schemas with draft-07 $schema property', () => {
+    const schema = {
       type: 'object',
-      properties: {
-        is_background: {
-          type: 'boolean',
-        },
-      },
-      required: ['is_background'],
+      properties: { name: { type: 'string' } },
+      $schema: 'http://json-schema.org/draft-07/schema#',
     };
-
-    it('should coerce string "true" to boolean true', () => {
-      const params = { is_background: 'true' };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(true);
-    });
-
-    it('should coerce string "True" to boolean true', () => {
-      const params = { is_background: 'True' };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(true);
-    });
-
-    it('should coerce string "TRUE" to boolean true', () => {
-      const params = { is_background: 'TRUE' };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(true);
-    });
-
-    it('should coerce string "false" to boolean false', () => {
-      const params = { is_background: 'false' };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(false);
-    });
-
-    it('should coerce string "False" to boolean false', () => {
-      const params = { is_background: 'False' };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(false);
-    });
-
-    it('should coerce string "FALSE" to boolean false', () => {
-      const params = { is_background: 'FALSE' };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(false);
-    });
-
-    it('should handle nested objects with string booleans', () => {
-      const nestedSchema = {
-        type: 'object',
-        properties: {
-          options: {
-            type: 'object',
-            properties: {
-              enabled: { type: 'boolean' },
-            },
-          },
-        },
-      };
-      const params = { options: { enabled: 'true' } };
-      expect(SchemaValidator.validate(nestedSchema, params)).toBeNull();
-      expect((params.options as unknown as { enabled: boolean }).enabled).toBe(
-        true,
-      );
-    });
-
-    it('should not affect non-boolean strings', () => {
-      const mixedSchema = {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          is_active: { type: 'boolean' },
-        },
-      };
-      const params = { name: 'trueman', is_active: 'true' };
-      expect(SchemaValidator.validate(mixedSchema, params)).toBeNull();
-      expect(params.name).toBe('trueman');
-      expect(params.is_active).toBe(true);
-    });
-
-    it('should pass through actual boolean values unchanged', () => {
-      const params = { is_background: true };
-      expect(SchemaValidator.validate(booleanSchema, params)).toBeNull();
-      expect(params.is_background).toBe(true);
-    });
+    const params = { name: 'test' };
+    expect(SchemaValidator.validate(schema, params)).toBeNull();
   });
 
-  describe('JSON Schema version support', () => {
-    it('should support JSON Schema draft-2020-12', () => {
+  it('allows schemas with unrecognized $schema versions (lenient fallback)', () => {
+    // Future-proof: any unrecognized schema version should skip validation
+    // with a warning rather than failing
+    const schema = {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      $schema: 'https://json-schema.org/draft/2030-99/schema',
+    };
+    const params = { name: 'test' };
+    expect(SchemaValidator.validate(schema, params)).toBeNull();
+  });
+
+  describe('JSON Schema draft-2020-12 support', () => {
+    it('validates params against draft-2020-12 schema', () => {
       const schema = {
         $schema: 'https://json-schema.org/draft/2020-12/schema',
         type: 'object',
         properties: {
-          url: { type: 'string' },
+          message: {
+            type: 'string',
+          },
         },
-        required: ['url'],
+        required: ['message'],
       };
-      const params = { url: 'https://example.com' };
-      expect(SchemaValidator.validate(schema, params)).toBeNull();
+
+      // Valid data should pass
+      expect(SchemaValidator.validate(schema, { message: 'hello' })).toBeNull();
+      // Invalid data should fail (proves validation actually works)
+      expect(SchemaValidator.validate(schema, { message: 123 })).not.toBeNull();
     });
 
-    it('should validate correctly with draft-2020-12 schema', () => {
+    it('validates draft-2020-12 schema with prefixItems', () => {
+      // prefixItems is a draft-2020-12 feature (replaces tuple validation)
       const schema = {
         $schema: 'https://json-schema.org/draft/2020-12/schema',
         type: 'object',
         properties: {
-          count: { type: 'integer' },
-        },
-        required: ['count'],
-      };
-      const validParams = { count: 42 };
-      const invalidParams = { count: 'not a number' };
-
-      expect(SchemaValidator.validate(schema, validParams)).toBeNull();
-      expect(SchemaValidator.validate(schema, invalidParams)).not.toBeNull();
-    });
-
-    it('should support JSON Schema draft-07 (default)', () => {
-      const schema = {
-        $schema: 'http://json-schema.org/draft-07/schema#',
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-        },
-        required: ['name'],
-      };
-      const params = { name: 'test' };
-      expect(SchemaValidator.validate(schema, params)).toBeNull();
-    });
-
-    it('should handle nested schemas with $schema', () => {
-      const schema = {
-        $schema: 'https://json-schema.org/draft/2020-12/schema',
-        type: 'object',
-        properties: {
-          config: {
-            type: 'object',
-            properties: {
-              enabled: { type: 'boolean' },
-            },
+          coords: {
+            type: 'array',
+            prefixItems: [{ type: 'number' }, { type: 'number' }],
+            items: false,
           },
         },
       };
-      const params = { config: { enabled: true } };
-      expect(SchemaValidator.validate(schema, params)).toBeNull();
+
+      // Valid: exactly 2 numbers
+      expect(SchemaValidator.validate(schema, { coords: [1, 2] })).toBeNull();
+      // Invalid: 3 items when items: false
+      expect(
+        SchemaValidator.validate(schema, { coords: [1, 2, 3] }),
+      ).not.toBeNull();
     });
 
-    it('should support 2020-12 specific keywords like prefixItems', () => {
+    it('validates draft-2020-12 schema with $defs', () => {
+      // draft-2020-12 uses $defs instead of definitions
       const schema = {
         $schema: 'https://json-schema.org/draft/2020-12/schema',
-        type: 'array',
-        prefixItems: [{ type: 'string' }, { type: 'integer' }],
-      };
-      const params = ['hello', 42];
-      expect(SchemaValidator.validate(schema, params)).toBeNull();
-    });
-
-    it('should gracefully handle unsupported schema versions', () => {
-      // draft-2019-09 is not supported by Ajv by default
-      const schema = {
-        $schema: 'https://json-schema.org/draft/2019-09/schema',
         type: 'object',
-        properties: {
-          value: { type: 'string' },
+        $defs: {
+          ChatRole: {
+            type: 'string',
+            enum: ['System', 'User', 'Assistant'],
+          },
         },
+        properties: {
+          role: { $ref: '#/$defs/ChatRole' },
+        },
+        required: ['role'],
       };
-      const params = { value: 'test' };
-      // Should skip validation and return null (graceful degradation)
-      expect(SchemaValidator.validate(schema, params)).toBeNull();
+
+      // Valid enum value
+      expect(SchemaValidator.validate(schema, { role: 'User' })).toBeNull();
+      // Invalid enum value (proves validation works)
+      expect(
+        SchemaValidator.validate(schema, { role: 'InvalidRole' }),
+      ).not.toBeNull();
     });
   });
 });

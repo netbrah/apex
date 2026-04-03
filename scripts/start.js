@@ -32,7 +32,7 @@ execSync('node ./scripts/check-build-status.js', {
   cwd: root,
 });
 
-const nodeArgs = [];
+const nodeArgs = ['--no-warnings=DEP0040'];
 let sandboxCommand = undefined;
 try {
   sandboxCommand = execSync('node scripts/sandbox_command.js', {
@@ -46,7 +46,9 @@ try {
 // if debugging is enabled and sandboxing is disabled, use --inspect-brk flag
 // note with sandboxing this flag is passed to the binary inside the sandbox
 // inside sandbox SANDBOX should be set and sandbox_command.js should fail
-if (process.env.DEBUG && !sandboxCommand) {
+const isInDebugMode = process.env.DEBUG === '1' || process.env.DEBUG === 'true';
+
+if (isInDebugMode && !sandboxCommand) {
   if (process.env.SANDBOX) {
     const port = process.env.DEBUG_PORT || '9229';
     nodeArgs.push(`--inspect-brk=0.0.0.0:${port}`);
@@ -64,19 +66,12 @@ const env = {
   DEV: 'true',
 };
 
-if (process.env.DEBUG) {
+if (isInDebugMode) {
   // If this is not set, the debugger will pause on the outer process rather
   // than the relaunched process making it harder to debug.
   env.APEX_NO_RELAUNCH = 'true';
 }
-// Use process.cwd() to inherit the working directory from launch.json cwd setting
-// This allows debugging from a specific directory (e.g., .todo)
-const workingDir = process.env.APEX_WORKING_DIR || process.cwd();
-const child = spawn('node', nodeArgs, {
-  stdio: 'inherit',
-  env,
-  cwd: workingDir,
-});
+const child = spawn('node', nodeArgs, { stdio: 'inherit', env });
 
 child.on('close', (code) => {
   process.exit(code);

@@ -7,10 +7,20 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { isSubpath } from './paths.js';
-import { marked, type Token } from 'marked';
-import { createDebugLogger } from './debugLogger.js';
+import { debugLogger } from './debugLogger.js';
 
-const logger = createDebugLogger('IMPORT_PROCESSOR');
+// Simple console logger for import processing
+const logger = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  debug: (...args: any[]) =>
+    debugLogger.debug('[DEBUG] [ImportProcessor]', ...args),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  warn: (...args: any[]) =>
+    debugLogger.warn('[WARN] [ImportProcessor]', ...args),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  error: (...args: any[]) =>
+    debugLogger.error('[ERROR] [ImportProcessor]', ...args),
+};
 
 /**
  * Interface for tracking import processing state to prevent circular imports
@@ -38,18 +48,31 @@ export interface ProcessImportsResult {
   importTree: MemoryFile;
 }
 
-// Helper to find the project root (looks for .git directory)
-async function findProjectRoot(startDir: string): Promise<string> {
+// Helper to find the project root (looks for boundary marker directories/files)
+async function findProjectRoot(
+  startDir: string,
+  boundaryMarkers: readonly string[] = ['.git'],
+): Promise<string> {
+  if (boundaryMarkers.length === 0) {
+    return path.resolve(startDir);
+  }
+
   let currentDir = path.resolve(startDir);
   while (true) {
-    const gitPath = path.join(currentDir, '.git');
-    try {
-      const stats = await fs.lstat(gitPath);
-      if (stats.isDirectory()) {
-        return currentDir;
+    for (const marker of boundaryMarkers) {
+      // Sanitize: skip markers with path traversal or absolute paths
+      if (path.isAbsolute(marker) || marker.includes('..')) {
+        continue;
       }
-    } catch {
-      // .git not found, continue to parent
+      const markerPath = path.join(currentDir, marker);
+      try {
+        // Check for existence only — marker can be a directory (normal repos)
+        // or a file (submodules / worktrees).
+        await fs.access(markerPath);
+        return currentDir;
+      } catch {
+        // marker not found, continue
+      }
     }
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) {
@@ -58,7 +81,7 @@ async function findProjectRoot(startDir: string): Promise<string> {
     }
     currentDir = parentDir;
   }
-  // Fallback to startDir if .git not found
+  // Fallback to startDir if no marker found
   return path.resolve(startDir);
 }
 
@@ -72,7 +95,7 @@ function hasMessage(err: unknown): err is { message: string } {
   );
 }
 
-// Helper to find all code block and inline code regions using marked
+// Helper to find all code block and inline code regions using regex
 /**
  * Finds all import statements in content without using regex
  * @returns Array of {start, _end, path} objects for each import found
@@ -141,49 +164,15 @@ function isLetter(char: string): boolean {
   ); // a-z
 }
 
-/**
- * Checks if an error is a "file not found" error (ENOENT)
- */
-function isFileNotFoundError(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: unknown }).code === 'ENOENT'
-  );
-}
-
 function findCodeRegions(content: string): Array<[number, number]> {
   const regions: Array<[number, number]> = [];
-  const tokens = marked.lexer(content);
-  let offset = 0;
-
-  function walk(token: Token, baseOffset: number) {
-    if (token.type === 'code' || token.type === 'codespan') {
-      regions.push([baseOffset, baseOffset + token.raw.length]);
-    }
-
-    if ('tokens' in token && token.tokens) {
-      let childOffset = 0;
-      for (const child of token.tokens) {
-        const childIndexInParent = token.raw.indexOf(child.raw, childOffset);
-        if (childIndexInParent === -1) {
-          logger.error(
-            `Could not find child token in parent raw content. Aborting parsing for this branch. Child raw: "${child.raw}"`,
-          );
-          break;
-        }
-        walk(child, baseOffset + childIndexInParent);
-        childOffset = childIndexInParent + child.raw.length;
-      }
-    }
+  // Regex to match code blocks (inline and multiline)
+  // Matches one or more backticks, content (lazy), and same number of backticks
+  const regex = /(`+)([\s\S]*?)\1/g;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    regions.push([match.index, match.index + match[0].length]);
   }
-
-  for (const token of tokens) {
-    walk(token, offset);
-    offset += token.raw.length;
-  }
-
   return regions;
 }
 
@@ -192,6 +181,7 @@ function findCodeRegions(content: string): Array<[number, number]> {
  * Supports @path/to/file syntax for importing content from other files
  * @param content - The content to process for imports
  * @param basePath - The directory path where the current file is located
+ * @param debugMode - Whether to enable debug logging
  * @param importState - State tracking for circular import prevention
  * @param projectRoot - The project root directory for allowed directories
  * @param importFormat - The format of the import tree
@@ -200,6 +190,7 @@ function findCodeRegions(content: string): Array<[number, number]> {
 export async function processImports(
   content: string,
   basePath: string,
+  debugMode: boolean = false,
   importState: ImportState = {
     processedFiles: new Set(),
     maxDepth: 5,
@@ -207,15 +198,18 @@ export async function processImports(
   },
   projectRoot?: string,
   importFormat: 'flat' | 'tree' = 'tree',
+  boundaryMarkers: readonly string[] = ['.git'],
 ): Promise<ProcessImportsResult> {
   if (!projectRoot) {
-    projectRoot = await findProjectRoot(basePath);
+    projectRoot = await findProjectRoot(basePath, boundaryMarkers);
   }
 
   if (importState.currentDepth >= importState.maxDepth) {
-    logger.warn(
-      `Maximum import depth (${importState.maxDepth}) reached. Stopping import processing.`,
-    );
+    if (debugMode) {
+      logger.warn(
+        `Maximum import depth (${importState.maxDepth}) reached. Stopping import processing.`,
+      );
+    }
     return {
       content,
       importTree: { path: importState.currentFile || 'unknown' },
@@ -291,9 +285,7 @@ export async function processImports(
             depth + 1,
           );
         } catch (error) {
-          // If file doesn't exist, silently skip this import (it's not a real import)
-          // Only log warnings for other types of errors
-          if (!isFileNotFoundError(error)) {
+          if (debugMode) {
             logger.warn(
               `Failed to import ${fullPath}: ${hasMessage(error) ? error.message : 'Unknown error'}`,
             );
@@ -364,19 +356,15 @@ export async function processImports(
       const imported = await processImports(
         fileContent,
         path.dirname(fullPath),
+        debugMode,
         newImportState,
         projectRoot,
         importFormat,
+        boundaryMarkers,
       );
       result += `<!-- Imported from: ${importPath} -->\n${imported.content}\n<!-- End of import from: ${importPath} -->`;
       imports.push(imported.importTree);
     } catch (err: unknown) {
-      // If file doesn't exist, preserve the original @path text (it's not a real import)
-      if (isFileNotFoundError(err)) {
-        result += `@${importPath}`;
-        continue;
-      }
-      // For other errors, log and add error comment
       let message = 'Unknown error';
       if (hasMessage(err)) {
         message = err.message;

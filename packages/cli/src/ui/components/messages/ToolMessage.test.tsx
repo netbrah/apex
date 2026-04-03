@@ -4,20 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { render } from 'ink-testing-library';
-import type { ToolMessageProps } from './ToolMessage.js';
-import { ToolMessage } from './ToolMessage.js';
-import { StreamingState, ToolCallStatus } from '../../types.js';
+import type React from 'react';
+import { ToolMessage, type ToolMessageProps } from './ToolMessage.js';
+import { describe, it, expect, vi } from 'vitest';
+import { StreamingState } from '../../types.js';
 import { Text } from 'ink';
-import { StreamingContext } from '../../contexts/StreamingContext.js';
-import { SettingsContext } from '../../contexts/SettingsContext.js';
-import type {
-  AnsiOutput,
-  AnsiOutputDisplay,
-  Config,
+import {
+  type AnsiOutput,
+  CoreToolCallStatus,
+  Kind,
+  makeFakeConfig,
 } from '@apex-code/apex-core';
-import type { LoadedSettings } from '../../../config/settings.js';
+import { renderWithProviders } from '../../../test-utils/render.js';
+import { createMockSettings } from '../../../test-utils/settings.js';
+import { tryParseJSON } from '../../../utils/jsonoutput.js';
+
+vi.mock('../GeminiRespondingSpinner.js', () => ({
+  GeminiRespondingSpinner: () => <Text>MockRespondingSpinner</Text>,
+}));
 
 vi.mock('../TerminalOutput.js', () => ({
   TerminalOutput: function MockTerminalOutput({
@@ -33,252 +37,310 @@ vi.mock('../TerminalOutput.js', () => ({
   },
 }));
 
-vi.mock('../AnsiOutput.js', () => ({
-  AnsiOutputText: function MockAnsiOutputText({ data }: { data: AnsiOutput }) {
-    // Simple serialization for snapshot stability
-    const serialized = data
-      .map((line) => line.map((token) => token.text || '').join(''))
-      .join('\n');
-    return <Text>MockAnsiOutput:{serialized}</Text>;
-  },
-}));
-
-// Mock child components or utilities if they are complex or have side effects
-vi.mock('../GeminiRespondingSpinner.js', () => ({
-  GeminiRespondingSpinner: ({
-    nonRespondingDisplay,
-  }: {
-    nonRespondingDisplay?: string;
-  }) => {
-    const streamingState = React.useContext(StreamingContext)!;
-    if (streamingState === StreamingState.Responding) {
-      return <Text>MockRespondingSpinner</Text>;
-    }
-    return nonRespondingDisplay ? <Text>{nonRespondingDisplay}</Text> : null;
-  },
-}));
-vi.mock('./DiffRenderer.js', () => ({
-  DiffRenderer: function MockDiffRenderer({
-    diffContent,
-    settings,
-  }: {
-    diffContent: string;
-    settings?: unknown;
-  }) {
-    return (
-      <Text>
-        MockDiff:{diffContent}
-        {settings ? ':withSettings' : ''}
-      </Text>
-    );
-  },
-}));
-vi.mock('../../utils/MarkdownDisplay.js', () => ({
-  MarkdownDisplay: function MockMarkdownDisplay({ text }: { text: string }) {
-    return <Text>MockMarkdown:{text}</Text>;
-  },
-}));
-vi.mock('../subagents/index.js', () => ({
-  AgentExecutionDisplay: function MockAgentExecutionDisplay({
-    data,
-  }: {
-    data: { subagentName: string; taskDescription: string };
-  }) {
-    return (
-      <Text>
-        🤖 {data.subagentName} • Task: {data.taskDescription}
-      </Text>
-    );
-  },
-}));
-
-// Mock settings
-const mockSettings: LoadedSettings = {
-  merged: {
-    ui: {
-      showLineNumbers: true,
-    },
-  },
-} as LoadedSettings;
-
-// Helper to render with context
-const renderWithContext = (
-  ui: React.ReactElement,
-  streamingState: StreamingState,
-) => {
-  const contextValue: StreamingState = streamingState;
-  return render(
-    <SettingsContext.Provider value={mockSettings}>
-      <StreamingContext.Provider value={contextValue}>
-        {ui}
-      </StreamingContext.Provider>
-    </SettingsContext.Provider>,
-  );
-};
-
 describe('<ToolMessage />', () => {
-  const mockConfig = {} as Config;
-
   const baseProps: ToolMessageProps = {
     callId: 'tool-123',
     name: 'test-tool',
     description: 'A tool for testing',
     resultDisplay: 'Test result',
-    status: ToolCallStatus.Success,
-    contentWidth: 80,
+    status: CoreToolCallStatus.Success,
+    terminalWidth: 80,
     confirmationDetails: undefined,
     emphasis: 'medium',
-    config: mockConfig,
+    isFirst: true,
+    borderColor: 'green',
+    borderDimColor: false,
   };
 
-  it('renders basic tool information', () => {
-    const { lastFrame } = renderWithContext(
+  const mockSetEmbeddedShellFocused = vi.fn();
+  const uiActions = {
+    setEmbeddedShellFocused: mockSetEmbeddedShellFocused,
+  };
+
+  // Helper to render with context
+  const renderWithContext = async (
+    ui: React.ReactElement,
+    streamingState: StreamingState,
+  ) =>
+    renderWithProviders(ui, {
+      uiActions,
+      uiState: { streamingState },
+      width: 80,
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders basic tool information', async () => {
+    const { lastFrame, unmount } = await renderWithContext(
       <ToolMessage {...baseProps} />,
       StreamingState.Idle,
     );
     const output = lastFrame();
-    expect(output).toContain('✓'); // Success indicator
-    expect(output).toContain('test-tool');
-    expect(output).toContain('A tool for testing');
-    expect(output).toContain('MockMarkdown:Test result');
+    expect(output).toMatchSnapshot();
+    unmount();
+  });
+
+  describe('JSON rendering', () => {
+    it('pretty prints valid JSON', async () => {
+      const testJSONstring = '{"a": 1, "b": [2, 3]}';
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          resultDisplay={testJSONstring}
+          renderOutputAsMarkdown={false}
+        />,
+        StreamingState.Idle,
+      );
+
+      const output = lastFrame();
+
+      // Verify the JSON utility correctly parses the input
+      expect(tryParseJSON(testJSONstring)).toBeTruthy();
+      // Verify pretty-printed JSON appears in output (with proper indentation)
+      expect(output).toContain('"a": 1');
+      expect(output).toContain('"b": [');
+      // Should not use markdown renderer for JSON
+      unmount();
+    });
+
+    it('renders pretty JSON in ink frame', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} resultDisplay='{"a":1,"b":2}' />,
+        StreamingState.Idle,
+      );
+
+      const frame = lastFrame();
+
+      expect(frame).toMatchSnapshot();
+      unmount();
+    });
+
+    it('uses JSON renderer even when renderOutputAsMarkdown=true is true', async () => {
+      const testJSONstring = '{"a": 1, "b": [2, 3]}';
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          resultDisplay={testJSONstring}
+          renderOutputAsMarkdown={true}
+        />,
+        StreamingState.Idle,
+      );
+
+      const output = lastFrame();
+
+      // Verify the JSON utility correctly parses the input
+      expect(tryParseJSON(testJSONstring)).toBeTruthy();
+      // Verify pretty-printed JSON appears in output
+      expect(output).toContain('"a": 1');
+      expect(output).toContain('"b": [');
+      // Should not use markdown renderer for JSON even when renderOutputAsMarkdown=true
+      unmount();
+    });
+    it('falls back to plain text for malformed JSON', async () => {
+      const testJSONstring = 'a": 1, "b": [2, 3]}';
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          resultDisplay={testJSONstring}
+          renderOutputAsMarkdown={false}
+        />,
+        StreamingState.Idle,
+      );
+
+      const output = lastFrame();
+
+      expect(tryParseJSON(testJSONstring)).toBeFalsy();
+      expect(typeof output === 'string').toBeTruthy();
+      unmount();
+    });
+
+    it('rejects mixed text + JSON renders as plain text', async () => {
+      const testJSONstring = `{"result":  "count": 42,"items": ["apple", "banana"]},"meta": {"timestamp": "2025-09-28T12:34:56Z"}}End.`;
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          resultDisplay={testJSONstring}
+          renderOutputAsMarkdown={false}
+        />,
+        StreamingState.Idle,
+      );
+
+      const output = lastFrame();
+
+      expect(tryParseJSON(testJSONstring)).toBeFalsy();
+      expect(typeof output === 'string').toBeTruthy();
+      unmount();
+    });
+
+    it('rejects ANSI-tained JSON renders as plain text', async () => {
+      const testJSONstring =
+        '\u001b[32mOK\u001b[0m {"status": "success", "data": {"id": 123, "values": [10, 20, 30]}}';
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          resultDisplay={testJSONstring}
+          renderOutputAsMarkdown={false}
+        />,
+        StreamingState.Idle,
+      );
+
+      const output = lastFrame();
+
+      expect(tryParseJSON(testJSONstring)).toBeFalsy();
+      expect(typeof output === 'string').toBeTruthy();
+      unmount();
+    });
+
+    it('pretty printing 10kb JSON completes in <50ms', async () => {
+      const large = '{"key": "' + 'x'.repeat(10000) + '"}';
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          resultDisplay={large}
+          renderOutputAsMarkdown={false}
+        />,
+        StreamingState.Idle,
+      );
+
+      const start = performance.now();
+      lastFrame();
+      expect(performance.now() - start).toBeLessThan(50);
+      unmount();
+    });
   });
 
   describe('ToolStatusIndicator rendering', () => {
-    it('shows ✓ for Success status', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Success} />,
+    it('shows ✓ for Success status', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Success} />,
         StreamingState.Idle,
       );
-      expect(lastFrame()).toContain('✓');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows o for Pending status', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Pending} />,
+    it('shows o for Pending status', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Scheduled} />,
         StreamingState.Idle,
       );
-      expect(lastFrame()).toContain('o');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows ? for Confirming status', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Confirming} />,
+    it('shows ? for Confirming status', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage
+          {...baseProps}
+          status={CoreToolCallStatus.AwaitingApproval}
+        />,
         StreamingState.Idle,
       );
-      expect(lastFrame()).toContain('?');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows - for Canceled status', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Canceled} />,
+    it('shows - for Canceled status', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Cancelled} />,
         StreamingState.Idle,
       );
-      expect(lastFrame()).toContain('-');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows x for Error status', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Error} />,
+    it('shows x for Error status', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Error} />,
         StreamingState.Idle,
       );
-      expect(lastFrame()).toContain('x');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows paused spinner for Executing status when streamingState is Idle', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Executing} />,
+    it('shows paused spinner for Executing status when streamingState is Idle', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Executing} />,
         StreamingState.Idle,
       );
-      expect(lastFrame()).toContain('⊷');
-      expect(lastFrame()).not.toContain('MockRespondingSpinner');
-      expect(lastFrame()).not.toContain('✓');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows paused spinner for Executing status when streamingState is WaitingForConfirmation', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Executing} />,
+    it('shows paused spinner for Executing status when streamingState is WaitingForConfirmation', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Executing} />,
         StreamingState.WaitingForConfirmation,
       );
-      expect(lastFrame()).toContain('⊷');
-      expect(lastFrame()).not.toContain('MockRespondingSpinner');
-      expect(lastFrame()).not.toContain('✓');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
 
-    it('shows MockRespondingSpinner for Executing status when streamingState is Responding', () => {
-      const { lastFrame } = renderWithContext(
-        <ToolMessage {...baseProps} status={ToolCallStatus.Executing} />,
+    it('shows MockRespondingSpinner for Executing status when streamingState is Responding', async () => {
+      const { lastFrame, unmount } = await renderWithContext(
+        <ToolMessage {...baseProps} status={CoreToolCallStatus.Executing} />,
         StreamingState.Responding, // Simulate app still responding
       );
-      expect(lastFrame()).toContain('MockRespondingSpinner');
-      expect(lastFrame()).not.toContain('✓');
+      expect(lastFrame()).toMatchSnapshot();
+      unmount();
     });
   });
 
-  it('renders DiffRenderer for diff results', () => {
+  it('renders DiffRenderer for diff results', async () => {
     const diffResult = {
       fileDiff: '--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new',
       fileName: 'file.txt',
       originalContent: 'old',
       newContent: 'new',
+      filePath: 'file.txt',
     };
-    const { lastFrame } = renderWithContext(
+    const { lastFrame, unmount } = await renderWithContext(
       <ToolMessage {...baseProps} resultDisplay={diffResult} />,
       StreamingState.Idle,
     );
     // Check that the output contains the MockDiff content as part of the whole message
-    expect(lastFrame()).toMatch(/MockDiff:--- a\/file\.txt/);
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
   });
 
-  it('renders emphasis correctly', () => {
-    const { lastFrame: highEmphasisFrame } = renderWithContext(
+  it('renders emphasis correctly', async () => {
+    const {
+      lastFrame: highEmphasisFrame,
+      waitUntilReady: waitUntilReadyHigh,
+      unmount: unmountHigh,
+    } = await renderWithContext(
       <ToolMessage {...baseProps} emphasis="high" />,
       StreamingState.Idle,
     );
+    await waitUntilReadyHigh();
     // Check for trailing indicator or specific color if applicable (Colors are not easily testable here)
-    expect(highEmphasisFrame()).toContain('←'); // Trailing indicator for high emphasis
+    expect(highEmphasisFrame()).toMatchSnapshot();
+    unmountHigh();
 
-    const { lastFrame: lowEmphasisFrame } = renderWithContext(
+    const {
+      lastFrame: lowEmphasisFrame,
+      waitUntilReady: waitUntilReadyLow,
+      unmount: unmountLow,
+    } = await renderWithContext(
       <ToolMessage {...baseProps} emphasis="low" />,
       StreamingState.Idle,
     );
+    await waitUntilReadyLow();
     // For low emphasis, the name and description might be dimmed (check for dimColor if possible)
     // This is harder to assert directly in text output without color checks.
     // We can at least ensure it doesn't have the high emphasis indicator.
-    expect(lowEmphasisFrame()).not.toContain('←');
+    expect(lowEmphasisFrame()).toMatchSnapshot();
+    unmountLow();
   });
 
-  it('shows subagent execution display for task tool with proper result display', () => {
-    const subagentResultDisplay = {
-      type: 'task_execution' as const,
-      subagentName: 'file-search',
-      taskDescription: 'Search for files matching pattern',
-      taskPrompt: 'Search for files matching pattern',
-      status: 'running' as const,
-    };
-
-    const props: ToolMessageProps = {
-      name: 'task',
-      description: 'Delegate task to subagent',
-      resultDisplay: subagentResultDisplay,
-      status: ToolCallStatus.Executing,
-      contentWidth: 80,
-      callId: 'test-call-id-2',
-      confirmationDetails: undefined,
-      config: mockConfig,
-    };
-
-    const { lastFrame } = renderWithContext(
-      <ToolMessage {...props} />,
-      StreamingState.Responding,
-    );
-
-    const output = lastFrame();
-    expect(output).toContain('🤖'); // Subagent execution display should show
-    expect(output).toContain('file-search'); // Actual subagent name
-    expect(output).toContain('Search for files matching pattern'); // Actual task description
-  });
-
-  it('renders AnsiOutputText for AnsiOutput results', () => {
+  it('renders AnsiOutputText for AnsiOutput results', async () => {
     const ansiResult: AnsiOutput = [
       [
         {
@@ -293,62 +355,164 @@ describe('<ToolMessage />', () => {
         },
       ],
     ];
-    const ansiOutputDisplay: AnsiOutputDisplay = { ansiOutput: ansiResult };
-    const { lastFrame } = renderWithContext(
-      <ToolMessage {...baseProps} resultDisplay={ansiOutputDisplay} />,
+    const { lastFrame, unmount } = await renderWithContext(
+      <ToolMessage {...baseProps} resultDisplay={ansiResult} />,
       StreamingState.Idle,
     );
-    expect(lastFrame()).toContain('MockAnsiOutput:hello');
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
   });
 
-  it('renders rejected plan content with plan text still visible', () => {
-    const planResultDisplay = {
-      type: 'plan_summary' as const,
-      message: 'Plan was rejected. Remaining in plan mode.',
-      plan: '# My Plan\n- Step 1: Do something\n- Step 2: Do another thing',
-      rejected: true,
-    };
-
-    const { lastFrame } = renderWithContext(
+  it('renders McpProgressIndicator with percentage and message for executing tools', async () => {
+    const { lastFrame, unmount } = await renderWithContext(
       <ToolMessage
         {...baseProps}
-        name="ExitPlanMode"
-        description="Plan:"
-        status={ToolCallStatus.Canceled}
-        resultDisplay={planResultDisplay}
+        status={CoreToolCallStatus.Executing}
+        progress={42}
+        progressTotal={100}
+        progressMessage="Working on it..."
       />,
-      StreamingState.Idle,
+      StreamingState.Responding,
     );
-
     const output = lastFrame();
-    expect(output).toContain('Plan was rejected. Remaining in plan mode.');
-    expect(output).toContain('MockMarkdown:# My Plan');
-    expect(output).toContain('- Step 1: Do something');
-    expect(output).toContain('- Step 2: Do another thing');
+    expect(output).toContain('42%');
+    expect(output).toContain('Working on it...');
+    expect(output).toContain('\u2588');
+    expect(output).toContain('\u2591');
+    expect(output).not.toContain('A tool for testing (Working on it... - 42%)');
+    expect(output).toMatchSnapshot();
+    unmount();
   });
 
-  it('renders approved plan content with approval message', () => {
-    const planResultDisplay = {
-      type: 'plan_summary' as const,
-      message: 'User approved the plan.',
-      plan: '# My Plan\n- Step 1\n- Step 2',
-    };
-
-    const { lastFrame } = renderWithContext(
+  it('renders only percentage when progressMessage is missing', async () => {
+    const { lastFrame, unmount } = await renderWithContext(
       <ToolMessage
         {...baseProps}
-        name="ExitPlanMode"
-        description="Plan:"
-        status={ToolCallStatus.Success}
-        resultDisplay={planResultDisplay}
+        status={CoreToolCallStatus.Executing}
+        progress={75}
+        progressTotal={100}
       />,
-      StreamingState.Idle,
+      StreamingState.Responding,
     );
-
     const output = lastFrame();
-    expect(output).toContain('User approved the plan.');
-    expect(output).toContain('MockMarkdown:# My Plan');
-    expect(output).toContain('- Step 1');
-    expect(output).toContain('- Step 2');
+    expect(output).toContain('75%');
+    expect(output).toContain('\u2588');
+    expect(output).toContain('\u2591');
+    expect(output).not.toContain('A tool for testing (75%)');
+    expect(output).toMatchSnapshot();
+    unmount();
+  });
+
+  it('renders indeterminate progress when total is missing', async () => {
+    const { lastFrame, unmount } = await renderWithContext(
+      <ToolMessage
+        {...baseProps}
+        status={CoreToolCallStatus.Executing}
+        progress={7}
+      />,
+      StreamingState.Responding,
+    );
+    const output = lastFrame();
+    expect(output).toContain('7');
+    expect(output).toContain('\u2588');
+    expect(output).toContain('\u2591');
+    expect(output).not.toContain('%');
+    expect(output).toMatchSnapshot();
+    unmount();
+  });
+
+  describe('Truncation', () => {
+    it('applies truncation for Kind.Agent when availableTerminalHeight is provided', async () => {
+      const multilineString = Array.from(
+        { length: 30 },
+        (_, i) => `Line ${i + 1}`,
+      ).join('\n');
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolMessage
+          {...baseProps}
+          kind={Kind.Agent}
+          resultDisplay={multilineString}
+          renderOutputAsMarkdown={false}
+          availableTerminalHeight={40}
+        />,
+        {
+          uiActions,
+          uiState: {
+            streamingState: StreamingState.Idle,
+            constrainHeight: true,
+          },
+          width: 80,
+          config: makeFakeConfig({ useAlternateBuffer: false }),
+          settings: createMockSettings({ ui: { useAlternateBuffer: false } }),
+        },
+      );
+      const output = lastFrame();
+
+      // Since kind=Kind.Agent and availableTerminalHeight is provided, it should truncate to SUBAGENT_MAX_LINES (15)
+      // and show the FIRST lines (overflowDirection='bottom')
+      expect(output).toContain('Line 1');
+      expect(output).toContain('Line 14');
+      expect(output).not.toContain('Line 16');
+      expect(output).not.toContain('Line 30');
+      unmount();
+    });
+
+    it('does NOT apply truncation for Kind.Agent when availableTerminalHeight is undefined', async () => {
+      const multilineString = Array.from(
+        { length: 30 },
+        (_, i) => `Line ${i + 1}`,
+      ).join('\n');
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolMessage
+          {...baseProps}
+          kind={Kind.Agent}
+          resultDisplay={multilineString}
+          renderOutputAsMarkdown={false}
+          availableTerminalHeight={undefined}
+        />,
+        {
+          uiActions,
+          uiState: { streamingState: StreamingState.Idle },
+          width: 80,
+          config: makeFakeConfig({ useAlternateBuffer: false }),
+          settings: createMockSettings({ ui: { useAlternateBuffer: false } }),
+        },
+      );
+      const output = lastFrame();
+
+      expect(output).toContain('Line 1');
+      expect(output).toContain('Line 30');
+      unmount();
+    });
+
+    it('does NOT apply truncation for Kind.Read', async () => {
+      const multilineString = Array.from(
+        { length: 30 },
+        (_, i) => `Line ${i + 1}`,
+      ).join('\n');
+
+      const { lastFrame, unmount } = await renderWithProviders(
+        <ToolMessage
+          {...baseProps}
+          kind={Kind.Read}
+          resultDisplay={multilineString}
+          renderOutputAsMarkdown={false}
+        />,
+        {
+          uiActions,
+          uiState: { streamingState: StreamingState.Idle },
+          width: 80,
+          config: makeFakeConfig({ useAlternateBuffer: false }),
+          settings: createMockSettings({ ui: { useAlternateBuffer: false } }),
+        },
+      );
+      const output = lastFrame();
+
+      expect(output).toContain('Line 1');
+      expect(output).toContain('Line 30');
+      unmount();
+    });
   });
 });

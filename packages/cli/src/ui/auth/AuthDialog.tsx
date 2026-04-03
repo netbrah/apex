@@ -5,373 +5,249 @@
  */
 
 import type React from 'react';
-import { useState } from 'react';
-import { AuthType } from '@apex-code/apex-core';
+import { useCallback, useState } from 'react';
 import { Box, Text } from 'ink';
-import Link from 'ink-link';
 import { theme } from '../semantic-colors.js';
-import { useKeypress } from '../hooks/useKeypress.js';
-import { DescriptiveRadioButtonSelect } from '../components/shared/DescriptiveRadioButtonSelect.js';
-import { ApiKeyInput } from '../components/ApiKeyInput.js';
-import { useUIState } from '../contexts/UIStateContext.js';
-import { useUIActions } from '../contexts/UIActionsContext.js';
-import { useConfig } from '../contexts/ConfigContext.js';
-import { t } from '../../i18n/index.js';
+import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
 import {
-  CodingPlanRegion,
-  isCodingPlanConfig,
-} from '../../constants/codingPlan.js';
+  SettingScope,
+  type LoadableSettingScope,
+  type LoadedSettings,
+} from '../../config/settings.js';
+import {
+  AuthType,
+  clearCachedCredentialFile,
+  type Config,
+} from '@apex-code/apex-core';
+import { useKeypress } from '../hooks/useKeypress.js';
+import { AuthState } from '../types.js';
+import { validateAuthMethodWithSettings } from './useAuth.js';
+import { relaunchApp } from '../../utils/processUtils.js';
 
-const MODEL_PROVIDERS_DOCUMENTATION_URL =
-  'https://apex-code.dev/docs/en/users/configuration/model-providers/';
-
-function parseDefaultAuthType(
-  defaultAuthType: string | undefined,
-): AuthType | null {
-  if (
-    defaultAuthType &&
-    Object.values(AuthType).includes(defaultAuthType as AuthType)
-  ) {
-    return defaultAuthType as AuthType;
-  }
-  return null;
+interface AuthDialogProps {
+  config: Config;
+  settings: LoadedSettings;
+  setAuthState: (state: AuthState) => void;
+  authError: string | null;
+  onAuthError: (error: string | null) => void;
+  setAuthContext: (context: { requiresRestart?: boolean }) => void;
 }
 
-// Main menu option type
-type MainOption = 'CODING_PLAN' | 'API_KEY';
-
-// View level for navigation
-type ViewLevel = 'main' | 'region-select' | 'api-key-input' | 'custom-info';
-
-export function AuthDialog(): React.JSX.Element {
-  const { pendingAuthType, authError } = useUIState();
-  const {
-    handleAuthSelect: onAuthSelect,
-    handleCodingPlanSubmit,
-    onAuthError,
-  } = useUIActions();
-  const config = useConfig();
-
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [viewLevel, setViewLevel] = useState<ViewLevel>('main');
-  const [regionIndex, setRegionIndex] = useState<number>(0);
-  const [region, setRegion] = useState<CodingPlanRegion>(
-    CodingPlanRegion.CHINA,
-  );
-
-  // Main authentication entries (flat three-option layout)
-  const mainItems = [
+export function AuthDialog({
+  config,
+  settings,
+  setAuthState,
+  authError,
+  onAuthError,
+  setAuthContext,
+}: AuthDialogProps): React.JSX.Element {
+  const [exiting, setExiting] = useState(false);
+  let items = [
     {
-      key: 'API_KEY',
-      title: t('API Key'),
-      label: t('API Key'),
-      description: t('Bring your own API key'),
-      value: 'API_KEY' as MainOption,
+      label: 'Sign in with Google',
+      value: AuthType.LOGIN_WITH_GOOGLE,
+      key: AuthType.LOGIN_WITH_GOOGLE,
+    },
+    ...(process.env['CLOUD_SHELL'] === 'true'
+      ? [
+          {
+            label: 'Use Cloud Shell user credentials',
+            value: AuthType.COMPUTE_ADC,
+            key: AuthType.COMPUTE_ADC,
+          },
+        ]
+      : process.env['APEX_USE_COMPUTE_ADC'] === 'true'
+        ? [
+            {
+              label: 'Use metadata server application default credentials',
+              value: AuthType.COMPUTE_ADC,
+              key: AuthType.COMPUTE_ADC,
+            },
+          ]
+        : []),
+    {
+      label: 'Use Gemini API Key',
+      value: AuthType.USE_GEMINI,
+      key: AuthType.USE_GEMINI,
+    },
+    {
+      label: 'Vertex AI',
+      value: AuthType.USE_VERTEX_AI,
+      key: AuthType.USE_VERTEX_AI,
     },
   ];
 
-  // Region selection entries (shown after selecting Alibaba Cloud Coding Plan)
-  const regionItems = [
-    {
-      key: 'china',
-      title: '阿里云百炼 (aliyun.com)',
-      label: '阿里云百炼 (aliyun.com)',
-      description: (
-        <Link
-          url="https://help.aliyun.com/zh/model-studio/coding-plan"
-          fallback={false}
-        >
-          <Text color={theme.text.secondary}>
-            https://help.aliyun.com/zh/model-studio/coding-plan
-          </Text>
-        </Link>
-      ),
-      value: CodingPlanRegion.CHINA,
+  if (settings.merged.security.auth.enforcedType) {
+    items = items.filter(
+      (item) => item.value === settings.merged.security.auth.enforcedType,
+    );
+  }
+
+  let defaultAuthType = null;
+  const defaultAuthTypeEnv = process.env['GEMINI_DEFAULT_AUTH_TYPE'];
+  if (
+    defaultAuthTypeEnv &&
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    Object.values(AuthType).includes(defaultAuthTypeEnv as AuthType)
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    defaultAuthType = defaultAuthTypeEnv as AuthType;
+  }
+
+  let initialAuthIndex = items.findIndex((item) => {
+    if (settings.merged.security.auth.selectedType) {
+      return item.value === settings.merged.security.auth.selectedType;
+    }
+
+    if (defaultAuthType) {
+      return item.value === defaultAuthType;
+    }
+
+    if (process.env['GEMINI_API_KEY']) {
+      return item.value === AuthType.USE_GEMINI;
+    }
+
+    return item.value === AuthType.LOGIN_WITH_GOOGLE;
+  });
+  if (settings.merged.security.auth.enforcedType) {
+    initialAuthIndex = 0;
+  }
+
+  const onSelect = useCallback(
+    async (authType: AuthType | undefined, scope: LoadableSettingScope) => {
+      if (exiting) {
+        return;
+      }
+      if (authType) {
+        if (authType === AuthType.LOGIN_WITH_GOOGLE) {
+          setAuthContext({ requiresRestart: true });
+        } else {
+          setAuthContext({});
+        }
+        await clearCachedCredentialFile();
+
+        settings.setValue(scope, 'security.auth.selectedType', authType);
+        if (
+          authType === AuthType.LOGIN_WITH_GOOGLE &&
+          config.isBrowserLaunchSuppressed()
+        ) {
+          setExiting(true);
+          setTimeout(relaunchApp, 100);
+          return;
+        }
+
+        if (authType === AuthType.USE_GEMINI) {
+          // Always show the API key input dialog so the user can
+          // explicitly enter or confirm their key, regardless of
+          // whether GEMINI_API_KEY env var or a stored key exists.
+          setAuthState(AuthState.AwaitingApiKeyInput);
+          return;
+        }
+      }
+      setAuthState(AuthState.Unauthenticated);
     },
-    {
-      key: 'global',
-      title: 'Alibaba Cloud (alibabacloud.com)',
-      label: 'Alibaba Cloud (alibabacloud.com)',
-      description: (
-        <Link
-          url="https://www.alibabacloud.com/help/en/model-studio/coding-plan"
-          fallback={false}
-        >
-          <Text color={theme.text.secondary}>
-            https://www.alibabacloud.com/help/en/model-studio/coding-plan
-          </Text>
-        </Link>
-      ),
-      value: CodingPlanRegion.GLOBAL,
-    },
-  ];
-
-  // Map an AuthType to the corresponding main menu option.
-  // OAuth maps directly; any other auth type maps to CODING_PLAN only
-  // if the current config actually uses a Coding Plan baseUrl+envKey,
-  // otherwise it maps to API_KEY.
-  const contentGenConfig = config.getContentGeneratorConfig();
-  const isCurrentlyCodingPlan =
-    isCodingPlanConfig(
-      contentGenConfig?.baseUrl,
-      contentGenConfig?.apiKeyEnvKey,
-    ) !== false;
-
-  const authTypeToMainOption = (authType: AuthType): MainOption => {
-    if (authType === AuthType.USE_OPENAI && isCurrentlyCodingPlan)
-      return 'CODING_PLAN';
-    return 'API_KEY';
-  };
-
-  const initialAuthIndex = Math.max(
-    0,
-    mainItems.findIndex((item) => {
-      // Priority 1: pendingAuthType
-      if (pendingAuthType) {
-        return item.value === authTypeToMainOption(pendingAuthType);
-      }
-
-      // Priority 2: config.getAuthType() - the source of truth
-      const currentAuthType = config.getAuthType();
-      if (currentAuthType) {
-        return item.value === authTypeToMainOption(currentAuthType);
-      }
-
-      // Priority 3: APEX_DEFAULT_AUTH_TYPE env var
-      const defaultAuthType = parseDefaultAuthType(
-        process.env['APEX_DEFAULT_AUTH_TYPE'],
-      );
-      if (defaultAuthType) {
-        return item.value === authTypeToMainOption(defaultAuthType);
-      }
-
-      // Priority 4: default to API_KEY
-      return item.value === 'API_KEY';
-    }),
+    [settings, config, setAuthState, exiting, setAuthContext],
   );
 
-  const handleMainSelect = async (value: MainOption) => {
-    setErrorMessage(null);
-    onAuthError(null);
-
-    if (value === 'CODING_PLAN') {
-      // Navigate to region selection
-      setViewLevel('region-select');
-      return;
-    }
-
-    if (value === 'API_KEY') {
-      // Navigate directly to custom API key info
-      setViewLevel('custom-info');
-      return;
-    }
-
-    // For API Key, proceed directly
-    await onAuthSelect(value);
-  };
-
-  const handleRegionSelect = async (selectedRegion: CodingPlanRegion) => {
-    setErrorMessage(null);
-    onAuthError(null);
-    setRegion(selectedRegion);
-    setViewLevel('api-key-input');
-  };
-
-  const handleApiKeyInputSubmit = async (apiKey: string) => {
-    setErrorMessage(null);
-
-    if (!apiKey.trim()) {
-      setErrorMessage(t('API key cannot be empty.'));
-      return;
-    }
-
-    // Submit to parent for processing with region info
-    await handleCodingPlanSubmit(apiKey, region);
-  };
-
-  const handleGoBack = () => {
-    setErrorMessage(null);
-    onAuthError(null);
-
-    if (viewLevel === 'region-select' || viewLevel === 'custom-info') {
-      setViewLevel('main');
-    } else if (viewLevel === 'api-key-input') {
-      setViewLevel('region-select');
+  const handleAuthSelect = (authMethod: AuthType) => {
+    const error = validateAuthMethodWithSettings(authMethod, settings);
+    if (error) {
+      onAuthError(error);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      onSelect(authMethod, SettingScope.User);
     }
   };
 
   useKeypress(
     (key) => {
       if (key.name === 'escape') {
-        // Handle Escape based on current view level
-        if (viewLevel === 'region-select') {
-          handleGoBack();
-          return;
+        // Prevent exit if there is an error message.
+        // This means they user is not authenticated yet.
+        if (authError) {
+          return true;
         }
-
-        if (viewLevel === 'api-key-input' || viewLevel === 'custom-info') {
-          handleGoBack();
-          return;
-        }
-
-        // For main view, use existing logic
-        if (errorMessage) {
-          return;
-        }
-        if (config.getAuthType() === undefined) {
-          setErrorMessage(
-            t(
-              'You must select an auth method to proceed. Press Ctrl+C again to exit.',
-            ),
+        if (settings.merged.security.auth.selectedType === undefined) {
+          // Prevent exiting if no auth method is set
+          onAuthError(
+            'You must select an auth method to proceed. Press Ctrl+C twice to exit.',
           );
-          return;
+          return true;
         }
-        onAuthSelect(undefined);
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        onSelect(undefined, SettingScope.User);
+        return true;
       }
+      return false;
     },
     { isActive: true },
   );
 
-  // Render main auth selection
-  const renderMainView = () => (
-    <>
-      <Box marginTop={1}>
-        <DescriptiveRadioButtonSelect
-          items={mainItems}
-          initialIndex={initialAuthIndex}
-          onSelect={handleMainSelect}
-          itemGap={1}
-        />
-      </Box>
-    </>
-  );
-
-  // Render region selection for Alibaba Cloud Coding Plan
-  const renderRegionSelectView = () => (
-    <>
-      <Box marginTop={1}>
+  if (exiting) {
+    return (
+      <Box
+        borderStyle="round"
+        borderColor={theme.ui.focus}
+        flexDirection="row"
+        padding={1}
+        width="100%"
+        alignItems="flex-start"
+      >
         <Text color={theme.text.primary}>
-          {t('Choose based on where your account is registered')}
+          Logging in with Google... Restarting Gemini CLI to continue.
         </Text>
       </Box>
-      <Box marginTop={1}>
-        <DescriptiveRadioButtonSelect
-          items={regionItems}
-          initialIndex={regionIndex}
-          onSelect={handleRegionSelect}
-          onHighlight={(value) => {
-            const index = regionItems.findIndex((item) => item.value === value);
-            setRegionIndex(index);
-          }}
-          itemGap={1}
-        />
-      </Box>
-      <Box marginTop={1}>
-        <Text color={theme?.text?.secondary}>
-          {t('Enter to select, ↑↓ to navigate, Esc to go back')}
-        </Text>
-      </Box>
-    </>
-  );
-
-  // Render API key input for coding-plan mode
-  const renderApiKeyInputView = () => (
-    <Box marginTop={1}>
-      <ApiKeyInput
-        onSubmit={handleApiKeyInputSubmit}
-        onCancel={handleGoBack}
-        region={region}
-      />
-    </Box>
-  );
-
-  // Render custom mode info
-  const renderCustomInfoView = () => (
-    <>
-      <Box marginTop={1}>
-        <Text color={theme.text.primary}>
-          {t('You can configure your API key and models in settings.json')}
-        </Text>
-      </Box>
-      <Box marginTop={1}>
-        <Text>{t('Refer to the documentation for setup instructions')}</Text>
-      </Box>
-      <Box marginTop={0}>
-        <Link url={MODEL_PROVIDERS_DOCUMENTATION_URL} fallback={false}>
-          <Text color={theme.text.link}>
-            {MODEL_PROVIDERS_DOCUMENTATION_URL}
-          </Text>
-        </Link>
-      </Box>
-      <Box marginTop={1}>
-        <Text color={theme.text.secondary}>{t('Esc to go back')}</Text>
-      </Box>
-    </>
-  );
-
-  const getViewTitle = () => {
-    switch (viewLevel) {
-      case 'main':
-        return t('Select Authentication Method');
-      case 'region-select':
-        return t('Select Region for Coding Plan');
-      case 'api-key-input':
-        return t('Enter Coding Plan API Key');
-      case 'custom-info':
-        return t('Custom Configuration');
-      default:
-        return t('Select Authentication Method');
-    }
-  };
+    );
+  }
 
   return (
     <Box
-      borderStyle="single"
-      borderColor={theme?.border?.default}
-      flexDirection="column"
+      borderStyle="round"
+      borderColor={theme.ui.focus}
+      flexDirection="row"
       padding={1}
       width="100%"
+      alignItems="flex-start"
     >
-      <Text bold>{getViewTitle()}</Text>
-
-      {viewLevel === 'main' && renderMainView()}
-      {viewLevel === 'region-select' && renderRegionSelectView()}
-      {viewLevel === 'api-key-input' && renderApiKeyInputView()}
-      {viewLevel === 'custom-info' && renderCustomInfoView()}
-
-      {(authError || errorMessage) && (
+      <Text color={theme.text.accent}>? </Text>
+      <Box flexDirection="column" flexGrow={1}>
+        <Text bold color={theme.text.primary}>
+          Get started
+        </Text>
         <Box marginTop={1}>
-          <Text color={theme.status.error}>{authError || errorMessage}</Text>
+          <Text color={theme.text.primary}>
+            How would you like to authenticate for this project?
+          </Text>
         </Box>
-      )}
-
-      {viewLevel === 'main' && (
-        <>
-          {/* <Box marginTop={1}>
-            <Text color={theme.text.secondary}>
-              {t('Enter to select, \u2191\u2193 to navigate, Esc to close')}
-            </Text>
-          </Box> */}
-          <Box marginY={1}>
-            <Text color={theme.border.default}>{'\u2500'.repeat(80)}</Text>
+        <Box marginTop={1}>
+          <RadioButtonSelect
+            items={items}
+            initialIndex={initialAuthIndex}
+            onSelect={handleAuthSelect}
+            onHighlight={() => {
+              onAuthError(null);
+            }}
+          />
+        </Box>
+        {authError && (
+          <Box marginTop={1}>
+            <Text color={theme.status.error}>{authError}</Text>
           </Box>
-          <Box>
-            <Text color={theme.text.primary}>
-              {t('Terms of Services and Privacy Notice')}:
-            </Text>
-          </Box>
-          <Box>
-            <Link
-              url="https://apex-code.dev/docs/en/users/support/tos-privacy/"
-              fallback={false}
-            >
-              <Text color={theme.text.secondary} underline>
-                https://apex-code.dev/docs/en/users/support/tos-privacy/
-              </Text>
-            </Link>
-          </Box>
-        </>
-      )}
+        )}
+        <Box marginTop={1}>
+          <Text color={theme.text.secondary}>(Use Enter to select)</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text color={theme.text.primary}>
+            Terms of Services and Privacy Notice for Gemini CLI
+          </Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text color={theme.text.link}>
+            {'https://geminicli.com/docs/resources/tos-privacy/'}
+          </Text>
+        </Box>
+      </Box>
     </Box>
   );
 }

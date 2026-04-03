@@ -4,80 +4,62 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '@apex-code/apex-core';
-import { OutputFormat } from '@apex-code/apex-core';
+import {
+  debugLogger,
+  OutputFormat,
+  ExitCodes,
+  getAuthTypeFromEnv,
+  type Config,
+  type AuthType,
+} from '@apex-code/apex-core';
+import { USER_SETTINGS_PATH, type LoadedSettings } from './config/settings.js';
 import { validateAuthMethod } from './config/auth.js';
-import { type LoadedSettings } from './config/settings.js';
-import { JsonOutputAdapter } from './nonInteractive/io/JsonOutputAdapter.js';
-import { StreamJsonOutputAdapter } from './nonInteractive/io/StreamJsonOutputAdapter.js';
+import { handleError } from './utils/errors.js';
 import { runExitCleanup } from './utils/cleanup.js';
-import { writeStderrLine } from './utils/stdioHelpers.js';
 
 export async function validateNonInteractiveAuth(
+  configuredAuthType: AuthType | undefined,
   useExternalAuth: boolean | undefined,
   nonInteractiveConfig: Config,
   settings: LoadedSettings,
-): Promise<Config> {
+) {
   try {
-    // Get the actual authType from config which has already resolved CLI args, env vars, and settings
-    const authType = nonInteractiveConfig
-      .getModelsConfig()
-      .getCurrentAuthType();
-    if (!authType) {
-      throw new Error(
-        'No auth type is selected. Please configure an auth type (e.g. via settings or `--auth-type`) before running in non-interactive mode.',
-      );
-    }
-    const resolvedAuthType: NonNullable<typeof authType> = authType;
+    const effectiveAuthType = configuredAuthType || getAuthTypeFromEnv();
 
-    const enforcedType = settings.merged.security?.auth?.enforcedType;
-    if (enforcedType && enforcedType !== resolvedAuthType) {
-      const message = `The configured auth type is ${enforcedType}, but the current auth type is ${resolvedAuthType}. Please re-authenticate with the correct type.`;
+    const enforcedType = settings.merged.security.auth.enforcedType;
+    if (enforcedType && effectiveAuthType !== enforcedType) {
+      const message = effectiveAuthType
+        ? `The enforced authentication type is '${enforcedType}', but the current type is '${effectiveAuthType}'. Please re-authenticate with the correct type.`
+        : `The auth type '${enforcedType}' is enforced, but no authentication is configured.`;
       throw new Error(message);
     }
 
+    if (!effectiveAuthType) {
+      const message = `Please set an Auth method in your ${USER_SETTINGS_PATH} or specify one of the following environment variables before running: GEMINI_API_KEY, GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_GENAI_USE_GCA`;
+      throw new Error(message);
+    }
+
+    const authType: AuthType = effectiveAuthType;
+
     if (!useExternalAuth) {
-      const err = validateAuthMethod(resolvedAuthType, nonInteractiveConfig);
+      const err = validateAuthMethod(String(authType));
       if (err != null) {
         throw new Error(err);
       }
     }
 
-    await nonInteractiveConfig.refreshAuth(resolvedAuthType);
-    return nonInteractiveConfig;
+    return authType;
   } catch (error) {
-    const outputFormat = nonInteractiveConfig.getOutputFormat();
-
-    // In JSON and STREAM_JSON modes, emit error result and exit
-    if (
-      outputFormat === OutputFormat.JSON ||
-      outputFormat === OutputFormat.STREAM_JSON
-    ) {
-      let adapter;
-      if (outputFormat === OutputFormat.JSON) {
-        adapter = new JsonOutputAdapter(nonInteractiveConfig);
-      } else {
-        adapter = new StreamJsonOutputAdapter(
-          nonInteractiveConfig,
-          nonInteractiveConfig.getIncludePartialMessages(),
-        );
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      adapter.emitResult({
-        isError: true,
-        errorMessage,
-        durationMs: 0,
-        apiDurationMs: 0,
-        numTurns: 0,
-        usage: undefined,
-      });
+    if (nonInteractiveConfig.getOutputFormat() === OutputFormat.JSON) {
+      handleError(
+        error instanceof Error ? error : new Error(String(error)),
+        nonInteractiveConfig,
+        ExitCodes.FATAL_AUTHENTICATION_ERROR,
+      );
+    } else {
+      debugLogger.error(error instanceof Error ? error.message : String(error));
       await runExitCleanup();
-      process.exit(1);
+      process.exit(ExitCodes.FATAL_AUTHENTICATION_ERROR);
     }
-
-    // For other modes (text), use existing error handling
-    writeStderrLine(error instanceof Error ? error.message : String(error));
-    process.exit(1);
   }
 }

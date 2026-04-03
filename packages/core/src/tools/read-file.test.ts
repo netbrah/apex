@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { ReadFileToolParams } from './read-file.js';
-import { ReadFileTool } from './read-file.js';
+import { ReadFileTool, type ReadFileToolParams } from './read-file.js';
 import { ToolErrorType } from './tool-error.js';
 import path from 'node:path';
+import { isSubpath } from '../utils/paths.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -16,10 +16,29 @@ import type { Config } from '../config/config.js';
 import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 import { StandardFileSystemService } from '../services/fileSystemService.js';
 import { createMockWorkspaceContext } from '../test-utils/mockWorkspaceContext.js';
-import type { ToolInvocation, ToolResult } from './tools.js';
+import { WorkspaceContext } from '../utils/workspaceContext.js';
+import { createMockMessageBus } from '../test-utils/mock-message-bus.js';
+import { GEMINI_IGNORE_FILE_NAME } from '../config/constants.js';
 
 vi.mock('../telemetry/loggers.js', () => ({
   logFileOperation: vi.fn(),
+}));
+
+vi.mock('./jit-context.js', () => ({
+  discoverJitContext: vi.fn().mockResolvedValue(''),
+  appendJitContext: vi.fn().mockImplementation((content, context) => {
+    if (!context) return content;
+    return `${content}\n\n--- Newly Discovered Project Context ---\n${context}\n--- End Project Context ---`;
+  }),
+  appendJitContextToParts: vi.fn().mockImplementation((content, context) => {
+    const jitPart = {
+      text: `\n\n--- Newly Discovered Project Context ---\n${context}\n--- End Project Context ---`,
+    };
+    const existing = Array.isArray(content) ? content : [content];
+    return [...existing, jitPart];
+  }),
+  JIT_CONTEXT_PREFIX: '\n\n--- Newly Discovered Project Context ---\n',
+  JIT_CONTEXT_SUFFIX: '\n--- End Project Context ---',
 }));
 
 describe('ReadFileTool', () => {
@@ -29,26 +48,42 @@ describe('ReadFileTool', () => {
 
   beforeEach(async () => {
     // Create a unique temporary root directory for each test run
-    tempRootDir = await fsp.mkdtemp(
-      path.join(os.tmpdir(), 'read-file-tool-root-'),
-    );
+    const realTmp = await fsp.realpath(os.tmpdir());
+    tempRootDir = await fsp.mkdtemp(path.join(realTmp, 'read-file-tool-root-'));
 
     const mockConfigInstance = {
       getFileService: () => new FileDiscoveryService(tempRootDir),
       getFileSystemService: () => new StandardFileSystemService(),
       getTargetDir: () => tempRootDir,
       getWorkspaceContext: () => createMockWorkspaceContext(tempRootDir),
+      getFileFilteringOptions: () => ({
+        respectGitIgnore: true,
+        respectGeminiIgnore: true,
+      }),
       storage: {
         getProjectTempDir: () => path.join(tempRootDir, '.temp'),
-        getUserSkillsDirs: () => [path.join(os.homedir(), '.apex', 'skills')],
       },
-      getTruncateToolOutputThreshold: () => 2500,
-      getTruncateToolOutputLines: () => 500,
-      getContentGeneratorConfig: () => ({
-        modalities: { image: true, pdf: true, audio: true, video: true },
-      }),
+      isInteractive: () => false,
+      isPathAllowed(this: Config, absolutePath: string): boolean {
+        const workspaceContext = this.getWorkspaceContext();
+        if (workspaceContext.isPathWithinWorkspace(absolutePath)) {
+          return true;
+        }
+
+        const projectTempDir = this.storage.getProjectTempDir();
+        return isSubpath(path.resolve(projectTempDir), absolutePath);
+      },
+      validatePathAccess(this: Config, absolutePath: string): string | null {
+        if (this.isPathAllowed(absolutePath)) {
+          return null;
+        }
+
+        const workspaceDirs = this.getWorkspaceContext().getDirectories();
+        const projectTempDir = this.storage.getProjectTempDir();
+        return `Path not in workspace: Attempted path "${absolutePath}" resolves outside the allowed workspace directories: ${workspaceDirs.join(', ')} or the project temp directory: ${projectTempDir}`;
+      },
     } as unknown as Config;
-    tool = new ReadFileTool(mockConfigInstance);
+    tool = new ReadFileTool(mockConfigInstance, createMockMessageBus());
   });
 
   afterEach(async () => {
@@ -67,21 +102,23 @@ describe('ReadFileTool', () => {
       expect(typeof result).not.toBe('string');
     });
 
-    it('should throw error if file path is relative', () => {
+    it('should return an invocation for valid params (relative path within root)', () => {
       const params: ReadFileToolParams = {
-        file_path: 'relative/path.txt',
+        file_path: 'test.txt',
       };
-      expect(() => tool.build(params)).toThrow(
-        'File path must be absolute, but was relative: relative/path.txt. You must provide an absolute path.',
+      const result = tool.build(params);
+      expect(typeof result).not.toBe('string');
+      const invocation = result;
+      expect(invocation.toolLocations()[0].path).toBe(
+        path.join(tempRootDir, 'test.txt'),
       );
     });
 
-    it('should allow path outside root (external path support)', () => {
+    it('should throw error if path is outside root', () => {
       const params: ReadFileToolParams = {
         file_path: '/outside/root.txt',
       };
-      const invocation = tool.build(params);
-      expect(invocation).toBeDefined();
+      expect(() => tool.build(params)).toThrow(/Path not in workspace/);
     });
 
     it('should allow access to files in project temp directory', () => {
@@ -93,20 +130,11 @@ describe('ReadFileTool', () => {
       expect(typeof result).not.toBe('string');
     });
 
-    it('should allow access to files in OS temp directory', () => {
-      const params: ReadFileToolParams = {
-        file_path: path.join(os.tmpdir(), 'pr-review-context.md'),
-      };
-      const result = tool.build(params);
-      expect(typeof result).not.toBe('string');
-    });
-
-    it('should allow path completely outside workspace (external path support)', () => {
+    it('should show temp directory in error message when path is outside workspace and temp dir', () => {
       const params: ReadFileToolParams = {
         file_path: '/completely/outside/path.txt',
       };
-      const invocation = tool.build(params);
-      expect(invocation).toBeDefined();
+      expect(() => tool.build(params)).toThrow(/Path not in workspace/);
     });
 
     it('should throw error if path is empty', () => {
@@ -118,70 +146,67 @@ describe('ReadFileTool', () => {
       );
     });
 
-    it('should throw error if offset is negative', () => {
+    it('should throw error if start_line is less than 1', () => {
       const params: ReadFileToolParams = {
         file_path: path.join(tempRootDir, 'test.txt'),
-        offset: -1,
+        start_line: 0,
+      };
+      expect(() => tool.build(params)).toThrow('start_line must be at least 1');
+    });
+
+    it('should throw error if end_line is less than 1', () => {
+      const params: ReadFileToolParams = {
+        file_path: path.join(tempRootDir, 'test.txt'),
+        end_line: 0,
+      };
+      expect(() => tool.build(params)).toThrow('end_line must be at least 1');
+    });
+
+    it('should throw error if start_line is greater than end_line', () => {
+      const params: ReadFileToolParams = {
+        file_path: path.join(tempRootDir, 'test.txt'),
+        start_line: 10,
+        end_line: 5,
       };
       expect(() => tool.build(params)).toThrow(
-        'Offset must be a non-negative number',
+        'start_line cannot be greater than end_line',
       );
-    });
-
-    it('should throw error if limit is zero or negative', () => {
-      const params: ReadFileToolParams = {
-        file_path: path.join(tempRootDir, 'test.txt'),
-        limit: 0,
-      };
-      expect(() => tool.build(params)).toThrow(
-        'Limit must be a positive number',
-      );
-    });
-  });
-
-  describe('getDefaultPermission', () => {
-    it('should return allow for paths within workspace', async () => {
-      const params: ReadFileToolParams = {
-        file_path: path.join(tempRootDir, 'test.txt'),
-      };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('allow');
-    });
-
-    it('should return ask for paths outside workspace', async () => {
-      const params: ReadFileToolParams = {
-        file_path: '/outside/workspace/file.txt',
-      };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('ask');
-    });
-
-    it('should return allow for paths within temp directory', async () => {
-      const tempDir = path.join(tempRootDir, '.temp');
-      const params: ReadFileToolParams = {
-        file_path: path.join(tempDir, 'temp-file.txt'),
-      };
-      const invocation = tool.build(params);
-      const permission = await invocation.getDefaultPermission();
-      expect(permission).toBe('allow');
     });
   });
 
   describe('getDescription', () => {
-    it('should return relative path without limit/offset', () => {
+    it('should return relative path without ranges', () => {
       const subDir = path.join(tempRootDir, 'sub', 'dir');
       const params: ReadFileToolParams = {
         file_path: path.join(subDir, 'file.txt'),
       };
       const invocation = tool.build(params);
       expect(typeof invocation).not.toBe('string');
-      expect(
-        (
-          invocation as ToolInvocation<ReadFileToolParams, ToolResult>
-        ).getDescription(),
-      ).toBe(path.join('sub', 'dir', 'file.txt'));
+      expect(invocation.getDescription()).toBe(
+        path.join('sub', 'dir', 'file.txt'),
+      );
+    });
+
+    it('should return shortened path when file path is deep', () => {
+      const deepPath = path.join(
+        tempRootDir,
+        'very',
+        'deep',
+        'directory',
+        'structure',
+        'that',
+        'exceeds',
+        'the',
+        'normal',
+        'limit',
+        'file.txt',
+      );
+      const params: ReadFileToolParams = { file_path: deepPath };
+      const invocation = tool.build(params);
+      expect(typeof invocation).not.toBe('string');
+      const desc = invocation.getDescription();
+      expect(desc).toContain('...');
+      expect(desc).toContain('file.txt');
     });
 
     it('should handle non-normalized file paths correctly', () => {
@@ -191,33 +216,37 @@ describe('ReadFileTool', () => {
       };
       const invocation = tool.build(params);
       expect(typeof invocation).not.toBe('string');
-      expect(
-        (
-          invocation as ToolInvocation<ReadFileToolParams, ToolResult>
-        ).getDescription(),
-      ).toBe(path.join('sub', 'dir', 'file.txt'));
+      expect(invocation.getDescription()).toBe(
+        path.join('sub', 'dir', 'file.txt'),
+      );
     });
 
     it('should return . if path is the root directory', () => {
       const params: ReadFileToolParams = { file_path: tempRootDir };
       const invocation = tool.build(params);
       expect(typeof invocation).not.toBe('string');
-      expect(
-        (
-          invocation as ToolInvocation<ReadFileToolParams, ToolResult>
-        ).getDescription(),
-      ).toBe('.');
+      expect(invocation.getDescription()).toBe('.');
     });
   });
 
   describe('execute', () => {
+    it('should successfully read a file with a relative path', async () => {
+      const filePath = path.join(tempRootDir, 'textfile.txt');
+      const fileContent = 'This is a test file.';
+      await fsp.writeFile(filePath, fileContent, 'utf-8');
+      const params: ReadFileToolParams = { file_path: 'textfile.txt' };
+      const invocation = tool.build(params);
+
+      expect(await invocation.execute(abortSignal)).toEqual({
+        llmContent: fileContent,
+        returnDisplay: '',
+      });
+    });
+
     it('should return error if file does not exist', async () => {
       const filePath = path.join(tempRootDir, 'nonexistent.txt');
       const params: ReadFileToolParams = { file_path: filePath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result).toEqual({
@@ -236,10 +265,7 @@ describe('ReadFileTool', () => {
       const fileContent = 'This is a test file.';
       await fsp.writeFile(filePath, fileContent, 'utf-8');
       const params: ReadFileToolParams = { file_path: filePath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       expect(await invocation.execute(abortSignal)).toEqual({
         llmContent: fileContent,
@@ -251,10 +277,7 @@ describe('ReadFileTool', () => {
       const dirPath = path.join(tempRootDir, 'directory');
       await fsp.mkdir(dirPath);
       const params: ReadFileToolParams = { file_path: dirPath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result).toEqual({
@@ -270,20 +293,17 @@ describe('ReadFileTool', () => {
 
     it('should return error for a file that is too large', async () => {
       const filePath = path.join(tempRootDir, 'largefile.txt');
-      // 11MB of content exceeds 10MB limit
-      const largeContent = 'x'.repeat(11 * 1024 * 1024);
+      // 21MB of content exceeds 20MB limit
+      const largeContent = 'x'.repeat(21 * 1024 * 1024);
       await fsp.writeFile(filePath, largeContent, 'utf-8');
       const params: ReadFileToolParams = { file_path: filePath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result).toHaveProperty('error');
       expect(result.error?.type).toBe(ToolErrorType.FILE_TOO_LARGE);
       expect(result.error?.message).toContain(
-        'File size exceeds the 10MB limit',
+        'File size exceeds the 20MB limit',
       );
     });
 
@@ -293,15 +313,14 @@ describe('ReadFileTool', () => {
       const fileContent = `Short line\n${longLine}\nAnother short line`;
       await fsp.writeFile(filePath, fileContent, 'utf-8');
       const params: ReadFileToolParams = { file_path: filePath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
-      expect(result.returnDisplay).toContain(
-        'Read lines 1-2 of 3 from longlines.txt (truncated)',
+      expect(result.llmContent).toContain(
+        'IMPORTANT: The file content has been truncated',
       );
+      expect(result.llmContent).toContain('--- FILE CONTENT (truncated) ---');
+      expect(result.returnDisplay).toContain('some lines were shortened');
     });
 
     it('should handle image file and return appropriate content', async () => {
@@ -312,17 +331,13 @@ describe('ReadFileTool', () => {
       ]);
       await fsp.writeFile(imagePath, pngHeader);
       const params: ReadFileToolParams = { file_path: imagePath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toEqual({
         inlineData: {
           data: pngHeader.toString('base64'),
           mimeType: 'image/png',
-          displayName: 'image.png',
         },
       });
       expect(result.returnDisplay).toBe('Read image file: image.png');
@@ -334,17 +349,13 @@ describe('ReadFileTool', () => {
       const pdfHeader = Buffer.from('%PDF-1.4');
       await fsp.writeFile(pdfPath, pdfHeader);
       const params: ReadFileToolParams = { file_path: pdfPath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toEqual({
         inlineData: {
           data: pdfHeader.toString('base64'),
           mimeType: 'application/pdf',
-          displayName: 'document.pdf',
         },
       });
       expect(result.returnDisplay).toBe('Read pdf file: document.pdf');
@@ -356,10 +367,7 @@ describe('ReadFileTool', () => {
       const binaryData = Buffer.from([0x00, 0xff, 0x00, 0xff]);
       await fsp.writeFile(binPath, binaryData);
       const params: ReadFileToolParams = { file_path: binPath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe(
@@ -373,10 +381,7 @@ describe('ReadFileTool', () => {
       const svgContent = '<svg><circle cx="50" cy="50" r="40"/></svg>';
       await fsp.writeFile(svgPath, svgContent, 'utf-8');
       const params: ReadFileToolParams = { file_path: svgPath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe(svgContent);
@@ -389,10 +394,7 @@ describe('ReadFileTool', () => {
       const largeContent = '<svg>' + 'x'.repeat(1024 * 1024 + 1) + '</svg>';
       await fsp.writeFile(svgPath, largeContent, 'utf-8');
       const params: ReadFileToolParams = { file_path: svgPath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe(
@@ -407,17 +409,14 @@ describe('ReadFileTool', () => {
       const emptyPath = path.join(tempRootDir, 'empty.txt');
       await fsp.writeFile(emptyPath, '', 'utf-8');
       const params: ReadFileToolParams = { file_path: emptyPath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe('');
       expect(result.returnDisplay).toBe('');
     });
 
-    it('should support offset and limit for text files', async () => {
+    it('should support start_line and end_line for text files', async () => {
       const filePath = path.join(tempRootDir, 'paginated.txt');
       const lines = Array.from({ length: 20 }, (_, i) => `Line ${i + 1}`);
       const fileContent = lines.join('\n');
@@ -425,17 +424,17 @@ describe('ReadFileTool', () => {
 
       const params: ReadFileToolParams = {
         file_path: filePath,
-        offset: 5, // Start from line 6
-        limit: 3,
+        start_line: 6,
+        end_line: 8,
       };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toContain(
-        'Showing lines 6-8 of 20 total lines',
+        'IMPORTANT: The file content has been truncated',
+      );
+      expect(result.llmContent).toContain(
+        'Status: Showing lines 6-8 of 20 total lines',
       );
       expect(result.llmContent).toContain('Line 6');
       expect(result.llmContent).toContain('Line 7');
@@ -453,44 +452,54 @@ describe('ReadFileTool', () => {
       await fsp.writeFile(tempFilePath, tempFileContent, 'utf-8');
 
       const params: ReadFileToolParams = { file_path: tempFilePath };
-      const invocation = tool.build(params) as ToolInvocation<
-        ReadFileToolParams,
-        ToolResult
-      >;
+      const invocation = tool.build(params);
 
       const result = await invocation.execute(abortSignal);
       expect(result.llmContent).toBe(tempFileContent);
       expect(result.returnDisplay).toBe('');
     });
 
-    it('should successfully read files from OS temp directory', async () => {
-      const osTempFile = await fsp.mkdtemp(
-        path.join(os.tmpdir(), 'read-file-test-'),
-      );
-      const tempFilePath = path.join(osTempFile, 'pr-review-context.md');
-      const tempFileContent = '## PR #123\nFix encoding issues';
-      await fsp.writeFile(tempFilePath, tempFileContent, 'utf-8');
-
-      try {
-        const params: ReadFileToolParams = { file_path: tempFilePath };
-        const invocation = tool.build(params) as ToolInvocation<
-          ReadFileToolParams,
-          ToolResult
-        >;
-
-        const result = await invocation.execute(abortSignal);
-        expect(result.llmContent).toBe(tempFileContent);
-      } finally {
-        await fsp.rm(osTempFile, { recursive: true, force: true });
-      }
-    });
-
     describe('with .apexignore', () => {
       beforeEach(async () => {
         await fsp.writeFile(
-          path.join(tempRootDir, '.apexignore'),
+          path.join(tempRootDir, GEMINI_IGNORE_FILE_NAME),
           ['foo.*', 'ignored/'].join('\n'),
         );
+        const mockConfigInstance = {
+          getFileService: () => new FileDiscoveryService(tempRootDir),
+          getFileSystemService: () => new StandardFileSystemService(),
+          getTargetDir: () => tempRootDir,
+          getWorkspaceContext: () => new WorkspaceContext(tempRootDir),
+          getFileFilteringOptions: () => ({
+            respectGitIgnore: true,
+            respectGeminiIgnore: true,
+          }),
+          storage: {
+            getProjectTempDir: () => path.join(tempRootDir, '.temp'),
+          },
+          isPathAllowed(this: Config, absolutePath: string): boolean {
+            const workspaceContext = this.getWorkspaceContext();
+            if (workspaceContext.isPathWithinWorkspace(absolutePath)) {
+              return true;
+            }
+
+            const projectTempDir = this.storage.getProjectTempDir();
+            return isSubpath(path.resolve(projectTempDir), absolutePath);
+          },
+          validatePathAccess(
+            this: Config,
+            absolutePath: string,
+          ): string | null {
+            if (this.isPathAllowed(absolutePath)) {
+              return null;
+            }
+
+            const workspaceDirs = this.getWorkspaceContext().getDirectories();
+            const projectTempDir = this.storage.getProjectTempDir();
+            return `Path not in workspace: Attempted path "${absolutePath}" resolves outside the allowed workspace directories: ${workspaceDirs.join(', ')} or the project temp directory: ${projectTempDir}`;
+          },
+        } as unknown as Config;
+        tool = new ReadFileTool(mockConfigInstance, createMockMessageBus());
       });
 
       it('should throw error if path is ignored by a .apexignore pattern', async () => {
@@ -499,7 +508,7 @@ describe('ReadFileTool', () => {
         const params: ReadFileToolParams = {
           file_path: ignoredFilePath,
         };
-        const expectedError = `File path '${ignoredFilePath}' is ignored by .apexignore pattern(s).`;
+        const expectedError = `File path '${ignoredFilePath}' is ignored by configured ignore patterns.`;
         expect(() => tool.build(params)).toThrow(expectedError);
       });
 
@@ -511,7 +520,7 @@ describe('ReadFileTool', () => {
         const params: ReadFileToolParams = {
           file_path: ignoredFilePath,
         };
-        const expectedError = `File path '${ignoredFilePath}' is ignored by .apexignore pattern(s).`;
+        const expectedError = `File path '${ignoredFilePath}' is ignored by configured ignore patterns.`;
         expect(() => tool.build(params)).toThrow(expectedError);
       });
 
@@ -524,6 +533,157 @@ describe('ReadFileTool', () => {
         const invocation = tool.build(params);
         expect(typeof invocation).not.toBe('string');
       });
+
+      it('should allow reading ignored files if respectGeminiIgnore is false', async () => {
+        const ignoredFilePath = path.join(tempRootDir, 'foo.bar');
+        await fsp.writeFile(ignoredFilePath, 'content', 'utf-8');
+
+        const configNoIgnore = {
+          getFileService: () => new FileDiscoveryService(tempRootDir),
+          getFileSystemService: () => new StandardFileSystemService(),
+          getTargetDir: () => tempRootDir,
+          getWorkspaceContext: () => new WorkspaceContext(tempRootDir),
+          getFileFilteringOptions: () => ({
+            respectGitIgnore: true,
+            respectGeminiIgnore: false,
+          }),
+          storage: {
+            getProjectTempDir: () => path.join(tempRootDir, '.temp'),
+          },
+          isInteractive: () => false,
+          isPathAllowed(this: Config, absolutePath: string): boolean {
+            const workspaceContext = this.getWorkspaceContext();
+            if (workspaceContext.isPathWithinWorkspace(absolutePath)) {
+              return true;
+            }
+
+            const projectTempDir = this.storage.getProjectTempDir();
+            return isSubpath(path.resolve(projectTempDir), absolutePath);
+          },
+          validatePathAccess(
+            this: Config,
+            absolutePath: string,
+          ): string | null {
+            if (this.isPathAllowed(absolutePath)) {
+              return null;
+            }
+
+            const workspaceDirs = this.getWorkspaceContext().getDirectories();
+            const projectTempDir = this.storage.getProjectTempDir();
+            return `Path not in workspace: Attempted path "${absolutePath}" resolves outside the allowed workspace directories: ${workspaceDirs.join(', ')} or the project temp directory: ${projectTempDir}`;
+          },
+        } as unknown as Config;
+
+        const toolNoIgnore = new ReadFileTool(
+          configNoIgnore,
+          createMockMessageBus(),
+        );
+        const params: ReadFileToolParams = {
+          file_path: ignoredFilePath,
+        };
+        const invocation = toolNoIgnore.build(params);
+        expect(typeof invocation).not.toBe('string');
+      });
+    });
+  });
+
+  describe('getSchema', () => {
+    it('should return the base schema when no modelId is provided', () => {
+      const schema = tool.getSchema();
+      expect(schema.name).toBe(ReadFileTool.Name);
+      expect(schema.description).toMatchSnapshot();
+      expect(
+        (schema.parametersJsonSchema as { properties: Record<string, unknown> })
+          .properties,
+      ).not.toHaveProperty('offset');
+    });
+
+    it('should return the schema from the resolver when modelId is provided', () => {
+      const modelId = 'gemini-2.0-flash';
+      const schema = tool.getSchema(modelId);
+      expect(schema.name).toBe(ReadFileTool.Name);
+      expect(schema.description).toMatchSnapshot();
+    });
+
+    it('should return the Gemini 3 schema when a Gemini 3 modelId is provided', () => {
+      const modelId = 'gemini-3-pro-preview';
+      const schema = tool.getSchema(modelId);
+      expect(schema.name).toBe(ReadFileTool.Name);
+      expect(schema.description).toMatchSnapshot();
+      expect(schema.description).toContain('surgical reads');
+    });
+  });
+
+  describe('JIT context discovery', () => {
+    it('should append JIT context to output when enabled and context is found', async () => {
+      const { discoverJitContext } = await import('./jit-context.js');
+      vi.mocked(discoverJitContext).mockResolvedValue('Use the useAuth hook.');
+
+      const filePath = path.join(tempRootDir, 'jit-test.txt');
+      const fileContent = 'JIT test content.';
+      await fsp.writeFile(filePath, fileContent, 'utf-8');
+
+      const invocation = tool.build({ file_path: filePath });
+      const result = await invocation.execute(abortSignal);
+
+      expect(discoverJitContext).toHaveBeenCalled();
+      expect(result.llmContent).toContain('Newly Discovered Project Context');
+      expect(result.llmContent).toContain('Use the useAuth hook.');
+    });
+
+    it('should not append JIT context when disabled', async () => {
+      const { discoverJitContext } = await import('./jit-context.js');
+      vi.mocked(discoverJitContext).mockResolvedValue('');
+
+      const filePath = path.join(tempRootDir, 'jit-disabled-test.txt');
+      const fileContent = 'No JIT content.';
+      await fsp.writeFile(filePath, fileContent, 'utf-8');
+
+      const invocation = tool.build({ file_path: filePath });
+      const result = await invocation.execute(abortSignal);
+
+      expect(result.llmContent).not.toContain(
+        'Newly Discovered Project Context',
+      );
+    });
+
+    it('should append JIT context as Part array for non-string llmContent (binary files)', async () => {
+      const { discoverJitContext } = await import('./jit-context.js');
+      vi.mocked(discoverJitContext).mockResolvedValue(
+        'Auth rules: use httpOnly cookies.',
+      );
+
+      // Create a minimal valid PNG file (1x1 pixel)
+      const pngHeader = Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+        0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+        0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc, 0x33, 0x00, 0x00, 0x00,
+        0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+      ]);
+      const filePath = path.join(tempRootDir, 'test-image.png');
+      await fsp.writeFile(filePath, pngHeader);
+
+      const invocation = tool.build({ file_path: filePath });
+      const result = await invocation.execute(abortSignal);
+
+      expect(discoverJitContext).toHaveBeenCalled();
+      // Result should be an array containing both the image part and JIT context
+      expect(Array.isArray(result.llmContent)).toBe(true);
+      const parts = result.llmContent as Array<Record<string, unknown>>;
+      const jitTextPart = parts.find(
+        (p) =>
+          // eslint-disable-next-line no-restricted-syntax
+          typeof p['text'] === 'string' && p['text'].includes('Auth rules'),
+      );
+      expect(jitTextPart).toBeDefined();
+      expect(jitTextPart!['text']).toContain(
+        'Newly Discovered Project Context',
+      );
+      expect(jitTextPart!['text']).toContain(
+        'Auth rules: use httpOnly cookies.',
+      );
     });
   });
 });

@@ -5,35 +5,44 @@
  */
 
 import { isApiError, isStructuredError } from './quotaErrorDetection.js';
+import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
+import type { UserTierId } from '../code_assist/types.js';
 import { AuthType } from '../core/contentGenerator.js';
 
-// Free Tier message functions
 const RATE_LIMIT_ERROR_MESSAGE_USE_GEMINI =
   '\nPlease wait and try again later. To increase your limits, request a quota increase through AI Studio, or switch to another /auth method';
 const RATE_LIMIT_ERROR_MESSAGE_VERTEX =
   '\nPlease wait and try again later. To increase your limits, request a quota increase through Vertex, or switch to another /auth method';
-const RATE_LIMIT_ERROR_MESSAGE_DEFAULT =
-  '\nPossible quota limitations in place or slow response times detected. Please wait and try again later.';
+const getRateLimitErrorMessageDefault = (
+  fallbackModel: string = DEFAULT_GEMINI_FLASH_MODEL,
+) =>
+  `\nPossible quota limitations in place or slow response times detected. Switching to the ${fallbackModel} model for the rest of this session.`;
 
-function getRateLimitMessage(authType?: AuthType): string {
+function getRateLimitMessage(
+  authType?: AuthType,
+  fallbackModel?: string,
+): string {
   switch (authType) {
     case AuthType.USE_GEMINI:
       return RATE_LIMIT_ERROR_MESSAGE_USE_GEMINI;
     case AuthType.USE_VERTEX_AI:
       return RATE_LIMIT_ERROR_MESSAGE_VERTEX;
     default:
-      return RATE_LIMIT_ERROR_MESSAGE_DEFAULT;
+      return getRateLimitErrorMessageDefault(fallbackModel);
   }
 }
 
 export function parseAndFormatApiError(
   error: unknown,
   authType?: AuthType,
+  userTier?: UserTierId,
+  currentModel?: string,
+  fallbackModel?: string,
 ): string {
   if (isStructuredError(error)) {
     let text = `[API Error: ${error.message}]`;
     if (error.status === 429) {
-      text += getRateLimitMessage(authType);
+      text += getRateLimitMessage(authType, fallbackModel);
     }
     return text;
   }
@@ -57,19 +66,16 @@ export function parseAndFormatApiError(
           if (isApiError(nestedError)) {
             finalMessage = nestedError.error.message;
           }
-        } catch (_e) {
+        } catch {
           // It's not a nested JSON error, so we just use the message as is.
         }
-        const statusText = parsedError.error.status
-          ? ` (Status: ${parsedError.error.status})`
-          : '';
-        let text = `[API Error: ${finalMessage}${statusText}]`;
+        let text = `[API Error: ${finalMessage} (Status: ${parsedError.error.status})]`;
         if (parsedError.error.code === 429) {
-          text += getRateLimitMessage(authType);
+          text += getRateLimitMessage(authType, fallbackModel);
         }
         return text;
       }
-    } catch (_e) {
+    } catch {
       // Not a valid JSON, fall through and return the original message.
     }
     return `[API Error: ${error}]`;

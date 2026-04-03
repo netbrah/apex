@@ -4,244 +4,298 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SlashCommand, CommandContext } from './types.js';
-import { CommandKind } from './types.js';
-import { MessageType } from '../types.js';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
+import {
+  isFolderTrustEnabled,
+  loadTrustedFolders,
+} from '../../config/trustedFolders.js';
+import { MultiFolderTrustDialog } from '../components/MultiFolderTrustDialog.js';
+import {
+  CommandKind,
+  type SlashCommand,
+  type CommandContext,
+} from './types.js';
+import { MessageType, type HistoryItem } from '../types.js';
+import {
+  refreshServerHierarchicalMemory,
+  type Config,
+} from '@apex-code/apex-core';
+import {
+  expandHomeDir,
+  getDirectorySuggestions,
+  batchAddDirectories,
+} from '../utils/directoryUtils.js';
 import * as path from 'node:path';
-import { loadServerHierarchicalMemory } from '@apex-code/apex-core';
-import { t } from '../../i18n/index.js';
+import * as fs from 'node:fs';
 
-export function expandHomeDir(p: string): string {
-  if (!p) {
-    return '';
+async function finishAddingDirectories(
+  config: Config,
+  addItem: (
+    itemData: Omit<HistoryItem, 'id'>,
+    baseTimestamp?: number,
+  ) => number,
+  added: string[],
+  errors: string[],
+) {
+  if (!config) {
+    addItem({
+      type: MessageType.ERROR,
+      text: 'Configuration is not available.',
+    });
+    return;
   }
-  let expandedPath = p;
-  if (p.toLowerCase().startsWith('%userprofile%')) {
-    expandedPath = os.homedir() + p.substring('%userprofile%'.length);
-  } else if (p === '~' || p.startsWith('~/')) {
-    expandedPath = os.homedir() + p.substring(1);
+
+  if (added.length > 0) {
+    try {
+      if (config.shouldLoadMemoryFromIncludeDirectories()) {
+        await refreshServerHierarchicalMemory(config);
+      }
+      addItem({
+        type: MessageType.INFO,
+        text: `Successfully added APEX.md files from the following directories if there are:\n- ${added.join('\n- ')}`,
+      });
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      errors.push(`Error refreshing memory: ${(error as Error).message}`);
+    }
   }
-  return path.normalize(expandedPath);
-}
 
-/**
- * Returns directory path completions for the given partial argument.
- * Supports comma-separated paths by completing only the last segment.
- */
-export function getDirPathCompletions(partialArg: string): string[] {
-  const lastComma = partialArg.lastIndexOf(',');
-  const prefix = lastComma >= 0 ? partialArg.substring(0, lastComma + 1) : '';
-  const partial =
-    lastComma >= 0
-      ? partialArg.substring(lastComma + 1).trimStart()
-      : partialArg;
+  if (added.length > 0) {
+    const gemini = config.geminiClient;
+    if (gemini) {
+      await gemini.addDirectoryContext();
 
-  const trimmed = partial.trim();
-  if (!trimmed) return [];
+      // Persist directories to session file for resume support
+      const chatRecordingService = gemini.getChatRecordingService();
+      const workspaceContext = config.getWorkspaceContext();
+      chatRecordingService?.recordDirectories(
+        workspaceContext.getDirectories(),
+      );
+    }
+    addItem({
+      type: MessageType.INFO,
+      text: `Successfully added directories:\n- ${added.join('\n- ')}`,
+    });
+  }
 
-  const expanded = trimmed.startsWith('~')
-    ? trimmed.replace(/^~/, os.homedir())
-    : trimmed;
-  const endsWithSep = expanded.endsWith('/') || expanded.endsWith(path.sep);
-  const searchDir = endsWithSep ? expanded : path.dirname(expanded);
-  const namePrefix = endsWithSep ? '' : path.basename(expanded);
-
-  try {
-    return fs
-      .readdirSync(searchDir, { withFileTypes: true })
-      .filter(
-        (e) =>
-          e.isDirectory() &&
-          e.name.startsWith(namePrefix) &&
-          !e.name.startsWith('.'),
-      )
-      .map((e) => prefix + path.join(searchDir, e.name))
-      .slice(0, 8);
-  } catch {
-    return [];
+  if (errors.length > 0) {
+    addItem({ type: MessageType.ERROR, text: errors.join('\n') });
   }
 }
 
 export const directoryCommand: SlashCommand = {
   name: 'directory',
   altNames: ['dir'],
-  get description() {
-    return t('Manage workspace directories');
-  },
+  description: 'Manage workspace directories',
   kind: CommandKind.BUILT_IN,
   subCommands: [
     {
       name: 'add',
-      get description() {
-        return t(
-          'Add directories to the workspace. Use comma to separate multiple paths',
-        );
-      },
+      description:
+        'Add directories to the workspace. Use comma to separate multiple paths',
       kind: CommandKind.BUILT_IN,
-      completion: async (_context: CommandContext, partialArg: string) =>
-        getDirPathCompletions(partialArg),
+      autoExecute: false,
+      showCompletionLoading: false,
+      completion: async (context: CommandContext, partialArg: string) => {
+        // Support multiple paths separated by commas
+        const parts = partialArg.split(',');
+        const lastPart = parts[parts.length - 1];
+        const leadingWhitespace = lastPart.match(/^\s*/)?.[0] ?? '';
+        const trimmedLastPart = lastPart.trimStart();
+
+        if (trimmedLastPart === '') {
+          return [];
+        }
+
+        const suggestions = await getDirectorySuggestions(trimmedLastPart);
+
+        // Filter out existing directories
+        let filteredSuggestions = suggestions;
+        if (context.services.agentContext?.config) {
+          const workspaceContext =
+            context.services.agentContext.config.getWorkspaceContext();
+          const existingDirs = new Set(
+            workspaceContext.getDirectories().map((dir) => path.resolve(dir)),
+          );
+
+          filteredSuggestions = suggestions.filter((s) => {
+            const expanded = expandHomeDir(s);
+            const absolute = path.resolve(expanded);
+
+            if (existingDirs.has(absolute)) {
+              return false;
+            }
+            if (
+              absolute.endsWith(path.sep) &&
+              existingDirs.has(absolute.slice(0, -1))
+            ) {
+              return false;
+            }
+            return true;
+          });
+        }
+
+        if (parts.length > 1) {
+          const prefix = parts.slice(0, -1).join(',') + ',';
+          return filteredSuggestions.map((s) => prefix + leadingWhitespace + s);
+        }
+
+        return filteredSuggestions.map((s) => leadingWhitespace + s);
+      },
       action: async (context: CommandContext, args: string) => {
         const {
           ui: { addItem },
-          services: { config },
+          services: { agentContext, settings },
         } = context;
         const [...rest] = args.split(' ');
 
-        if (!config) {
-          addItem(
-            {
-              type: MessageType.ERROR,
-              text: t('Configuration is not available.'),
-            },
-            Date.now(),
-          );
+        if (!agentContext) {
+          addItem({
+            type: MessageType.ERROR,
+            text: 'Configuration is not available.',
+          });
           return;
         }
 
-        const workspaceContext = config.getWorkspaceContext();
+        if (agentContext.config.isRestrictiveSandbox()) {
+          return {
+            type: 'message' as const,
+            messageType: 'error' as const,
+            content:
+              'The /directory add command is not supported in restrictive sandbox profiles. Please use --include-directories when starting the session instead.',
+          };
+        }
 
         const pathsToAdd = rest
           .join(' ')
           .split(',')
           .filter((p) => p);
         if (pathsToAdd.length === 0) {
-          addItem(
-            {
-              type: MessageType.ERROR,
-              text: t('Please provide at least one path to add.'),
-            },
-            Date.now(),
-          );
+          addItem({
+            type: MessageType.ERROR,
+            text: 'Please provide at least one path to add.',
+          });
           return;
-        }
-
-        if (config.isRestrictiveSandbox()) {
-          return {
-            type: 'message' as const,
-            messageType: 'error' as const,
-            content: t(
-              'The /directory add command is not supported in restrictive sandbox profiles. Please use --include-directories when starting the session instead.',
-            ),
-          };
         }
 
         const added: string[] = [];
         const errors: string[] = [];
+        const alreadyAdded: string[] = [];
+
+        const workspaceContext = agentContext.config.getWorkspaceContext();
+        const currentWorkspaceDirs = workspaceContext.getDirectories();
+        const pathsToProcess: string[] = [];
 
         for (const pathToAdd of pathsToAdd) {
+          const trimmedPath = pathToAdd.trim();
+          const expandedPath = expandHomeDir(trimmedPath);
           try {
-            workspaceContext.addDirectory(expandHomeDir(pathToAdd.trim()));
-            added.push(pathToAdd.trim());
-          } catch (e) {
-            const error = e as Error;
-            errors.push(
-              t("Error adding '{{path}}': {{error}}", {
-                path: pathToAdd.trim(),
-                error: error.message,
-              }),
+            const absolutePath = path.resolve(
+              workspaceContext.targetDir,
+              expandedPath,
             );
+            const resolvedPath = fs.realpathSync(absolutePath);
+            if (currentWorkspaceDirs.includes(resolvedPath)) {
+              alreadyAdded.push(trimmedPath);
+              continue;
+            }
+          } catch {
+            // Path might not exist or be inaccessible.
+            // We'll let batchAddDirectories handle it later.
           }
+          pathsToProcess.push(trimmedPath);
         }
 
-        try {
-          if (config.shouldLoadMemoryFromIncludeDirectories()) {
-            const { memoryContent, fileCount } =
-              await loadServerHierarchicalMemory(
-                config.getWorkingDir(),
-                [
-                  ...config.getWorkspaceContext().getDirectories(),
-                  ...pathsToAdd,
-                ],
-                config.getFileService(),
-                config.getExtensionContextFilePaths(),
-                config.getFolderTrust(),
-                context.services.settings.merged.context?.importFormat ||
-                  'tree', // Use setting or default to 'tree'
-              );
-            config.setUserMemory(memoryContent);
-            config.setGeminiMdFileCount(fileCount);
-            context.ui.setGeminiMdFileCount(fileCount);
+        if (alreadyAdded.length > 0) {
+          addItem({
+            type: MessageType.INFO,
+            text: `The following directories are already in the workspace:\n- ${alreadyAdded.join(
+              '\n- ',
+            )}`,
+          });
+        }
+
+        if (pathsToProcess.length === 0) {
+          return;
+        }
+
+        if (isFolderTrustEnabled(settings.merged)) {
+          const trustedFolders = loadTrustedFolders();
+          const dirsToConfirm: string[] = [];
+          const trustedDirs: string[] = [];
+
+          for (const pathToAdd of pathsToProcess) {
+            const expandedPath = path.resolve(expandHomeDir(pathToAdd.trim()));
+            const isTrusted = trustedFolders.isPathTrusted(expandedPath);
+            // If explicitly trusted, add immediately.
+            // If undefined or explicitly untrusted (DO_NOT_TRUST), prompt for confirmation.
+            // This allows users to "upgrade" a DO_NOT_TRUST folder to trusted via the dialog.
+            if (isTrusted === true) {
+              trustedDirs.push(pathToAdd.trim());
+            } else {
+              dirsToConfirm.push(pathToAdd.trim());
+            }
           }
-          addItem(
-            {
-              type: MessageType.INFO,
-              text: t(
-                'Successfully added APEX.md files from the following directories if there are:\n- {{directories}}',
-                {
-                  directories: added.join('\n- '),
-                },
+
+          if (trustedDirs.length > 0) {
+            const result = batchAddDirectories(workspaceContext, trustedDirs);
+            added.push(...result.added);
+            errors.push(...result.errors);
+          }
+
+          if (dirsToConfirm.length > 0) {
+            return {
+              type: 'custom_dialog',
+              component: (
+                <MultiFolderTrustDialog
+                  folders={dirsToConfirm}
+                  onComplete={context.ui.removeComponent}
+                  trustedDirs={added}
+                  errors={errors}
+                  finishAddingDirectories={finishAddingDirectories}
+                  config={agentContext.config}
+                  addItem={addItem}
+                />
               ),
-            },
-            Date.now(),
-          );
-        } catch (error) {
-          errors.push(
-            t('Error refreshing memory: {{error}}', {
-              error: (error as Error).message,
-            }),
-          );
-        }
-
-        if (added.length > 0) {
-          const gemini = config.getGeminiClient();
-          if (gemini) {
-            await gemini.addDirectoryContext();
+            };
           }
-          addItem(
-            {
-              type: MessageType.INFO,
-              text: t('Successfully added directories:\n- {{directories}}', {
-                directories: added.join('\n- '),
-              }),
-            },
-            Date.now(),
-          );
+        } else {
+          const result = batchAddDirectories(workspaceContext, pathsToProcess);
+          added.push(...result.added);
+          errors.push(...result.errors);
         }
 
-        if (errors.length > 0) {
-          addItem(
-            { type: MessageType.ERROR, text: errors.join('\n') },
-            Date.now(),
-          );
-        }
+        await finishAddingDirectories(
+          agentContext.config,
+          addItem,
+          added,
+          errors,
+        );
         return;
       },
     },
     {
       name: 'show',
-      get description() {
-        return t('Show all directories in the workspace');
-      },
+      description: 'Show all directories in the workspace',
       kind: CommandKind.BUILT_IN,
       action: async (context: CommandContext) => {
         const {
           ui: { addItem },
-          services: { config },
+          services: { agentContext },
         } = context;
-        if (!config) {
-          addItem(
-            {
-              type: MessageType.ERROR,
-              text: t('Configuration is not available.'),
-            },
-            Date.now(),
-          );
+        if (!agentContext) {
+          addItem({
+            type: MessageType.ERROR,
+            text: 'Configuration is not available.',
+          });
           return;
         }
-        const workspaceContext = config.getWorkspaceContext();
+        const workspaceContext = agentContext.config.getWorkspaceContext();
         const directories = workspaceContext.getDirectories();
         const directoryList = directories.map((dir) => `- ${dir}`).join('\n');
-        addItem(
-          {
-            type: MessageType.INFO,
-            text: t('Current workspace directories:\n{{directories}}', {
-              directories: directoryList,
-            }),
-          },
-          Date.now(),
-        );
+        addItem({
+          type: MessageType.INFO,
+          text: `Current workspace directories:\n${directoryList}`,
+        });
       },
     },
   ],

@@ -9,6 +9,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { marked } from 'marked';
 import { processImports, validateImportPath } from './memoryImportProcessor.js';
+import { debugLogger } from './debugLogger.js';
 
 // Helper function to create platform-agnostic test paths
 function testPath(...segments: string[]): string {
@@ -31,11 +32,6 @@ function testPath(...segments: string[]): string {
 
 vi.mock('fs/promises');
 const mockedFs = vi.mocked(fs);
-
-// Mock console methods to capture warnings
-const originalConsoleWarn = console.warn;
-const originalConsoleError = console.error;
-const originalConsoleDebug = console.debug;
 
 // Helper functions using marked for parsing and validation
 const parseMarkdown = (content: string) => marked.lexer(content);
@@ -92,22 +88,15 @@ const findCodeBlocks = (
 
 describe('memoryImportProcessor', () => {
   beforeEach(() => {
-    vi.resetAllMocks(); // Use resetAllMocks to clear mock implementations
+    vi.clearAllMocks();
     // Mock console methods
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
-    // Default mock for lstat (used by findProjectRoot)
-    mockedFs.lstat.mockRejectedValue(
-      Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
-    );
+    vi.spyOn(debugLogger, 'warn').mockImplementation(() => {});
+    vi.spyOn(debugLogger, 'error').mockImplementation(() => {});
+    vi.spyOn(debugLogger, 'debug').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    // Restore console methods
-    console.warn = originalConsoleWarn;
-    console.error = originalConsoleError;
-    console.debug = originalConsoleDebug;
+    vi.resetAllMocks();
   });
 
   describe('processImports', () => {
@@ -119,7 +108,7 @@ describe('memoryImportProcessor', () => {
       mockedFs.access.mockResolvedValue(undefined);
       mockedFs.readFile.mockResolvedValue(importedContent);
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
       // Use marked to find HTML comments (import markers)
       const comments = findMarkdownComments(result.content);
@@ -153,7 +142,7 @@ describe('memoryImportProcessor', () => {
       mockedFs.access.mockResolvedValue(undefined);
       mockedFs.readFile.mockResolvedValue(importedContent);
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
       // Use marked to find import comments
       const comments = findMarkdownComments(result.content);
@@ -177,7 +166,7 @@ describe('memoryImportProcessor', () => {
 
       // Verify the imported content is present
       expect(result.content).toContain(importedContent);
-      expect(console.warn).not.toHaveBeenCalled();
+      expect(debugLogger.warn).not.toHaveBeenCalled();
       expect(mockedFs.readFile).toHaveBeenCalledWith(
         path.resolve(basePath, './instructions.txt'),
         'utf-8',
@@ -200,7 +189,7 @@ describe('memoryImportProcessor', () => {
         currentFile: testPath('test', 'path', 'main.md'), // Simulate we're processing main.md
       };
 
-      const result = await processImports(content, basePath, importState);
+      const result = await processImports(content, basePath, true, importState);
 
       // The circular import should be detected when processing the nested import
       expect(result.content).toContain(
@@ -208,41 +197,21 @@ describe('memoryImportProcessor', () => {
       );
     });
 
-    it('should silently preserve content when file not found (ENOENT)', async () => {
+    it('should handle file not found errors', async () => {
       const content = 'Content @./nonexistent.md more content';
       const basePath = testPath('test', 'path');
 
-      // Mock ENOENT error (file not found)
-      mockedFs.access.mockRejectedValue(
-        Object.assign(new Error('ENOENT: no such file or directory'), {
-          code: 'ENOENT',
-        }),
-      );
+      mockedFs.access.mockRejectedValue(new Error('File not found'));
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
-      // Content should be preserved as-is when file doesn't exist
-      expect(result.content).toBe(content);
-      // No error should be logged for ENOENT
-      expect(console.error).not.toHaveBeenCalled();
-    });
-
-    it('should log error for non-ENOENT file access errors', async () => {
-      const content = 'Content @./permission-denied.md more content';
-      const basePath = testPath('test', 'path');
-
-      // Mock a permission denied error (not ENOENT)
-      mockedFs.access.mockRejectedValue(
-        Object.assign(new Error('Permission denied'), { code: 'EACCES' }),
-      );
-
-      const result = await processImports(content, basePath);
-
-      // Should show error comment for non-ENOENT errors
       expect(result.content).toContain(
-        '<!-- Import failed: ./permission-denied.md - Permission denied -->',
+        '<!-- Import failed: ./nonexistent.md - File not found -->',
       );
-      expect(console.error).not.toHaveBeenCalled();
+      expect(debugLogger.error).toHaveBeenCalledWith(
+        '[ERROR] [ImportProcessor]',
+        'Failed to import ./nonexistent.md: File not found',
+      );
     });
 
     it('should respect max depth limit', async () => {
@@ -259,9 +228,12 @@ describe('memoryImportProcessor', () => {
         currentDepth: 1,
       };
 
-      const result = await processImports(content, basePath, importState);
+      const result = await processImports(content, basePath, true, importState);
 
-      expect(console.warn).not.toHaveBeenCalled();
+      expect(debugLogger.warn).toHaveBeenCalledWith(
+        '[WARN] [ImportProcessor]',
+        'Maximum import depth (1) reached. Stopping import processing.',
+      );
       expect(result.content).toBe(content);
     });
 
@@ -276,7 +248,7 @@ describe('memoryImportProcessor', () => {
         .mockResolvedValueOnce(nestedContent)
         .mockResolvedValueOnce(innerContent);
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
       expect(result.content).toContain('<!-- Imported from: ./nested.md -->');
       expect(result.content).toContain('<!-- Imported from: ./inner.md -->');
@@ -291,7 +263,7 @@ describe('memoryImportProcessor', () => {
       mockedFs.access.mockResolvedValue(undefined);
       mockedFs.readFile.mockResolvedValue(importedContent);
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
       expect(result.content).toContain(
         '<!-- Import failed: /absolute/path/file.md - Path traversal attempt -->',
@@ -309,7 +281,7 @@ describe('memoryImportProcessor', () => {
         .mockResolvedValueOnce(firstContent)
         .mockResolvedValueOnce(secondContent);
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
       expect(result.content).toContain('<!-- Imported from: ./first.md -->');
       expect(result.content).toContain('<!-- Imported from: ./second.md -->');
@@ -337,6 +309,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
       );
@@ -376,6 +349,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
       );
@@ -424,6 +398,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
       );
@@ -449,6 +424,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
       );
@@ -465,49 +441,6 @@ describe('memoryImportProcessor', () => {
       expect(result.importTree.imports).toBeUndefined();
     });
 
-    it('should still import valid paths while ignoring non-existent paths', async () => {
-      const content = '使用 @./valid.md 文件和 @中文路径 注解';
-      const basePath = testPath('test', 'path');
-      const importedContent = 'Valid imported content';
-
-      // Mock: valid.md exists, 中文路径 doesn't exist
-      mockedFs.access
-        .mockResolvedValueOnce(undefined) // ./valid.md exists
-        .mockRejectedValueOnce(
-          Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
-        ); // 中文路径 doesn't exist
-      mockedFs.readFile.mockResolvedValue(importedContent);
-
-      const result = await processImports(content, basePath);
-
-      // Should import valid.md
-      expect(result.content).toContain(importedContent);
-      expect(result.content).toContain('<!-- Imported from: ./valid.md -->');
-      // The non-existent path should remain as-is
-      expect(result.content).toContain('@中文路径');
-    });
-
-    it('should import Chinese file names if they exist', async () => {
-      const content = '导入 @./中文文档.md 文件';
-      const projectRoot = testPath('test', 'project');
-      const basePath = testPath(projectRoot, 'src');
-      const importedContent = '这是中文文档的内容';
-
-      mockedFs.access.mockResolvedValue(undefined);
-      mockedFs.readFile.mockResolvedValue(importedContent);
-
-      const result = await processImports(
-        content,
-        basePath,
-        undefined,
-        projectRoot,
-      );
-
-      // Should successfully import the Chinese-named file
-      expect(result.content).toContain(importedContent);
-      expect(result.content).toContain('<!-- Imported from: ./中文文档.md -->');
-    });
-
     it('should allow imports from parent and subdirectories within project root', async () => {
       const content =
         'Parent import: @../parent.md Subdir import: @./components/sub.md';
@@ -522,6 +455,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
       );
@@ -536,6 +470,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
       );
@@ -558,7 +493,7 @@ describe('memoryImportProcessor', () => {
         .mockResolvedValueOnce(simpleContent)
         .mockResolvedValueOnce(innerContent);
 
-      const result = await processImports(content, basePath);
+      const result = await processImports(content, basePath, true);
 
       // Use marked to find and validate import comments
       const comments = findMarkdownComments(result.content);
@@ -626,6 +561,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
         'flat',
@@ -701,6 +637,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true, // followImports
         undefined, // allowedPaths
         projectRoot,
         'flat', // outputFormat
@@ -732,6 +669,7 @@ describe('memoryImportProcessor', () => {
       const result = await processImports(
         content,
         basePath,
+        true,
         undefined,
         projectRoot,
         'flat',

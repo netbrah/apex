@@ -4,22 +4,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import * as crypto from 'node:crypto';
-import type { Config } from '../config/config.js';
-import { isNodeError } from './errors.js';
+import * as fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export const APEX_DIR = '.apex';
 export const GOOGLE_ACCOUNTS_FILENAME = 'google_accounts.json';
 
 /**
- * Special characters that need to be escaped in file paths for shell compatibility.
- * Includes: spaces, parentheses, brackets, braces, semicolons, ampersands, pipes,
- * asterisks, question marks, dollar signs, backticks, quotes, hash, and other shell metacharacters.
+ * Returns the home directory.
+ * If APEX_HOME environment variable is set, it returns its value.
+ * Otherwise, it returns the user's home directory.
  */
-export const SHELL_SPECIAL_CHARS = /[ \t()[\]{};|*?$`'"#&<>!~]/;
+export function homedir(): string {
+  const envHome = process.env['APEX_HOME'];
+  if (envHome) {
+    return envHome;
+  }
+  return os.homedir();
+}
+
+/**
+ * Returns the operating system's default directory for temporary files.
+ */
+export function tmpdir(): string {
+  return os.tmpdir();
+}
 
 /**
  * Replaces the home directory with a tilde.
@@ -27,7 +39,7 @@ export const SHELL_SPECIAL_CHARS = /[ \t()[\]{};|*?$`'"#&<>!~]/;
  * @returns The tildeified path.
  */
 export function tildeifyPath(path: string): string {
-  const homeDir = os.homedir();
+  const homeDir = homedir();
   if (path.startsWith(homeDir)) {
     return path.replace(homeDir, '~');
   }
@@ -36,95 +48,207 @@ export function tildeifyPath(path: string): string {
 
 /**
  * Shortens a path string if it exceeds maxLen, prioritizing the start and end segments.
- * Shows root + first segment + "..." + end segments when middle segments are omitted.
  * Example: /path/to/a/very/long/file.txt -> /path/.../long/file.txt
  */
-export function shortenPath(filePath: string, maxLen: number = 80): string {
+export function shortenPath(filePath: string, maxLen: number = 35): string {
   if (filePath.length <= maxLen) {
     return filePath;
   }
 
-  const separator = path.sep;
-  const ellipsis = '...';
+  const simpleTruncate = () => {
+    const keepLen = Math.floor((maxLen - 3) / 2);
+    if (keepLen <= 0) {
+      return filePath.substring(0, maxLen - 3) + '...';
+    }
+    const start = filePath.substring(0, keepLen);
+    const end = filePath.substring(filePath.length - keepLen);
+    return `${start}...${end}`;
+  };
 
-  // Simple fallback for very short maxLen
-  if (maxLen < 10) {
-    return filePath.substring(0, maxLen - 3) + ellipsis;
-  }
+  type TruncateMode = 'start' | 'end' | 'center';
+
+  const truncateComponent = (
+    component: string,
+    targetLength: number,
+    mode: TruncateMode,
+  ): string => {
+    if (component.length <= targetLength) {
+      return component;
+    }
+
+    if (targetLength <= 0) {
+      return '';
+    }
+
+    if (targetLength <= 3) {
+      if (mode === 'end') {
+        return component.slice(-targetLength);
+      }
+      return component.slice(0, targetLength);
+    }
+
+    if (mode === 'start') {
+      return `${component.slice(0, targetLength - 3)}...`;
+    }
+
+    if (mode === 'end') {
+      return `...${component.slice(component.length - (targetLength - 3))}`;
+    }
+
+    const front = Math.ceil((targetLength - 3) / 2);
+    const back = targetLength - 3 - front;
+    return `${component.slice(0, front)}...${component.slice(
+      component.length - back,
+    )}`;
+  };
 
   const parsedPath = path.parse(filePath);
   const root = parsedPath.root;
+  const separator = path.sep;
+
+  // Get segments of the path *after* the root
   const relativePath = filePath.substring(root.length);
-  const segments = relativePath.split(separator).filter((s) => s !== '');
+  const segments = relativePath.split(separator).filter((s) => s !== ''); // Filter out empty segments
 
-  // Handle edge cases: no segments or single segment
-  if (segments.length === 0) {
-    return root.length <= maxLen
-      ? root
-      : root.substring(0, maxLen - 3) + ellipsis;
+  // Handle cases with no segments after root (e.g., "/", "C:\") or only one segment
+  if (segments.length <= 1) {
+    // Fall back to simple start/end truncation for very short paths or single segments
+    return simpleTruncate();
   }
 
-  if (segments.length === 1) {
-    const full = root + segments[0];
-    if (full.length <= maxLen) {
-      return full;
-    }
-    const keepLen = Math.floor((maxLen - 3) / 2);
-    const start = full.substring(0, keepLen);
-    const end = full.substring(full.length - keepLen);
-    return `${start}${ellipsis}${end}`;
-  }
+  const firstDir = segments[0];
+  const lastSegment = segments[segments.length - 1];
+  const startComponent = root + firstDir;
 
-  // For 2+ segments: build from start and end, insert "..." if there's a gap
-  const startPart = root + segments[0]; // Always include root and first segment
+  const endPartSegments = [lastSegment];
+  let endPartLength = lastSegment.length;
 
-  // Collect segments from the end, working backwards
-  const endSegments: string[] = [];
-
-  for (let i = segments.length - 1; i >= 1; i--) {
+  // Iterate backwards through the middle segments
+  for (let i = segments.length - 2; i > 0; i--) {
     const segment = segments[i];
+    const newLength =
+      startComponent.length +
+      separator.length +
+      3 + // for "..."
+      separator.length +
+      endPartLength +
+      separator.length +
+      segment.length;
 
-    // Calculate what the total would be if we add this segment
-    const endPart = [segment, ...endSegments].join(separator);
-    const needsEllipsis = i > 1; // If we're not at segment[1], there's a gap
-
-    let candidateResult: string;
-    if (needsEllipsis) {
-      candidateResult = startPart + separator + ellipsis + separator + endPart;
+    if (newLength <= maxLen) {
+      endPartSegments.unshift(segment);
+      endPartLength += separator.length + segment.length;
     } else {
-      candidateResult = startPart + separator + endPart;
+      break;
+    }
+  }
+
+  const components = [firstDir, ...endPartSegments];
+  const componentModes: TruncateMode[] = components.map((_, index) => {
+    if (index === 0) {
+      return 'start';
+    }
+    if (index === components.length - 1) {
+      return 'end';
+    }
+    return 'center';
+  });
+
+  const separatorsCount = endPartSegments.length + 1;
+  const fixedLen = root.length + separatorsCount * separator.length + 3; // ellipsis length
+  const availableForComponents = maxLen - fixedLen;
+
+  const trailingFallback = () => {
+    const ellipsisTail = `...${separator}${lastSegment}`;
+    if (ellipsisTail.length <= maxLen) {
+      return ellipsisTail;
     }
 
-    if (candidateResult.length <= maxLen) {
-      endSegments.unshift(segment);
-
-      // If we've reached segment[1], we have all segments - return immediately
-      if (i === 1) {
-        return candidateResult;
+    if (root) {
+      const rootEllipsisTail = `${root}...${separator}${lastSegment}`;
+      if (rootEllipsisTail.length <= maxLen) {
+        return rootEllipsisTail;
       }
-    } else {
-      break; // Can't add more segments
     }
+
+    if (root && `${root}${lastSegment}`.length <= maxLen) {
+      return `${root}${lastSegment}`;
+    }
+
+    if (lastSegment.length <= maxLen) {
+      return lastSegment;
+    }
+
+    // As a final resort (e.g., last segment itself exceeds maxLen), fall back to simple truncation.
+    return simpleTruncate();
+  };
+
+  if (availableForComponents <= 0) {
+    return trailingFallback();
   }
 
-  // Build final result
-  if (endSegments.length === 0) {
-    // Couldn't fit any end segments - use simple truncation
-    const keepLen = Math.floor((maxLen - 3) / 2);
-    const start = filePath.substring(0, keepLen);
-    const end = filePath.substring(filePath.length - keepLen);
-    return `${start}${ellipsis}${end}`;
+  const minLengths = components.map((component, index) => {
+    if (index === 0) {
+      return Math.min(component.length, 1);
+    }
+    if (index === components.length - 1) {
+      return component.length; // Never truncate the last segment when possible.
+    }
+    return Math.min(component.length, 1);
+  });
+
+  const minTotal = minLengths.reduce((sum, len) => sum + len, 0);
+  if (availableForComponents < minTotal) {
+    return trailingFallback();
   }
 
-  // We have some end segments but not all - there's a gap, insert ellipsis
-  return (
-    startPart + separator + ellipsis + separator + endSegments.join(separator)
+  const budgets = components.map((component) => component.length);
+  let currentTotal = budgets.reduce((sum, len) => sum + len, 0);
+
+  const pickIndexToReduce = () => {
+    let bestIndex = -1;
+    let bestScore = -Infinity;
+    for (let i = 0; i < budgets.length; i++) {
+      if (budgets[i] <= minLengths[i]) {
+        continue;
+      }
+      const isLast = i === budgets.length - 1;
+      const score = (isLast ? 0 : 1_000_000) + budgets[i];
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  };
+
+  while (currentTotal > availableForComponents) {
+    const index = pickIndexToReduce();
+    if (index === -1) {
+      return trailingFallback();
+    }
+    budgets[index]--;
+    currentTotal--;
+  }
+
+  const truncatedComponents = components.map((component, index) =>
+    truncateComponent(component, budgets[index], componentModes[index]),
   );
+
+  const truncatedFirst = truncatedComponents[0];
+  const truncatedEnd = truncatedComponents.slice(1).join(separator);
+  const result = `${root}${truncatedFirst}${separator}...${separator}${truncatedEnd}`;
+
+  if (result.length > maxLen) {
+    return trailingFallback();
+  }
+
+  return result;
 }
 
 /**
  * Calculates the relative path from a root directory to a target path.
- * Ensures both paths are resolved before calculating.
+ * If targetPath is relative, it is returned as-is.
  * Returns '.' if the target path is the same as the root directory.
  *
  * @param targetPath The absolute or relative path to make relative.
@@ -135,90 +259,75 @@ export function makeRelative(
   targetPath: string,
   rootDirectory: string,
 ): string {
-  const resolvedTargetPath = path.resolve(targetPath);
-  const resolvedRootDirectory = path.resolve(rootDirectory);
-
-  if (!isSubpath(resolvedRootDirectory, resolvedTargetPath)) {
-    return resolvedTargetPath;
+  if (!path.isAbsolute(targetPath)) {
+    return targetPath;
   }
-
-  const relativePath = path.relative(resolvedRootDirectory, resolvedTargetPath);
+  const resolvedRootDirectory = path.resolve(rootDirectory);
+  const relativePath = path.relative(resolvedRootDirectory, targetPath);
 
   // If the paths are the same, path.relative returns '', return '.' instead
   return relativePath || '.';
 }
 
 /**
- * Escapes special characters in a file path like macOS terminal does.
- * Escapes: spaces, parentheses, brackets, braces, semicolons, ampersands, pipes,
- * asterisks, question marks, dollar signs, backticks, quotes, hash, and other shell metacharacters.
+ * Escape paths for at-commands.
+ *
+ *  - Windows: double quoted if they contain special chars, otherwise bare
+ *  - POSIX: backslash-escaped
  */
 export function escapePath(filePath: string): string {
-  let result = '';
-  for (let i = 0; i < filePath.length; i++) {
-    const char = filePath[i];
-
-    // Count consecutive backslashes before this character
-    let backslashCount = 0;
-    for (let j = i - 1; j >= 0 && filePath[j] === '\\'; j--) {
-      backslashCount++;
+  if (process.platform === 'win32') {
+    // Windows: Double quote if it contains special chars
+    if (/[\s&()[\]{}^=;!'+,`~%$@#]/.test(filePath)) {
+      return `"${filePath}"`;
     }
-
-    // Character is already escaped if there's an odd number of backslashes before it
-    const isAlreadyEscaped = backslashCount % 2 === 1;
-
-    // Only escape if not already escaped
-    if (!isAlreadyEscaped && SHELL_SPECIAL_CHARS.test(char)) {
-      result += '\\' + char;
-    } else {
-      result += char;
-    }
+    return filePath;
+  } else {
+    // POSIX: Backslash escape
+    return filePath.replace(/([ \t()[\]{};|*?$`'"#&<>!~\\])/g, '\\$1');
   }
-  return result;
 }
 
 /**
- * Unescapes special characters in a file path.
- * Removes backslash escaping from shell metacharacters.
+ * Unescapes paths for at-commands.
+ *
+ *  - Windows: double quoted if they contain special chars, otherwise bare
+ *  - POSIX: backslash-escaped
  */
 export function unescapePath(filePath: string): string {
-  return filePath.replace(
-    new RegExp(`\\\\([${SHELL_SPECIAL_CHARS.source.slice(1, -1)}])`, 'g'),
-    '$1',
-  );
+  if (process.platform === 'win32') {
+    if (
+      filePath.length >= 2 &&
+      filePath.startsWith('"') &&
+      filePath.endsWith('"')
+    ) {
+      return filePath.slice(1, -1);
+    }
+    return filePath;
+  } else {
+    return filePath.replace(/\\(.)/g, '$1');
+  }
 }
 
 /**
  * Generates a unique hash for a project based on its root path.
- * On Windows, paths are case-insensitive, so we normalize to lowercase
- * to ensure the same physical path always produces the same hash.
  * @param projectRoot The absolute path to the project's root directory.
  * @returns A SHA256 hash of the project root path.
  */
 export function getProjectHash(projectRoot: string): string {
-  // On Windows, normalize path to lowercase for case-insensitive matching
-  const normalizedPath =
-    os.platform() === 'win32' ? projectRoot.toLowerCase() : projectRoot;
-  return crypto.createHash('sha256').update(normalizedPath).digest('hex');
+  return crypto.createHash('sha256').update(projectRoot).digest('hex');
 }
 
 /**
- * Sanitizes a directory path to create a safe project ID.
- *
- * - On Windows: normalizes to lowercase for case-insensitive matching
- * - Replaces all non-alphanumeric characters with hyphens
- *
- * This is used for:
- * - Creating project-specific directories
- * - Generating session IDs for debug logging during startup
- *
- * @param cwd - The directory path to sanitize
- * @returns A sanitized string safe for use as a project identifier
+ * Normalizes a path for reliable comparison across platforms.
+ * - Resolves to an absolute path.
+ * - Converts all path separators to forward slashes.
+ * - On Windows, converts to lowercase for case-insensitivity.
  */
-export function sanitizeCwd(cwd: string): string {
-  // On Windows, normalize to lowercase for case-insensitive matching
-  const normalizedCwd = os.platform() === 'win32' ? cwd.toLowerCase() : cwd;
-  return normalizedCwd.replace(/[^a-zA-Z0-9]/g, '-');
+export function normalizePath(p: string): string {
+  const resolved = path.resolve(p);
+  const normalized = resolved.replace(/\\/g, '/');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
 
 /**
@@ -228,7 +337,7 @@ export function sanitizeCwd(cwd: string): string {
  * @returns True if childPath is a subpath of parentPath, false otherwise.
  */
 export function isSubpath(parentPath: string, childPath: string): boolean {
-  const isWindows = os.platform() === 'win32';
+  const isWindows = process.platform === 'win32';
   const pathModule = isWindows ? path.win32 : path;
 
   // On Windows, path.relative is case-insensitive. On POSIX, it's case-sensitive.
@@ -241,112 +350,71 @@ export function isSubpath(parentPath: string, childPath: string): boolean {
   );
 }
 
-export function isSubpaths(parentPath: string[], childPath: string): boolean {
-  return parentPath.some((p) => isSubpath(p, childPath));
-}
-
 /**
- * Resolves a path with tilde (~) expansion and relative path resolution.
- * Handles tilde expansion for home directory and resolves relative paths
- * against the provided base directory or current working directory.
+ * Resolves a path to its real path, sanitizing it first.
+ * - Removes 'file://' protocol if present.
+ * - Decodes URI components (e.g. %20 -> space).
+ * - Resolves symbolic links using fs.realpathSync.
  *
- * @param baseDir The base directory to resolve relative paths against (defaults to current working directory)
- * @param relativePath The path to resolve (can be relative, absolute, or tilde-prefixed)
- * @returns The resolved absolute path
+ * @param pathStr The path string to resolve.
+ * @returns The resolved real path.
  */
-export function resolvePath(
-  baseDir: string | undefined = process.cwd(),
-  relativePath: string,
-): string {
-  const homeDir = os.homedir();
-
-  if (relativePath === '~') {
-    return homeDir;
-  } else if (relativePath.startsWith('~/')) {
-    return path.join(homeDir, relativePath.slice(2));
-  } else if (path.isAbsolute(relativePath)) {
-    return relativePath;
-  } else {
-    return path.resolve(baseDir, relativePath);
-  }
-}
-
-export interface PathValidationOptions {
-  /**
-   * If true, allows both files and directories. If false (default), only allows directories.
-   */
-  allowFiles?: boolean;
-
-  /**
-   * If true, allows paths outside the workspace boundaries.
-   * The caller is responsible for adjusting permissions (e.g. 'ask') for
-   * external paths.
-   */
-  allowExternalPaths?: boolean;
-}
-
-/**
- * Validates that a resolved path exists within the workspace boundaries.
- *
- * @param config The configuration object containing workspace context
- * @param resolvedPath The absolute path to validate
- * @param options Validation options
- * @throws Error if the path is outside workspace boundaries, doesn't exist, or is not a directory (when allowFiles is false)
- */
-export function validatePath(
-  config: Config,
-  resolvedPath: string,
-  options: PathValidationOptions = {},
-): void {
-  const { allowFiles = false, allowExternalPaths = false } = options;
-  const workspaceContext = config.getWorkspaceContext();
-  const isWithinWorkspace =
-    workspaceContext.isPathWithinWorkspace(resolvedPath);
-
-  if (!allowExternalPaths && !isWithinWorkspace) {
-    throw new Error('Path is not within workspace');
-  }
-
-  // For external paths where allowExternalPaths is true, skip filesystem checks.
-  // The path may not exist locally on the current machine, and permissions for
-  // external paths are handled at runtime rather than at validation time.
-  if (allowExternalPaths && !isWithinWorkspace) {
-    return;
-  }
+export function resolveToRealPath(pathStr: string): string {
+  let resolvedPath = pathStr;
 
   try {
-    const stats = fs.statSync(resolvedPath);
-    if (!allowFiles && !stats.isDirectory()) {
-      throw new Error(`Path is not a directory: ${resolvedPath}`);
+    if (resolvedPath.startsWith('file://')) {
+      resolvedPath = fileURLToPath(resolvedPath);
     }
-  } catch (error: unknown) {
-    if (isNodeError(error) && error.code === 'ENOENT') {
-      throw new Error(`Path does not exist: ${resolvedPath}`);
-    }
-    throw error;
+
+    resolvedPath = decodeURIComponent(resolvedPath);
+  } catch {
+    // Ignore error (e.g. malformed URI), keep path from previous step
   }
+
+  return robustRealpath(path.resolve(resolvedPath));
 }
 
-/**
- * Resolves a path relative to the workspace root and verifies that it exists
- * within the workspace boundaries defined in the config.
- *
- * @param config The configuration object
- * @param relativePath The relative path to resolve (optional, defaults to target directory)
- * @param options Validation options (e.g., allowFiles to permit file paths)
- */
-export function resolveAndValidatePath(
-  config: Config,
-  relativePath?: string,
-  options: PathValidationOptions = {},
-): string {
-  const targetDir = config.getTargetDir();
-
-  if (!relativePath) {
-    return targetDir;
+function robustRealpath(p: string, visited = new Set<string>()): string {
+  const key = process.platform === 'win32' ? p.toLowerCase() : p;
+  if (visited.has(key)) {
+    throw new Error(`Infinite recursion detected in robustRealpath: ${p}`);
   }
-
-  const resolvedPath = resolvePath(targetDir, relativePath);
-  validatePath(config, resolvedPath, options);
-  return resolvedPath;
+  visited.add(key);
+  try {
+    return fs.realpathSync(p);
+  } catch (e: unknown) {
+    if (
+      e &&
+      typeof e === 'object' &&
+      'code' in e &&
+      (e.code === 'ENOENT' || e.code === 'EISDIR')
+    ) {
+      try {
+        const stat = fs.lstatSync(p);
+        if (stat.isSymbolicLink()) {
+          const target = fs.readlinkSync(p);
+          const resolvedTarget = path.resolve(path.dirname(p), target);
+          return robustRealpath(resolvedTarget, visited);
+        }
+      } catch (lstatError: unknown) {
+        // Not a symlink, or lstat failed. Re-throw if it's not an expected
+        // ENOENT (e.g., a permissions error), otherwise resolve parent.
+        if (
+          !(
+            lstatError &&
+            typeof lstatError === 'object' &&
+            'code' in lstatError &&
+            (lstatError.code === 'ENOENT' || lstatError.code === 'EISDIR')
+          )
+        ) {
+          throw lstatError;
+        }
+      }
+      const parent = path.dirname(p);
+      if (parent === p) return p;
+      return path.join(robustRealpath(parent, visited), path.basename(p));
+    }
+    throw e;
+  }
 }

@@ -1,25 +1,28 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import type { CommandModule } from 'yargs';
-import { createDebugLogger } from '@apex-code/apex-core';
-
-const debugLogger = createDebugLogger('HOOKS_UI');
+import { migrateCommand } from './hooks/migrate.js';
+import { initializeOutputListenersAndFlush } from '../gemini.js';
 
 export const hooksCommand: CommandModule = {
-  command: 'hooks',
+  command: 'hooks <command>',
   aliases: ['hook'],
-  describe: 'Manage Apex hooks (use /hooks in interactive mode).',
-  builder: (yargs) => yargs.version(false).help(false),
+  describe: 'Manage Gemini CLI hooks.',
+  builder: (yargs) =>
+    yargs
+      .middleware((argv) => {
+        initializeOutputListenersAndFlush();
+        argv['isCommand'] = true;
+      })
+      .command(migrateCommand)
+      .demandCommand(1, 'You need at least one command before continuing.')
+      .version(false),
   handler: () => {
-    // In CLI mode, this command is not interactive.
-    // Users should use /hooks in interactive mode for the full UI experience.
-    debugLogger.debug(
-      'Use /hooks in interactive mode to manage hooks with the UI.',
-    );
-    process.exit(0);
+    // This handler is not called when a subcommand is provided.
+    // Yargs will show the help menu.
   },
 };

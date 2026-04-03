@@ -1,10 +1,15 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const formatMemoryUsage = (bytes: number): string => {
+import {
+  REFERENCE_CONTENT_START,
+  REFERENCE_CONTENT_END,
+} from '@apex-code/apex-core';
+
+export const formatBytes = (bytes: number): string => {
   const gb = bytes / (1024 * 1024 * 1024);
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`;
@@ -21,50 +26,6 @@ export const formatMemoryUsage = (bytes: number): string => {
  * @param milliseconds The duration in milliseconds.
  * @returns A formatted string representing the duration.
  */
-/**
- * Formats a timestamp into a human-readable relative time string.
- * @param timestamp The timestamp in milliseconds since epoch.
- * @returns A formatted string like "just now", "5 minutes ago", "2 days ago".
- */
-export const formatRelativeTime = (timestamp: number): string => {
-  const now = Date.now();
-  const diffMs = now - timestamp;
-
-  const seconds = Math.floor(diffMs / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  const weeks = Math.floor(days / 7);
-  const months = Math.floor(days / 30);
-
-  if (months > 0) {
-    return months === 1 ? '1 month ago' : `${months} months ago`;
-  }
-  if (weeks > 0) {
-    return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
-  }
-  if (days > 0) {
-    return days === 1 ? '1 day ago' : `${days} days ago`;
-  }
-  if (hours > 0) {
-    return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
-  }
-  if (minutes > 0) {
-    return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
-  }
-  return 'just now';
-};
-
-export const formatTokenCount = (count: number): string => {
-  if (count < 1000) {
-    return `${count}`;
-  }
-  if (count < 10000) {
-    return `${(count / 1000).toFixed(1)}k`;
-  }
-  return `${Math.floor(count / 1000)}k`;
-};
-
 export const formatDuration = (milliseconds: number): string => {
   if (milliseconds <= 0) {
     return '0s';
@@ -104,4 +65,91 @@ export const formatDuration = (milliseconds: number): string => {
   }
 
   return parts.join(' ');
+};
+
+export const formatTimeAgo = (date: string | number | Date): string => {
+  const past = new Date(date);
+  if (isNaN(past.getTime())) {
+    return 'invalid date';
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - past.getTime();
+  if (diffMs < 60000) {
+    return 'just now';
+  }
+  return `${formatDuration(diffMs)} ago`;
+};
+
+/**
+ * Removes content bounded by reference content markers from the given text.
+ * The markers are "${REFERENCE_CONTENT_START}" and "${REFERENCE_CONTENT_END}".
+ *
+ * @param text The input text containing potential reference blocks.
+ * @returns The text with reference blocks removed and trimmed.
+ */
+export function stripReferenceContent(text: string): string {
+  // Match optional newline, the start marker, content (non-greedy), and the end marker
+  const pattern = new RegExp(
+    `\\n?${REFERENCE_CONTENT_START}[\\s\\S]*?${REFERENCE_CONTENT_END}`,
+    'g',
+  );
+
+  return text.replace(pattern, '').trim();
+}
+
+export const formatResetTime = (
+  resetTime: string | undefined,
+  format: 'terse' | 'column' | 'full' = 'full',
+): string => {
+  if (!resetTime) return '';
+  const resetDate = new Date(resetTime);
+  if (isNaN(resetDate.getTime())) return '';
+
+  const diff = resetDate.getTime() - Date.now();
+  if (diff <= 0) return '';
+
+  const totalMinutes = Math.ceil(diff / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  const isTerse = format === 'terse';
+  const isColumn = format === 'column';
+
+  if (isTerse || isColumn) {
+    const hoursStr = hours > 0 ? `${hours}h` : '';
+    const minutesStr = minutes > 0 ? `${minutes}m` : '';
+    const duration =
+      hoursStr && minutesStr
+        ? `${hoursStr} ${minutesStr}`
+        : hoursStr || minutesStr;
+
+    if (isColumn) {
+      const timeStr = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: 'numeric',
+      }).format(resetDate);
+      return duration ? `${timeStr} (${duration})` : timeStr;
+    }
+
+    return duration;
+  }
+
+  let duration = '';
+  if (hours > 0) {
+    duration = `${hours} hour${hours > 1 ? 's' : ''}`;
+    if (minutes > 0) {
+      duration += ` ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    }
+  } else {
+    duration = `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  }
+
+  const timeStr = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: 'numeric',
+    timeZoneName: 'short',
+  }).format(resetDate);
+
+  return `${duration} at ${timeStr}`;
 };

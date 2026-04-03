@@ -14,7 +14,7 @@
  * schema object which has stricter typing and recursion restrictions.
  * If this test fails, it's likely because either the GenAI SDK or Gemini API
  * has become more restrictive about the type of tool parameter schemas that
- * are accepted. If this occurs: Qwen Code previously attempted to detect
+ * are accepted. If this occurs: Gemini CLI previously attempted to detect
  * such tools and proactively remove them from the set of tools provided in
  * the Gemini API call (as FunctionDeclaration objects). It may be appropriate
  * to resurrect that behavior but note that it's difficult to keep the
@@ -23,7 +23,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, it, afterEach, beforeEach } from 'vitest';
 import { TestRig } from './test-helper.js';
 
 // Create a minimal MCP server that doesn't require external dependencies
@@ -166,9 +166,15 @@ rpc.send({
 `;
 
 describe('mcp server with cyclic tool schema is detected', () => {
-  const rig = new TestRig();
+  let rig: TestRig;
 
-  beforeAll(async () => {
+  beforeEach(() => {
+    rig = new TestRig();
+  });
+
+  afterEach(async () => await rig.cleanup());
+
+  it('mcp tool list should include tool with cyclic tool schema', async () => {
     // Setup test directory with MCP server configuration
     await rig.setup('cyclic-schema-mcp-server', {
       settings: {
@@ -190,18 +196,12 @@ describe('mcp server with cyclic tool schema is detected', () => {
       const { chmodSync } = await import('node:fs');
       chmodSync(testServerPath, 0o755);
     }
-  });
 
-  it('mcp tool with cyclic schema should be accessible', async () => {
-    const mcp_list_output = await rig.runCommand(['mcp', 'list']);
+    const run = await rig.runInteractive();
 
-    // Verify the cyclic schema server is configured
-    expect(mcp_list_output).toContain('cyclic-schema-server');
-  });
+    await run.type('/mcp list');
+    await run.type('\r');
 
-  it('gemini api call should be successful with cyclic mcp tool schema', async () => {
-    // Run any command and verify that we get a non-error response from
-    // the Gemini API.
-    await rig.run('hello');
+    await run.expectText('tool_with_cyclic_schema');
   });
 });

@@ -4,34 +4,73 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync, spawn, spawnSync } from 'node:child_process';
-import { createDebugLogger } from './debugLogger.js';
+import { exec, execSync, spawn, spawnSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { once } from 'node:events';
+import { debugLogger } from './debugLogger.js';
+import { coreEvents, CoreEvent, type EditorSelectedPayload } from './events.js';
 
-const debugLogger = createDebugLogger('EDITOR');
+const GUI_EDITORS = [
+  'vscode',
+  'vscodium',
+  'windsurf',
+  'cursor',
+  'zed',
+  'antigravity',
+] as const;
+const TERMINAL_EDITORS = ['vim', 'neovim', 'emacs', 'hx'] as const;
+const EDITORS = [...GUI_EDITORS, ...TERMINAL_EDITORS] as const;
 
-export type EditorType =
-  | 'vscode'
-  | 'vscodium'
-  | 'windsurf'
-  | 'cursor'
-  | 'vim'
-  | 'neovim'
-  | 'zed'
-  | 'emacs'
-  | 'trae';
+const GUI_EDITORS_SET = new Set<string>(GUI_EDITORS);
+const TERMINAL_EDITORS_SET = new Set<string>(TERMINAL_EDITORS);
+const EDITORS_SET = new Set<string>(EDITORS);
+
+export const NO_EDITOR_AVAILABLE_ERROR =
+  'No external editor is available. Please run /editor to configure one.';
+
+export const DEFAULT_GUI_EDITOR: GuiEditorType = 'vscode';
+
+export type GuiEditorType = (typeof GUI_EDITORS)[number];
+export type TerminalEditorType = (typeof TERMINAL_EDITORS)[number];
+export type EditorType = (typeof EDITORS)[number];
+
+export function isGuiEditor(editor: EditorType): editor is GuiEditorType {
+  return GUI_EDITORS_SET.has(editor);
+}
+
+export function isTerminalEditor(
+  editor: EditorType,
+): editor is TerminalEditorType {
+  return TERMINAL_EDITORS_SET.has(editor);
+}
+
+export const EDITOR_DISPLAY_NAMES: Record<EditorType, string> = {
+  vscode: 'VS Code',
+  vscodium: 'VSCodium',
+  windsurf: 'Windsurf',
+  cursor: 'Cursor',
+  vim: 'Vim',
+  neovim: 'Neovim',
+  zed: 'Zed',
+  emacs: 'Emacs',
+  antigravity: 'Antigravity',
+  hx: 'Helix',
+};
+
+export function getEditorDisplayName(editor: EditorType): string {
+  return EDITOR_DISPLAY_NAMES[editor] || editor;
+}
 
 function isValidEditorType(editor: string): editor is EditorType {
-  return [
-    'vscode',
-    'vscodium',
-    'windsurf',
-    'cursor',
-    'vim',
-    'neovim',
-    'zed',
-    'emacs',
-    'trae',
-  ].includes(editor);
+  return EDITORS_SET.has(editor);
+}
+
+/**
+ * Escapes a string for use in an Emacs Lisp string literal.
+ * Wraps in double quotes and escapes backslashes and double quotes.
+ */
+function escapeELispString(str: string): string {
+  return `"${str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 interface DiffCommand {
@@ -39,12 +78,26 @@ interface DiffCommand {
   args: string[];
 }
 
-export function commandExists(cmd: string): boolean {
+const execAsync = promisify(exec);
+
+function getCommandExistsCmd(cmd: string): string {
+  return process.platform === 'win32'
+    ? `where.exe ${cmd}`
+    : `command -v ${cmd}`;
+}
+
+function commandExists(cmd: string): boolean {
   try {
-    execSync(
-      process.platform === 'win32' ? `where.exe ${cmd}` : `command -v ${cmd}`,
-      { stdio: 'ignore' },
-    );
+    execSync(getCommandExistsCmd(cmd), { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function commandExistsAsync(cmd: string): Promise<boolean> {
+  try {
+    await execAsync(getCommandExistsCmd(cmd));
     return true;
   } catch {
     return false;
@@ -55,7 +108,7 @@ export function commandExists(cmd: string): boolean {
  * Editor command configurations for different platforms.
  * Each editor can have multiple possible command names, listed in order of preference.
  */
-export const editorCommands: Record<
+const editorCommands: Record<
   EditorType,
   { win32: string[]; default: string[] }
 > = {
@@ -67,25 +120,57 @@ export const editorCommands: Record<
   neovim: { win32: ['nvim'], default: ['nvim'] },
   zed: { win32: ['zed'], default: ['zed', 'zeditor'] },
   emacs: { win32: ['emacs.exe'], default: ['emacs'] },
-  trae: { win32: ['trae'], default: ['trae'] },
+  antigravity: {
+    win32: ['agy.cmd', 'antigravity.cmd', 'antigravity'],
+    default: ['agy', 'antigravity'],
+  },
+  hx: { win32: ['hx'], default: ['hx'] },
 };
 
-export function checkHasEditorType(editor: EditorType): boolean {
+function getEditorCommands(editor: EditorType): string[] {
   const commandConfig = editorCommands[editor];
-  const commands =
-    process.platform === 'win32' ? commandConfig.win32 : commandConfig.default;
-  return commands.some((cmd) => commandExists(cmd));
+  return process.platform === 'win32'
+    ? commandConfig.win32
+    : commandConfig.default;
+}
+
+export function hasValidEditorCommand(editor: EditorType): boolean {
+  return getEditorCommands(editor).some((cmd) => commandExists(cmd));
+}
+
+export async function hasValidEditorCommandAsync(
+  editor: EditorType,
+): Promise<boolean> {
+  return Promise.any(
+    getEditorCommands(editor).map((cmd) =>
+      commandExistsAsync(cmd).then((exists) => exists || Promise.reject()),
+    ),
+  ).catch(() => false);
+}
+
+export function getEditorCommand(editor: EditorType): string {
+  const commands = getEditorCommands(editor);
+  return (
+    commands.slice(0, -1).find((cmd) => commandExists(cmd)) ||
+    commands[commands.length - 1]
+  );
 }
 
 export function allowEditorTypeInSandbox(editor: EditorType): boolean {
   const notUsingSandbox = !process.env['SANDBOX'];
-  if (
-    ['vscode', 'vscodium', 'windsurf', 'cursor', 'zed', 'trae'].includes(editor)
-  ) {
+  if (isGuiEditor(editor)) {
     return notUsingSandbox;
   }
   // For terminal-based editors like vim and emacs, allow in sandbox.
   return true;
+}
+
+function isEditorTypeAvailable(
+  editor: string | undefined,
+): editor is EditorType {
+  return (
+    !!editor && isValidEditorType(editor) && allowEditorTypeInSandbox(editor)
+  );
 }
 
 /**
@@ -93,10 +178,42 @@ export function allowEditorTypeInSandbox(editor: EditorType): boolean {
  * Returns false if preferred editor is not set / invalid / not available / not allowed in sandbox.
  */
 export function isEditorAvailable(editor: string | undefined): boolean {
-  if (editor && isValidEditorType(editor)) {
-    return checkHasEditorType(editor) && allowEditorTypeInSandbox(editor);
+  return isEditorTypeAvailable(editor) && hasValidEditorCommand(editor);
+}
+
+/**
+ * Check if the editor is valid and can be used.
+ * Returns false if preferred editor is not set / invalid / not available / not allowed in sandbox.
+ */
+export async function isEditorAvailableAsync(
+  editor: string | undefined,
+): Promise<boolean> {
+  return (
+    isEditorTypeAvailable(editor) && (await hasValidEditorCommandAsync(editor))
+  );
+}
+
+/**
+ * Resolves an editor to use for external editing without blocking the event loop.
+ * 1. If a preferred editor is set and available, uses it.
+ * 2. If no preferred editor is set (or preferred is unavailable), requests selection from user and waits for it.
+ */
+export async function resolveEditorAsync(
+  preferredEditor: EditorType | undefined,
+  signal?: AbortSignal,
+): Promise<EditorType | undefined> {
+  if (preferredEditor && (await isEditorAvailableAsync(preferredEditor))) {
+    return preferredEditor;
   }
-  return false;
+
+  coreEvents.emit(CoreEvent.RequestEditorSelection);
+
+  return (
+    once(coreEvents, CoreEvent.EditorSelected, { signal })
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      .then(([payload]) => (payload as EditorSelectedPayload).editor)
+      .catch(() => undefined)
+  );
 }
 
 /**
@@ -110,12 +227,7 @@ export function getDiffCommand(
   if (!isValidEditorType(editor)) {
     return null;
   }
-  const commandConfig = editorCommands[editor];
-  const commands =
-    process.platform === 'win32' ? commandConfig.win32 : commandConfig.default;
-  const command =
-    commands.slice(0, -1).find((cmd) => commandExists(cmd)) ||
-    commands[commands.length - 1];
+  const command = getEditorCommand(editor);
 
   switch (editor) {
     case 'vscode':
@@ -123,7 +235,7 @@ export function getDiffCommand(
     case 'windsurf':
     case 'cursor':
     case 'zed':
-    case 'trae':
+    case 'antigravity':
       return { command, args: ['--wait', '--diff', oldPath, newPath] };
     case 'vim':
     case 'neovim':
@@ -157,7 +269,15 @@ export function getDiffCommand(
     case 'emacs':
       return {
         command: 'emacs',
-        args: ['--eval', `(ediff "${oldPath}" "${newPath}")`],
+        args: [
+          '--eval',
+          `(ediff ${escapeELispString(oldPath)} ${escapeELispString(newPath)})`,
+        ],
+      };
+    case 'hx':
+      return {
+        command: 'hx',
+        args: ['--vsplit', '--', oldPath, newPath],
       };
     default:
       return null;
@@ -173,7 +293,6 @@ export async function openDiff(
   oldPath: string,
   newPath: string,
   editor: EditorType,
-  onEditorClose: () => void,
 ): Promise<void> {
   const diffCommand = getDiffCommand(oldPath, newPath, editor);
   if (!diffCommand) {
@@ -181,46 +300,58 @@ export async function openDiff(
     return;
   }
 
-  try {
-    const isTerminalEditor = ['vim', 'emacs', 'neovim'].includes(editor);
-
-    if (isTerminalEditor) {
-      try {
-        const result = spawnSync(diffCommand.command, diffCommand.args, {
-          stdio: 'inherit',
-        });
-        if (result.error) {
-          throw result.error;
-        }
-        if (result.status !== 0) {
-          throw new Error(`${editor} exited with code ${result.status}`);
-        }
-      } finally {
-        onEditorClose();
+  if (isTerminalEditor(editor)) {
+    try {
+      if (!commandExists(diffCommand.command)) {
+        throw new Error(`Editor command not found: ${diffCommand.command}`);
       }
-      return;
-    }
 
-    return new Promise<void>((resolve, reject) => {
-      const childProcess = spawn(diffCommand.command, diffCommand.args, {
+      const result = spawnSync(diffCommand.command, diffCommand.args, {
         stdio: 'inherit',
-        shell: process.platform === 'win32',
       });
-
-      childProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`${editor} exited with code ${code}`));
-        }
-      });
-
-      childProcess.on('error', (error) => {
-        reject(error);
-      });
-    });
-  } catch (error) {
-    debugLogger.error(error);
-    throw error;
+      if (result.error) {
+        throw result.error;
+      }
+      if (result.status !== 0) {
+        throw new Error(`${editor} exited with code ${result.status}`);
+      }
+    } finally {
+      coreEvents.emit(CoreEvent.ExternalEditorClosed);
+    }
+    return;
   }
+
+  return new Promise<void>((resolve, reject) => {
+    const childProcess = spawn(diffCommand.command, diffCommand.args, {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+
+    // Guard against both 'error' and 'close' firing for a single failure,
+    // which would emit ExternalEditorClosed twice and attempt to settle
+    // the promise twice.
+    let isSettled = false;
+
+    childProcess.on('close', (code) => {
+      if (isSettled) return;
+      isSettled = true;
+
+      if (code !== 0) {
+        // GUI editors (VS Code, Zed, etc.) can exit with non-zero codes
+        // under normal circumstances (e.g., window closed while loading).
+        // Log a warning instead of crashing the CLI process.
+        debugLogger.warn(`${editor} exited with code ${code}`);
+      }
+      coreEvents.emit(CoreEvent.ExternalEditorClosed);
+      resolve();
+    });
+
+    childProcess.on('error', (error) => {
+      if (isSettled) return;
+      isSettled = true;
+
+      coreEvents.emit(CoreEvent.ExternalEditorClosed);
+      reject(error);
+    });
+  });
 }

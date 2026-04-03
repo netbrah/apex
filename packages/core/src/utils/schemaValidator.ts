@@ -6,18 +6,16 @@
 
 import AjvPkg, { type AnySchema, type Ajv } from 'ajv';
 // Ajv2020 is the documented way to use draft-2020-12: https://ajv.js.org/json-schema.html#draft-2020-12
-// eslint-disable-next-line import/no-internal-modules
+
 import Ajv2020Pkg from 'ajv/dist/2020.js';
 import * as addFormats from 'ajv-formats';
-import { createDebugLogger } from './debugLogger.js';
+import { debugLogger } from './debugLogger.js';
 
 // Ajv's ESM/CJS interop: use 'any' for compatibility as recommended by Ajv docs
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-unsafe-assignment
 const AjvClass = (AjvPkg as any).default || AjvPkg;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-unsafe-assignment
 const Ajv2020Class = (Ajv2020Pkg as any).default || Ajv2020Pkg;
-
-const debugLogger = createDebugLogger('SchemaValidator');
 
 const ajvOptions = {
   // See: https://ajv.js.org/options.html#strict-mode-options
@@ -31,12 +29,14 @@ const ajvOptions = {
 };
 
 // Draft-07 validator (default)
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const ajvDefault: Ajv = new AjvClass(ajvOptions);
 
 // Draft-2020-12 validator for MCP servers using rmcp
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const ajv2020: Ajv = new Ajv2020Class(ajvOptions);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-unsafe-assignment
 const addFormatsFunc = (addFormats as any).default || addFormats;
 addFormatsFunc(ajvDefault);
 addFormatsFunc(ajv2020);
@@ -89,8 +89,10 @@ export class SchemaValidator {
     } catch (error) {
       // Schema compilation failed (unsupported version, invalid $ref, etc.)
       // Skip validation rather than blocking tool usage.
+      // This matches LenientJsonSchemaValidator behavior in mcp-client.ts.
       debugLogger.warn(
         `Failed to compile schema (${
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
           (schema as Record<string, unknown>)?.['$schema'] ?? '<no $schema>'
         }): ${error instanceof Error ? error.message : String(error)}. ` +
           'Skipping parameter validation.',
@@ -98,43 +100,36 @@ export class SchemaValidator {
       return null;
     }
 
-    let valid = validate(data);
+    const valid = validate(data);
     if (!valid && validate.errors) {
-      // Coerce string boolean values ("true"/"false") to actual booleans
-      fixBooleanValues(data as Record<string, unknown>);
-
-      valid = validate(data);
-      if (!valid && validate.errors) {
-        return validator.errorsText(validate.errors, { dataVar: 'params' });
-      }
+      return validator.errorsText(validate.errors, { dataVar: 'params' });
     }
     return null;
   }
-}
 
-/**
- * Coerces string boolean values to actual booleans.
- * This handles cases where LLMs return "true"/"false" strings instead of boolean values,
- * which is common with self-hosted LLMs.
- *
- * Converts:
- * - "true", "True", "TRUE" -> true
- * - "false", "False", "FALSE" -> false
- */
-function fixBooleanValues(data: Record<string, unknown>) {
-  for (const key of Object.keys(data)) {
-    if (!(key in data)) continue;
-    const value = data[key];
-
-    if (typeof value === 'object' && value !== null) {
-      fixBooleanValues(value as Record<string, unknown>);
-    } else if (typeof value === 'string') {
-      const lower = value.toLowerCase();
-      if (lower === 'true') {
-        data[key] = true;
-      } else if (lower === 'false') {
-        data[key] = false;
-      }
+  /**
+   * Validates a JSON schema itself. Returns null if the schema is valid,
+   * otherwise returns a string describing the validation errors.
+   */
+  static validateSchema(schema: AnySchema | undefined): string | null {
+    if (!schema) {
+      return null;
+    }
+    const validator = getValidator(schema);
+    try {
+      const isValid = validator.validateSchema(schema);
+      return isValid ? null : validator.errorsText(validator.errors);
+    } catch (error) {
+      // Schema validation failed (unsupported version, etc.)
+      // Skip validation rather than blocking tool usage.
+      debugLogger.warn(
+        `Failed to validate schema (${
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          (schema as Record<string, unknown>)?.['$schema'] ?? '<no $schema>'
+        }): ${error instanceof Error ? error.message : String(error)}. ` +
+          'Skipping schema validation.',
+      );
+      return null;
     }
   }
 }

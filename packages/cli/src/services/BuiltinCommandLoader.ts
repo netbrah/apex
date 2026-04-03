@@ -4,54 +4,67 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { isDevelopment } from '../utils/installationInfo.js';
 import type { ICommandLoader } from './types.js';
-import type { SlashCommand } from '../ui/commands/types.js';
-import type { Config } from '@apex-code/apex-core';
+import {
+  CommandKind,
+  type SlashCommand,
+  type CommandContext,
+} from '../ui/commands/types.js';
+import type { MessageActionReturn, Config } from '@apex-code/apex-core';
+import {
+  isNightly,
+  startupProfiler,
+  getAdminErrorMessage,
+  AuthType,
+} from '@apex-code/apex-core';
 import { aboutCommand } from '../ui/commands/aboutCommand.js';
 import { agentsCommand } from '../ui/commands/agentsCommand.js';
-import { arenaCommand } from '../ui/commands/arenaCommand.js';
-import { approvalModeCommand } from '../ui/commands/approvalModeCommand.js';
 import { authCommand } from '../ui/commands/authCommand.js';
-import { btwCommand } from '../ui/commands/btwCommand.js';
 import { bugCommand } from '../ui/commands/bugCommand.js';
+import { chatCommand, debugCommand } from '../ui/commands/chatCommand.js';
 import { clearCommand } from '../ui/commands/clearCommand.js';
+import { commandsCommand } from '../ui/commands/commandsCommand.js';
 import { compressCommand } from '../ui/commands/compressCommand.js';
-import { contextCommand } from '../ui/commands/contextCommand.js';
 import { copyCommand } from '../ui/commands/copyCommand.js';
+import { corgiCommand } from '../ui/commands/corgiCommand.js';
 import { docsCommand } from '../ui/commands/docsCommand.js';
 import { directoryCommand } from '../ui/commands/directoryCommand.js';
 import { editorCommand } from '../ui/commands/editorCommand.js';
-import { exportCommand } from '../ui/commands/exportCommand.js';
 import { extensionsCommand } from '../ui/commands/extensionsCommand.js';
+import { footerCommand } from '../ui/commands/footerCommand.js';
 import { helpCommand } from '../ui/commands/helpCommand.js';
+import { shortcutsCommand } from '../ui/commands/shortcutsCommand.js';
+import { rewindCommand } from '../ui/commands/rewindCommand.js';
 import { hooksCommand } from '../ui/commands/hooksCommand.js';
 import { ideCommand } from '../ui/commands/ideCommand.js';
 import { initCommand } from '../ui/commands/initCommand.js';
-import { languageCommand } from '../ui/commands/languageCommand.js';
 import { mcpCommand } from '../ui/commands/mcpCommand.js';
 import { memoryCommand } from '../ui/commands/memoryCommand.js';
 import { modelCommand } from '../ui/commands/modelCommand.js';
+import { oncallCommand } from '../ui/commands/oncallCommand.js';
 import { permissionsCommand } from '../ui/commands/permissionsCommand.js';
-import { trustCommand } from '../ui/commands/trustCommand.js';
+import { planCommand } from '../ui/commands/planCommand.js';
+import { policiesCommand } from '../ui/commands/policiesCommand.js';
+import { privacyCommand } from '../ui/commands/privacyCommand.js';
+import { profileCommand } from '../ui/commands/profileCommand.js';
 import { quitCommand } from '../ui/commands/quitCommand.js';
 import { restoreCommand } from '../ui/commands/restoreCommand.js';
 import { resumeCommand } from '../ui/commands/resumeCommand.js';
-import { settingsCommand } from '../ui/commands/settingsCommand.js';
-import { skillsCommand } from '../ui/commands/skillsCommand.js';
 import { statsCommand } from '../ui/commands/statsCommand.js';
-import { summaryCommand } from '../ui/commands/summaryCommand.js';
-import { terminalSetupCommand } from '../ui/commands/terminalSetupCommand.js';
 import { themeCommand } from '../ui/commands/themeCommand.js';
 import { toolsCommand } from '../ui/commands/toolsCommand.js';
+import { skillsCommand } from '../ui/commands/skillsCommand.js';
+import { settingsCommand } from '../ui/commands/settingsCommand.js';
+import { tasksCommand } from '../ui/commands/tasksCommand.js';
 import { vimCommand } from '../ui/commands/vimCommand.js';
 import { setupGithubCommand } from '../ui/commands/setupGithubCommand.js';
-import { insightCommand } from '../ui/commands/insightCommand.js';
-import { rcaCommand } from '../ui/commands/rcaCommand.js';
-import { testplanCommand } from '../ui/commands/testplanCommand.js';
+import { terminalSetupCommand } from '../ui/commands/terminalSetupCommand.js';
+import { upgradeCommand } from '../ui/commands/upgradeCommand.js';
 
 /**
  * Loads the core, hard-coded slash commands that are an integral part
- * of the Apex application.
+ * of the Gemini CLI application.
  */
 export class BuiltinCommandLoader implements ICommandLoader {
   constructor(private config: Config | null) {}
@@ -64,50 +77,160 @@ export class BuiltinCommandLoader implements ICommandLoader {
    * @returns A promise that resolves to an array of `SlashCommand` objects.
    */
   async loadCommands(_signal: AbortSignal): Promise<SlashCommand[]> {
+    const handle = startupProfiler.start('load_builtin_commands');
+
+    const isNightlyBuild = await isNightly(process.cwd());
+    const addDebugToChatResumeSubCommands = (
+      subCommands: SlashCommand[] | undefined,
+    ): SlashCommand[] | undefined => {
+      if (!subCommands) {
+        return subCommands;
+      }
+
+      const withNestedCompatibility = subCommands.map((subCommand) => {
+        if (subCommand.name !== 'checkpoints') {
+          return subCommand;
+        }
+
+        return {
+          ...subCommand,
+          subCommands: addDebugToChatResumeSubCommands(subCommand.subCommands),
+        };
+      });
+
+      if (!isNightlyBuild) {
+        return withNestedCompatibility;
+      }
+
+      return withNestedCompatibility.some(
+        (cmd) => cmd.name === debugCommand.name,
+      )
+        ? withNestedCompatibility
+        : [
+            ...withNestedCompatibility,
+            { ...debugCommand, suggestionGroup: 'checkpoints' },
+          ];
+    };
+
+    const chatResumeSubCommands = addDebugToChatResumeSubCommands(
+      chatCommand.subCommands,
+    );
+
     const allDefinitions: Array<SlashCommand | null> = [
       aboutCommand,
-      agentsCommand,
-      arenaCommand,
-      approvalModeCommand,
+      ...(this.config?.isAgentsEnabled() ? [agentsCommand] : []),
       authCommand,
-      btwCommand,
       bugCommand,
+      {
+        ...chatCommand,
+        subCommands: chatResumeSubCommands,
+      },
       clearCommand,
+      commandsCommand,
       compressCommand,
-      contextCommand,
       copyCommand,
+      corgiCommand,
       docsCommand,
       directoryCommand,
       editorCommand,
-      exportCommand,
-      extensionsCommand,
+      ...(this.config?.getExtensionsEnabled() === false
+        ? [
+            {
+              name: 'extensions',
+              description: 'Manage extensions',
+              kind: CommandKind.BUILT_IN,
+              autoExecute: false,
+              subCommands: [],
+              action: async (
+                _context: CommandContext,
+              ): Promise<MessageActionReturn> => ({
+                type: 'message',
+                messageType: 'error',
+                content: getAdminErrorMessage(
+                  'Extensions',
+                  this.config ?? undefined,
+                ),
+              }),
+            },
+          ]
+        : [extensionsCommand(this.config?.getEnableExtensionReloading())]),
       helpCommand,
-      ...(this.config?.getEnableHooks() ? [hooksCommand] : []),
+      footerCommand,
+      shortcutsCommand,
+      ...(this.config?.getEnableHooksUI() ? [hooksCommand] : []),
+      rewindCommand,
       await ideCommand(),
       initCommand,
-      languageCommand,
-      mcpCommand,
+      ...(isNightlyBuild ? [oncallCommand] : []),
+      ...(this.config?.getMcpEnabled() === false
+        ? [
+            {
+              name: 'mcp',
+              description:
+                'Manage configured Model Context Protocol (MCP) servers',
+              kind: CommandKind.BUILT_IN,
+              autoExecute: false,
+              subCommands: [],
+              action: async (
+                _context: CommandContext,
+              ): Promise<MessageActionReturn> => ({
+                type: 'message',
+                messageType: 'error',
+                content: getAdminErrorMessage('MCP', this.config ?? undefined),
+              }),
+            },
+          ]
+        : [mcpCommand]),
       memoryCommand,
       modelCommand,
-      permissionsCommand,
-      ...(this.config?.getFolderTrust() ? [trustCommand] : []),
+      ...(this.config?.getFolderTrust() ? [permissionsCommand] : []),
+      ...(this.config?.isPlanEnabled() ? [planCommand] : []),
+      policiesCommand,
+      privacyCommand,
+      ...(isDevelopment ? [profileCommand] : []),
       quitCommand,
       restoreCommand(this.config),
-      resumeCommand,
-      skillsCommand,
+      {
+        ...resumeCommand,
+        subCommands: addDebugToChatResumeSubCommands(resumeCommand.subCommands),
+      },
       statsCommand,
-      summaryCommand,
       themeCommand,
       toolsCommand,
+      ...(this.config?.isSkillsSupportEnabled()
+        ? this.config?.getSkillManager()?.isAdminEnabled() === false
+          ? [
+              {
+                name: 'skills',
+                description: 'Manage agent skills',
+                kind: CommandKind.BUILT_IN,
+                autoExecute: false,
+                subCommands: [],
+                action: async (
+                  _context: CommandContext,
+                ): Promise<MessageActionReturn> => ({
+                  type: 'message',
+                  messageType: 'error',
+                  content: getAdminErrorMessage(
+                    'Agent skills',
+                    this.config ?? undefined,
+                  ),
+                }),
+              },
+            ]
+          : [skillsCommand]
+        : []),
       settingsCommand,
+      tasksCommand,
       vimCommand,
       setupGithubCommand,
       terminalSetupCommand,
-      insightCommand,
-      rcaCommand,
-      testplanCommand,
+      ...(this.config?.getContentGeneratorConfig()?.authType ===
+      AuthType.LOGIN_WITH_GOOGLE
+        ? [upgradeCommand]
+        : []),
     ];
-
+    handle?.end();
     return allDefinitions.filter((cmd): cmd is SlashCommand => cmd !== null);
   }
 }

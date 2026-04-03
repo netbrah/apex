@@ -6,285 +6,447 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  ALWAYS_ALLOWED_ENVIRONMENT_VARIABLES,
+  NEVER_ALLOWED_ENVIRONMENT_VARIABLES,
+  NEVER_ALLOWED_NAME_PATTERNS,
+  NEVER_ALLOWED_VALUE_PATTERNS,
   sanitizeEnvironment,
-  isSecretEnvVar,
   getSecureSanitizationConfig,
-  SECRET_ENV_PATTERNS,
-  SECRET_ENV_EXACT,
-  DEFAULT_ALLOWLIST,
 } from './environmentSanitization.js';
 
-describe('environmentSanitization', () => {
-  const defaultConfig = getSecureSanitizationConfig();
+const EMPTY_OPTIONS = {
+  allowedEnvironmentVariables: [],
+  blockedEnvironmentVariables: [],
+  enableEnvironmentVariableRedaction: true,
+};
 
-  describe('isSecretEnvVar', () => {
-    it('should identify env vars ending with _KEY as secret', () => {
-      expect(isSecretEnvVar('OPENAI_API_KEY', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('MY_SERVICE_KEY', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('ENCRYPTION_KEY', defaultConfig)).toBe(true);
-    });
+describe('sanitizeEnvironment', () => {
+  it('should allow safe, common environment variables', () => {
+    const env = {
+      PATH: '/usr/bin',
+      HOME: '/home/user',
+      USER: 'user',
+      SystemRoot: 'C:\\Windows',
+      LANG: 'en_US.UTF-8',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual(env);
+  });
 
-    it('should identify env vars ending with _SECRET as secret', () => {
-      expect(isSecretEnvVar('JWT_SECRET', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('APP_SECRET', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('COOKIE_SECRET', defaultConfig)).toBe(true);
-    });
+  it('should allow TERM and COLORTERM environment variables', () => {
+    const env = {
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual(env);
+  });
 
-    it('should identify env vars ending with _TOKEN as secret', () => {
-      expect(isSecretEnvVar('GITHUB_TOKEN', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('NPM_TOKEN', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('AWS_SESSION_TOKEN', defaultConfig)).toBe(true);
-    });
-
-    it('should identify env vars ending with _PASSWORD as secret', () => {
-      expect(isSecretEnvVar('DB_PASSWORD', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('REDIS_PASSWORD', defaultConfig)).toBe(true);
-    });
-
-    it('should identify exact match secrets', () => {
-      expect(isSecretEnvVar('DATABASE_URL', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('REDIS_URL', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('MONGO_URI', defaultConfig)).toBe(true);
-    });
-
-    it('should be case-insensitive for pattern matching', () => {
-      expect(isSecretEnvVar('my_api_key', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('My_Secret', defaultConfig)).toBe(true);
-      expect(isSecretEnvVar('some_token', defaultConfig)).toBe(true);
-    });
-
-    it('should NOT flag allowlisted vars even if they match patterns', () => {
-      expect(isSecretEnvVar('PATH', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('HOME', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('NODE_ENV', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('SHELL', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('TERM', defaultConfig)).toBe(false);
-    });
-
-    it('should NOT flag normal env vars', () => {
-      expect(isSecretEnvVar('MY_APP_NAME', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('LOG_LEVEL', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('PORT', defaultConfig)).toBe(false);
-      expect(isSecretEnvVar('HOSTNAME', defaultConfig)).toBe(false);
-    });
-
-    it('should respect additional allowlist', () => {
-      const config = getSecureSanitizationConfig({
-        additionalAllowlist: new Set(['CUSTOM_API_KEY']),
-      });
-      expect(isSecretEnvVar('CUSTOM_API_KEY', config)).toBe(false);
-      expect(isSecretEnvVar('OTHER_API_KEY', config)).toBe(true);
+  it('should preserve TERM and COLORTERM even in strict sanitization mode', () => {
+    const env = {
+      GITHUB_SHA: 'abc123',
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+      SOME_OTHER_VAR: 'value',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
     });
   });
 
-  describe('sanitizeEnvironment', () => {
-    it('should strip secret env vars from the environment', () => {
-      const env: NodeJS.ProcessEnv = {
+  it('should allow variables prefixed with APEX_', () => {
+    const env = {
+      APEX_FOO: 'bar',
+      APEX_BAZ: 'qux',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual(env);
+  });
+
+  it('should redact variables with sensitive names from the denylist', () => {
+    const env = {
+      CLIENT_ID: 'sensitive-id',
+      DB_URI: 'sensitive-uri',
+      DATABASE_URL: 'sensitive-url',
+      SAFE_VAR: 'is-safe',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      SAFE_VAR: 'is-safe',
+    });
+  });
+
+  it('should redact variables with names matching all sensitive patterns (case-insensitive)', () => {
+    const env = {
+      // Patterns
+      MY_API_TOKEN: 'token-value',
+      AppSecret: 'secret-value',
+      db_password: 'password-value',
+      ORA_PASSWD: 'password-value',
+      ANOTHER_KEY: 'key-value',
+      some_auth_var: 'auth-value',
+      USER_CREDENTIAL: 'cred-value',
+      AWS_CREDS: 'creds-value',
+      PRIVATE_STUFF: 'private-value',
+      SSL_CERT: 'cert-value',
+      // Safe variable
+      USEFUL_INFO: 'is-ok',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      USEFUL_INFO: 'is-ok',
+    });
+  });
+
+  it('should redact variables with values matching all private key patterns', () => {
+    const env = {
+      RSA_KEY: '-----BEGIN RSA PRIVATE KEY-----...',
+      OPENSSH_KEY: '-----BEGIN OPENSSH PRIVATE KEY-----...',
+      EC_KEY: '-----BEGIN EC PRIVATE KEY-----...',
+      PGP_KEY: '-----BEGIN PGP PRIVATE KEY-----...',
+      CERTIFICATE: '-----BEGIN CERTIFICATE-----...',
+      SAFE_VAR: 'is-safe',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      SAFE_VAR: 'is-safe',
+    });
+  });
+
+  it('should redact variables with values matching all token and credential patterns', () => {
+    const env = {
+      // GitHub
+      GITHUB_TOKEN_GHP: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      GITHUB_TOKEN_GHO: 'gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      GITHUB_TOKEN_GHU: 'ghu_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      GITHUB_TOKEN_GHS: 'ghs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      GITHUB_TOKEN_GHR: 'ghr_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      GITHUB_PAT: 'github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      // Google
+      GOOGLE_KEY: 'AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      // AWS
+      AWS_KEY: 'AKIAxxxxxxxxxxxxxxxx',
+      // JWT
+      JWT_TOKEN: 'eyJhbGciOiJIUzI1NiJ9.e30.ZRrHA157xAA_7962-a_3rA',
+      // Stripe
+      STRIPE_SK_LIVE: 'sk_live_xxxxxxxxxxxxxxxxxxxxxxxx',
+      STRIPE_RK_LIVE: 'rk_live_xxxxxxxxxxxxxxxxxxxxxxxx',
+      STRIPE_SK_TEST: 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxx',
+      STRIPE_RK_TEST: 'rk_test_xxxxxxxxxxxxxxxxxxxxxxxx',
+      // Slack
+      SLACK_XOXB: 'xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx',
+      SLACK_XOXA: 'xoxa-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx',
+      SLACK_XOXP: 'xoxp-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx',
+      SLACK_XOXB_2: 'xoxr-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx',
+      // URL Credentials
+      CREDS_IN_HTTPS_URL: 'https://user:password@example.com',
+      CREDS_IN_HTTP_URL: 'http://user:password@example.com',
+      CREDS_IN_FTP_URL: 'ftp://user:password@example.com',
+      CREDS_IN_SMTP_URL: 'smtp://user:password@example.com',
+      // Safe variable
+      SAFE_VAR: 'is-safe',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      SAFE_VAR: 'is-safe',
+    });
+  });
+
+  it('should not redact variables that look similar to sensitive patterns', () => {
+    const env = {
+      // Not a credential in URL
+      SAFE_URL: 'https://example.com/foo/bar',
+      // Not a real JWT
+      NOT_A_JWT: 'this.is.not.a.jwt',
+      // Too short to be a token
+      ALMOST_A_TOKEN: 'ghp_12345',
+      // Contains a sensitive word, but in a safe context in the value
+      PUBLIC_KEY_INFO: 'This value describes a public key',
+      // Variable names that could be false positives
+      KEYNOTE_SPEAKER: 'Dr. Jane Goodall',
+      CERTIFIED_DIVER: 'true',
+      AUTHENTICATION_FLOW: 'oauth',
+      PRIVATE_JET_OWNER: 'false',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      SAFE_URL: 'https://example.com/foo/bar',
+      NOT_A_JWT: 'this.is.not.a.jwt',
+    });
+  });
+
+  it('should not redact variables with undefined or empty values if name is safe', () => {
+    const env: NodeJS.ProcessEnv = {
+      EMPTY_VAR: '',
+      UNDEFINED_VAR: undefined,
+      ANOTHER_SAFE_VAR: 'value',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      EMPTY_VAR: '',
+      ANOTHER_SAFE_VAR: 'value',
+    });
+  });
+
+  it('should allow variables that do not match any redaction rules', () => {
+    const env = {
+      NODE_ENV: 'development',
+      APP_VERSION: '1.0.0',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual(env);
+  });
+
+  it('should handle an empty environment', () => {
+    const env = {};
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({});
+  });
+
+  it('should handle a mixed environment with allowed and redacted variables', () => {
+    const env = {
+      // Allowed
+      PATH: '/usr/bin',
+      HOME: '/home/user',
+      APEX_VERSION: '1.2.3',
+      NODE_ENV: 'production',
+      // Redacted by name
+      API_KEY: 'should-be-redacted',
+      MY_SECRET: 'super-secret',
+      // Redacted by value
+      GH_TOKEN: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      JWT: 'eyJhbGciOiJIUzI1NiJ9.e30.ZRrHA157xAA_7962-a_3rA',
+      // Allowed by name but redacted by value
+      RANDOM_VAR: '-----BEGIN CERTIFICATE-----...',
+    };
+    const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+    expect(sanitized).toEqual({
+      PATH: '/usr/bin',
+      HOME: '/home/user',
+      APEX_VERSION: '1.2.3',
+      NODE_ENV: 'production',
+    });
+  });
+
+  describe('value-first security: secret values must be caught even for allowed variable names', () => {
+    it('should redact ALWAYS_ALLOWED variables whose values contain a GitHub token', () => {
+      const env = {
+        HOME: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
         PATH: '/usr/bin',
-        HOME: '/home/user',
-        OPENAI_API_KEY: 'sk-secret-value',
-        GITHUB_TOKEN: 'ghp_secret',
-        NODE_ENV: 'production',
-        MY_APP_PORT: '3000',
       };
-
-      const sanitized = sanitizeEnvironment(env);
-
-      expect(sanitized['PATH']).toBe('/usr/bin');
-      expect(sanitized['HOME']).toBe('/home/user');
-      expect(sanitized['NODE_ENV']).toBe('production');
-      expect(sanitized['MY_APP_PORT']).toBe('3000');
-      expect(sanitized['OPENAI_API_KEY']).toBeUndefined();
-      expect(sanitized['GITHUB_TOKEN']).toBeUndefined();
+      const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+      expect(sanitized).toEqual({ PATH: '/usr/bin' });
     });
 
-    it('should preserve all allowlisted vars', () => {
-      const env: NodeJS.ProcessEnv = {
-        PATH: '/usr/bin',
-        HOME: '/home/user',
-        SHELL: '/bin/zsh',
-        TERM: 'xterm-256color',
-        LANG: 'en_US.UTF-8',
-        EDITOR: 'vim',
-        CI: 'true',
-        DEBUG: '1',
-        APEX_CODE: '1',
+    it('should redact ALWAYS_ALLOWED variables whose values contain a certificate', () => {
+      const env = {
+        SHELL:
+          '-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----',
+        USER: 'alice',
       };
-
-      const sanitized = sanitizeEnvironment(env);
-
-      for (const key of Object.keys(env)) {
-        expect(sanitized[key]).toBe(env[key]);
-      }
+      const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+      expect(sanitized).toEqual({ USER: 'alice' });
     });
 
-    it('should strip multiple secret patterns', () => {
-      const env: NodeJS.ProcessEnv = {
-        AWS_ACCESS_KEY_ID: 'AKIA...',
-        AWS_SECRET_ACCESS_KEY: 'secret...',
-        AWS_SESSION_TOKEN: 'token...',
-        DB_PASSWORD: 'hunter2',
-        ANTHROPIC_API_KEY: 'sk-ant-...',
-        JWT_SECRET: 'mysecret',
-        PATH: '/usr/bin',
+    it('should redact user-allowlisted variables whose values contain a secret', () => {
+      const env = {
+        MY_SAFE_VAR: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        OTHER: 'fine',
       };
-
-      const sanitized = sanitizeEnvironment(env);
-
-      expect(sanitized['PATH']).toBe('/usr/bin');
-      expect(sanitized['AWS_ACCESS_KEY_ID']).toBeUndefined();
-      expect(sanitized['AWS_SECRET_ACCESS_KEY']).toBeUndefined();
-      expect(sanitized['AWS_SESSION_TOKEN']).toBeUndefined();
-      expect(sanitized['DB_PASSWORD']).toBeUndefined();
-      expect(sanitized['ANTHROPIC_API_KEY']).toBeUndefined();
-      expect(sanitized['JWT_SECRET']).toBeUndefined();
-    });
-
-    it('should skip undefined values', () => {
-      const env: NodeJS.ProcessEnv = {
-        DEFINED: 'yes',
-        UNDEFINED_VAR: undefined,
-      };
-
-      const sanitized = sanitizeEnvironment(env);
-      expect(sanitized['DEFINED']).toBe('yes');
-      expect('UNDEFINED_VAR' in sanitized).toBe(false);
-    });
-
-    it('should handle empty environment', () => {
-      const sanitized = sanitizeEnvironment({});
-      expect(Object.keys(sanitized)).toHaveLength(0);
-    });
-
-    it('should handle custom config overrides', () => {
-      const env: NodeJS.ProcessEnv = {
-        CUSTOM_CREDENTIAL: 'secret',
-        NORMAL_VAR: 'value',
-        PATH: '/usr/bin',
-      };
-
       const sanitized = sanitizeEnvironment(env, {
-        secretPatterns: ['_CREDENTIAL'],
+        allowedEnvironmentVariables: ['MY_SAFE_VAR'],
+        blockedEnvironmentVariables: [],
+        enableEnvironmentVariableRedaction: true,
       });
-
-      expect(sanitized['NORMAL_VAR']).toBe('value');
-      expect(sanitized['PATH']).toBe('/usr/bin');
-      expect(sanitized['CUSTOM_CREDENTIAL']).toBeUndefined();
+      expect(sanitized).toEqual({ OTHER: 'fine' });
     });
 
-    it('should support additional allowlist via config', () => {
-      const env: NodeJS.ProcessEnv = {
-        SPECIAL_API_KEY: 'needed-for-build',
-        OTHER_API_KEY: 'should-be-stripped',
-        PATH: '/usr/bin',
+    it('should NOT redact APEX_ variables even if their value looks like a secret (fully trusted)', () => {
+      const env = {
+        APEX_INTERNAL: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       };
-
-      const sanitized = sanitizeEnvironment(env, {
-        additionalAllowlist: new Set(['SPECIAL_API_KEY']),
-      });
-
-      expect(sanitized['SPECIAL_API_KEY']).toBe('needed-for-build');
-      expect(sanitized['OTHER_API_KEY']).toBeUndefined();
-      expect(sanitized['PATH']).toBe('/usr/bin');
-    });
-
-    it('should not modify the original env object', () => {
-      const env: NodeJS.ProcessEnv = {
-        OPENAI_API_KEY: 'sk-secret',
-        PATH: '/usr/bin',
-      };
-
-      const originalKeys = Object.keys(env);
-      sanitizeEnvironment(env);
-      expect(Object.keys(env)).toEqual(originalKeys);
-      expect(env['OPENAI_API_KEY']).toBe('sk-secret');
-    });
-
-    it('should preserve Windows system vars', () => {
-      const env: NodeJS.ProcessEnv = {
-        SYSTEMROOT: 'C:\\Windows',
-        WINDIR: 'C:\\Windows',
-        COMSPEC: 'C:\\Windows\\System32\\cmd.exe',
-        APPDATA: 'C:\\Users\\test\\AppData\\Roaming',
-        USERPROFILE: 'C:\\Users\\test',
-        OPENAI_API_KEY: 'sk-secret',
-      };
-
-      const sanitized = sanitizeEnvironment(env);
-
-      expect(sanitized['SYSTEMROOT']).toBe('C:\\Windows');
-      expect(sanitized['WINDIR']).toBe('C:\\Windows');
-      expect(sanitized['COMSPEC']).toBe('C:\\Windows\\System32\\cmd.exe');
-      expect(sanitized['APPDATA']).toBe('C:\\Users\\test\\AppData\\Roaming');
-      expect(sanitized['OPENAI_API_KEY']).toBeUndefined();
+      const sanitized = sanitizeEnvironment(env, EMPTY_OPTIONS);
+      expect(sanitized).toEqual(env);
     });
   });
 
-  describe('getSecureSanitizationConfig', () => {
-    it('should return default config when no overrides provided', () => {
-      const config = getSecureSanitizationConfig();
-      expect(config.secretPatterns).toBe(SECRET_ENV_PATTERNS);
-      expect(config.secretExact).toBe(SECRET_ENV_EXACT);
-      expect(config.allowlist).toBe(DEFAULT_ALLOWLIST);
-    });
+  it('should ensure all names in the sets are capitalized', () => {
+    for (const name of ALWAYS_ALLOWED_ENVIRONMENT_VARIABLES) {
+      expect(name).toBe(name.toUpperCase());
+    }
+    for (const name of NEVER_ALLOWED_ENVIRONMENT_VARIABLES) {
+      expect(name).toBe(name.toUpperCase());
+    }
+  });
 
-    it('should allow overriding individual fields', () => {
-      const customPatterns = ['_CUSTOM'] as const;
-      const config = getSecureSanitizationConfig({
-        secretPatterns: customPatterns,
-      });
-      expect(config.secretPatterns).toBe(customPatterns);
-      expect(config.secretExact).toBe(SECRET_ENV_EXACT);
-      expect(config.allowlist).toBe(DEFAULT_ALLOWLIST);
+  it('should ensure all of the regex in the patterns lists are case insensitive', () => {
+    for (const pattern of NEVER_ALLOWED_NAME_PATTERNS) {
+      expect(pattern.flags).toContain('i');
+    }
+    for (const pattern of NEVER_ALLOWED_VALUE_PATTERNS) {
+      expect(pattern.flags).toContain('i');
+    }
+  });
+
+  it('should allow variables specified in allowedEnvironmentVariables', () => {
+    const env = {
+      MY_TOKEN: 'secret-token',
+      OTHER_SECRET: 'another-secret',
+    };
+    const allowed = ['MY_TOKEN'];
+    const sanitized = sanitizeEnvironment(env, {
+      allowedEnvironmentVariables: allowed,
+      blockedEnvironmentVariables: [],
+      enableEnvironmentVariableRedaction: true,
+    });
+    expect(sanitized).toEqual({
+      MY_TOKEN: 'secret-token',
     });
   });
 
-  describe('regression: sandbox still functions after filtering', () => {
-    it('should always pass through APEX_CODE marker', () => {
-      const env: NodeJS.ProcessEnv = {
-        APEX_CODE: '1',
-        OPENAI_API_KEY: 'sk-secret',
-      };
-      const sanitized = sanitizeEnvironment(env);
-      expect(sanitized['APEX_CODE']).toBe('1');
+  it('should block variables specified in blockedEnvironmentVariables', () => {
+    const env = {
+      SAFE_VAR: 'safe-value',
+      BLOCKED_VAR: 'blocked-value',
+    };
+    const blocked = ['BLOCKED_VAR'];
+    const sanitized = sanitizeEnvironment(env, {
+      allowedEnvironmentVariables: [],
+      blockedEnvironmentVariables: blocked,
+      enableEnvironmentVariableRedaction: true,
     });
+    expect(sanitized).toEqual({
+      SAFE_VAR: 'safe-value',
+    });
+  });
 
-    it('should always pass through PATH', () => {
-      const env: NodeJS.ProcessEnv = {
-        PATH: '/usr/local/bin:/usr/bin',
-        OPENAI_API_KEY: 'sk-secret',
-      };
-      const sanitized = sanitizeEnvironment(env);
-      expect(sanitized['PATH']).toBe('/usr/local/bin:/usr/bin');
+  it('should prioritize allowed over blocked if a variable is in both (though user configuration should avoid this)', () => {
+    const env = {
+      CONFLICT_VAR: 'value',
+    };
+    const allowed = ['CONFLICT_VAR'];
+    const blocked = ['CONFLICT_VAR'];
+    const sanitized = sanitizeEnvironment(env, {
+      allowedEnvironmentVariables: allowed,
+      blockedEnvironmentVariables: blocked,
+      enableEnvironmentVariableRedaction: true,
     });
+    expect(sanitized).toEqual({
+      CONFLICT_VAR: 'value',
+    });
+  });
 
-    it('should preserve Git-related env vars', () => {
-      const env: NodeJS.ProcessEnv = {
-        GIT_AUTHOR_NAME: 'Test User',
-        GIT_AUTHOR_EMAIL: 'test@example.com',
-        GIT_PAGER: 'cat',
-        GITHUB_TOKEN: 'ghp_secret',
-      };
-      const sanitized = sanitizeEnvironment(env);
-      expect(sanitized['GIT_AUTHOR_NAME']).toBe('Test User');
-      expect(sanitized['GIT_AUTHOR_EMAIL']).toBe('test@example.com');
-      expect(sanitized['GIT_PAGER']).toBe('cat');
-      expect(sanitized['GITHUB_TOKEN']).toBeUndefined();
+  it('should be case insensitive for allowed and blocked lists', () => {
+    const env = {
+      MY_TOKEN: 'secret-token',
+      BLOCKED_VAR: 'blocked-value',
+    };
+    const allowed = ['my_token'];
+    const blocked = ['blocked_var'];
+    const sanitized = sanitizeEnvironment(env, {
+      allowedEnvironmentVariables: allowed,
+      blockedEnvironmentVariables: blocked,
+      enableEnvironmentVariableRedaction: true,
     });
+    expect(sanitized).toEqual({
+      MY_TOKEN: 'secret-token',
+    });
+  });
 
-    it('should preserve development tooling vars', () => {
-      const env: NodeJS.ProcessEnv = {
-        NODE_ENV: 'development',
-        DEBUG: 'app:*',
-        FORCE_COLOR: '1',
-        EDITOR: 'code',
-        VIRTUAL_ENV: '/path/to/venv',
-        NVM_DIR: '/home/user/.nvm',
-      };
-      const sanitized = sanitizeEnvironment(env);
-      for (const [key, value] of Object.entries(env)) {
-        expect(sanitized[key]).toBe(value);
-      }
-    });
+  it('should not perform any redaction if enableEnvironmentVariableRedaction is false', () => {
+    const env = {
+      MY_API_TOKEN: 'token-value',
+      AppSecret: 'secret-value',
+      db_password: 'password-value',
+      RSA_KEY: '-----BEGIN RSA PRIVATE KEY-----...',
+      GITHUB_TOKEN_GHP: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      SAFE_VAR: 'is-safe',
+    };
+    const options = {
+      allowedEnvironmentVariables: [],
+      blockedEnvironmentVariables: [],
+      enableEnvironmentVariableRedaction: false,
+    };
+    const sanitized = sanitizeEnvironment(env, options);
+    expect(sanitized).toEqual(env);
+  });
+});
+
+describe('getSecureSanitizationConfig', () => {
+  it('should default enableEnvironmentVariableRedaction to false', () => {
+    const config = getSecureSanitizationConfig();
+    expect(config.enableEnvironmentVariableRedaction).toBe(false);
+  });
+
+  it('should merge allowed and blocked variables from base and requested configs', () => {
+    const baseConfig = {
+      allowedEnvironmentVariables: ['SAFE_VAR_1'],
+      blockedEnvironmentVariables: ['BLOCKED_VAR_1'],
+      enableEnvironmentVariableRedaction: true,
+    };
+    const requestedConfig = {
+      allowedEnvironmentVariables: ['SAFE_VAR_2'],
+      blockedEnvironmentVariables: ['BLOCKED_VAR_2'],
+    };
+
+    const config = getSecureSanitizationConfig(requestedConfig, baseConfig);
+
+    expect(config.allowedEnvironmentVariables).toContain('SAFE_VAR_1');
+    expect(config.allowedEnvironmentVariables).toContain('SAFE_VAR_2');
+    expect(config.blockedEnvironmentVariables).toContain('BLOCKED_VAR_1');
+    expect(config.blockedEnvironmentVariables).toContain('BLOCKED_VAR_2');
+  });
+
+  it('should filter out variables from allowed list that match NEVER_ALLOWED_ENVIRONMENT_VARIABLES', () => {
+    const requestedConfig = {
+      allowedEnvironmentVariables: ['SAFE_VAR', 'GOOGLE_CLOUD_PROJECT'],
+    };
+
+    const config = getSecureSanitizationConfig(requestedConfig);
+
+    expect(config.allowedEnvironmentVariables).toContain('SAFE_VAR');
+    expect(config.allowedEnvironmentVariables).not.toContain(
+      'GOOGLE_CLOUD_PROJECT',
+    );
+  });
+
+  it('should filter out variables from allowed list that match NEVER_ALLOWED_NAME_PATTERNS', () => {
+    const requestedConfig = {
+      allowedEnvironmentVariables: ['SAFE_VAR', 'MY_SECRET_TOKEN'],
+    };
+
+    const config = getSecureSanitizationConfig(requestedConfig);
+
+    expect(config.allowedEnvironmentVariables).toContain('SAFE_VAR');
+    expect(config.allowedEnvironmentVariables).not.toContain('MY_SECRET_TOKEN');
+  });
+
+  it('should deduplicate variables in allowed and blocked lists', () => {
+    const baseConfig = {
+      allowedEnvironmentVariables: ['SAFE_VAR'],
+      blockedEnvironmentVariables: ['BLOCKED_VAR'],
+      enableEnvironmentVariableRedaction: true,
+    };
+    const requestedConfig = {
+      allowedEnvironmentVariables: ['SAFE_VAR'],
+      blockedEnvironmentVariables: ['BLOCKED_VAR'],
+    };
+
+    const config = getSecureSanitizationConfig(requestedConfig, baseConfig);
+
+    expect(config.allowedEnvironmentVariables).toEqual(['SAFE_VAR']);
+    expect(config.blockedEnvironmentVariables).toEqual(['BLOCKED_VAR']);
+  });
+
+  it('should respect requested enableEnvironmentVariableRedaction value', () => {
+    const requestedConfig = {
+      enableEnvironmentVariableRedaction: false,
+    };
+
+    const config = getSecureSanitizationConfig(requestedConfig);
+
+    expect(config.enableEnvironmentVariableRedaction).toBe(false);
   });
 });

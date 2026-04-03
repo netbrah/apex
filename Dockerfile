@@ -64,10 +64,15 @@ ENV PATH=$PATH:/usr/local/share/npm-global/bin
 # Copy bundled package from builder stage
 COPY --from=builder /home/node/app/dist/*.tgz /tmp/
 
-# Install built packages globally
-RUN npm install -g /tmp/*.tgz \
+# install gemini-cli and clean up
+COPY packages/cli/dist/google-gemini-cli-*.tgz /tmp/gemini-cli.tgz
+COPY packages/core/dist/google-gemini-cli-core-*.tgz /tmp/gemini-core.tgz
+RUN npm install -g /tmp/gemini-core.tgz \
+  && npm install -g /tmp/gemini-cli.tgz \
+  && node -e "const fs=require('node:fs'); JSON.parse(fs.readFileSync('/usr/local/share/npm-global/lib/node_modules/@google/gemini-cli/package.json','utf8')); JSON.parse(fs.readFileSync('/usr/local/share/npm-global/lib/node_modules/@google/gemini-cli-core/package.json','utf8'));" \
+  && gemini --version > /dev/null \
   && npm cache clean --force \
-  && rm -rf /tmp/*.tgz
+  && rm -f /tmp/gemini-{cli,core}.tgz
 
 # Default entrypoint when none specified
 CMD ["qwen"]

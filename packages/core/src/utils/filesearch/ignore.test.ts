@@ -7,6 +7,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { Ignore, loadIgnoreRules } from './ignore.js';
 import { createTmpDir, cleanupTmpDir } from '@apex-code/apex-test-utils';
+import { GEMINI_IGNORE_FILE_NAME } from '../../config/constants.js';
+import { FileDiscoveryService } from '../../services/fileDiscoveryService.js';
 
 describe('Ignore', () => {
   describe('getDirectoryFilter', () => {
@@ -76,14 +78,14 @@ describe('loadIgnoreRules', () => {
 
   it('should load rules from .gitignore', async () => {
     tmpDir = await createTmpDir({
+      '.git': {},
       '.gitignore': '*.log',
     });
-    const ignore = loadIgnoreRules({
-      projectRoot: tmpDir,
-      useGitignore: true,
-      useApexignore: false,
-      ignoreDirs: [],
+    const service = new FileDiscoveryService(tmpDir, {
+      respectGitIgnore: true,
+      respectGeminiIgnore: false,
     });
+    const ignore = loadIgnoreRules(service, []);
     const fileFilter = ignore.getFileFilter();
     expect(fileFilter('test.log')).toBe(true);
     expect(fileFilter('test.txt')).toBe(false);
@@ -91,14 +93,13 @@ describe('loadIgnoreRules', () => {
 
   it('should load rules from .apexignore', async () => {
     tmpDir = await createTmpDir({
-      '.apexignore': '*.log',
+      [GEMINI_IGNORE_FILE_NAME]: '*.log',
     });
-    const ignore = loadIgnoreRules({
-      projectRoot: tmpDir,
-      useGitignore: false,
-      useApexignore: true,
-      ignoreDirs: [],
+    const service = new FileDiscoveryService(tmpDir, {
+      respectGitIgnore: false,
+      respectGeminiIgnore: true,
     });
+    const ignore = loadIgnoreRules(service, []);
     const fileFilter = ignore.getFileFilter();
     expect(fileFilter('test.log')).toBe(true);
     expect(fileFilter('test.txt')).toBe(false);
@@ -106,15 +107,15 @@ describe('loadIgnoreRules', () => {
 
   it('should combine rules from .gitignore and .apexignore', async () => {
     tmpDir = await createTmpDir({
+      '.git': {},
       '.gitignore': '*.log',
-      '.apexignore': '*.txt',
+      [GEMINI_IGNORE_FILE_NAME]: '*.txt',
     });
-    const ignore = loadIgnoreRules({
-      projectRoot: tmpDir,
-      useGitignore: true,
-      useApexignore: true,
-      ignoreDirs: [],
+    const service = new FileDiscoveryService(tmpDir, {
+      respectGitIgnore: true,
+      respectGeminiIgnore: true,
     });
+    const ignore = loadIgnoreRules(service, []);
     const fileFilter = ignore.getFileFilter();
     expect(fileFilter('test.log')).toBe(true);
     expect(fileFilter('test.txt')).toBe(true);
@@ -123,12 +124,11 @@ describe('loadIgnoreRules', () => {
 
   it('should add ignoreDirs', async () => {
     tmpDir = await createTmpDir({});
-    const ignore = loadIgnoreRules({
-      projectRoot: tmpDir,
-      useGitignore: false,
-      useApexignore: false,
-      ignoreDirs: ['logs/'],
+    const service = new FileDiscoveryService(tmpDir, {
+      respectGitIgnore: false,
+      respectGeminiIgnore: false,
     });
+    const ignore = loadIgnoreRules(service, ['logs/']);
     const dirFilter = ignore.getDirectoryFilter();
     expect(dirFilter('logs/')).toBe(true);
     expect(dirFilter('src/')).toBe(false);
@@ -136,24 +136,22 @@ describe('loadIgnoreRules', () => {
 
   it('should handle missing ignore files gracefully', async () => {
     tmpDir = await createTmpDir({});
-    const ignore = loadIgnoreRules({
-      projectRoot: tmpDir,
-      useGitignore: true,
-      useApexignore: true,
-      ignoreDirs: [],
+    const service = new FileDiscoveryService(tmpDir, {
+      respectGitIgnore: true,
+      respectGeminiIgnore: true,
     });
+    const ignore = loadIgnoreRules(service, []);
     const fileFilter = ignore.getFileFilter();
     expect(fileFilter('anyfile.txt')).toBe(false);
   });
 
   it('should always add .git to the ignore list', async () => {
     tmpDir = await createTmpDir({});
-    const ignore = loadIgnoreRules({
-      projectRoot: tmpDir,
-      useGitignore: false,
-      useApexignore: false,
-      ignoreDirs: [],
+    const service = new FileDiscoveryService(tmpDir, {
+      respectGitIgnore: false,
+      respectGeminiIgnore: false,
     });
+    const ignore = loadIgnoreRules(service, []);
     const dirFilter = ignore.getDirectoryFilter();
     expect(dirFilter('.git/')).toBe(true);
   });

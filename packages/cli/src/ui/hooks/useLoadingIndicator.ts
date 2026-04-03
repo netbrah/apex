@@ -8,14 +8,34 @@ import { StreamingState } from '../types.js';
 import { useTimer } from './useTimer.js';
 import { usePhraseCycler } from './usePhraseCycler.js';
 import { useState, useEffect, useRef } from 'react';
-import type { ThoughtSummary } from '@apex-code/apex-core';
+import {
+  getDisplayString,
+  type RetryAttemptPayload,
+} from '@apex-code/apex-core';
 
-export const useLoadingIndicator = (
-  streamingState: StreamingState,
-  customWittyPhrases?: string[],
-  currentCandidatesTokens?: number,
-  thought?: ThoughtSummary | null,
-) => {
+const LOW_VERBOSITY_RETRY_HINT_ATTEMPT_THRESHOLD = 2;
+
+export interface UseLoadingIndicatorProps {
+  streamingState: StreamingState;
+  shouldShowFocusHint: boolean;
+  retryStatus: RetryAttemptPayload | null;
+  showTips?: boolean;
+  showWit?: boolean;
+  customWittyPhrases?: string[];
+  errorVerbosity?: 'low' | 'full';
+  maxLength?: number;
+}
+
+export const useLoadingIndicator = ({
+  streamingState,
+  shouldShowFocusHint,
+  retryStatus,
+  showTips = true,
+  showWit = false,
+  customWittyPhrases,
+  errorVerbosity = 'full',
+  maxLength,
+}: UseLoadingIndicatorProps) => {
   const [timerResetKey, setTimerResetKey] = useState(0);
   const isTimerActive = streamingState === StreamingState.Responding;
 
@@ -23,15 +43,18 @@ export const useLoadingIndicator = (
 
   const isPhraseCyclingActive = streamingState === StreamingState.Responding;
   const isWaiting = streamingState === StreamingState.WaitingForConfirmation;
-  const currentLoadingPhrase = usePhraseCycler(
+
+  const { currentTip, currentWittyPhrase } = usePhraseCycler(
     isPhraseCyclingActive,
     isWaiting,
+    shouldShowFocusHint,
+    showTips,
+    showWit,
     customWittyPhrases,
-    thought,
+    maxLength,
   );
 
   const [retainedElapsedTime, setRetainedElapsedTime] = useState(0);
-  const [taskStartTokens, setTaskStartTokens] = useState(0);
   const prevStreamingStateRef = useRef<StreamingState | null>(null);
 
   useEffect(() => {
@@ -40,33 +63,38 @@ export const useLoadingIndicator = (
       streamingState === StreamingState.Responding
     ) {
       setTimerResetKey((prevKey) => prevKey + 1);
-      setRetainedElapsedTime(0);
-      setTaskStartTokens(currentCandidatesTokens ?? 0);
+      setRetainedElapsedTime(0); // Clear retained time when going back to responding
     } else if (
       streamingState === StreamingState.Idle &&
       prevStreamingStateRef.current === StreamingState.Responding
     ) {
-      setTimerResetKey((prevKey) => prevKey + 1);
+      setTimerResetKey((prevKey) => prevKey + 1); // Reset timer when becoming idle from responding
       setRetainedElapsedTime(0);
-      setTaskStartTokens(0);
-    } else if (
-      streamingState === StreamingState.Responding &&
-      prevStreamingStateRef.current !== StreamingState.Responding
-    ) {
-      setTaskStartTokens(currentCandidatesTokens ?? 0);
     } else if (streamingState === StreamingState.WaitingForConfirmation) {
+      // Capture the time when entering WaitingForConfirmation
+      // elapsedTimeFromTimer will hold the last value from when isTimerActive was true.
       setRetainedElapsedTime(elapsedTimeFromTimer);
     }
 
     prevStreamingStateRef.current = streamingState;
-  }, [streamingState, elapsedTimeFromTimer, currentCandidatesTokens]);
+  }, [streamingState, elapsedTimeFromTimer]);
+
+  const retryPhrase =
+    streamingState === StreamingState.Responding && retryStatus
+      ? errorVerbosity === 'low'
+        ? retryStatus.attempt >= LOW_VERBOSITY_RETRY_HINT_ATTEMPT_THRESHOLD
+          ? "This is taking a bit longer, we're still on it."
+          : null
+        : `Trying to reach ${getDisplayString(retryStatus.model)} (Attempt ${retryStatus.attempt + 1}/${retryStatus.maxAttempts})`
+      : null;
 
   return {
     elapsedTime:
       streamingState === StreamingState.WaitingForConfirmation
         ? retainedElapsedTime
         : elapsedTimeFromTimer,
-    currentLoadingPhrase,
-    taskStartTokens,
+    currentLoadingPhrase: retryPhrase || currentTip || currentWittyPhrase,
+    currentTip,
+    currentWittyPhrase,
   };
 };

@@ -9,26 +9,28 @@ import { useState } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import {
-  EDITOR_DISPLAY_NAMES,
   editorSettingsManager,
   type EditorDisplay,
 } from '../editors/editorSettingsManager.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
-import { ScopeSelector } from './shared/ScopeSelector.js';
-import type { LoadedSettings } from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
-import type { EditorType } from '@apex-code/apex-core';
 import {
-  createDebugLogger,
+  SettingScope,
+  type LoadableSettingScope,
+  type LoadedSettings,
+} from '../../config/settings.js';
+import {
+  type EditorType,
   isEditorAvailable,
+  EDITOR_DISPLAY_NAMES,
+  coreEvents,
 } from '@apex-code/apex-core';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { t } from '../../i18n/index.js';
-
-const debugLogger = createDebugLogger('EDITOR_SETTINGS_DIALOG');
 
 interface EditorDialogProps {
-  onSelect: (editorType: EditorType | undefined, scope: SettingScope) => void;
+  onSelect: (
+    editorType: EditorType | undefined,
+    scope: LoadableSettingScope,
+  ) => void;
   settings: LoadedSettings;
   onExit: () => void;
 }
@@ -38,19 +40,23 @@ export function EditorSettingsDialog({
   settings,
   onExit,
 }: EditorDialogProps): React.JSX.Element {
-  const [selectedScope, setSelectedScope] = useState<SettingScope>(
+  const [selectedScope, setSelectedScope] = useState<LoadableSettingScope>(
     SettingScope.User,
   );
-  const [mode, setMode] = useState<'editor' | 'scope'>('editor');
-
+  const [focusedSection, setFocusedSection] = useState<'editor' | 'scope'>(
+    'editor',
+  );
   useKeypress(
     (key) => {
       if (key.name === 'tab') {
-        setMode((prev) => (prev === 'editor' ? 'scope' : 'editor'));
+        setFocusedSection((prev) => (prev === 'editor' ? 'scope' : 'editor'));
+        return true;
       }
       if (key.name === 'escape') {
         onExit();
+        return true;
       }
+      return false;
     },
     { isActive: true },
   );
@@ -66,9 +72,29 @@ export function EditorSettingsDialog({
       )
     : 0;
   if (editorIndex === -1) {
-    debugLogger.error(`Editor is not supported: ${currentPreference}`);
+    coreEvents.emitFeedback(
+      'error',
+      `Editor is not supported: ${currentPreference}`,
+    );
     editorIndex = 0;
   }
+
+  const scopeItems: Array<{
+    label: string;
+    value: LoadableSettingScope;
+    key: string;
+  }> = [
+    {
+      label: 'User Settings',
+      value: SettingScope.User,
+      key: SettingScope.User,
+    },
+    {
+      label: 'Workspace Settings',
+      value: SettingScope.Workspace,
+      key: SettingScope.Workspace,
+    },
+  ];
 
   const handleEditorSelect = (editorType: EditorType | 'not_set') => {
     if (editorType === 'not_set') {
@@ -78,13 +104,9 @@ export function EditorSettingsDialog({
     onSelect(editorType, selectedScope);
   };
 
-  const handleScopeSelect = (scope: SettingScope) => {
+  const handleScopeSelect = (scope: LoadableSettingScope) => {
     setSelectedScope(scope);
-    setMode('editor');
-  };
-
-  const handleScopeHighlight = (scope: SettingScope) => {
-    setSelectedScope(scope);
+    setFocusedSection('editor');
   };
 
   let otherScopeModifiedMessage = '';
@@ -105,12 +127,13 @@ export function EditorSettingsDialog({
 
   let mergedEditorName = 'None';
   if (
-    settings.merged.general?.preferredEditor &&
-    isEditorAvailable(settings.merged.general?.preferredEditor)
+    settings.merged.general.preferredEditor &&
+    isEditorAvailable(settings.merged.general.preferredEditor)
   ) {
     mergedEditorName =
       EDITOR_DISPLAY_NAMES[
-        settings.merged.general?.preferredEditor as EditorType
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        settings.merged.general.preferredEditor as EditorType
       ];
   }
 
@@ -123,59 +146,53 @@ export function EditorSettingsDialog({
       width="100%"
     >
       <Box flexDirection="column" width="45%" paddingRight={2}>
-        {mode === 'editor' ? (
-          <Box flexDirection="column">
-            <Text bold={mode === 'editor'} wrap="truncate">
-              {mode === 'editor' ? '> ' : '  '}
-              {t('Select Editor')}{' '}
-              <Text color={theme.text.secondary}>
-                {otherScopeModifiedMessage}
-              </Text>
-            </Text>
-            <Box height={1} />
-            <RadioButtonSelect
-              items={editorItems.map((item) => ({
-                label: item.name,
-                value: item.type,
-                disabled: item.disabled,
-                key: item.type,
-              }))}
-              initialIndex={editorIndex}
-              onSelect={handleEditorSelect}
-              isFocused={mode === 'editor'}
-              key={selectedScope}
-            />
-          </Box>
-        ) : (
-          <ScopeSelector
+        <Text bold={focusedSection === 'editor'}>
+          {focusedSection === 'editor' ? '> ' : '  '}Select Editor{' '}
+          <Text color={theme.text.secondary}>{otherScopeModifiedMessage}</Text>
+        </Text>
+        <RadioButtonSelect
+          items={editorItems.map((item) => ({
+            label: item.name,
+            value: item.type,
+            disabled: item.disabled,
+            key: item.type,
+          }))}
+          initialIndex={editorIndex}
+          onSelect={handleEditorSelect}
+          isFocused={focusedSection === 'editor'}
+          key={selectedScope}
+        />
+
+        <Box marginTop={1} flexDirection="column">
+          <Text bold={focusedSection === 'scope'}>
+            {focusedSection === 'scope' ? '> ' : '  '}Apply To
+          </Text>
+          <RadioButtonSelect
+            items={scopeItems}
+            initialIndex={0}
             onSelect={handleScopeSelect}
-            onHighlight={handleScopeHighlight}
-            isFocused={mode === 'scope'}
-            initialScope={selectedScope}
+            isFocused={focusedSection === 'scope'}
           />
-        )}
+        </Box>
 
         <Box marginTop={1}>
-          <Text color={theme.text.secondary} wrap="truncate">
-            {mode === 'editor'
-              ? t('(Use Enter to select, Tab to configure scope)')
-              : t('(Use Enter to apply scope, Tab to go back)')}
+          <Text color={theme.text.secondary}>
+            (Use Enter to select, Tab to change focus, Esc to close)
           </Text>
         </Box>
       </Box>
 
       <Box flexDirection="column" width="55%" paddingLeft={2}>
         <Text bold color={theme.text.primary}>
-          {t('Editor Preference')}
+          Editor Preference
         </Text>
         <Box flexDirection="column" gap={1} marginTop={1}>
           <Text color={theme.text.secondary}>
-            {t(
-              'These editors are currently supported. Please note that some editors cannot be used in sandbox mode.',
-            )}
+            These editors are currently supported. Please note that some editors
+            cannot be used in sandbox mode.
           </Text>
           <Text color={theme.text.secondary}>
-            {t('Your preferred editor is:')}{' '}
+            Your preferred editor is:{' '}
             <Text
               color={
                 mergedEditorName === 'None'

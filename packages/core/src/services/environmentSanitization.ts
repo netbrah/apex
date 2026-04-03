@@ -4,215 +4,235 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Environment variable sanitization for sandboxed execution.
- *
- * Strips env vars that match secret patterns (e.g., *_KEY, *_SECRET, *_TOKEN)
- * unless they are explicitly allowlisted. This prevents credential leakage
- * to sandboxed tool processes.
- */
+export type EnvironmentSanitizationConfig = {
+  allowedEnvironmentVariables: string[];
+  blockedEnvironmentVariables: string[];
+  enableEnvironmentVariableRedaction: boolean;
+};
 
-/**
- * Patterns (case-insensitive suffix match) that identify secret env vars.
- * Any env var whose name ends with one of these suffixes is considered sensitive.
- */
-export const SECRET_ENV_PATTERNS: readonly string[] = [
-  '_KEY',
-  '_SECRET',
-  '_TOKEN',
-  '_PASSWORD',
-  '_CREDENTIAL',
-  '_CREDENTIALS',
-  '_API_KEY',
-  '_APIKEY',
-  '_AUTH',
-  '_PRIVATE_KEY',
-] as const;
-
-/**
- * Exact env var names that are always considered secret regardless of pattern.
- */
-export const SECRET_ENV_EXACT: ReadonlySet<string> = new Set([
-  'AWS_ACCESS_KEY_ID',
-  'AWS_SECRET_ACCESS_KEY',
-  'AWS_SESSION_TOKEN',
-  'GITHUB_TOKEN',
-  'GH_TOKEN',
-  'NPM_TOKEN',
-  'OPENAI_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'DATABASE_URL',
-  'REDIS_URL',
-  'MONGO_URI',
-  'MONGODB_URI',
-  'ENCRYPTION_KEY',
-  'SIGNING_KEY',
-  'JWT_SECRET',
-  'SESSION_SECRET',
-  'COOKIE_SECRET',
-]);
-
-/**
- * Env vars that are always safe to pass through, even if they match
- * a secret pattern. These are required for correct tool execution.
- */
-export const DEFAULT_ALLOWLIST: ReadonlySet<string> = new Set([
-  // Node / system essentials
-  'PATH',
-  'HOME',
-  'USER',
-  'LOGNAME',
-  'SHELL',
-  'TERM',
-  'LANG',
-  'LC_ALL',
-  'LC_CTYPE',
-  'TZ',
-  'TMPDIR',
-  'TEMP',
-  'TMP',
-  'XDG_RUNTIME_DIR',
-  'XDG_DATA_HOME',
-  'XDG_CONFIG_HOME',
-  'XDG_CACHE_HOME',
-  // Node.js
-  'NODE_ENV',
-  'NODE_PATH',
-  'NODE_OPTIONS',
-  'NODE_EXTRA_CA_CERTS',
-  'NPM_CONFIG_PREFIX',
-  'NVM_DIR',
-  // Build / dev tooling
-  'CI',
-  'DEBUG',
-  'FORCE_COLOR',
-  'NO_COLOR',
-  'COLORTERM',
-  'COLUMNS',
-  'LINES',
-  'EDITOR',
-  'VISUAL',
-  'PAGER',
-  'GIT_PAGER',
-  'GIT_AUTHOR_NAME',
-  'GIT_AUTHOR_EMAIL',
-  'GIT_COMMITTER_NAME',
-  'GIT_COMMITTER_EMAIL',
-  // Apex Code markers
-  'APEX_CODE',
-  // Windows essentials
-  'SYSTEMROOT',
-  'WINDIR',
-  'COMSPEC',
-  'APPDATA',
-  'LOCALAPPDATA',
-  'PROGRAMFILES',
-  'PROGRAMFILES(X86)',
-  'PROGRAMDATA',
-  'USERPROFILE',
-  'HOMEDRIVE',
-  'HOMEPATH',
-  'USERNAME',
-  'OS',
-  'PROCESSOR_ARCHITECTURE',
-  'NUMBER_OF_PROCESSORS',
-  'SystemDrive',
-  // Python
-  'PYTHONPATH',
-  'VIRTUAL_ENV',
-  'CONDA_DEFAULT_ENV',
-  'CONDA_PREFIX',
-  // macOS
-  'DYLD_LIBRARY_PATH',
-  'DYLD_FALLBACK_LIBRARY_PATH',
-  // Linux
-  'LD_LIBRARY_PATH',
-  'LD_PRELOAD',
-  'DISPLAY',
-  'WAYLAND_DISPLAY',
-  'DBUS_SESSION_BUS_ADDRESS',
-]);
-
-/**
- * Configuration for environment variable sanitization.
- */
-export interface EnvironmentSanitizationConfig {
-  /** Patterns (suffixes) that identify secret env vars. */
-  secretPatterns: readonly string[];
-  /** Exact env var names that are always secret. */
-  secretExact: ReadonlySet<string>;
-  /** Env vars that are always allowed through, even if they match a pattern. */
-  allowlist: ReadonlySet<string>;
-  /** Additional env vars to allowlist (merged with default allowlist). */
-  additionalAllowlist?: ReadonlySet<string>;
-}
-
-/**
- * Returns the secure default sanitization config, optionally merged with overrides.
- */
-export function getSecureSanitizationConfig(
-  overrides?: Partial<EnvironmentSanitizationConfig>,
-): EnvironmentSanitizationConfig {
-  const config: EnvironmentSanitizationConfig = {
-    secretPatterns: overrides?.secretPatterns ?? SECRET_ENV_PATTERNS,
-    secretExact: overrides?.secretExact ?? SECRET_ENV_EXACT,
-    allowlist: overrides?.allowlist ?? DEFAULT_ALLOWLIST,
-    additionalAllowlist: overrides?.additionalAllowlist,
-  };
-  return config;
-}
-
-/**
- * Returns true if the given env var name matches a secret pattern.
- */
-export function isSecretEnvVar(
-  name: string,
-  config: EnvironmentSanitizationConfig,
-): boolean {
-  const upperName = name.toUpperCase();
-
-  // Check allowlist first - allowlisted vars are never secret
-  if (config.allowlist.has(name) || config.allowlist.has(upperName)) {
-    return false;
-  }
-  if (
-    config.additionalAllowlist &&
-    (config.additionalAllowlist.has(name) ||
-      config.additionalAllowlist.has(upperName))
-  ) {
-    return false;
-  }
-
-  // Check exact matches
-  if (config.secretExact.has(name) || config.secretExact.has(upperName)) {
-    return true;
-  }
-
-  // Check suffix patterns
-  return config.secretPatterns.some((pattern) =>
-    upperName.endsWith(pattern.toUpperCase()),
-  );
-}
-
-/**
- * Sanitizes a set of environment variables by removing those that match
- * secret patterns, unless explicitly allowlisted.
- *
- * @returns A new env object with secret vars stripped.
- */
 export function sanitizeEnvironment(
-  env: NodeJS.ProcessEnv,
-  config?: Partial<EnvironmentSanitizationConfig>,
+  processEnv: NodeJS.ProcessEnv,
+  config: EnvironmentSanitizationConfig,
 ): NodeJS.ProcessEnv {
-  const fullConfig = getSecureSanitizationConfig(config);
-  const sanitized: NodeJS.ProcessEnv = {};
+  const isStrictSanitization =
+    !!processEnv['GITHUB_SHA'] || processEnv['SURFACE'] === 'Github';
 
-  for (const [key, value] of Object.entries(env)) {
-    if (value === undefined) continue;
-    if (!isSecretEnvVar(key, fullConfig)) {
-      sanitized[key] = value;
+  if (!config.enableEnvironmentVariableRedaction && !isStrictSanitization) {
+    return { ...processEnv };
+  }
+
+  const results: NodeJS.ProcessEnv = {};
+
+  const allowedSet = new Set(
+    (config.allowedEnvironmentVariables || []).map((k) => k.toUpperCase()),
+  );
+  const blockedSet = new Set(
+    (config.blockedEnvironmentVariables || []).map((k) => k.toUpperCase()),
+  );
+
+  for (const key in processEnv) {
+    const value = processEnv[key];
+
+    if (
+      !shouldRedactEnvironmentVariable(
+        key,
+        value,
+        allowedSet,
+        blockedSet,
+        isStrictSanitization,
+      )
+    ) {
+      results[key] = value;
     }
   }
 
-  return sanitized;
+  return results;
+}
+
+export const ALWAYS_ALLOWED_ENVIRONMENT_VARIABLES: ReadonlySet<string> =
+  new Set([
+    // Cross-platform
+    'PATH',
+    // Windows specific
+    'SYSTEMROOT',
+    'COMSPEC',
+    'PATHEXT',
+    'WINDIR',
+    'TEMP',
+    'TMP',
+    'USERPROFILE',
+    'SYSTEMDRIVE',
+    // Unix/Linux/macOS specific
+    'HOME',
+    'LANG',
+    'SHELL',
+    'TMPDIR',
+    'USER',
+    'LOGNAME',
+    // Terminal capability variables (needed by editors like vim/emacs and
+    // interactive commands like top)
+    'TERM',
+    'COLORTERM',
+    // GitHub Action-related variables
+    'ADDITIONAL_CONTEXT',
+    'AVAILABLE_LABELS',
+    'BRANCH_NAME',
+    'DESCRIPTION',
+    'EVENT_NAME',
+    'GITHUB_ENV',
+    'IS_PULL_REQUEST',
+    'ISSUES_TO_TRIAGE',
+    'ISSUE_BODY',
+    'ISSUE_NUMBER',
+    'ISSUE_TITLE',
+    'PULL_REQUEST_NUMBER',
+    'REPOSITORY',
+    'TITLE',
+    'TRIGGERING_ACTOR',
+  ]);
+
+export const NEVER_ALLOWED_ENVIRONMENT_VARIABLES: ReadonlySet<string> = new Set(
+  [
+    'CLIENT_ID',
+    'DB_URI',
+    'CONNECTION_STRING',
+    'AWS_DEFAULT_REGION',
+    'AZURE_CLIENT_ID',
+    'AZURE_TENANT_ID',
+    'SLACK_WEBHOOK_URL',
+    'TWILIO_ACCOUNT_SID',
+    'DATABASE_URL',
+    'GOOGLE_CLOUD_PROJECT',
+    'GOOGLE_CLOUD_ACCOUNT',
+    'FIREBASE_PROJECT_ID',
+  ],
+);
+
+export const NEVER_ALLOWED_NAME_PATTERNS = [
+  /TOKEN/i,
+  /SECRET/i,
+  /PASSWORD/i,
+  /PASSWD/i,
+  /KEY/i,
+  /AUTH/i,
+  /CREDENTIAL/i,
+  /CREDS/i,
+  /PRIVATE/i,
+  /CERT/i,
+] as const;
+
+export const NEVER_ALLOWED_VALUE_PATTERNS = [
+  /-----BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY-----/i,
+  /-----BEGIN CERTIFICATE-----/i,
+  // Credentials in URL
+  /(https?|ftp|smtp):\/\/[^:\s]{1,1024}:[^@\s]{1,1024}@/i,
+  // GitHub tokens (classic, fine-grained, OAuth, etc.)
+  /(ghp|gho|ghu|ghs|ghr|github_pat)_[a-zA-Z0-9_]{36,}/i,
+  // Google API keys
+  /AIzaSy[a-zA-Z0-9_\\-]{33}/i,
+  // Amazon AWS Access Key ID
+  /AKIA[A-Z0-9]{16}/i,
+  // Generic OAuth/JWT tokens
+  /eyJ[a-zA-Z0-9_-]{0,10240}\.[a-zA-Z0-9_-]{0,10240}\.[a-zA-Z0-9_-]{0,10240}/i,
+  // Stripe API keys
+  /(s|r)k_(live|test)_[0-9a-zA-Z]{24}/i,
+  // Slack tokens (bot, user, etc.)
+  /xox[abpr]-[a-zA-Z0-9-]+/i,
+] as const;
+
+function shouldRedactEnvironmentVariable(
+  key: string,
+  value: string | undefined,
+  allowedSet?: Set<string>,
+  blockedSet?: Set<string>,
+  isStrictSanitization = false,
+): boolean {
+  key = key.toUpperCase();
+  value = value?.toUpperCase();
+
+  if (key.startsWith('APEX_')) {
+    return false;
+  }
+
+  if (value) {
+    for (const pattern of NEVER_ALLOWED_VALUE_PATTERNS) {
+      if (pattern.test(value)) {
+        return true;
+      }
+    }
+  }
+
+  if (key.startsWith('GIT_CONFIG_')) {
+    return false;
+  }
+
+  if (allowedSet?.has(key)) {
+    return false;
+  }
+  if (blockedSet?.has(key)) {
+    return true;
+  }
+
+  if (ALWAYS_ALLOWED_ENVIRONMENT_VARIABLES.has(key)) {
+    return false;
+  }
+
+  if (NEVER_ALLOWED_ENVIRONMENT_VARIABLES.has(key)) {
+    return true;
+  }
+
+  if (isStrictSanitization) {
+    return true;
+  }
+
+  for (const pattern of NEVER_ALLOWED_NAME_PATTERNS) {
+    if (pattern.test(key)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Merges a partial sanitization config with secure defaults and validates it.
+ * This ensures that sensitive environment variables cannot be bypassed by
+ * request-provided configurations.
+ */
+export function getSecureSanitizationConfig(
+  requestedConfig: Partial<EnvironmentSanitizationConfig> = {},
+  baseConfig?: EnvironmentSanitizationConfig,
+): EnvironmentSanitizationConfig {
+  const allowed = [
+    ...(baseConfig?.allowedEnvironmentVariables ?? []),
+    ...(requestedConfig.allowedEnvironmentVariables ?? []),
+  ].filter((key) => {
+    const upperKey = key.toUpperCase();
+    // Never allow variables that are explicitly forbidden by name
+    if (NEVER_ALLOWED_ENVIRONMENT_VARIABLES.has(upperKey)) {
+      return false;
+    }
+    // Never allow variables that match sensitive name patterns
+    for (const pattern of NEVER_ALLOWED_NAME_PATTERNS) {
+      if (pattern.test(upperKey)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const blocked = [
+    ...(baseConfig?.blockedEnvironmentVariables ?? []),
+    ...(requestedConfig.blockedEnvironmentVariables ?? []),
+  ];
+
+  return {
+    allowedEnvironmentVariables: [...new Set(allowed)],
+    blockedEnvironmentVariables: [...new Set(blocked)],
+    // Redaction must be enabled for secure configurations
+    enableEnvironmentVariableRedaction:
+      requestedConfig.enableEnvironmentVariableRedaction ??
+      baseConfig?.enableEnvironmentVariableRedaction ??
+      false,
+  };
 }

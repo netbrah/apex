@@ -5,38 +5,65 @@
  */
 
 import type { CommandModule } from 'yargs';
-import { getErrorMessage } from '../../utils/errors.js';
-import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
-import { extensionToOutputString, getExtensionManager } from './utils.js';
-import { t } from '../../i18n/index.js';
+import { debugLogger, getErrorMessage } from '@apex-code/apex-core';
+import { ExtensionManager } from '../../config/extension-manager.js';
+import { requestConsentNonInteractive } from '../../config/extensions/consent.js';
+import { loadSettings } from '../../config/settings.js';
+import { promptForSetting } from '../../config/extensions/extensionSettings.js';
+import { exitCli } from '../utils.js';
 
-export async function handleList() {
+export async function handleList(options?: { outputFormat?: 'text' | 'json' }) {
   try {
-    const extensionManager = await getExtensionManager();
-    const extensions = extensionManager.getLoadedExtensions();
-
-    if (!extensions || extensions.length === 0) {
-      writeStdoutLine(t('No extensions installed.'));
+    const workspaceDir = process.cwd();
+    const extensionManager = new ExtensionManager({
+      workspaceDir,
+      requestConsent: requestConsentNonInteractive,
+      requestSetting: promptForSetting,
+      settings: loadSettings(workspaceDir).merged,
+    });
+    const extensions = await extensionManager.loadExtensions();
+    if (extensions.length === 0) {
+      if (options?.outputFormat === 'json') {
+        debugLogger.log('[]');
+      } else {
+        debugLogger.log('No extensions installed.');
+      }
       return;
     }
-    writeStdoutLine(
-      extensions
-        .map((extension, _): string =>
-          extensionToOutputString(extension, extensionManager, process.cwd()),
-        )
-        .join('\n\n'),
-    );
+
+    if (options?.outputFormat === 'json') {
+      debugLogger.log(JSON.stringify(extensions, null, 2));
+    } else {
+      debugLogger.log(
+        extensions
+          .map((extension, _): string =>
+            extensionManager.toOutputString(extension),
+          )
+          .join('\n\n'),
+      );
+    }
   } catch (error) {
-    writeStderrLine(getErrorMessage(error));
+    debugLogger.error(getErrorMessage(error));
     process.exit(1);
   }
 }
 
 export const listCommand: CommandModule = {
   command: 'list',
-  describe: t('Lists installed extensions.'),
-  builder: (yargs) => yargs,
-  handler: async () => {
-    await handleList();
+  describe: 'Lists installed extensions.',
+  builder: (yargs) =>
+    yargs.option('output-format', {
+      alias: 'o',
+      type: 'string',
+      describe: 'The format of the CLI output.',
+      choices: ['text', 'json'],
+      default: 'text',
+    }),
+  handler: async (argv) => {
+    await handleList({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      outputFormat: argv['output-format'] as 'text' | 'json',
+    });
+    await exitCli();
   },
 };

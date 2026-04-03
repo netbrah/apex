@@ -4,23 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ToolInvocation, ToolResult } from './tools.js';
-import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
+import {
+  BaseDeclarativeTool,
+  BaseToolInvocation,
+  Kind,
+  type ToolInvocation,
+  type ToolResult,
+  type PolicyUpdateOptions,
+  type ToolConfirmationOutcome,
+} from './tools.js';
 import { makeRelative, shortenPath } from '../utils/paths.js';
-import { isSubpaths, isSubpath } from '../utils/paths.js';
 import type { Config } from '../config/config.js';
-import type { PermissionDecision } from '../permissions/types.js';
 import { DEFAULT_FILE_FILTERING_OPTIONS } from '../config/constants.js';
 import { ToolErrorType } from './tool-error.js';
-import { ToolDisplayNames, ToolNames } from './tool-names.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-import { Storage } from '../config/storage.js';
-
-const debugLogger = createDebugLogger('LS');
-
-const MAX_ENTRY_COUNT = 100;
+import { LS_TOOL_NAME, LS_DISPLAY_NAME } from './tool-names.js';
+import { buildDirPathArgsPattern } from '../policy/utils.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { LS_DEFINITION } from './definitions/coreTools.js';
+import { resolveToolDeclaration } from './definitions/resolver.js';
+import { discoverJitContext, appendJitContext } from './jit-context.js';
 
 /**
  * Parameters for the LS tool
@@ -29,7 +34,7 @@ export interface LSToolParams {
   /**
    * The absolute path to the directory to list
    */
-  path: string;
+  dir_path: string;
 
   /**
    * Array of glob patterns to ignore (optional)
@@ -41,7 +46,7 @@ export interface LSToolParams {
    */
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_apex_ignore?: boolean;
+    respect_gemini_ignore?: boolean;
   };
 }
 
@@ -79,8 +84,11 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
   constructor(
     private readonly config: Config,
     params: LSToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ) {
-    super(params);
+    super(params, messageBus, _toolName, _toolDisplayName);
   }
 
   /**
@@ -113,30 +121,18 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
    */
   getDescription(): string {
     const relativePath = makeRelative(
-      this.params.path,
+      this.params.dir_path,
       this.config.getTargetDir(),
     );
     return shortenPath(relativePath);
   }
 
-  /**
-   * Returns 'ask' for paths outside the workspace/userSkills directories,
-   * so that external directory listings require user confirmation.
-   */
-  override async getDefaultPermission(): Promise<PermissionDecision> {
-    const dirPath = path.resolve(this.params.path);
-    const workspaceContext = this.config.getWorkspaceContext();
-    const userSkillsDirs = this.config.storage.getUserSkillsDirs();
-    const userExtensionsDir = Storage.getUserExtensionsDir();
-
-    if (
-      workspaceContext.isPathWithinWorkspace(dirPath) ||
-      isSubpaths(userSkillsDirs, dirPath) ||
-      isSubpath(userExtensionsDir, dirPath)
-    ) {
-      return 'allow';
-    }
-    return 'ask';
+  override getPolicyUpdateOptions(
+    _outcome: ToolConfirmationOutcome,
+  ): PolicyUpdateOptions | undefined {
+    return {
+      argsPattern: buildDirPathArgsPattern(this.params.dir_path),
+    };
   }
 
   // Helper for consistent error formatting
@@ -147,7 +143,6 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
   ): ToolResult {
     return {
       llmContent,
-      // Keep returnDisplay simpler in core logic
       returnDisplay: `Error: ${returnDisplay}`,
       error: {
         message: llmContent,
@@ -161,30 +156,50 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
    * @returns Result of the LS operation
    */
   async execute(_signal: AbortSignal): Promise<ToolResult> {
+    const resolvedDirPath = path.resolve(
+      this.config.getTargetDir(),
+      this.params.dir_path,
+    );
+
+    const validationError = this.config.validatePathAccess(
+      resolvedDirPath,
+      'read',
+    );
+    if (validationError) {
+      return {
+        llmContent: validationError,
+        returnDisplay: 'Path not in workspace.',
+        error: {
+          message: validationError,
+          type: ToolErrorType.PATH_NOT_IN_WORKSPACE,
+        },
+      };
+    }
+
     try {
-      const stats = await fs.stat(this.params.path);
+      const stats = await fs.stat(resolvedDirPath);
       if (!stats) {
         // fs.statSync throws on non-existence, so this check might be redundant
         // but keeping for clarity. Error message adjusted.
         return this.errorResult(
-          `Error: Directory not found or inaccessible: ${this.params.path}`,
+          `Error: Directory not found or inaccessible: ${resolvedDirPath}`,
           `Directory not found or inaccessible.`,
           ToolErrorType.FILE_NOT_FOUND,
         );
       }
       if (!stats.isDirectory()) {
         return this.errorResult(
-          `Error: Path is not a directory: ${this.params.path}`,
+          `Error: Path is not a directory: ${resolvedDirPath}`,
           `Path is not a directory.`,
           ToolErrorType.PATH_IS_NOT_A_DIRECTORY,
         );
       }
 
-      const files = await fs.readdir(this.params.path);
+      const files = await fs.readdir(resolvedDirPath);
       if (files.length === 0) {
         // Changed error message to be more neutral for LLM
         return {
-          llmContent: `Directory ${this.params.path} is empty.`,
+          llmContent: `Directory ${resolvedDirPath} is empty.`,
           returnDisplay: `Directory is empty.`,
         };
       }
@@ -192,21 +207,21 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
       const relativePaths = files.map((file) =>
         path.relative(
           this.config.getTargetDir(),
-          path.join(this.params.path, file),
+          path.join(resolvedDirPath, file),
         ),
       );
 
       const fileDiscovery = this.config.getFileService();
-      const { filteredPaths, gitIgnoredCount, apexIgnoredCount } =
+      const { filteredPaths, ignoredCount } =
         fileDiscovery.filterFilesWithReport(relativePaths, {
           respectGitIgnore:
             this.params.file_filtering_options?.respect_git_ignore ??
             this.config.getFileFilteringOptions().respectGitIgnore ??
             DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-          respectApexIgnore:
-            this.params.file_filtering_options?.respect_apex_ignore ??
-            this.config.getFileFilteringOptions().respectApexIgnore ??
-            DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
+          respectGeminiIgnore:
+            this.params.file_filtering_options?.respect_gemini_ignore ??
+            this.config.getFileFilteringOptions().respectGeminiIgnore ??
+            DEFAULT_FILE_FILTERING_OPTIONS.respectGeminiIgnore,
         });
 
       const entries = [];
@@ -229,7 +244,7 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
           });
         } catch (error) {
           // Log error internally but don't fail the whole listing
-          debugLogger.warn(`Error accessing ${fullPath}: ${error}`);
+          debugLogger.debug(`Error accessing ${fullPath}: ${error}`);
         }
       }
 
@@ -240,49 +255,40 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
         return a.name.localeCompare(b.name);
       });
 
-      const totalEntryCount = entries.length;
-      const entryLimit = Math.min(
-        MAX_ENTRY_COUNT,
-        this.config.getTruncateToolOutputLines(),
-      );
-      const truncated = totalEntryCount > entryLimit;
-
-      const entriesToShow = truncated ? entries.slice(0, entryLimit) : entries;
-
-      const directoryContent = entriesToShow
-        .map((entry) => `${entry.isDirectory ? '[DIR] ' : ''}${entry.name}`)
+      // Create formatted content for LLM
+      const directoryContent = entries
+        .map((entry) => {
+          if (entry.isDirectory) {
+            return `[DIR] ${entry.name}`;
+          }
+          return `${entry.name} (${entry.size} bytes)`;
+        })
         .join('\n');
 
-      let resultMessage = `Listed ${totalEntryCount} item(s) in ${this.params.path}:\n---\n${directoryContent}`;
-
-      if (truncated) {
-        const omittedEntries = totalEntryCount - entryLimit;
-        const entryTerm = omittedEntries === 1 ? 'item' : 'items';
-        resultMessage += `\n---\n[${omittedEntries} ${entryTerm} truncated] ...`;
+      let resultMessage = `Directory listing for ${resolvedDirPath}:\n${directoryContent}`;
+      if (ignoredCount > 0) {
+        resultMessage += `\n\n(${ignoredCount} ignored)`;
       }
 
-      const ignoredMessages = [];
-      if (gitIgnoredCount > 0) {
-        ignoredMessages.push(`${gitIgnoredCount} git-ignored`);
-      }
-      if (apexIgnoredCount > 0) {
-        ignoredMessages.push(`${apexIgnoredCount} apex-ignored`);
-      }
-      if (ignoredMessages.length > 0) {
-        resultMessage += `\n\n(${ignoredMessages.join(', ')})`;
+      // Discover JIT subdirectory context for the listed directory
+      const jitContext = await discoverJitContext(this.config, resolvedDirPath);
+      if (jitContext) {
+        resultMessage = appendJitContext(resultMessage, jitContext);
       }
 
-      let displayMessage = `Listed ${totalEntryCount} item(s)`;
-      if (ignoredMessages.length > 0) {
-        displayMessage += ` (${ignoredMessages.join(', ')})`;
-      }
-      if (truncated) {
-        displayMessage += ' (truncated)';
+      let displayMessage = `Listed ${entries.length} item(s).`;
+      if (ignoredCount > 0) {
+        displayMessage += ` (${ignoredCount} ignored)`;
       }
 
       return {
         llmContent: resultMessage,
-        returnDisplay: displayMessage,
+        returnDisplay: {
+          summary: displayMessage,
+          files: entries.map(
+            (entry) => `${entry.isDirectory ? '[DIR] ' : ''}${entry.name}`,
+          ),
+        },
       };
     } catch (error) {
       const errorMsg = `Error listing directory: ${error instanceof Error ? error.message : String(error)}`;
@@ -299,49 +305,21 @@ class LSToolInvocation extends BaseToolInvocation<LSToolParams, ToolResult> {
  * Implementation of the LS tool logic
  */
 export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
-  static readonly Name = ToolNames.LS;
+  static readonly Name = LS_TOOL_NAME;
 
-  constructor(private config: Config) {
+  constructor(
+    private config: Config,
+    messageBus: MessageBus,
+  ) {
     super(
       LSTool.Name,
-      ToolDisplayNames.LS,
-      'Lists the names of files and subdirectories directly within a specified directory path. Can optionally ignore entries matching provided glob patterns.',
+      LS_DISPLAY_NAME,
+      LS_DEFINITION.base.description!,
       Kind.Search,
-      {
-        properties: {
-          path: {
-            description:
-              'The absolute path to the directory to list (must be absolute, not relative)',
-            type: 'string',
-          },
-          ignore: {
-            description: 'List of glob patterns to ignore',
-            items: {
-              type: 'string',
-            },
-            type: 'array',
-          },
-          file_filtering_options: {
-            description:
-              'Optional: Whether to respect ignore patterns from .gitignore or .apexignore',
-            type: 'object',
-            properties: {
-              respect_git_ignore: {
-                description:
-                  'Optional: Whether to respect .gitignore patterns when listing files. Only available in git repositories. Defaults to true.',
-                type: 'boolean',
-              },
-              respect_apex_ignore: {
-                description:
-                  'Optional: Whether to respect .apexignore patterns when listing files. Defaults to true.',
-                type: 'boolean',
-              },
-            },
-          },
-        },
-        required: ['path'],
-        type: 'object',
-      },
+      LS_DEFINITION.base.parametersJsonSchema,
+      messageBus,
+      true,
+      false,
     );
   }
 
@@ -353,16 +331,29 @@ export class LSTool extends BaseDeclarativeTool<LSToolParams, ToolResult> {
   protected override validateToolParamValues(
     params: LSToolParams,
   ): string | null {
-    if (!path.isAbsolute(params.path)) {
-      return `Path must be absolute: ${params.path}`;
-    }
-
-    return null;
+    const resolvedPath = path.resolve(
+      this.config.getTargetDir(),
+      params.dir_path,
+    );
+    return this.config.validatePathAccess(resolvedPath, 'read');
   }
 
   protected createInvocation(
     params: LSToolParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ): ToolInvocation<LSToolParams, ToolResult> {
-    return new LSToolInvocation(this.config, params);
+    return new LSToolInvocation(
+      this.config,
+      params,
+      messageBus ?? this.messageBus,
+      _toolName,
+      _toolDisplayName,
+    );
+  }
+
+  override getSchema(modelId?: string) {
+    return resolveToolDeclaration(LS_DEFINITION, modelId);
   }
 }

@@ -12,28 +12,20 @@ import {
   CommandKind,
 } from './types.js';
 import { MessageType } from '../types.js';
-import { t, getCurrentLanguage } from '../../i18n/index.js';
 
 export const docsCommand: SlashCommand = {
   name: 'docs',
-  get description() {
-    return t('open full Apex documentation in your browser');
-  },
+  description: 'Open full Gemini CLI documentation in your browser',
   kind: CommandKind.BUILT_IN,
+  autoExecute: true,
   action: async (context: CommandContext): Promise<void> => {
-    const langPath = getCurrentLanguage()?.startsWith('zh') ? 'zh' : 'en';
-    const docsUrl = `https://apex-code.dev/docs/${langPath}`;
+    const docsUrl = 'https://goo.gle/gemini-cli-docs';
 
     if (process.env['SANDBOX'] && process.env['SANDBOX'] !== 'sandbox-exec') {
       context.ui.addItem(
         {
           type: MessageType.INFO,
-          text: t(
-            'Please open the following URL in your browser to view the documentation:\n{{url}}',
-            {
-              url: docsUrl,
-            },
-          ),
+          text: `Please open the following URL in your browser to view the documentation:\n${docsUrl}`,
         },
         Date.now(),
       );
@@ -41,9 +33,7 @@ export const docsCommand: SlashCommand = {
       context.ui.addItem(
         {
           type: MessageType.INFO,
-          text: t('Opening documentation in your browser: {{url}}', {
-            url: docsUrl,
-          }),
+          text: `Opening documentation in your browser: ${docsUrl}`,
         },
         Date.now(),
       );

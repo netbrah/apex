@@ -4,84 +4,84 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SlashCommand } from './types.js';
-import { CommandKind } from './types.js';
-import { t } from '../../i18n/index.js';
 import {
   uiTelemetryService,
   SessionEndReason,
   SessionStartSource,
-  ToolNames,
-  SkillTool,
-  type PermissionMode,
+  flushTelemetry,
+  resetBrowserSession,
 } from '@apex-code/apex-core';
+import { CommandKind, type SlashCommand } from './types.js';
+import { MessageType } from '../types.js';
+import { randomUUID } from 'node:crypto';
 
 export const clearCommand: SlashCommand = {
   name: 'clear',
-  altNames: ['reset', 'new'],
-  get description() {
-    return t('Clear conversation history and free up context');
-  },
+  description: 'Clear the screen and conversation history',
   kind: CommandKind.BUILT_IN,
+  autoExecute: true,
   action: async (context, _args) => {
-    const { config } = context.services;
+    const geminiClient = context.services.agentContext?.geminiClient;
+    const config = context.services.agentContext?.config;
 
+    // Fire SessionEnd hook before clearing
+    const hookSystem = config?.getHookSystem();
+    if (hookSystem) {
+      await hookSystem.fireSessionEndEvent(SessionEndReason.Clear);
+    }
+
+    // Reset user steering hints
+    config?.injectionService.clear();
+
+    // Start a new conversation recording with a new session ID
+    // We MUST do this before calling resetChat() so the new ChatRecordingService
+    // initialized by GeminiChat picks up the new session ID.
+    let newSessionId: string | undefined;
     if (config) {
-      // Fire SessionEnd event (non-blocking to avoid UI lag)
-      config
-        .getHookSystem()
-        ?.fireSessionEndEvent(SessionEndReason.Clear)
-        .catch((err) => {
-          config.getDebugLogger().warn(`SessionEnd hook failed: ${err}`);
-        });
+      newSessionId = randomUUID();
+      config.setSessionId(newSessionId);
+    }
 
-      const newSessionId = config.startNewSession();
+    if (geminiClient) {
+      context.ui.setDebugMessage('Clearing terminal and resetting chat.');
 
-      // Reset UI telemetry metrics for the new session
-      uiTelemetryService.reset();
+      // Close persistent browser sessions before resetting chat
+      await resetBrowserSession();
 
-      // Clear loaded-skills tracking so /context doesn't show stale data
-      const skillTool = config
-        .getToolRegistry()
-        ?.getAllTools()
-        .find((tool) => tool.name === ToolNames.SKILL);
-      if (skillTool instanceof SkillTool) {
-        skillTool.clearLoadedSkills();
-      }
-
-      if (newSessionId && context.session.startNewSession) {
-        context.session.startNewSession(newSessionId);
-      }
-
-      // Clear UI first for immediate responsiveness
-      context.ui.clear();
-
-      const geminiClient = config.getGeminiClient();
-      if (geminiClient) {
-        context.ui.setDebugMessage(
-          t('Starting a new session, resetting chat, and clearing terminal.'),
-        );
-        // If resetChat fails, the exception will propagate and halt the command,
-        // which is the correct behavior to signal a failure to the user.
-        await geminiClient.resetChat();
-      } else {
-        context.ui.setDebugMessage(t('Starting a new session and clearing.'));
-      }
-
-      // Fire SessionStart event (non-blocking to avoid UI lag)
-      config
-        .getHookSystem()
-        ?.fireSessionStartEvent(
-          SessionStartSource.Clear,
-          config.getModel() ?? '',
-          String(config.getApprovalMode()) as PermissionMode,
-        )
-        .catch((err) => {
-          config.getDebugLogger().warn(`SessionStart hook failed: ${err}`);
-        });
+      // If resetChat fails, the exception will propagate and halt the command,
+      // which is the correct behavior to signal a failure to the user.
+      await geminiClient.resetChat();
     } else {
-      context.ui.setDebugMessage(t('Starting a new session and clearing.'));
-      context.ui.clear();
+      context.ui.setDebugMessage('Clearing terminal.');
+    }
+
+    // Fire SessionStart hook after clearing
+    let result;
+    if (hookSystem) {
+      result = await hookSystem.fireSessionStartEvent(SessionStartSource.Clear);
+    }
+
+    // Give the event loop a chance to process any pending telemetry operations
+    // This ensures logger.emit() calls have fully propagated to the BatchLogRecordProcessor
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // Flush telemetry to ensure hooks are written to disk immediately
+    // This is critical for tests and environments with I/O latency
+    if (config) {
+      await flushTelemetry(config);
+    }
+
+    uiTelemetryService.clear(newSessionId);
+    context.ui.clear();
+
+    if (result?.systemMessage) {
+      context.ui.addItem(
+        {
+          type: MessageType.INFO,
+          text: result.systemMessage,
+        },
+        Date.now(),
+      );
     }
   },
 };

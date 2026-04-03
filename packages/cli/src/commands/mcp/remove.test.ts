@@ -4,112 +4,259 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import yargs from 'yargs';
-import { loadSettings, SettingScope } from '../../config/settings.js';
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
+import yargs, { type Argv } from 'yargs';
+import { SettingScope, type LoadedSettings } from '../../config/settings.js';
 import { removeCommand } from './remove.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { APEX_DIR, debugLogger } from '@apex-code/apex-core';
 
-const mockWriteStdoutLine = vi.hoisted(() => vi.fn());
-const mockWriteStderrLine = vi.hoisted(() => vi.fn());
-const mockDeleteCredentials = vi.hoisted(() => vi.fn());
+vi.mock('fs', async (importOriginal) => {
+  const actualFs = await importOriginal<typeof fs>();
+  return {
+    ...actualFs,
+    existsSync: vi.fn(actualFs.existsSync),
+    readFileSync: vi.fn(actualFs.readFileSync),
+    writeFileSync: vi.fn(actualFs.writeFileSync),
+    mkdirSync: vi.fn(actualFs.mkdirSync),
+  };
+});
 
-vi.mock('../../utils/stdioHelpers.js', () => ({
-  writeStdoutLine: mockWriteStdoutLine,
-  writeStderrLine: mockWriteStderrLine,
-  clearScreen: vi.fn(),
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
-vi.mock('fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fs/promises')>();
-  return {
-    ...actual,
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-  };
-});
+vi.mock('../utils.js', () => ({
+  exitCli: vi.fn(),
+}));
 
-vi.mock('../../config/settings.js', async () => {
-  const actual = await vi.importActual('../../config/settings.js');
-  return {
-    ...actual,
-    loadSettings: vi.fn(),
-  };
-});
-
-vi.mock('@apex-code/apex-core', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@apex-code/apex-core')>();
-  return {
-    ...actual,
-    MCPOAuthTokenStorage: vi.fn(() => ({
-      deleteCredentials: mockDeleteCredentials,
-    })),
-  };
-});
-
-const mockedLoadSettings = loadSettings as vi.Mock;
+vi.mock('../../config/trustedFolders.js', () => ({
+  isWorkspaceTrusted: vi.fn(() => ({
+    isTrusted: true,
+    source: undefined,
+  })),
+  isFolderTrustEnabled: vi.fn(() => false),
+}));
 
 describe('mcp remove command', () => {
-  let parser: yargs.Argv;
-  let mockSetValue: vi.Mock;
-  let mockSettings: Record<string, unknown>;
+  describe('unit tests with mocks', () => {
+    let parser: Argv;
+    let mockSetValue: Mock;
+    let mockSettings: Record<string, unknown>;
 
-  beforeEach(() => {
-    vi.resetAllMocks();
-    const yargsInstance = yargs([]).command(removeCommand);
-    parser = yargsInstance;
-    mockSetValue = vi.fn();
-    mockSettings = {
-      mcpServers: {
-        'test-server': {
-          command: 'echo "hello"',
+    beforeEach(async () => {
+      vi.resetAllMocks();
+
+      mockSetValue = vi.fn();
+      mockSettings = {
+        mcpServers: {
+          'test-server': {
+            command: 'echo "hello"',
+          },
         },
-      },
-    };
-    mockedLoadSettings.mockReturnValue({
-      forScope: () => ({ settings: mockSettings }),
-      setValue: mockSetValue,
+      };
+
+      vi.spyOn(
+        await import('../../config/settings.js'),
+        'loadSettings',
+      ).mockReturnValue({
+        forScope: () => ({ settings: mockSettings }),
+        setValue: mockSetValue,
+        workspace: { path: '/path/to/project' },
+        user: { path: '/home/user' },
+      } as unknown as LoadedSettings);
+
+      const yargsInstance = yargs([]).command(removeCommand);
+      parser = yargsInstance;
     });
-    mockWriteStdoutLine.mockClear();
-    mockDeleteCredentials.mockClear();
+
+    it('should remove a server from project settings', async () => {
+      await parser.parseAsync('remove test-server');
+
+      expect(mockSetValue).toHaveBeenCalledWith(
+        SettingScope.Workspace,
+        'mcpServers',
+        {},
+      );
+    });
+
+    it('should show a message if server not found', async () => {
+      const debugLogSpy = vi
+        .spyOn(debugLogger, 'log')
+        .mockImplementation(() => {});
+      await parser.parseAsync('remove non-existent-server');
+
+      expect(mockSetValue).not.toHaveBeenCalled();
+      expect(debugLogSpy).toHaveBeenCalledWith(
+        'Server "non-existent-server" not found in project settings.',
+      );
+      debugLogSpy.mockRestore();
+    });
   });
 
-  it('should remove a server from user settings by default', async () => {
-    await parser.parseAsync('remove test-server');
+  describe('integration tests with real file I/O', () => {
+    let tempDir: string;
+    let settingsDir: string;
+    let settingsPath: string;
+    let parser: Argv;
+    let cwdSpy: ReturnType<typeof vi.spyOn>;
 
-    expect(mockSetValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'mcpServers',
-      {},
-    );
-  });
+    beforeEach(() => {
+      vi.resetAllMocks();
+      vi.restoreAllMocks();
 
-  it('should clean up OAuth tokens when removing a server', async () => {
-    await parser.parseAsync('remove test-server');
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-remove-test-'));
+      settingsDir = path.join(tempDir, APEX_DIR);
+      settingsPath = path.join(settingsDir, 'settings.json');
+      fs.mkdirSync(settingsDir, { recursive: true });
 
-    expect(mockDeleteCredentials).toHaveBeenCalledWith('test-server');
-  });
+      cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
 
-  it('should not fail if OAuth token cleanup fails', async () => {
-    mockDeleteCredentials.mockRejectedValue(new Error('cleanup failed'));
+      parser = yargs([]).command(removeCommand);
+    });
 
-    await parser.parseAsync('remove test-server');
+    afterEach(() => {
+      cwdSpy.mockRestore();
 
-    // Server should still be removed from settings despite token cleanup failure
-    expect(mockSetValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'mcpServers',
-      {},
-    );
-  });
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
 
-  it('should not clean up OAuth tokens if server not found', async () => {
-    await parser.parseAsync('remove non-existent-server');
+    it('should actually remove a server from the settings file', async () => {
+      const originalContent = `{
+        "mcpServers": {
+          "server-to-keep": {
+            "command": "node",
+            "args": ["keep.js"]
+          },
+          "server-to-remove": {
+            "command": "node",
+            "args": ["remove.js"]
+          }
+        }
+      }`;
+      fs.writeFileSync(settingsPath, originalContent, 'utf-8');
 
-    expect(mockSetValue).not.toHaveBeenCalled();
-    expect(mockDeleteCredentials).not.toHaveBeenCalled();
-    expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-      'Server "non-existent-server" not found in user settings.',
-    );
+      const debugLogSpy = vi
+        .spyOn(debugLogger, 'log')
+        .mockImplementation(() => {});
+      await parser.parseAsync('remove server-to-remove');
+
+      const updatedContent = fs.readFileSync(settingsPath, 'utf-8');
+      expect(updatedContent).toContain('"server-to-keep"');
+      expect(updatedContent).not.toContain('"server-to-remove"');
+
+      expect(debugLogSpy).toHaveBeenCalledWith(
+        'Server "server-to-remove" removed from project settings.',
+      );
+
+      debugLogSpy.mockRestore();
+    });
+
+    it('should preserve comments when removing a server', async () => {
+      const originalContent = `{
+        "mcpServers": {
+          // Server to keep
+          "context7": {
+            "command": "node",
+            "args": ["server.js"]
+          },
+          // Server to remove
+          "oldServer": {
+            "command": "old",
+            "args": ["old.js"]
+          }
+        }
+      }`;
+      fs.writeFileSync(settingsPath, originalContent, 'utf-8');
+
+      const debugLogSpy = vi
+        .spyOn(debugLogger, 'log')
+        .mockImplementation(() => {});
+      await parser.parseAsync('remove oldServer');
+
+      const updatedContent = fs.readFileSync(settingsPath, 'utf-8');
+      expect(updatedContent).toContain('// Server to keep');
+      expect(updatedContent).toContain('"context7"');
+      expect(updatedContent).not.toContain('"oldServer"');
+      expect(updatedContent).toContain('// Server to remove');
+
+      debugLogSpy.mockRestore();
+    });
+
+    it('should handle removing the only server', async () => {
+      const originalContent = `{
+        "mcpServers": {
+          "only-server": {
+            "command": "node",
+            "args": ["server.js"]
+          }
+        }
+      }`;
+      fs.writeFileSync(settingsPath, originalContent, 'utf-8');
+
+      const debugLogSpy = vi
+        .spyOn(debugLogger, 'log')
+        .mockImplementation(() => {});
+      await parser.parseAsync('remove only-server');
+
+      const updatedContent = fs.readFileSync(settingsPath, 'utf-8');
+      expect(updatedContent).toContain('"mcpServers"');
+      expect(updatedContent).not.toContain('"only-server"');
+      expect(updatedContent).toMatch(/"mcpServers"\s*:\s*\{\s*\}/);
+
+      debugLogSpy.mockRestore();
+    });
+
+    it('should preserve other settings when removing a server', async () => {
+      // Create settings file with other settings
+      // Note: "model" will be migrated to "model": { "name": ... } format
+      const originalContent = `{
+        "model": {
+          "name": "gemini-2.5-pro"
+        },
+        "mcpServers": {
+          "server1": {
+            "command": "node",
+            "args": ["s1.js"]
+          },
+          "server2": {
+            "command": "node",
+            "args": ["s2.js"]
+          }
+        },
+        "ui": {
+          "theme": "dark"
+        }
+      }`;
+      fs.writeFileSync(settingsPath, originalContent, 'utf-8');
+
+      const debugLogSpy = vi
+        .spyOn(debugLogger, 'log')
+        .mockImplementation(() => {});
+      await parser.parseAsync('remove server1');
+
+      const updatedContent = fs.readFileSync(settingsPath, 'utf-8');
+      expect(updatedContent).toContain('"model"');
+      expect(updatedContent).toContain('"gemini-2.5-pro"');
+      expect(updatedContent).toContain('"server2"');
+      expect(updatedContent).toContain('"ui"');
+      expect(updatedContent).toContain('"theme": "dark"');
+      expect(updatedContent).not.toContain('"server1"');
+
+      debugLogSpy.mockRestore();
+    });
   });
 });

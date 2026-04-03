@@ -5,47 +5,38 @@
  */
 
 import type React from 'react';
-import { Box, Text } from 'ink';
 import { StatsDisplay } from './StatsDisplay.js';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
-import { theme } from '../semantic-colors.js';
-import { t } from '../../i18n/index.js';
+import { escapeShellArg, getShellConfiguration } from '@apex-code/apex-core';
 
 interface SessionSummaryDisplayProps {
   duration: string;
-  width: number;
 }
 
 export const SessionSummaryDisplay: React.FC<SessionSummaryDisplayProps> = ({
   duration,
-  width,
 }) => {
-  const config = useConfig();
   const { stats } = useSessionStats();
+  const config = useConfig();
+  const { shell } = getShellConfiguration();
 
-  // Only show the resume message if there were messages in the session AND
-  // chat recording is enabled (otherwise there is nothing to resume).
-  const hasMessages = stats.promptCount > 0;
-  const canResume = !!config.getChatRecordingService();
+  const worktreeSettings = config.getWorktreeSettings();
+
+  const escapedSessionId = escapeShellArg(stats.sessionId, shell);
+  let footer = `To resume this session: gemini --resume ${escapedSessionId}`;
+
+  if (worktreeSettings) {
+    footer =
+      `To resume work in this worktree: cd ${escapeShellArg(worktreeSettings.path, shell)} && gemini --resume ${escapedSessionId}\n` +
+      `To remove manually: git worktree remove ${escapeShellArg(worktreeSettings.path, shell)}`;
+  }
 
   return (
-    <>
-      <StatsDisplay
-        title={t('Agent powering down. Goodbye!')}
-        duration={duration}
-        width={width}
-      />
-      {hasMessages && canResume && (
-        <Box marginTop={1}>
-          <Text color={theme.text.secondary}>
-            {t('To continue this session, run')}{' '}
-            <Text color={theme.text.accent}>
-              apex --resume {stats.sessionId}
-            </Text>
-          </Text>
-        </Box>
-      )}
-    </>
+    <StatsDisplay
+      title="Agent powering down. Goodbye!"
+      duration={duration}
+      footer={footer}
+    />
   );
 };

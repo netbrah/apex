@@ -6,14 +6,17 @@
 
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import type { PolicyEngine } from '../policy/policy-engine.js';
+import { PolicyDecision } from '../policy/types.js';
 import { MessageBusType, type Message } from './types.js';
 import { safeJsonStringify } from '../utils/safeJsonStringify.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('TRUSTED_HOOKS');
+import { debugLogger } from '../utils/debugLogger.js';
 
 export class MessageBus extends EventEmitter {
-  constructor(private readonly debug = false) {
+  constructor(
+    private readonly policyEngine: PolicyEngine,
+    private readonly debug = false,
+  ) {
     super();
     this.debug = debug;
   }
@@ -37,6 +40,37 @@ export class MessageBus extends EventEmitter {
     this.emit(message.type, message);
   }
 
+  /**
+   * Derives a child message bus scoped to a specific subagent.
+   */
+  derive(subagentName: string): MessageBus {
+    const bus = new MessageBus(this.policyEngine, this.debug);
+
+    bus.publish = async (message: Message) => {
+      if (message.type === MessageBusType.TOOL_CONFIRMATION_REQUEST) {
+        return this.publish({
+          ...message,
+          subagent: message.subagent
+            ? `${subagentName}/${message.subagent}`
+            : subagentName,
+        });
+      }
+      return this.publish(message);
+    };
+
+    // Delegate subscription methods to the parent bus
+    bus.subscribe = this.subscribe.bind(this);
+    bus.unsubscribe = this.unsubscribe.bind(this);
+    bus.on = this.on.bind(this);
+    bus.off = this.off.bind(this);
+    bus.emit = this.emit.bind(this);
+    bus.once = this.once.bind(this);
+    bus.removeListener = this.removeListener.bind(this);
+    bus.listenerCount = this.listenerCount.bind(this);
+
+    return bus;
+  }
+
   async publish(message: Message): Promise<void> {
     if (this.debug) {
       debugLogger.debug(`[MESSAGE_BUS] publish: ${safeJsonStringify(message)}`);
@@ -49,15 +83,56 @@ export class MessageBus extends EventEmitter {
       }
 
       if (message.type === MessageBusType.TOOL_CONFIRMATION_REQUEST) {
-        // Allow all tool confirmations by default (policy engine removed)
-        this.emitMessage({
-          type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
-          correlationId: message.correlationId,
-          confirmed: true,
-        });
-      } else if (message.type === MessageBusType.HOOK_EXECUTION_REQUEST) {
-        // Allow all hook executions by default (policy engine removed)
-        this.emitMessage(message);
+        const { decision: policyDecision } = await this.policyEngine.check(
+          message.toolCall,
+          message.serverName,
+          message.toolAnnotations,
+          message.subagent,
+        );
+
+        const decision = message.forcedDecision ?? policyDecision;
+
+        switch (decision) {
+          case PolicyDecision.ALLOW:
+            // Directly emit the response instead of recursive publish
+            this.emitMessage({
+              type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
+              correlationId: message.correlationId,
+              confirmed: true,
+            });
+            break;
+          case PolicyDecision.DENY:
+            // Emit both rejection and response messages
+            this.emitMessage({
+              type: MessageBusType.TOOL_POLICY_REJECTION,
+              toolCall: message.toolCall,
+            });
+            this.emitMessage({
+              type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
+              correlationId: message.correlationId,
+              confirmed: false,
+            });
+            break;
+          case PolicyDecision.ASK_USER:
+            // Pass through to UI for user confirmation if any listeners exist.
+            // If no listeners are registered (e.g., headless/ACP flows),
+            // immediately request user confirmation to avoid long timeouts.
+            if (
+              this.listenerCount(MessageBusType.TOOL_CONFIRMATION_REQUEST) > 0
+            ) {
+              this.emitMessage(message);
+            } else {
+              this.emitMessage({
+                type: MessageBusType.TOOL_CONFIRMATION_RESPONSE,
+                correlationId: message.correlationId,
+                confirmed: false,
+                requiresUserConfirmation: true,
+              });
+            }
+            break;
+          default:
+            throw new Error(`Unknown policy decision: ${decision}`);
+        }
       } else {
         // For all other message types, just emit them
         this.emitMessage(message);
@@ -90,17 +165,10 @@ export class MessageBus extends EventEmitter {
     request: Omit<TRequest, 'correlationId'>,
     responseType: TResponse['type'],
     timeoutMs: number = 60000,
-    signal?: AbortSignal,
   ): Promise<TResponse> {
     const correlationId = randomUUID();
 
     return new Promise<TResponse>((resolve, reject) => {
-      // Check if already aborted
-      if (signal?.aborted) {
-        reject(new Error('Request aborted'));
-        return;
-      }
-
       const timeoutId = setTimeout(() => {
         cleanup();
         reject(new Error(`Request timed out waiting for ${responseType}`));
@@ -109,19 +177,7 @@ export class MessageBus extends EventEmitter {
       const cleanup = () => {
         clearTimeout(timeoutId);
         this.unsubscribe(responseType, responseHandler);
-        if (signal) {
-          signal.removeEventListener('abort', abortHandler);
-        }
       };
-
-      const abortHandler = () => {
-        cleanup();
-        reject(new Error('Request aborted'));
-      };
-
-      if (signal) {
-        signal.addEventListener('abort', abortHandler);
-      }
 
       const responseHandler = (response: TResponse) => {
         // Check if this response matches our request
@@ -138,6 +194,7 @@ export class MessageBus extends EventEmitter {
       this.subscribe<TResponse>(responseType, responseHandler);
 
       // Publish the request with correlation ID
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-type-assertion
       this.publish({ ...request, correlationId } as TRequest);
     });
   }

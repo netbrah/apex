@@ -1,6 +1,6 @@
 {
   "name": "@apex-code/sdk",
-  "version": "0.1.6",
+  "version": "1.2.0",
   "description": "TypeScript SDK for programmatic access to apex CLI",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

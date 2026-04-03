@@ -4,8 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { MockInstance } from 'vitest';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  type MockInstance,
+} from 'vitest';
 import { ideCommand } from './ideCommand.js';
 import { type CommandContext } from './types.js';
 import { IDE_DEFINITIONS } from '@apex-code/apex-core';
@@ -15,6 +22,7 @@ vi.mock('@apex-code/apex-core', async (importOriginal) => {
   const original = await importOriginal<typeof core>();
   return {
     ...original,
+    getOauthClient: vi.fn(original.getOauthClient),
     getIdeInstaller: vi.fn(original.getIdeInstaller),
     IdeClient: {
       getInstance: vi.fn(),
@@ -52,10 +60,12 @@ describe('ideCommand', () => {
         settings: {
           setValue: vi.fn(),
         },
-        config: {
-          getIdeMode: vi.fn(),
-          setIdeMode: vi.fn(),
-          getUsageStatisticsEnabled: vi.fn().mockReturnValue(false),
+        agentContext: {
+          config: {
+            getIdeMode: vi.fn(),
+            setIdeMode: vi.fn(),
+            getUsageStatisticsEnabled: vi.fn().mockReturnValue(false),
+          },
         },
       },
     } as unknown as CommandContext;
@@ -109,7 +119,7 @@ describe('ideCommand', () => {
         status: core.IDEConnectionStatus.Connected,
       });
       const command = await ideCommand();
-      const result = await command!.subCommands!.find(
+      const result = await command.subCommands!.find(
         (c) => c.name === 'status',
       )!.action!(mockContext, '');
       expect(vi.mocked(mockIdeClient.getConnectionStatus)).toHaveBeenCalled();
@@ -125,7 +135,7 @@ describe('ideCommand', () => {
         status: core.IDEConnectionStatus.Connecting,
       });
       const command = await ideCommand();
-      const result = await command!.subCommands!.find(
+      const result = await command.subCommands!.find(
         (c) => c.name === 'status',
       )!.action!(mockContext, '');
       expect(vi.mocked(mockIdeClient.getConnectionStatus)).toHaveBeenCalled();
@@ -140,7 +150,7 @@ describe('ideCommand', () => {
         status: core.IDEConnectionStatus.Disconnected,
       });
       const command = await ideCommand();
-      const result = await command!.subCommands!.find(
+      const result = await command.subCommands!.find(
         (c) => c.name === 'status',
       )!.action!(mockContext, '');
       expect(vi.mocked(mockIdeClient.getConnectionStatus)).toHaveBeenCalled();
@@ -158,7 +168,7 @@ describe('ideCommand', () => {
         details,
       });
       const command = await ideCommand();
-      const result = await command!.subCommands!.find(
+      const result = await command.subCommands!.find(
         (c) => c.name === 'status',
       )!.action!(mockContext, '');
       expect(vi.mocked(mockIdeClient.getConnectionStatus)).toHaveBeenCalled();
@@ -199,7 +209,7 @@ describe('ideCommand', () => {
         status: core.IDEConnectionStatus.Connected,
       });
 
-      const actionPromise = command!.subCommands!.find(
+      const actionPromise = command.subCommands!.find(
         (c) => c.name === 'install',
       )!.action!(mockContext, '');
       await vi.runAllTimersAsync();
@@ -238,7 +248,7 @@ describe('ideCommand', () => {
       });
 
       const command = await ideCommand();
-      await command!.subCommands!.find((c) => c.name === 'install')!.action!(
+      await command.subCommands!.find((c) => c.name === 'install')!.action!(
         mockContext,
         '',
       );

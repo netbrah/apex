@@ -4,277 +4,279 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ============================================================================
-// Configuration & Models
-// ============================================================================
-
-// Core configuration
+// Export config
 export * from './config/config.js';
-export { Storage } from './config/storage.js';
-
-// Permission system
-export * from './permissions/index.js';
-
-// Model configuration
-export {
-  DEFAULT_CODER_MODEL,
-  DEFAULT_FLASH_MODEL,
-  DEFAULT_EMBEDDING_MODEL,
-  MAINLINE_CODER_MODEL,
-} from './config/models.js';
-export {
-  type AvailableModel,
-  type ModelCapabilities,
-  type ModelConfig as ProviderModelConfig,
-  type ModelConfigCliInput,
-  type ModelConfigResolutionResult,
-  type ModelConfigSettingsInput,
-  type ModelConfigSourcesInput,
-  type ModelConfigValidationResult,
-  ModelRegistry,
-  type ModelGenerationConfig,
-  ModelsConfig,
-  type ModelsConfigOptions,
-  type ModelProvidersConfig,
-  type ModelSwitchMetadata,
-  type OnModelChangeCallback,
-  resolveModelConfig,
-  type ResolvedModelConfig,
-  validateModelConfig,
-} from './models/index.js';
-
-// Output formatting
-export * from './output/json-formatter.js';
+export * from './config/agent-loop-context.js';
+export * from './config/memory.js';
+export * from './config/defaultModelConfigs.js';
+export * from './config/models.js';
+export * from './config/constants.js';
 export * from './output/types.js';
+export * from './output/json-formatter.js';
+export * from './output/stream-json-formatter.js';
+export * from './policy/types.js';
+export * from './policy/policy-engine.js';
+export * from './policy/toml-loader.js';
+export * from './policy/config.js';
+export * from './policy/integrity.js';
+export * from './config/extensions/integrity.js';
+export * from './config/extensions/integrityTypes.js';
+export * from './billing/index.js';
+export * from './confirmation-bus/types.js';
+export * from './confirmation-bus/message-bus.js';
 
-// ============================================================================
-// Core Engine
-// ============================================================================
+// Export Commands logic
+export * from './commands/extensions.js';
+export * from './commands/restore.js';
+export * from './commands/init.js';
+export * from './commands/memory.js';
+export * from './commands/types.js';
 
+// Export Core Logic
+export * from './core/baseLlmClient.js';
 export * from './core/client.js';
 export * from './core/contentGenerator.js';
-export * from './core/coreToolScheduler.js';
-export * from './core/permission-helpers.js';
+export * from './core/loggingContentGenerator.js';
 export * from './core/geminiChat.js';
-export * from './core/geminiRequest.js';
 export * from './core/logger.js';
-export * from './core/nonInteractiveToolExecutor.js';
 export * from './core/prompts.js';
 export * from './core/tokenLimits.js';
 export * from './core/turn.js';
+export * from './core/geminiRequest.js';
+export * from './scheduler/scheduler.js';
+export * from './scheduler/types.js';
+export * from './scheduler/tool-executor.js';
+export * from './scheduler/policy.js';
+export * from './core/recordingContentGenerator.js';
 
-// ============================================================================
-// Tools
-// ============================================================================
+// Export Routing
+export * from './routing/routingStrategy.js';
+export * from './routing/modelRouterService.js';
 
-// Tool names and registry
-export * from './tools/tool-names.js';
-export * from './tools/tool-error.js';
-export * from './tools/tool-registry.js';
-export * from './tools/tools.js';
+export * from './fallback/types.js';
+export * from './fallback/handler.js';
 
-// Individual tools
-export * from './tools/edit.js';
-export * from './tools/exitPlanMode.js';
-export * from './tools/glob.js';
-export * from './tools/grep.js';
-export * from './tools/ls.js';
-export * from './tools/lsp.js';
-export * from './tools/mcp-client.js';
-export * from './tools/mcp-client-manager.js';
-export * from './tools/mcp-tool.js';
-export * from './tools/memoryTool.js';
-export * from './tools/read-file.js';
-export * from './tools/ripGrep.js';
-export * from './tools/sdk-control-client-transport.js';
-export * from './tools/shell.js';
-export * from './tools/skill.js';
-export * from './tools/agent.js';
-export * from './tools/todoWrite.js';
-export * from './tools/tool-error.js';
-export * from './tools/tool-registry.js';
-export * from './tools/web-fetch.js';
-export * from './tools/web-search/index.js';
-export * from './tools/write-file.js';
+export * from './code_assist/codeAssist.js';
+export * from './code_assist/oauth2.js';
+export * from './code_assist/server.js';
+export * from './code_assist/setup.js';
+export * from './code_assist/types.js';
+export * from './code_assist/telemetry.js';
+export * from './code_assist/admin/admin_controls.js';
+export * from './code_assist/admin/mcpUtils.js';
+export * from './core/apiKeyCredentialStorage.js';
 
-// ============================================================================
-// Services
-// ============================================================================
+// Export utilities
+export * from './utils/fetch.js';
+export { homedir, tmpdir } from './utils/paths.js';
+export * from './utils/paths.js';
+export * from './utils/checks.js';
+export * from './utils/headless.js';
+export * from './utils/schemaValidator.js';
+export * from './utils/errors.js';
+export * from './utils/fsErrorMessages.js';
+export * from './utils/exitCodes.js';
+export * from './utils/getFolderStructure.js';
+export * from './utils/memoryDiscovery.js';
+export * from './utils/getPty.js';
+export * from './utils/gitIgnoreParser.js';
+export * from './utils/gitUtils.js';
+export * from './utils/editor.js';
+export * from './utils/quotaErrorDetection.js';
+export * from './utils/userAccountManager.js';
+export * from './utils/authConsent.js';
+export * from './utils/googleQuotaErrors.js';
+export * from './utils/googleErrors.js';
+export * from './utils/fileUtils.js';
+export * from './utils/sessionOperations.js';
+export * from './utils/planUtils.js';
+export * from './utils/approvalModeUtils.js';
+export * from './utils/fileDiffUtils.js';
+export * from './utils/retry.js';
+export * from './utils/shell-utils.js';
+export {
+  PolicyDecision,
+  ApprovalMode,
+  PRIORITY_YOLO_ALLOW_ALL,
+} from './policy/types.js';
+export * from './utils/tool-utils.js';
+export * from './utils/terminalSerializer.js';
+export * from './utils/systemEncoding.js';
+export * from './utils/textUtils.js';
+export * from './utils/formatters.js';
+export * from './utils/generateContentResponseUtilities.js';
+export * from './utils/filesearch/fileSearch.js';
+export * from './utils/errorParsing.js';
+export * from './utils/fastAckHelper.js';
+export * from './utils/workspaceContext.js';
+export * from './utils/environmentContext.js';
+export * from './utils/ignorePatterns.js';
+export * from './utils/partUtils.js';
+export * from './utils/promptIdContext.js';
+export * from './utils/thoughtUtils.js';
+export * from './utils/secure-browser-launcher.js';
+export * from './utils/debugLogger.js';
+export * from './utils/events.js';
+export * from './utils/extensionLoader.js';
+export * from './utils/package.js';
+export * from './utils/version.js';
+export * from './utils/checkpointUtils.js';
+export * from './utils/secure-browser-launcher.js';
+export * from './utils/apiConversionUtils.js';
+export * from './utils/channel.js';
+export * from './utils/constants.js';
+export * from './utils/sessionUtils.js';
+export * from './utils/cache.js';
+export * from './utils/markdownUtils.js';
 
-export * from './services/chatRecordingService.js';
-export * from './services/toolOutputMaskingService.js';
+// Export services
 export * from './services/fileDiscoveryService.js';
-export * from './services/fileSystemService.js';
 export * from './services/gitService.js';
-export * from './services/gitWorktreeService.js';
-export * from './services/sessionService.js';
-export * from './services/shellExecutionService.js';
+export * from './services/FolderTrustDiscoveryService.js';
+export * from './services/chatRecordingService.js';
+export * from './services/fileSystemService.js';
+export * from './services/sandboxedFileSystemService.js';
+export * from './services/modelConfigService.js';
+export * from './sandbox/windows/WindowsSandboxManager.js';
+export * from './services/sessionSummaryUtils.js';
+export { startMemoryService } from './services/memoryService.js';
+export * from './context/memoryContextManager.js';
+export * from './services/trackerService.js';
+export * from './services/trackerTypes.js';
+export * from './services/keychainService.js';
+export * from './services/keychainTypes.js';
+export * from './skills/skillManager.js';
+export * from './skills/skillLoader.js';
 
-// ============================================================================
-// IDE Support
-// ============================================================================
-
+// Export IDE specific logic
 export * from './ide/ide-client.js';
 export * from './ide/ideContext.js';
 export * from './ide/ide-installer.js';
-export { IDE_DEFINITIONS, type IdeInfo } from './ide/detect-ide.js';
+export {
+  IDE_DEFINITIONS,
+  type IdeInfo,
+  isCloudShell,
+} from './ide/detect-ide.js';
 export * from './ide/constants.js';
 export * from './ide/types.js';
 
-// ============================================================================
-// LSP Support
-// ============================================================================
+// Export Shell Execution Service
+export * from './services/shellExecutionService.js';
+export * from './services/sandboxManager.js';
 
-export * from './lsp/constants.js';
-export * from './lsp/LspConfigLoader.js';
-export * from './lsp/LspConnectionFactory.js';
-export * from './lsp/LspResponseNormalizer.js';
-export * from './lsp/LspServerManager.js';
-export * from './lsp/NativeLspClient.js';
-export * from './lsp/NativeLspService.js';
-export * from './lsp/types.js';
+// Export Execution Lifecycle Service
+export * from './services/executionLifecycleService.js';
 
-// ============================================================================
-// MCP (Model Context Protocol)
-// ============================================================================
+// Export Injection Service
+export * from './config/injectionService.js';
 
+// Export base tool definitions
+export * from './tools/tools.js';
+export * from './tools/tool-error.js';
+export * from './tools/tool-registry.js';
+export * from './tools/tool-names.js';
+export * from './resources/resource-registry.js';
+
+// Export prompt logic
+export * from './prompts/mcp-prompts.js';
+
+// Export agent definitions
+export * from './agents/types.js';
+export * from './agents/agentLoader.js';
+export * from './agents/local-executor.js';
+export * from './agents/agent-scheduler.js';
+
+// Export browser session management
+export { resetBrowserSession } from './agents/browser/browserAgentFactory.js';
+// Export agent session interface
+export * from './agent/agent-session.js';
+export * from './agent/legacy-agent-session.js';
+export * from './agent/event-translator.js';
+export * from './agent/content-utils.js';
+// Agent event types — namespaced to avoid collisions with existing exports
+export type {
+  AgentEvent,
+  AgentEventCommon,
+  AgentEventData,
+  AgentEnd,
+  AgentEvents as AgentEventMap,
+  AgentEventType,
+  AgentProtocol,
+  AgentSend,
+  AgentStart,
+  ContentPart,
+  ErrorData,
+  StreamEndReason,
+  Trajectory,
+  Unsubscribe,
+  Usage as AgentUsage,
+  WithMeta,
+} from './agent/types.js';
+
+// Export specific tool logic
+export * from './tools/read-file.js';
+export * from './tools/ls.js';
+export * from './tools/grep.js';
+export * from './tools/ripGrep.js';
+export * from './tools/glob.js';
+export * from './tools/edit.js';
+export * from './tools/write-file.js';
+export * from './tools/web-fetch.js';
+export * from './tools/memoryTool.js';
+export * from './tools/shell.js';
+export * from './tools/web-search.js';
+export * from './tools/read-many-files.js';
+export * from './tools/mcp-client.js';
+export * from './tools/mcp-tool.js';
+export * from './tools/write-todos.js';
+export * from './tools/trackerTools.js';
+export * from './tools/activate-skill.js';
+export * from './tools/ask-user.js';
+
+// MCP OAuth
 export { MCPOAuthProvider } from './mcp/oauth-provider.js';
 export type {
-  MCPOAuthConfig,
-  OAuthDisplayMessage,
-  OAuthDisplayPayload,
-} from './mcp/oauth-provider.js';
-export { MCPOAuthTokenStorage } from './mcp/oauth-token-storage.js';
-export { KeychainTokenStorage } from './mcp/token-storage/keychain-token-storage.js';
-export type {
-  OAuthCredentials,
   OAuthToken,
+  OAuthCredentials,
 } from './mcp/token-storage/types.js';
-export { OAuthUtils } from './mcp/oauth-utils.js';
+export { MCPOAuthTokenStorage } from './mcp/oauth-token-storage.js';
+export type { MCPOAuthConfig } from './mcp/oauth-provider.js';
 export type {
   OAuthAuthorizationServerMetadata,
   OAuthProtectedResourceMetadata,
 } from './mcp/oauth-utils.js';
+export { OAuthUtils } from './mcp/oauth-utils.js';
 
-// ============================================================================
-// Telemetry
-// ============================================================================
-
-export { ApexLogger } from './telemetry/apex-logger/apex-logger.js';
+// Export telemetry functions
 export * from './telemetry/index.js';
-export {
-  logAuth,
-  logExtensionDisable,
-  logExtensionEnable,
-  logIdeConnection,
-  logModelSlashCommand,
-} from './telemetry/loggers.js';
-export {
-  AuthEvent,
-  ExtensionDisableEvent,
-  ExtensionEnableEvent,
-  ExtensionInstallEvent,
-  ExtensionUninstallEvent,
-  IdeConnectionEvent,
-  IdeConnectionType,
-  ModelSlashCommandEvent,
-} from './telemetry/types.js';
-
-// ============================================================================
-// Extensions, Skills, Subagents & Agents
-// ============================================================================
-
-export * from './extension/index.js';
-export * from './prompts/mcp-prompts.js';
-export * from './skills/index.js';
-export * from './subagents/index.js';
-export * from './agents/index.js';
-
-// ============================================================================
-// Utilities
-// ============================================================================
-
+export * from './telemetry/billingEvents.js';
+export { logBillingEvent } from './telemetry/loggers.js';
+export * from './telemetry/constants.js';
+export { sessionId, createSessionId } from './utils/session.js';
+export * from './utils/compatibility.js';
 export * from './utils/browser.js';
-export * from './utils/configResolver.js';
-export * from './utils/debugLogger.js';
-export * from './utils/editor.js';
-export * from './utils/environmentContext.js';
-export * from './utils/errorParsing.js';
-export * from './utils/errors.js';
-export * from './utils/fileUtils.js';
-export * from './utils/filesearch/fileSearch.js';
-export * from './utils/formatters.js';
-export * from './utils/generateContentResponseUtilities.js';
-export * from './utils/getFolderStructure.js';
-export * from './utils/gitIgnoreParser.js';
-export * from './utils/gitUtils.js';
-export * from './utils/ignorePatterns.js';
-export * from './utils/jsonl-utils.js';
-export * from './utils/memoryDiscovery.js';
-export { OpenAILogger, openaiLogger } from './utils/openaiLogger.js';
-export * from './utils/partUtils.js';
-export * from './utils/pathReader.js';
-export * from './utils/paths.js';
-export * from './utils/projectSummary.js';
-export * from './utils/promptIdContext.js';
-export * from './utils/quotaErrorDetection.js';
-export * from './utils/readManyFiles.js';
-export * from './utils/request-tokenizer/supportedImageFormats.js';
-export { TextTokenizer } from './utils/request-tokenizer/textTokenizer.js';
-export * from './utils/retry.js';
-export * from './utils/ripgrepUtils.js';
-export * from './utils/schemaValidator.js';
-export * from './utils/shell-utils.js';
-export * from './utils/subagentGenerator.js';
-export * from './utils/symlink.js';
-export * from './utils/systemEncoding.js';
-export * from './utils/terminalSerializer.js';
-export * from './utils/textUtils.js';
-export * from './utils/thoughtUtils.js';
-export * from './utils/toml-to-markdown-converter.js';
-export * from './utils/tool-utils.js';
-export * from './utils/workspaceContext.js';
-export * from './utils/yaml-parser.js';
+export { Storage } from './config/storage.js';
 
-// ============================================================================
-// OAuth & Authentication
-// ============================================================================
+// Export hooks system
+export * from './hooks/index.js';
 
-// ============================================================================
-// Testing Utilities
-// ============================================================================
-
-export { makeFakeConfig } from './test-utils/config.js';
-export * from './test-utils/index.js';
-
-// ============================================================================
-// Hooks
-// ============================================================================
-
+// Export hook types
 export * from './hooks/types.js';
-export { HookSystem, HookRegistry } from './hooks/index.js';
-export type { HookRegistryEntry } from './hooks/index.js';
 
-// Export hook triggers for notification hooks
-export {
-  fireNotificationHook,
-  firePermissionRequestHook,
-  type NotificationHookResult,
-} from './core/toolHookTriggers.js';
+// Export agent types
+export * from './agents/types.js';
 
-// Stubs for removed Qwen OAuth (kept for backward compat with acpAgent)
-export function clearCachedCredentialFile(): void {
-  /* no-op */
-}
-export type DeviceAuthorizationData = Record<string, unknown>;
-export const QwenOAuth2Event = {
-  DEVICE_AUTH: 'device_auth',
-  AuthUri: 'auth_uri',
-} as const;
-export type QwenOAuth2Event = typeof QwenOAuth2Event;
-export const qwenOAuth2Events = {
-  on: (_event: string, _handler: (...args: unknown[]) => void) => {},
-  once: (_event: string, _handler: (...args: unknown[]) => void) => {},
-  off: (_event: string, _handler: (...args: unknown[]) => void) => {},
-  removeAllListeners: () => {},
-};
+// Export stdio utils
+export * from './utils/stdio.js';
+export * from './utils/terminal.js';
+export * from './services/worktreeService.js';
+
+// Export voice utilities
+export * from './voice/responseFormatter.js';
+
+// Export types from @google/genai
+export type { Content, Part, FunctionCall } from '@google/genai';
+
+// Export context types and profiles
+export * from './context/types.js';
+export * from './context/profiles.js';

@@ -4,47 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const SERVICE_NAME = 'apex';
+export const SERVICE_NAME = 'gemini-cli';
+export const SERVICE_DESCRIPTION =
+  'Gemini CLI is an open-source AI agent that brings the power of Gemini directly into your terminal. It is designed to be a terminal-first, extensible, and powerful tool for developers, engineers, SREs, and beyond.';
 
-export const EVENT_USER_PROMPT = 'apex.user_prompt';
-export const EVENT_USER_RETRY = 'apex.user_retry';
-export const EVENT_TOOL_CALL = 'apex.tool_call';
-export const EVENT_API_REQUEST = 'apex.api_request';
-export const EVENT_API_ERROR = 'apex.api_error';
-export const EVENT_API_CANCEL = 'apex.api_cancel';
-export const EVENT_API_RESPONSE = 'apex.api_response';
-export const EVENT_CLI_CONFIG = 'apex.config';
-export const EVENT_EXTENSION_DISABLE = 'apex.extension_disable';
-export const EVENT_EXTENSION_ENABLE = 'apex.extension_enable';
-export const EVENT_EXTENSION_INSTALL = 'apex.extension_install';
-export const EVENT_EXTENSION_UNINSTALL = 'apex.extension_uninstall';
-export const EVENT_EXTENSION_UPDATE = 'apex.extension_update';
-export const EVENT_FLASH_FALLBACK = 'apex.flash_fallback';
-export const EVENT_RIPGREP_FALLBACK = 'apex.ripgrep_fallback';
-export const EVENT_NEXT_SPEAKER_CHECK = 'apex.next_speaker_check';
-export const EVENT_SLASH_COMMAND = 'apex.slash_command';
-export const EVENT_IDE_CONNECTION = 'apex.ide_connection';
-export const EVENT_CHAT_COMPRESSION = 'apex.chat_compression';
-export const EVENT_TOOL_OUTPUT_MASKING = 'apex.tool_output_masking';
-export const EVENT_INVALID_CHUNK = 'apex.chat.invalid_chunk';
-export const EVENT_CONTENT_RETRY = 'apex.chat.content_retry';
-export const EVENT_CONTENT_RETRY_FAILURE = 'apex.chat.content_retry_failure';
-export const EVENT_CONVERSATION_FINISHED = 'apex.conversation_finished';
-export const EVENT_MALFORMED_JSON_RESPONSE = 'apex.malformed_json_response';
-export const EVENT_FILE_OPERATION = 'apex.file_operation';
-export const EVENT_MODEL_SLASH_COMMAND = 'apex.slash_command.model';
-export const EVENT_SUBAGENT_EXECUTION = 'apex.subagent_execution';
-export const EVENT_SKILL_LAUNCH = 'apex.skill_launch';
-export const EVENT_AUTH = 'apex.auth';
-export const EVENT_USER_FEEDBACK = 'apex.user_feedback';
+// Gemini CLI specific semantic conventions
+// https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/#genai-attributes
+export const GEN_AI_OPERATION_NAME = 'gen_ai.operation.name';
+export const GEN_AI_AGENT_NAME = 'gen_ai.agent.name';
+export const GEN_AI_AGENT_DESCRIPTION = 'gen_ai.agent.description';
+export const GEN_AI_INPUT_MESSAGES = 'gen_ai.input.messages';
+export const GEN_AI_OUTPUT_MESSAGES = 'gen_ai.output.messages';
+export const GEN_AI_REQUEST_MODEL = 'gen_ai.request.model';
+export const GEN_AI_RESPONSE_MODEL = 'gen_ai.response.model';
+export const GEN_AI_PROMPT_NAME = 'gen_ai.prompt.name';
+export const GEN_AI_TOOL_NAME = 'gen_ai.tool.name';
+export const GEN_AI_TOOL_CALL_ID = 'gen_ai.tool.call_id';
+export const GEN_AI_TOOL_DESCRIPTION = 'gen_ai.tool.description';
+export const GEN_AI_USAGE_INPUT_TOKENS = 'gen_ai.usage.input_tokens';
+export const GEN_AI_USAGE_OUTPUT_TOKENS = 'gen_ai.usage.output_tokens';
+export const GEN_AI_SYSTEM_INSTRUCTIONS = 'gen_ai.system_instructions';
+export const GEN_AI_TOOL_DEFINITIONS = 'gen_ai.tool.definitions';
+export const GEN_AI_CONVERSATION_ID = 'gen_ai.conversation.id';
 
-// Arena Events
-export const EVENT_ARENA_SESSION_STARTED = 'apex.arena_session_started';
-export const EVENT_ARENA_AGENT_COMPLETED = 'apex.arena_agent_completed';
-export const EVENT_ARENA_SESSION_ENDED = 'apex.arena_session_ended';
-
-// Performance Events
-export const EVENT_STARTUP_PERFORMANCE = 'apex.startup.performance';
-export const EVENT_MEMORY_USAGE = 'apex.memory.usage';
-export const EVENT_PERFORMANCE_BASELINE = 'apex.performance.baseline';
-export const EVENT_PERFORMANCE_REGRESSION = 'apex.performance.regression';
+// Gemini CLI specific operations
+export enum GeminiCliOperation {
+  ToolCall = 'tool_call',
+  LLMCall = 'llm_call',
+  UserPrompt = 'user_prompt',
+  SystemPrompt = 'system_prompt',
+  AgentCall = 'agent_call',
+  ScheduleToolCalls = 'schedule_tool_calls',
+}

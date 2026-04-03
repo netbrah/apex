@@ -4,88 +4,134 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { logs } from '@opentelemetry/api-logs';
-import { SemanticAttributes } from '@opentelemetry/semantic-conventions';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import type { Config } from '../config/config.js';
-import type {
-  AnyToolInvocation,
-  CompletedToolCall,
-  ContentGeneratorConfig,
-  ErroredToolCall,
-} from '../index.js';
 import {
+  CoreToolCallStatus,
   AuthType,
   EditTool,
   GeminiClient,
   ToolConfirmationOutcome,
   ToolErrorType,
   ToolRegistry,
+  type AnyDeclarativeTool,
+  type AnyToolInvocation,
+  type CompletedToolCall,
+  type ContentGeneratorConfig,
+  type ErroredToolCall,
+  type MessageBus,
 } from '../index.js';
 import { OutputFormat } from '../output/types.js';
+import { logs } from '@opentelemetry/api-logs';
+import type { Config, GeminiCLIExtension } from '../config/config.js';
+import { ApprovalMode } from '../policy/types.js';
 import {
-  EVENT_API_REQUEST,
-  EVENT_API_RESPONSE,
-  EVENT_CLI_CONFIG,
-  EVENT_FLASH_FALLBACK,
-  EVENT_TOOL_CALL,
-  EVENT_USER_PROMPT,
-  EVENT_MALFORMED_JSON_RESPONSE,
-  EVENT_FILE_OPERATION,
-  EVENT_RIPGREP_FALLBACK,
-  EVENT_EXTENSION_ENABLE,
-  EVENT_EXTENSION_DISABLE,
-  EVENT_EXTENSION_INSTALL,
-  EVENT_EXTENSION_UNINSTALL,
-} from './constants.js';
-import {
+  logApiError,
   logApiRequest,
   logApiResponse,
-  logStartSession,
+  logCliConfiguration,
   logUserPrompt,
   logToolCall,
   logFlashFallback,
   logChatCompression,
   logMalformedJsonResponse,
+  logInvalidChunk,
   logFileOperation,
   logRipgrepFallback,
   logToolOutputTruncated,
+  logModelRouting,
   logExtensionEnable,
   logExtensionDisable,
   logExtensionInstallEvent,
   logExtensionUninstall,
+  logAgentStart,
+  logAgentFinish,
+  logWebFetchFallbackAttempt,
+  logNetworkRetryAttempt,
+  logExtensionUpdateEvent,
   logHookCall,
+  logOnboardingStart,
+  logOnboardingSuccess,
 } from './loggers.js';
-import * as metrics from './metrics.js';
-import { ApexLogger } from './apex-logger/apex-logger.js';
-import * as sdk from './sdk.js';
 import { ToolCallDecision } from './tool-call-decision.js';
 import {
+  EVENT_API_ERROR,
+  EVENT_API_REQUEST,
+  EVENT_API_RESPONSE,
+  EVENT_CLI_CONFIG,
+  EVENT_TOOL_CALL,
+  EVENT_USER_PROMPT,
+  EVENT_FLASH_FALLBACK,
+  EVENT_MALFORMED_JSON_RESPONSE,
+  EVENT_FILE_OPERATION,
+  EVENT_RIPGREP_FALLBACK,
+  EVENT_MODEL_ROUTING,
+  EVENT_EXTENSION_ENABLE,
+  EVENT_EXTENSION_DISABLE,
+  EVENT_EXTENSION_INSTALL,
+  EVENT_EXTENSION_UNINSTALL,
+  EVENT_TOOL_OUTPUT_TRUNCATED,
+  EVENT_AGENT_START,
+  EVENT_AGENT_FINISH,
+  EVENT_WEB_FETCH_FALLBACK_ATTEMPT,
+  EVENT_INVALID_CHUNK,
+  EVENT_NETWORK_RETRY_ATTEMPT,
+  EVENT_ONBOARDING_START,
+  EVENT_ONBOARDING_SUCCESS,
+  ApiErrorEvent,
   ApiRequestEvent,
   ApiResponseEvent,
-  FlashFallbackEvent,
   StartSessionEvent,
   ToolCallEvent,
   UserPromptEvent,
+  FlashFallbackEvent,
   RipgrepFallbackEvent,
   MalformedJsonResponseEvent,
+  InvalidChunkEvent,
   makeChatCompressionEvent,
   FileOperationEvent,
   ToolOutputTruncatedEvent,
+  ModelRoutingEvent,
   ExtensionEnableEvent,
   ExtensionDisableEvent,
   ExtensionInstallEvent,
   ExtensionUninstallEvent,
+  AgentStartEvent,
+  AgentFinishEvent,
+  WebFetchFallbackAttemptEvent,
+  NetworkRetryAttemptEvent,
+  ExtensionUpdateEvent,
+  EVENT_EXTENSION_UPDATE,
   HookCallEvent,
+  EVENT_HOOK_CALL,
+  OnboardingStartEvent,
+  OnboardingSuccessEvent,
+  LlmRole,
 } from './types.js';
+import { HookType } from '../hooks/types.js';
+import * as metrics from './metrics.js';
 import { FileOperation } from './metrics.js';
-import type {
-  CallableTool,
-  GenerateContentResponseUsageMetadata,
+import * as sdk from './sdk.js';
+import { createMockMessageBus } from '../test-utils/mock-message-bus.js';
+import { vi, describe, beforeEach, it, expect, afterEach } from 'vitest';
+import {
+  FinishReason,
+  type CallableTool,
+  type GenerateContentResponseUsageMetadata,
 } from '@google/genai';
 import { DiscoveredMCPTool } from '../tools/mcp-tool.js';
 import * as uiTelemetry from './uiTelemetry.js';
 import { makeFakeConfig } from '../test-utils/config.js';
+import { ClearcutLogger } from './clearcut-logger/clearcut-logger.js';
+import { UserAccountManager } from '../utils/userAccountManager.js';
+import { InstallationManager } from '../utils/installationManager.js';
+import { AgentTerminateMode } from '../agents/types.js';
+
+vi.mock('systeminformation', () => ({
+  default: {
+    graphics: vi.fn().mockResolvedValue({
+      controllers: [{ model: 'Mock GPU' }],
+    }),
+  },
+}));
 
 describe('loggers', () => {
   const mockLogger = {
@@ -98,10 +144,19 @@ describe('loggers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(sdk, 'isTelemetrySdkInitialized').mockReturnValue(true);
+    vi.spyOn(sdk, 'bufferTelemetryEvent').mockImplementation((cb) => cb());
     vi.spyOn(logs, 'getLogger').mockReturnValue(mockLogger);
     vi.spyOn(uiTelemetry.uiTelemetryService, 'addEvent').mockImplementation(
       mockUiEvent.addEvent,
     );
+    vi.spyOn(
+      UserAccountManager.prototype,
+      'getCachedGoogleAccount',
+    ).mockReturnValue('test-user@example.com');
+    vi.spyOn(
+      InstallationManager.prototype,
+      'getInstallationId',
+    ).mockReturnValue('test-installation-id');
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
   });
@@ -109,11 +164,11 @@ describe('loggers', () => {
   describe('logChatCompression', () => {
     beforeEach(() => {
       vi.spyOn(metrics, 'recordChatCompressionMetrics');
-      vi.spyOn(ApexLogger.prototype, 'logChatCompressionEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logChatCompressionEvent');
     });
 
-    it('logs the chat compression event to ApexLogger', () => {
-      const mockConfig = makeFakeConfig({ sessionId: 'test-session-id' });
+    it('logs the chat compression event to Clearcut', () => {
+      const mockConfig = makeFakeConfig();
 
       const event = makeChatCompressionEvent({
         tokens_before: 9001,
@@ -122,13 +177,13 @@ describe('loggers', () => {
 
       logChatCompression(mockConfig, event);
 
-      expect(ApexLogger.prototype.logChatCompressionEvent).toHaveBeenCalledWith(
-        event,
-      );
+      expect(
+        ClearcutLogger.prototype.logChatCompressionEvent,
+      ).toHaveBeenCalledWith(event);
     });
 
     it('records the chat compression event to OTEL', () => {
-      const mockConfig = makeFakeConfig({ sessionId: 'test-session-id' });
+      const mockConfig = makeFakeConfig();
 
       logChatCompression(
         mockConfig,
@@ -146,65 +201,109 @@ describe('loggers', () => {
   });
 
   describe('logCliConfiguration', () => {
-    it('should log the cli configuration', () => {
-      const mockConfig = {
-        getSessionId: () => 'test-session-id',
-        getModel: () => 'test-model',
-        getSandbox: () => true,
-        getCoreTools: () => ['ls', 'read-file'],
-        getApprovalMode: () => 'default',
-        getTruncateToolOutputThreshold: () => 25000,
-        getTruncateToolOutputLines: () => 1000,
-        getTelemetryEnabled: () => true,
-        getUsageStatisticsEnabled: () => true,
-        getTelemetryLogPromptsEnabled: () => true,
-        getFileFilteringRespectGitIgnore: () => true,
-        getFileFilteringAllowBuildArtifacts: () => false,
-        getDebugMode: () => true,
+    const baseMockConfig = {
+      getSessionId: () => 'test-session-id',
+      getModel: () => 'test-model',
+      getEmbeddingModel: () => 'test-embedding-model',
+      getSandbox: () => true,
+      getCoreTools: () => ['ls', 'read-file'],
+      getApprovalMode: () => 'default',
+      getContentGeneratorConfig: () => ({
+        model: 'test-model',
+        apiKey: 'test-api-key',
+        authType: AuthType.USE_VERTEX_AI,
+      }),
+      getTelemetryEnabled: () => true,
+      getUsageStatisticsEnabled: () => true,
+      getTelemetryLogPromptsEnabled: () => true,
+      getFileFilteringRespectGitIgnore: () => true,
+      getFileFilteringAllowBuildArtifacts: () => false,
+      getDebugMode: () => true,
+      getMcpServers: () => {
+        throw new Error('Should not call');
+      },
+      getQuestion: () => 'test-question',
+      getTargetDir: () => 'target-dir',
+      getProxy: () => 'http://test.proxy.com:8080',
+      getOutputFormat: () => OutputFormat.JSON,
+      getExtensions: () =>
+        [
+          { name: 'ext-one', id: 'id-one' },
+          { name: 'ext-two', id: 'id-two' },
+        ] as GeminiCLIExtension[],
+      getMcpClientManager: () => ({
         getMcpServers: () => ({
           'test-server': {
             command: 'test-command',
           },
         }),
-        getQuestion: () => 'test-question',
-        getTargetDir: () => 'target-dir',
-        getProxy: () => 'http://test.proxy.com:8080',
-        getOutputFormat: () => OutputFormat.JSON,
-        getToolRegistry: () => undefined,
-        getChatRecordingService: () => undefined,
-        getHookSystem: () => undefined,
-        getIdeMode: () => false,
-        getShouldUseNodePtyShell: () => true,
-      } as unknown as Config;
+      }),
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getWorktreeSettings: () => undefined,
+    } as unknown as Config;
+
+    it('should log the cli configuration', async () => {
+      const mockConfig = baseMockConfig;
 
       const startSessionEvent = new StartSessionEvent(mockConfig);
-      logStartSession(mockConfig, startSessionEvent);
+      logCliConfiguration(mockConfig, startSessionEvent);
 
+      await new Promise(process.nextTick);
       expect(mockLogger.emit).toHaveBeenCalledWith({
         body: 'CLI configuration loaded.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_CLI_CONFIG,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           model: 'test-model',
+          embedding_model: 'test-embedding-model',
           sandbox_enabled: true,
           core_tools_enabled: 'ls,read-file',
           approval_mode: 'default',
-          truncate_tool_output_threshold: 25000,
-          truncate_tool_output_lines: 1000,
+          api_key_enabled: true,
+          vertex_ai_enabled: true,
+          log_user_prompts_enabled: true,
           file_filtering_respect_git_ignore: true,
           debug_mode: true,
           mcp_servers: 'test-server',
           mcp_servers_count: 1,
           mcp_tools: undefined,
           mcp_tools_count: undefined,
-          hooks: undefined,
-          ide_enabled: false,
-          interactive_shell_enabled: true,
           output_format: 'json',
-          skills: undefined,
-          subagents: undefined,
+          extension_ids: 'id-one,id-two',
+          extensions_count: 2,
+          extensions: 'ext-one,ext-two',
+          auth_type: 'vertex-ai',
+          worktree_active: false,
         },
+      });
+    });
+
+    it('should set worktree_active to true when worktree settings are present', async () => {
+      const mockConfig = {
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
+        ...baseMockConfig,
+        getWorktreeSettings: () => ({
+          name: 'test-worktree',
+          path: '/path/to/worktree',
+          baseSha: 'test-sha',
+        }),
+      } as unknown as Config;
+
+      const startSessionEvent = new StartSessionEvent(mockConfig);
+      logCliConfiguration(mockConfig, startSessionEvent);
+
+      await new Promise(process.nextTick);
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'CLI configuration loaded.',
+        attributes: expect.objectContaining({
+          worktree_active: true,
+        }),
       });
     });
   });
@@ -215,6 +314,10 @@ describe('loggers', () => {
       getTelemetryEnabled: () => true,
       getTelemetryLogPromptsEnabled: () => true,
       getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     it('should log a user prompt', () => {
@@ -231,8 +334,11 @@ describe('loggers', () => {
         body: 'User prompt. Length: 11.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_USER_PROMPT,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           prompt_length: 11,
           prompt: 'test-prompt',
           prompt_id: 'prompt-id-8',
@@ -248,11 +354,15 @@ describe('loggers', () => {
         getTelemetryLogPromptsEnabled: () => false,
         getTargetDir: () => 'target-dir',
         getUsageStatisticsEnabled: () => true,
+        isInteractive: () => false,
+        getExperiments: () => undefined,
+        getExperimentsAsync: async () => undefined,
+        getContentGeneratorConfig: () => undefined,
       } as unknown as Config;
       const event = new UserPromptEvent(
         11,
         'prompt-id-9',
-        AuthType.USE_GEMINI,
+        AuthType.COMPUTE_ADC,
         'test-prompt',
       );
 
@@ -262,11 +372,14 @@ describe('loggers', () => {
         body: 'User prompt. Length: 11.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_USER_PROMPT,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           prompt_length: 11,
           prompt_id: 'prompt-id-9',
-          auth_type: 'gemini',
+          auth_type: 'compute-default-credentials',
         },
       });
     });
@@ -279,7 +392,10 @@ describe('loggers', () => {
       getUsageStatisticsEnabled: () => true,
       getTelemetryEnabled: () => true,
       getTelemetryLogPromptsEnabled: () => true,
-      getChatRecordingService: () => undefined,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     const mockMetrics = {
@@ -305,11 +421,50 @@ describe('loggers', () => {
         toolUsePromptTokenCount: 2,
       };
       const event = new ApiResponseEvent(
-        'test-response-id',
         'test-model',
         100,
-        'prompt-id-1',
-        AuthType.USE_GEMINI,
+        {
+          prompt_id: 'prompt-id-1',
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: 'Hello' }],
+            },
+          ],
+          generate_content_config: {
+            temperature: 1,
+            topP: 2,
+            topK: 3,
+            responseMimeType: 'text/plain',
+            candidateCount: 1,
+            seed: 678,
+            frequencyPenalty: 10,
+            maxOutputTokens: 8000,
+            presencePenalty: 6,
+            stopSequences: ['stop', 'please stop'],
+            systemInstruction: {
+              role: 'model',
+              parts: [{ text: 'be nice' }],
+            },
+          },
+          server: {
+            address: 'foo.com',
+            port: 8080,
+          },
+        },
+        {
+          response_id: '',
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'candidate 1' }],
+              },
+              finishReason: FinishReason.STOP,
+            },
+          ],
+        },
+        AuthType.LOGIN_WITH_GOOGLE,
         usageData,
         'test-response',
       );
@@ -318,43 +473,278 @@ describe('loggers', () => {
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
         body: 'API response from test-model. Status: 200. Duration: 100ms.',
-        attributes: {
-          'session.id': 'test-session-id',
+        attributes: expect.objectContaining({
           'event.name': EVENT_API_RESPONSE,
-          'event.timestamp': '2025-01-01T00:00:00.000Z',
-          [SemanticAttributes.HTTP_STATUS_CODE]: 200,
-          response_id: 'test-response-id',
-          model: 'test-model',
-          status_code: 200,
-          duration_ms: 100,
-          input_token_count: 17,
-          output_token_count: 50,
-          cached_content_token_count: 10,
-          thoughts_token_count: 5,
-          tool_token_count: 2,
-          total_token_count: 0,
-          response_text: 'test-response',
           prompt_id: 'prompt-id-1',
-          auth_type: 'gemini',
-        },
+          finish_reasons: ['stop'],
+        }),
+      });
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'GenAI operation details from test-model. Status: 200. Duration: 100ms.',
+        attributes: expect.objectContaining({
+          'event.name': 'gen_ai.client.inference.operation.details',
+          'gen_ai.request.model': 'test-model',
+          'gen_ai.request.temperature': 1,
+          'gen_ai.request.top_p': 2,
+          'gen_ai.request.top_k': 3,
+          'gen_ai.input.messages':
+            '[{"role":"user","parts":[{"type":"text","content":"Hello"}]}]',
+          'gen_ai.output.messages':
+            '[{"finish_reason":"stop","role":"system","parts":[{"type":"text","content":"candidate 1"}]}]',
+          'gen_ai.response.finish_reasons': ['stop'],
+          'gen_ai.response.model': 'test-model',
+          'gen_ai.usage.input_tokens': 17,
+          'gen_ai.usage.output_tokens': 50,
+          'gen_ai.operation.name': 'generate_content',
+          'gen_ai.output.type': 'text',
+          'gen_ai.request.choice.count': 1,
+          'gen_ai.request.seed': 678,
+          'gen_ai.request.frequency_penalty': 10,
+          'gen_ai.request.presence_penalty': 6,
+          'gen_ai.request.max_tokens': 8000,
+          'server.address': 'foo.com',
+          'server.port': 8080,
+          'gen_ai.request.stop_sequences': ['stop', 'please stop'],
+          'gen_ai.system_instructions': '[{"type":"text","content":"be nice"}]',
+        }),
       });
 
       expect(mockMetrics.recordApiResponseMetrics).toHaveBeenCalledWith(
         mockConfig,
         100,
-        { model: 'test-model', status_code: 200 },
+        {
+          model: 'test-model',
+          status_code: 200,
+          genAiAttributes: {
+            'gen_ai.operation.name': 'generate_content',
+            'gen_ai.provider.name': 'gcp.vertex_ai',
+            'gen_ai.request.model': 'test-model',
+            'gen_ai.response.model': 'test-model',
+          },
+        },
+      );
+
+      // Verify token usage calls for all token types
+      expect(mockMetrics.recordTokenUsageMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        17,
+        {
+          model: 'test-model',
+          type: 'input',
+          genAiAttributes: {
+            'gen_ai.operation.name': 'generate_content',
+            'gen_ai.provider.name': 'gcp.vertex_ai',
+            'gen_ai.request.model': 'test-model',
+            'gen_ai.response.model': 'test-model',
+          },
+        },
       );
 
       expect(mockMetrics.recordTokenUsageMetrics).toHaveBeenCalledWith(
         mockConfig,
         50,
-        { model: 'test-model', type: 'output' },
+        {
+          model: 'test-model',
+          type: 'output',
+          genAiAttributes: {
+            'gen_ai.operation.name': 'generate_content',
+            'gen_ai.provider.name': 'gcp.vertex_ai',
+            'gen_ai.request.model': 'test-model',
+            'gen_ai.response.model': 'test-model',
+          },
+        },
       );
 
       expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...event,
         'event.name': EVENT_API_RESPONSE,
         'event.timestamp': '2025-01-01T00:00:00.000Z',
+      });
+    });
+
+    it('should log an API response with a role', () => {
+      const event = new ApiResponseEvent(
+        'test-model',
+        100,
+        { prompt_id: 'prompt-id-role', contents: [] },
+        { candidates: [] },
+        AuthType.LOGIN_WITH_GOOGLE,
+        {},
+        'test-response',
+        LlmRole.SUBAGENT,
+      );
+
+      logApiResponse(mockConfig, event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'API response from test-model. Status: 200. Duration: 100ms.',
+        attributes: expect.objectContaining({
+          'event.name': EVENT_API_RESPONSE,
+          prompt_id: 'prompt-id-role',
+          role: 'subagent',
+        }),
+      });
+    });
+  });
+
+  describe('logApiError', () => {
+    const mockConfig = {
+      getSessionId: () => 'test-session-id',
+      getTargetDir: () => 'target-dir',
+      getUsageStatisticsEnabled: () => true,
+      getTelemetryEnabled: () => true,
+      getTelemetryLogPromptsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
+
+    const mockMetrics = {
+      recordApiResponseMetrics: vi.fn(),
+      recordApiErrorMetrics: vi.fn(),
+      recordTokenUsageMetrics: vi.fn(),
+    };
+
+    beforeEach(() => {
+      vi.spyOn(metrics, 'recordApiResponseMetrics').mockImplementation(
+        mockMetrics.recordApiResponseMetrics,
+      );
+      vi.spyOn(metrics, 'recordApiErrorMetrics').mockImplementation(
+        mockMetrics.recordApiErrorMetrics,
+      );
+    });
+
+    it('should log an API error with all fields', () => {
+      const event = new ApiErrorEvent(
+        'test-model',
+        'UNAVAILABLE. {"error":{"code":503,"message":"The model is overloaded. Please try again later.","status":"UNAVAILABLE"}}',
+        100,
+        {
+          prompt_id: 'prompt-id-1',
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: 'Hello' }],
+            },
+          ],
+          generate_content_config: {
+            temperature: 1,
+            topP: 2,
+            topK: 3,
+            responseMimeType: 'text/plain',
+            candidateCount: 1,
+            seed: 678,
+            frequencyPenalty: 10,
+            maxOutputTokens: 8000,
+            presencePenalty: 6,
+            stopSequences: ['stop', 'please stop'],
+            systemInstruction: {
+              role: 'model',
+              parts: [{ text: 'be nice' }],
+            },
+          },
+          server: {
+            address: 'foo.com',
+            port: 8080,
+          },
+        },
+        AuthType.LOGIN_WITH_GOOGLE,
+        'ApiError',
+        503,
+      );
+
+      logApiError(mockConfig, event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'API error for test-model. Error: UNAVAILABLE. {"error":{"code":503,"message":"The model is overloaded. Please try again later.","status":"UNAVAILABLE"}}. Duration: 100ms.',
+        attributes: expect.objectContaining({
+          'event.name': EVENT_API_ERROR,
+          prompt_id: 'prompt-id-1',
+        }),
+      });
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'GenAI operation error details from test-model. Error: UNAVAILABLE. {"error":{"code":503,"message":"The model is overloaded. Please try again later.","status":"UNAVAILABLE"}}. Duration: 100ms.',
+        attributes: expect.objectContaining({
+          'event.name': 'gen_ai.client.inference.operation.details',
+          'gen_ai.request.model': 'test-model',
+          'gen_ai.request.temperature': 1,
+          'gen_ai.request.top_p': 2,
+          'gen_ai.request.top_k': 3,
+          'gen_ai.input.messages':
+            '[{"role":"user","parts":[{"type":"text","content":"Hello"}]}]',
+          'gen_ai.operation.name': 'generate_content',
+          'gen_ai.output.type': 'text',
+          'gen_ai.request.choice.count': 1,
+          'gen_ai.request.seed': 678,
+          'gen_ai.request.frequency_penalty': 10,
+          'gen_ai.request.presence_penalty': 6,
+          'gen_ai.request.max_tokens': 8000,
+          'server.address': 'foo.com',
+          'server.port': 8080,
+          'gen_ai.request.stop_sequences': ['stop', 'please stop'],
+          'gen_ai.system_instructions': '[{"type":"text","content":"be nice"}]',
+        }),
+      });
+
+      expect(mockMetrics.recordApiErrorMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        100,
+        {
+          model: 'test-model',
+          status_code: 503,
+          error_type: 'ApiError',
+        },
+      );
+
+      expect(mockMetrics.recordApiResponseMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        100,
+        {
+          model: 'test-model',
+          status_code: 503,
+          genAiAttributes: {
+            'gen_ai.operation.name': 'generate_content',
+            'gen_ai.provider.name': 'gcp.vertex_ai',
+            'gen_ai.request.model': 'test-model',
+            'gen_ai.response.model': 'test-model',
+            'error.type': 'ApiError',
+          },
+        },
+      );
+
+      expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
+        ...event,
+        'event.name': EVENT_API_ERROR,
+        'event.timestamp': '2025-01-01T00:00:00.000Z',
+      });
+    });
+
+    it('should log an API error with a role', () => {
+      const event = new ApiErrorEvent(
+        'test-model',
+        'error',
+        100,
+        { prompt_id: 'prompt-id-role', contents: [] },
+        AuthType.LOGIN_WITH_GOOGLE,
+        'ApiError',
+        503,
+        LlmRole.SUBAGENT,
+      );
+
+      logApiError(mockConfig, event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'API error for test-model. Error: error. Duration: 100ms.',
+        attributes: expect.objectContaining({
+          'event.name': EVENT_API_ERROR,
+          prompt_id: 'prompt-id-role',
+          role: 'subagent',
+        }),
       });
     });
   });
@@ -366,44 +756,278 @@ describe('loggers', () => {
       getUsageStatisticsEnabled: () => true,
       getTelemetryEnabled: () => true,
       getTelemetryLogPromptsEnabled: () => true,
-    } as unknown as Config;
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => ({
+        authType: AuthType.LOGIN_WITH_GOOGLE,
+      }),
+    } as Config;
 
     it('should log an API request with request_text', () => {
       const event = new ApiRequestEvent(
         'test-model',
-        'prompt-id-7',
+        {
+          prompt_id: 'prompt-id-7',
+          contents: [],
+        },
         'This is a test request',
+      );
+
+      logApiRequest(mockConfig, event);
+
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(1, {
+        body: 'API request to test-model.',
+        attributes: expect.objectContaining({
+          'event.name': EVENT_API_REQUEST,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          model: 'test-model',
+          request_text: 'This is a test request',
+          prompt_id: 'prompt-id-7',
+        }),
+      });
+
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(2, {
+        body: 'GenAI operation request details from test-model.',
+        attributes: expect.objectContaining({
+          'event.name': 'gen_ai.client.inference.operation.details',
+          'gen_ai.request.model': 'test-model',
+          'gen_ai.provider.name': 'gcp.vertex_ai',
+        }),
+      });
+    });
+
+    it('should log an API request without request_text', () => {
+      const event = new ApiRequestEvent('test-model', {
+        prompt_id: 'prompt-id-6',
+        contents: [],
+      });
+
+      logApiRequest(mockConfig, event);
+
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(1, {
+        body: 'API request to test-model.',
+        attributes: expect.objectContaining({
+          'event.name': EVENT_API_REQUEST,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          model: 'test-model',
+          prompt_id: 'prompt-id-6',
+        }),
+      });
+
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(2, {
+        body: 'GenAI operation request details from test-model.',
+        attributes: expect.objectContaining({
+          'event.name': 'gen_ai.client.inference.operation.details',
+          'gen_ai.request.model': 'test-model',
+          'gen_ai.provider.name': 'gcp.vertex_ai',
+        }),
+      });
+    });
+
+    it('should log an API request with full semantic details when logPrompts is enabled', () => {
+      const mockConfigWithPrompts = {
+        getSessionId: () => 'test-session-id',
+        getTargetDir: () => 'target-dir',
+        getUsageStatisticsEnabled: () => true,
+        getTelemetryEnabled: () => true,
+        getTelemetryLogPromptsEnabled: () => true, // Enabled
+        isInteractive: () => false,
+        getExperiments: () => undefined,
+        getExperimentsAsync: async () => undefined,
+        getContentGeneratorConfig: () => ({
+          authType: AuthType.USE_GEMINI,
+        }),
+      } as Config;
+
+      const promptDetails = {
+        prompt_id: 'prompt-id-semantic-1',
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: 'Semantic request test' }],
+          },
+        ],
+        generate_content_config: {
+          temperature: 0.5,
+          topP: 0.8,
+          topK: 10,
+          responseMimeType: 'application/json',
+          candidateCount: 1,
+          stopSequences: ['end'],
+          systemInstruction: {
+            role: 'model',
+            parts: [{ text: 'be helpful' }],
+          },
+        },
+        server: {
+          address: 'semantic-api.example.com',
+          port: 8080,
+        },
+      };
+
+      const event = new ApiRequestEvent(
+        'test-model',
+        promptDetails,
+        'Full semantic request',
+      );
+
+      logApiRequest(mockConfigWithPrompts, event);
+
+      // Expect two calls to emit: one for the regular log, one for the semantic log
+      expect(mockLogger.emit).toHaveBeenCalledTimes(2);
+
+      // Verify the first (original) log record
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(1, {
+        body: 'API request to test-model.',
+        attributes: expect.objectContaining({
+          'event.name': EVENT_API_REQUEST,
+          prompt_id: 'prompt-id-semantic-1',
+        }),
+      });
+
+      // Verify the second (semantic) log record
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(2, {
+        body: 'GenAI operation request details from test-model.',
+        attributes: expect.objectContaining({
+          'event.name': 'gen_ai.client.inference.operation.details',
+          'gen_ai.request.model': 'test-model',
+          'gen_ai.request.temperature': 0.5,
+          'gen_ai.request.top_p': 0.8,
+          'gen_ai.request.top_k': 10,
+          'gen_ai.input.messages': JSON.stringify([
+            {
+              role: 'user',
+              parts: [{ type: 'text', content: 'Semantic request test' }],
+            },
+          ]),
+          'server.address': 'semantic-api.example.com',
+          'server.port': 8080,
+          'gen_ai.operation.name': 'generate_content',
+          'gen_ai.provider.name': 'gcp.gen_ai',
+          'gen_ai.output.type': 'json',
+          'gen_ai.request.stop_sequences': ['end'],
+          'gen_ai.system_instructions': JSON.stringify([
+            { type: 'text', content: 'be helpful' },
+          ]),
+        }),
+      });
+    });
+
+    it('should log an API request with semantic details, but without prompts when logPrompts is disabled', () => {
+      const mockConfigWithoutPrompts = {
+        getSessionId: () => 'test-session-id',
+        getTargetDir: () => 'target-dir',
+        getUsageStatisticsEnabled: () => true,
+        getTelemetryEnabled: () => true,
+        getTelemetryLogPromptsEnabled: () => false, // Disabled
+        isInteractive: () => false,
+        getExperiments: () => undefined,
+        getExperimentsAsync: async () => undefined,
+        getContentGeneratorConfig: () => ({
+          authType: AuthType.USE_VERTEX_AI,
+        }),
+      } as Config;
+
+      const promptDetails = {
+        prompt_id: 'prompt-id-semantic-2',
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: 'This prompt should be hidden' }],
+          },
+        ],
+        generate_content_config: {},
+        model: 'gemini-1.0-pro',
+      };
+
+      const event = new ApiRequestEvent(
+        'gemini-1.0-pro',
+        promptDetails,
+        'Request with hidden prompt',
+      );
+
+      logApiRequest(mockConfigWithoutPrompts, event);
+
+      // Expect two calls to emit
+      expect(mockLogger.emit).toHaveBeenCalledTimes(2);
+
+      // Get the arguments of the second (semantic) log call
+      const semanticLogCall = mockLogger.emit.mock.calls[1][0];
+
+      // Assert on the body
+      expect(semanticLogCall.body).toBe(
+        'GenAI operation request details from gemini-1.0-pro.',
+      );
+
+      // Assert on specific attributes
+      const attributes = semanticLogCall.attributes;
+      expect(attributes['event.name']).toBe(
+        'gen_ai.client.inference.operation.details',
+      );
+      expect(attributes['gen_ai.request.model']).toBe('gemini-1.0-pro');
+      expect(attributes['gen_ai.provider.name']).toBe('gcp.vertex_ai');
+      // Ensure prompt messages are NOT included
+      expect(attributes['gen_ai.input.messages']).toBeUndefined();
+    });
+
+    it('should correctly derive model from prompt details if available in semantic log', () => {
+      const mockConfig = {
+        getSessionId: () => 'test-session-id',
+        getTelemetryEnabled: () => true,
+        getTelemetryLogPromptsEnabled: () => true,
+        isInteractive: () => false,
+        getExperiments: () => undefined,
+        getExperimentsAsync: async () => undefined,
+        getUsageStatisticsEnabled: () => true,
+        getContentGeneratorConfig: () => ({
+          authType: AuthType.USE_GEMINI,
+        }),
+      } as Config;
+
+      const promptDetails = {
+        prompt_id: 'prompt-id-semantic-3',
+        contents: [],
+        model: 'my-custom-model',
+      };
+
+      const event = new ApiRequestEvent(
+        'my-custom-model',
+        promptDetails,
+        'Request with custom model',
+      );
+
+      logApiRequest(mockConfig, event);
+
+      // Verify the second (semantic) log record
+      expect(mockLogger.emit).toHaveBeenNthCalledWith(2, {
+        body: 'GenAI operation request details from my-custom-model.',
+        attributes: expect.objectContaining({
+          'event.name': 'gen_ai.client.inference.operation.details',
+          'gen_ai.request.model': 'my-custom-model',
+        }),
+      });
+    });
+
+    it('should log an API request with a role', () => {
+      const event = new ApiRequestEvent(
+        'test-model',
+        { prompt_id: 'prompt-id-role', contents: [] },
+        'request text',
+        LlmRole.SUBAGENT,
       );
 
       logApiRequest(mockConfig, event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
         body: 'API request to test-model.',
-        attributes: {
-          'session.id': 'test-session-id',
+        attributes: expect.objectContaining({
           'event.name': EVENT_API_REQUEST,
-          'event.timestamp': '2025-01-01T00:00:00.000Z',
-          model: 'test-model',
-          request_text: 'This is a test request',
-          prompt_id: 'prompt-id-7',
-        },
-      });
-    });
-
-    it('should log an API request without request_text', () => {
-      const event = new ApiRequestEvent('test-model', 'prompt-id-6');
-
-      logApiRequest(mockConfig, event);
-
-      expect(mockLogger.emit).toHaveBeenCalledWith({
-        body: 'API request to test-model.',
-        attributes: {
-          'session.id': 'test-session-id',
-          'event.name': EVENT_API_REQUEST,
-          'event.timestamp': '2025-01-01T00:00:00.000Z',
-          model: 'test-model',
-          prompt_id: 'prompt-id-6',
-        },
+          prompt_id: 'prompt-id-role',
+          role: 'subagent',
+        }),
       });
     });
   });
@@ -412,6 +1036,10 @@ describe('loggers', () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     it('should log flash fallback event', () => {
@@ -423,8 +1051,11 @@ describe('loggers', () => {
         body: 'Switching to flash as Fallback.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_FLASH_FALLBACK,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           auth_type: 'vertex-ai',
         },
       });
@@ -435,46 +1066,54 @@ describe('loggers', () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logRipgrepFallbackEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logRipgrepFallbackEvent');
     });
 
     it('should log ripgrep fallback event', () => {
-      const event = new RipgrepFallbackEvent(
-        false,
-        false,
-        'ripgrep is not available',
-      );
+      const event = new RipgrepFallbackEvent();
 
       logRipgrepFallback(mockConfig, event);
 
-      expect(ApexLogger.prototype.logRipgrepFallbackEvent).toHaveBeenCalled();
+      expect(
+        ClearcutLogger.prototype.logRipgrepFallbackEvent,
+      ).toHaveBeenCalled();
 
       const emittedEvent = mockLogger.emit.mock.calls[0][0];
       expect(emittedEvent.body).toBe('Switching to grep as fallback.');
       expect(emittedEvent.attributes).toEqual(
         expect.objectContaining({
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_RIPGREP_FALLBACK,
-          error: 'ripgrep is not available',
+          error: undefined,
         }),
       );
     });
 
     it('should log ripgrep fallback event with an error', () => {
-      const event = new RipgrepFallbackEvent(false, false, 'rg not found');
+      const event = new RipgrepFallbackEvent('rg not found');
 
       logRipgrepFallback(mockConfig, event);
 
-      expect(ApexLogger.prototype.logRipgrepFallbackEvent).toHaveBeenCalled();
+      expect(
+        ClearcutLogger.prototype.logRipgrepFallbackEvent,
+      ).toHaveBeenCalled();
 
       const emittedEvent = mockLogger.emit.mock.calls[0][0];
       expect(emittedEvent.body).toBe('Switching to grep as fallback.');
       expect(emittedEvent.attributes).toEqual(
         expect.objectContaining({
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_RIPGREP_FALLBACK,
           error: 'rg not found',
         }),
@@ -491,7 +1130,6 @@ describe('loggers', () => {
     const cfg2 = {
       getSessionId: () => 'test-session-id',
       getTargetDir: () => 'target-dir',
-      getProjectRoot: () => '/test/project/root',
       getProxy: () => 'http://test.proxy.com:8080',
       getContentGeneratorConfig: () =>
         ({ model: 'test-model' }) as ContentGeneratorConfig,
@@ -511,10 +1149,18 @@ describe('loggers', () => {
         },
       }),
       getQuestion: () => 'test-question',
-      getToolRegistry: () => new ToolRegistry(cfg1),
-      getFullContext: () => false,
+      getToolRegistry: () =>
+        new ToolRegistry(cfg1, {} as unknown as MessageBus),
       getUserMemory: () => 'user-memory',
+      isExperimentalAgentHistoryTruncationEnabled: () => false,
+      getExperimentalAgentHistoryTruncationThreshold: () => 30,
+      getExperimentalAgentHistoryRetainedMessages: () => 15,
+      isExperimentalAgentHistorySummarizationEnabled: () => false,
     } as unknown as Config;
+
+    (cfg2 as unknown as { config: Config; promptId: string }).config = cfg2;
+    (cfg2 as unknown as { config: Config; promptId: string }).promptId =
+      'test-prompt-id';
 
     const mockGeminiClient = new GeminiClient(cfg2);
     const mockConfig = {
@@ -524,24 +1170,31 @@ describe('loggers', () => {
       getUsageStatisticsEnabled: () => true,
       getTelemetryEnabled: () => true,
       getTelemetryLogPromptsEnabled: () => true,
-      getChatRecordingService: () => undefined,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     const mockMetrics = {
       recordToolCallMetrics: vi.fn(),
+      recordLinesChanged: vi.fn(),
     };
 
     beforeEach(() => {
       vi.spyOn(metrics, 'recordToolCallMetrics').mockImplementation(
         mockMetrics.recordToolCallMetrics,
       );
+      vi.spyOn(metrics, 'recordLinesChanged').mockImplementation(
+        mockMetrics.recordLinesChanged,
+      );
       mockLogger.emit.mockReset();
     });
 
     it('should log a tool call with all fields', () => {
-      const tool = new EditTool(mockConfig);
+      const tool = new EditTool(mockConfig, createMockMessageBus());
       const call: CompletedToolCall = {
-        status: 'success',
+        status: CoreToolCallStatus.Success,
         request: {
           name: 'test-function',
           args: {
@@ -558,6 +1211,7 @@ describe('loggers', () => {
           resultDisplay: {
             fileDiff: 'diff',
             fileName: 'file.txt',
+            filePath: 'file.txt',
             originalContent: 'old content',
             newContent: 'new content',
             diffStat: {
@@ -588,8 +1242,11 @@ describe('loggers', () => {
         body: 'Tool call: test-function. Decision: accept. Success: true. Duration: 100ms.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_TOOL_CALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           function_name: 'test-function',
           function_args: JSON.stringify(
             {
@@ -600,14 +1257,14 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           decision: ToolCallDecision.ACCEPT,
           prompt_id: 'prompt-id-1',
           tool_type: 'native',
           error: undefined,
           error_type: undefined,
-
+          mcp_server_name: undefined,
+          extension_id: undefined,
           metadata: {
             model_added_lines: 1,
             model_removed_lines: 2,
@@ -634,14 +1291,75 @@ describe('loggers', () => {
       );
 
       expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...event,
         'event.name': EVENT_TOOL_CALL,
         'event.timestamp': '2025-01-01T00:00:00.000Z',
       });
+
+      expect(mockMetrics.recordLinesChanged).toHaveBeenCalledWith(
+        mockConfig,
+        1,
+        'added',
+        { function_name: 'test-function' },
+      );
+      expect(mockMetrics.recordLinesChanged).toHaveBeenCalledWith(
+        mockConfig,
+        2,
+        'removed',
+        { function_name: 'test-function' },
+      );
     });
+
+    it('should merge data from response into metadata', () => {
+      const call: CompletedToolCall = {
+        status: CoreToolCallStatus.Success,
+        request: {
+          name: 'ask_user',
+          args: { questions: [] },
+          callId: 'test-call-id',
+          isClientInitiated: true,
+          prompt_id: 'prompt-id-1',
+        },
+        response: {
+          callId: 'test-call-id',
+          responseParts: [{ text: 'test-response' }],
+          resultDisplay: 'User answered: ...',
+          error: undefined,
+          errorType: undefined,
+          data: {
+            ask_user: {
+              question_types: ['choice'],
+              dismissed: false,
+            },
+          },
+        },
+        tool: undefined as unknown as AnyDeclarativeTool,
+        invocation: {} as AnyToolInvocation,
+        durationMs: 100,
+        outcome: ToolConfirmationOutcome.ProceedOnce,
+      };
+      const event = new ToolCallEvent(call);
+
+      logToolCall(mockConfig, event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Tool call: ask_user. Decision: accept. Success: true. Duration: 100ms.',
+        attributes: expect.objectContaining({
+          function_name: 'ask_user',
+          metadata: expect.objectContaining({
+            ask_user: {
+              question_types: ['choice'],
+              dismissed: false,
+            },
+          }),
+        }),
+      });
+    });
+
     it('should log a tool call with a reject decision', () => {
       const call: ErroredToolCall = {
-        status: 'error',
+        status: CoreToolCallStatus.Error,
         request: {
           name: 'test-function',
           args: {
@@ -671,8 +1389,11 @@ describe('loggers', () => {
         body: 'Tool call: test-function. Decision: reject. Success: false. Duration: 100ms.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_TOOL_CALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           function_name: 'test-function',
           function_args: JSON.stringify(
             {
@@ -683,13 +1404,14 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'error',
           success: false,
           decision: ToolCallDecision.REJECT,
           prompt_id: 'prompt-id-2',
           tool_type: 'native',
           error: undefined,
           error_type: undefined,
+          mcp_server_name: undefined,
+          extension_id: undefined,
           metadata: undefined,
           content_length: undefined,
         },
@@ -707,6 +1429,7 @@ describe('loggers', () => {
       );
 
       expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...event,
         'event.name': EVENT_TOOL_CALL,
         'event.timestamp': '2025-01-01T00:00:00.000Z',
@@ -715,7 +1438,7 @@ describe('loggers', () => {
 
     it('should log a tool call with a modify decision', () => {
       const call: CompletedToolCall = {
-        status: 'success',
+        status: CoreToolCallStatus.Success,
         request: {
           name: 'test-function',
           args: {
@@ -735,7 +1458,7 @@ describe('loggers', () => {
           contentLength: 13,
         },
         outcome: ToolConfirmationOutcome.ModifyWithEditor,
-        tool: new EditTool(mockConfig),
+        tool: new EditTool(mockConfig, createMockMessageBus()),
         invocation: {} as AnyToolInvocation,
         durationMs: 100,
       };
@@ -747,8 +1470,11 @@ describe('loggers', () => {
         body: 'Tool call: test-function. Decision: modify. Success: true. Duration: 100ms.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_TOOL_CALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           function_name: 'test-function',
           function_args: JSON.stringify(
             {
@@ -759,13 +1485,14 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           decision: ToolCallDecision.MODIFY,
           prompt_id: 'prompt-id-3',
           tool_type: 'native',
           error: undefined,
           error_type: undefined,
+          mcp_server_name: undefined,
+          extension_id: undefined,
           metadata: undefined,
           content_length: 13,
         },
@@ -783,6 +1510,7 @@ describe('loggers', () => {
       );
 
       expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...event,
         'event.name': EVENT_TOOL_CALL,
         'event.timestamp': '2025-01-01T00:00:00.000Z',
@@ -791,7 +1519,7 @@ describe('loggers', () => {
 
     it('should log a tool call without a decision', () => {
       const call: CompletedToolCall = {
-        status: 'success',
+        status: CoreToolCallStatus.Success,
         request: {
           name: 'test-function',
           args: {
@@ -810,7 +1538,7 @@ describe('loggers', () => {
           errorType: undefined,
           contentLength: 13,
         },
-        tool: new EditTool(mockConfig),
+        tool: new EditTool(mockConfig, createMockMessageBus()),
         invocation: {} as AnyToolInvocation,
         durationMs: 100,
       };
@@ -822,8 +1550,11 @@ describe('loggers', () => {
         body: 'Tool call: test-function. Success: true. Duration: 100ms.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_TOOL_CALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           function_name: 'test-function',
           function_args: JSON.stringify(
             {
@@ -834,13 +1565,14 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           prompt_id: 'prompt-id-4',
           tool_type: 'native',
           decision: undefined,
           error: undefined,
           error_type: undefined,
+          mcp_server_name: undefined,
+          extension_id: undefined,
           metadata: undefined,
           content_length: 13,
         },
@@ -858,6 +1590,7 @@ describe('loggers', () => {
       );
 
       expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...event,
         'event.name': EVENT_TOOL_CALL,
         'event.timestamp': '2025-01-01T00:00:00.000Z',
@@ -867,7 +1600,7 @@ describe('loggers', () => {
     it('should log a failed tool call with an error', () => {
       const errorMessage = 'test-error';
       const call: ErroredToolCall = {
-        status: 'error',
+        status: CoreToolCallStatus.Error,
         request: {
           name: 'test-function',
           args: {
@@ -896,8 +1629,11 @@ describe('loggers', () => {
         body: 'Tool call: test-function. Success: false. Duration: 100ms.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_TOOL_CALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           function_name: 'test-function',
           function_args: JSON.stringify(
             {
@@ -908,7 +1644,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'error',
           success: false,
           error: 'test-error',
           'error.message': 'test-error',
@@ -917,6 +1652,8 @@ describe('loggers', () => {
           prompt_id: 'prompt-id-5',
           tool_type: 'native',
           decision: undefined,
+          mcp_server_name: undefined,
+          extension_id: undefined,
           metadata: undefined,
           content_length: errorMessage.length,
         },
@@ -934,6 +1671,7 @@ describe('loggers', () => {
       );
 
       expect(mockUiEvent.addEvent).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-misused-spread
         ...event,
         'event.name': EVENT_TOOL_CALL,
         'event.timestamp': '2025-01-01T00:00:00.000Z',
@@ -954,10 +1692,17 @@ describe('loggers', () => {
           },
           required: ['arg1', 'arg2'],
         },
+        createMockMessageBus(),
+        false,
+        undefined,
+        undefined,
+        undefined,
+        'test-extension',
+        'test-extension-id',
       );
 
       const call: CompletedToolCall = {
-        status: 'success',
+        status: CoreToolCallStatus.Success,
         request: {
           name: 'mock_mcp_tool',
           args: { arg1: 'value1', arg2: 2 },
@@ -977,15 +1722,19 @@ describe('loggers', () => {
         durationMs: 100,
       };
       const event = new ToolCallEvent(call);
-
       logToolCall(mockConfig, event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
         body: 'Tool call: mock_mcp_tool. Success: true. Duration: 100ms.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_TOOL_CALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          extension_name: 'test-extension',
+          extension_id: 'test-extension-id',
+          interactive: false,
           function_name: 'mock_mcp_tool',
           function_args: JSON.stringify(
             {
@@ -996,7 +1745,6 @@ describe('loggers', () => {
             2,
           ),
           duration_ms: 100,
-          status: 'success',
           success: true,
           prompt_id: 'prompt-id',
           tool_type: 'mcp',
@@ -1006,7 +1754,6 @@ describe('loggers', () => {
           error_type: undefined,
           metadata: undefined,
           content_length: undefined,
-          response_id: undefined,
         },
       });
     });
@@ -1014,28 +1761,64 @@ describe('loggers', () => {
 
   describe('logMalformedJsonResponse', () => {
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logMalformedJsonResponseEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logMalformedJsonResponseEvent');
     });
 
     it('logs the event to Clearcut and OTEL', () => {
-      const mockConfig = makeFakeConfig({ sessionId: 'test-session-id' });
+      const mockConfig = makeFakeConfig();
       const event = new MalformedJsonResponseEvent('test-model');
 
       logMalformedJsonResponse(mockConfig, event);
 
       expect(
-        ApexLogger.prototype.logMalformedJsonResponseEvent,
+        ClearcutLogger.prototype.logMalformedJsonResponseEvent,
       ).toHaveBeenCalledWith(event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
         body: 'Malformed JSON response from test-model.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_MALFORMED_JSON_RESPONSE,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           model: 'test-model',
         },
       });
+    });
+  });
+
+  describe('logInvalidChunk', () => {
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logInvalidChunkEvent');
+      vi.spyOn(metrics, 'recordInvalidChunk');
+    });
+
+    it('logs the event to Clearcut and OTEL', () => {
+      const mockConfig = makeFakeConfig();
+      const event = new InvalidChunkEvent('Unexpected token');
+
+      logInvalidChunk(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logInvalidChunkEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Invalid chunk received from stream.',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_INVALID_CHUNK,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          'error.message': 'Unexpected token',
+        },
+      });
+
+      expect(metrics.recordInvalidChunk).toHaveBeenCalledWith(mockConfig);
     });
   });
 
@@ -1046,7 +1829,11 @@ describe('loggers', () => {
       getUsageStatisticsEnabled: () => true,
       getTelemetryEnabled: () => true,
       getTelemetryLogPromptsEnabled: () => true,
-    } as Config;
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
 
     const mockMetrics = {
       recordFileOperationMetric: vi.fn(),
@@ -1074,8 +1861,11 @@ describe('loggers', () => {
         body: 'File operation: read. Lines: 10.',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_FILE_OPERATION,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
           tool_name: 'test-tool',
           operation: 'read',
           lines: 10,
@@ -1102,6 +1892,10 @@ describe('loggers', () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     it('should log a tool output truncated event', () => {
@@ -1110,7 +1904,6 @@ describe('loggers', () => {
         originalContentLength: 1000,
         truncatedContentLength: 100,
         threshold: 500,
-        lines: 10,
       });
 
       logToolOutputTruncated(mockConfig, event);
@@ -1119,17 +1912,126 @@ describe('loggers', () => {
         body: 'Tool output truncated for test-tool.',
         attributes: {
           'session.id': 'test-session-id',
-          'event.name': 'tool_output_truncated',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_TOOL_OUTPUT_TRUNCATED,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
           eventName: 'tool_output_truncated',
+          interactive: false,
           prompt_id: 'prompt-id-1',
           tool_name: 'test-tool',
           original_content_length: 1000,
           truncated_content_length: 100,
           threshold: 500,
-          lines: 10,
         },
       });
+    });
+  });
+
+  describe('logModelRouting', () => {
+    const mockConfig = {
+      getSessionId: () => 'test-session-id',
+      getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logModelRoutingEvent');
+      vi.spyOn(metrics, 'recordModelRoutingMetrics');
+    });
+
+    it('should log the event to Clearcut and OTEL, and record metrics', () => {
+      const event = new ModelRoutingEvent(
+        'gemini-pro',
+        'default',
+        100,
+        'test-reason',
+        false,
+        undefined,
+        ApprovalMode.DEFAULT,
+      );
+
+      logModelRouting(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logModelRoutingEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Model routing decision. Model: gemini-pro, Source: default',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          // eslint-disable-next-line @typescript-eslint/no-misused-spread
+          ...event,
+          'event.name': EVENT_MODEL_ROUTING,
+          interactive: false,
+        },
+      });
+
+      expect(metrics.recordModelRoutingMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        event,
+      );
+    });
+
+    it('should log the event with numerical routing fields', () => {
+      const event = new ModelRoutingEvent(
+        'gemini-pro',
+        'NumericalClassifier (Strict)',
+        150,
+        '[Score: 90 / Threshold: 80] reasoning',
+        false,
+        undefined,
+        ApprovalMode.DEFAULT,
+        true,
+        '80',
+      );
+
+      logModelRouting(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logModelRoutingEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Model routing decision. Model: gemini-pro, Source: NumericalClassifier (Strict)',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          // eslint-disable-next-line @typescript-eslint/no-misused-spread
+          ...event,
+          'event.name': EVENT_MODEL_ROUTING,
+          interactive: false,
+        },
+      });
+    });
+
+    it('should only log to Clearcut if OTEL SDK is not initialized', () => {
+      vi.spyOn(sdk, 'isTelemetrySdkInitialized').mockReturnValue(false);
+      vi.spyOn(sdk, 'bufferTelemetryEvent').mockImplementation(() => {});
+      const event = new ModelRoutingEvent(
+        'gemini-pro',
+        'default',
+        100,
+        'test-reason',
+        false,
+        undefined,
+        ApprovalMode.DEFAULT,
+      );
+
+      logModelRouting(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logModelRoutingEvent,
+      ).toHaveBeenCalledWith(event);
+      expect(mockLogger.emit).not.toHaveBeenCalled();
+      expect(metrics.recordModelRoutingMetrics).not.toHaveBeenCalled();
     });
   });
 
@@ -1137,111 +2039,197 @@ describe('loggers', () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      getContentGeneratorConfig: () => null,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
     } as unknown as Config;
 
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logExtensionInstallEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logExtensionInstallEvent');
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
-    it('should log extension install event', () => {
+    it('should log extension install event', async () => {
       const event = new ExtensionInstallEvent(
-        'vscode',
+        'testing',
+        'testing-hash',
+        'testing-id',
         '0.1.0',
         'git',
-        'success',
+        CoreToolCallStatus.Success,
       );
 
-      logExtensionInstallEvent(mockConfig, event);
+      await logExtensionInstallEvent(mockConfig, event);
 
       expect(
-        ApexLogger.prototype.logExtensionInstallEvent,
+        ClearcutLogger.prototype.logExtensionInstallEvent,
       ).toHaveBeenCalledWith(event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
-        body: 'Installed extension vscode',
+        body: 'Installed extension testing',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_EXTENSION_INSTALL,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
-          extension_name: 'vscode',
+          interactive: false,
+          extension_name: 'testing',
           extension_version: '0.1.0',
           extension_source: 'git',
-          status: 'success',
+          status: CoreToolCallStatus.Success,
         },
       });
     });
   });
 
-  describe('logExtensionUninstall', () => {
+  describe('logExtensionUpdate', async () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      getContentGeneratorConfig: () => null,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
     } as unknown as Config;
 
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logExtensionUninstallEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logExtensionUpdateEvent');
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
-    it('should log extension uninstall event', () => {
-      const event = new ExtensionUninstallEvent('vscode', 'success');
+    it('should log extension update event', async () => {
+      const event = new ExtensionUpdateEvent(
+        'testing',
+        'testing-hash',
+        'testing-id',
+        '0.1.0',
+        '0.1.1',
+        'git',
+        CoreToolCallStatus.Success,
+      );
 
-      logExtensionUninstall(mockConfig, event);
+      await logExtensionUpdateEvent(mockConfig, event);
 
       expect(
-        ApexLogger.prototype.logExtensionUninstallEvent,
+        ClearcutLogger.prototype.logExtensionUpdateEvent,
       ).toHaveBeenCalledWith(event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
-        body: 'Uninstalled extension vscode',
+        body: 'Updated extension testing',
         attributes: {
           'session.id': 'test-session-id',
-          'event.name': EVENT_EXTENSION_UNINSTALL,
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_EXTENSION_UPDATE,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
-          extension_name: 'vscode',
-          status: 'success',
+          interactive: false,
+          extension_name: 'testing',
+          extension_version: '0.1.0',
+          extension_previous_version: '0.1.1',
+          extension_source: 'git',
+          status: CoreToolCallStatus.Success,
         },
       });
     });
   });
 
-  describe('logExtensionEnable', () => {
+  describe('logExtensionUninstall', async () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      getContentGeneratorConfig: () => null,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
     } as unknown as Config;
 
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logExtensionEnableEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logExtensionUninstallEvent');
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
-
-    it('should log extension enable event', () => {
-      const event = new ExtensionEnableEvent('vscode', 'user');
-
-      logExtensionEnable(mockConfig, event);
-
-      expect(ApexLogger.prototype.logExtensionEnableEvent).toHaveBeenCalledWith(
-        event,
+    it('should log extension uninstall event', async () => {
+      const event = new ExtensionUninstallEvent(
+        'testing',
+        'testing-hash',
+        'testing-id',
+        CoreToolCallStatus.Success,
       );
 
+      await logExtensionUninstall(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logExtensionUninstallEvent,
+      ).toHaveBeenCalledWith(event);
+
       expect(mockLogger.emit).toHaveBeenCalledWith({
-        body: 'Enabled extension vscode',
+        body: 'Uninstalled extension testing',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_EXTENSION_UNINSTALL,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          extension_name: 'testing',
+          status: CoreToolCallStatus.Success,
+        },
+      });
+    });
+  });
+
+  describe('logExtensionEnable', async () => {
+    const mockConfig = {
+      getSessionId: () => 'test-session-id',
+      getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logExtensionEnableEvent');
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should log extension enable event', async () => {
+      const event = new ExtensionEnableEvent(
+        'testing',
+        'testing-hash',
+        'testing-id',
+        'user',
+      );
+
+      await logExtensionEnable(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logExtensionEnableEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Enabled extension testing',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_EXTENSION_ENABLE,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
-          extension_name: 'vscode',
+          interactive: false,
+          extension_name: 'testing',
           setting_scope: 'user',
         },
       });
@@ -1252,33 +2240,176 @@ describe('loggers', () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
       getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
     beforeEach(() => {
-      vi.spyOn(ApexLogger.prototype, 'logExtensionDisableEvent');
+      vi.spyOn(ClearcutLogger.prototype, 'logExtensionDisableEvent');
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
-    it('should log extension disable event', () => {
-      const event = new ExtensionDisableEvent('vscode', 'user');
+    it('should log extension disable event', async () => {
+      const event = new ExtensionDisableEvent(
+        'testing',
+        'testing-hash',
+        'testing-id',
+        'user',
+      );
 
-      logExtensionDisable(mockConfig, event);
+      await logExtensionDisable(mockConfig, event);
 
       expect(
-        ApexLogger.prototype.logExtensionDisableEvent,
+        ClearcutLogger.prototype.logExtensionDisableEvent,
       ).toHaveBeenCalledWith(event);
 
       expect(mockLogger.emit).toHaveBeenCalledWith({
-        body: 'Disabled extension vscode',
+        body: 'Disabled extension testing',
         attributes: {
           'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
           'event.name': EVENT_EXTENSION_DISABLE,
           'event.timestamp': '2025-01-01T00:00:00.000Z',
-          extension_name: 'vscode',
+          interactive: false,
+          extension_name: 'testing',
           setting_scope: 'user',
+        },
+      });
+    });
+  });
+
+  describe('logAgentStart', () => {
+    const mockConfig = {
+      getSessionId: () => 'test-session-id',
+      getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logAgentStartEvent');
+    });
+
+    it('should log agent start event', () => {
+      const event = new AgentStartEvent('agent-123', 'TestAgent');
+
+      logAgentStart(mockConfig, event);
+
+      expect(ClearcutLogger.prototype.logAgentStartEvent).toHaveBeenCalledWith(
+        event,
+      );
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Agent TestAgent started. ID: agent-123',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_AGENT_START,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          agent_id: 'agent-123',
+          agent_name: 'TestAgent',
+        },
+      });
+    });
+  });
+
+  describe('logAgentFinish', () => {
+    const mockConfig = {
+      getSessionId: () => 'test-session-id',
+      getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logAgentFinishEvent');
+      vi.spyOn(metrics, 'recordAgentRunMetrics');
+    });
+
+    it('should log agent finish event and record metrics', () => {
+      const event = new AgentFinishEvent(
+        'agent-123',
+        'TestAgent',
+        1000,
+        5,
+        AgentTerminateMode.GOAL,
+      );
+
+      logAgentFinish(mockConfig, event);
+
+      expect(ClearcutLogger.prototype.logAgentFinishEvent).toHaveBeenCalledWith(
+        event,
+      );
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Agent TestAgent finished. Reason: GOAL. Duration: 1000ms. Turns: 5.',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_AGENT_FINISH,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          agent_id: 'agent-123',
+          agent_name: 'TestAgent',
+          duration_ms: 1000,
+          turn_count: 5,
+          terminate_reason: 'GOAL',
+        },
+      });
+
+      expect(metrics.recordAgentRunMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        event,
+      );
+    });
+  });
+
+  describe('logWebFetchFallbackAttempt', () => {
+    const mockConfig = {
+      getSessionId: () => 'test-session-id',
+      getUsageStatisticsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getContentGeneratorConfig: () => undefined,
+    } as unknown as Config;
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logWebFetchFallbackAttemptEvent');
+    });
+
+    it('should log web fetch fallback attempt event', () => {
+      const event = new WebFetchFallbackAttemptEvent('private_ip');
+
+      logWebFetchFallbackAttempt(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logWebFetchFallbackAttemptEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Web fetch fallback attempt. Reason: private_ip',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_WEB_FETCH_FALLBACK_ATTEMPT,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          reason: 'private_ip',
         },
       });
     });
@@ -1287,226 +2418,200 @@ describe('loggers', () => {
   describe('logHookCall', () => {
     const mockConfig = {
       getSessionId: () => 'test-session-id',
-      getTargetDir: () => 'target-dir',
       getUsageStatisticsEnabled: () => true,
-      getTelemetryEnabled: () => true,
-      getTelemetryLogPromptsEnabled: () => true,
+      isInteractive: () => false,
+      getExperiments: () => undefined,
+      getExperimentsAsync: async () => undefined,
+      getTelemetryLogPromptsEnabled: () => false,
+      getContentGeneratorConfig: () => undefined,
     } as unknown as Config;
 
-    const mockApexLogger = {
-      logHookCallEvent: vi.fn(),
-    };
-
     beforeEach(() => {
-      vi.spyOn(ApexLogger, 'getInstance').mockReturnValue(
-        mockApexLogger as unknown as ApexLogger,
-      );
-      mockApexLogger.logHookCallEvent.mockClear();
+      vi.spyOn(ClearcutLogger.prototype, 'logHookCallEvent');
+      vi.spyOn(metrics, 'recordHookCallMetrics');
     });
 
-    it('should log a successful hook call to ApexLogger', () => {
+    it('should log hook call event to Clearcut and OTEL', () => {
       const event = new HookCallEvent(
-        'UserPromptSubmit',
-        'command',
-        'check-secrets.sh',
-        { prompt: 'test prompt' },
+        'before-tool',
+        HookType.Command,
+        '/path/to/script.sh',
+        { arg: 'val' },
         150,
         true,
-        { output: 'success' },
+        { out: 'res' },
         0,
-        'stdout message',
-        'stderr message',
-        undefined,
       );
 
       logHookCall(mockConfig, event);
 
-      // Should call ApexLogger
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-    });
-
-    it('should log a failed hook call with error', () => {
-      const event = new HookCallEvent(
-        'Stop',
-        'command',
-        'cleanup.sh',
-        { last_assistant_message: 'final message' },
-        200,
-        false,
-        undefined,
-        1,
-        'stdout message',
-        'stderr message',
-        'Error occurred',
+      expect(ClearcutLogger.prototype.logHookCallEvent).toHaveBeenCalledWith(
+        event,
       );
 
-      logHookCall(mockConfig, event);
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Hook call before-tool./path/to/script.sh succeeded in 150ms',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_HOOK_CALL,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          hook_event_name: 'before-tool',
+          hook_type: 'command',
+          hook_name: 'script.sh', // Sanitized because logPrompts is false
+          duration_ms: 150,
+          success: true,
+          exit_code: 0,
+        },
+      });
 
-      // Should call ApexLogger
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
+      expect(metrics.recordHookCallMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        'before-tool',
+        '/path/to/script.sh',
+        150,
+        true,
+      );
+    });
+  });
+
+  describe('logNetworkRetryAttempt', () => {
+    const mockConfig = makeFakeConfig();
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logNetworkRetryAttemptEvent');
+      vi.spyOn(metrics, 'recordRetryAttemptMetrics');
     });
 
-    it('should handle when ApexLogger is not available', () => {
-      vi.spyOn(ApexLogger, 'getInstance').mockReturnValue(undefined);
+    it('logs the network retry attempt event to Clearcut and OTEL', () => {
+      const event = new NetworkRetryAttemptEvent(
+        2,
+        5,
+        'Overloaded',
+        1000,
+        'test-model',
+      );
 
-      const event = new HookCallEvent(
-        'UserPromptSubmit',
-        'command',
-        'test-hook.sh',
-        { prompt: 'test' },
+      logNetworkRetryAttempt(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logNetworkRetryAttemptEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Network retry attempt 2/5 for test-model. Delay: 1000ms. Error type: Overloaded',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_NETWORK_RETRY_ATTEMPT,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          attempt: 2,
+          max_attempts: 5,
+          error_type: 'Overloaded',
+          delay_ms: 1000,
+          model: 'test-model',
+        },
+      });
+
+      expect(metrics.recordRetryAttemptMetrics).toHaveBeenCalledWith(
+        mockConfig,
+        {
+          model: 'test-model',
+          attempt: 2,
+        },
+      );
+    });
+  });
+
+  describe('logOnboardingStart', () => {
+    const mockConfig = makeFakeConfig();
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logOnboardingStartEvent');
+      vi.spyOn(metrics, 'recordOnboardingStart');
+    });
+
+    it('should log onboarding start event to Clearcut and OTEL, and record metrics', () => {
+      const event = new OnboardingStartEvent();
+
+      logOnboardingStart(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logOnboardingStartEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Onboarding started.',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_ONBOARDING_START,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+        },
+      });
+
+      expect(metrics.recordOnboardingStart).toHaveBeenCalledWith(mockConfig);
+    });
+  });
+
+  describe('logOnboardingSuccess', () => {
+    const mockConfig = makeFakeConfig();
+
+    beforeEach(() => {
+      vi.spyOn(ClearcutLogger.prototype, 'logOnboardingSuccessEvent');
+      vi.spyOn(metrics, 'recordOnboardingSuccess');
+    });
+
+    it('should log onboarding success event to Clearcut and OTEL, and record metrics', () => {
+      const event = new OnboardingSuccessEvent('standard-tier', 100);
+
+      logOnboardingSuccess(mockConfig, event);
+
+      expect(
+        ClearcutLogger.prototype.logOnboardingSuccessEvent,
+      ).toHaveBeenCalledWith(event);
+
+      expect(mockLogger.emit).toHaveBeenCalledWith({
+        body: 'Onboarding succeeded. Tier: standard-tier. Duration: 100ms',
+        attributes: {
+          'session.id': 'test-session-id',
+          'user.email': 'test-user@example.com',
+          'installation.id': 'test-installation-id',
+          'event.name': EVENT_ONBOARDING_SUCCESS,
+          'event.timestamp': '2025-01-01T00:00:00.000Z',
+          interactive: false,
+          user_tier: 'standard-tier',
+          duration_ms: 100,
+        },
+      });
+
+      expect(metrics.recordOnboardingSuccess).toHaveBeenCalledWith(
+        mockConfig,
+        'standard-tier',
         100,
-        true,
       );
-
-      // Should not throw when ApexLogger is not available
-      expect(() => logHookCall(mockConfig, event)).not.toThrow();
     });
+  });
 
-    it('should log hook call with all optional fields', () => {
-      const event = new HookCallEvent(
-        'PreToolUse',
-        'command',
-        'validator.sh',
-        { tool_name: 'read_file', path: '/test/file.txt' },
-        250,
-        true,
-        { decision: 'allow', reason: 'validated' },
-        0,
-        'validation passed',
-        '',
-        undefined,
-      );
+  describe('Telemetry Buffering', () => {
+    it('should buffer events when SDK is not initialized', async () => {
+      vi.spyOn(sdk, 'isTelemetrySdkInitialized').mockReturnValue(false);
+      const bufferSpy = vi
+        .spyOn(sdk, 'bufferTelemetryEvent')
+        .mockImplementation(() => {});
 
-      logHookCall(mockConfig, event);
+      const mockConfig = makeFakeConfig();
+      const event = new StartSessionEvent(mockConfig);
+      logCliConfiguration(mockConfig, event);
 
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-    });
-
-    it('should log hook call with minimal fields', () => {
-      const event = new HookCallEvent(
-        'SessionStart',
-        'command',
-        'init.sh',
-        {},
-        10,
-        true,
-      );
-
-      logHookCall(mockConfig, event);
-
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-    });
-
-    it('should log hook call with exit code', () => {
-      const event = new HookCallEvent(
-        'PostToolUseFailure',
-        'command',
-        'error-handler.sh',
-        { tool_name: 'shell' },
-        50,
-        false,
-        undefined,
-        1,
-        '',
-        'error output',
-        'Command failed with exit code 1',
-      );
-
-      logHookCall(mockConfig, event);
-
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-    });
-
-    it('should log hook call with zero exit code on success', () => {
-      const event = new HookCallEvent(
-        'PostToolUse',
-        'command',
-        'success-handler.sh',
-        { tool_name: 'write_file' },
-        100,
-        true,
-        { result: 'ok' },
-        0,
-        'done',
-        '',
-        undefined,
-      );
-
-      logHookCall(mockConfig, event);
-
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-    });
-
-    it('should log hook call with non-zero exit code on failure', () => {
-      const event = new HookCallEvent(
-        'PostToolUseFailure',
-        'command',
-        'failure-handler.sh',
-        { tool_name: 'shell' },
-        75,
-        false,
-        undefined,
-        127,
-        '',
-        'command not found',
-        'Hook command not found',
-      );
-
-      logHookCall(mockConfig, event);
-
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-    });
-
-    it('should log all hook event types', () => {
-      const eventTypes = [
-        'PreToolUse',
-        'PostToolUse',
-        'PostToolUseFailure',
-        'Notification',
-        'UserPromptSubmit',
-        'SessionStart',
-        'SessionEnd',
-        'Stop',
-        'SubagentStart',
-        'SubagentStop',
-        'PreCompact',
-        'PermissionRequest',
-      ];
-
-      for (const eventType of eventTypes) {
-        mockApexLogger.logHookCallEvent.mockClear();
-
-        const event = new HookCallEvent(
-          eventType,
-          'command',
-          'test-hook.sh',
-          {},
-          100,
-          true,
-        );
-
-        logHookCall(mockConfig, event);
-
-        expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledWith(event);
-      }
-    });
-
-    it('should pass the exact event object to ApexLogger', () => {
-      const event = new HookCallEvent(
-        'PreToolUse',
-        'command',
-        'test-hook.sh',
-        { tool_name: 'read_file' },
-        100,
-        true,
-      );
-
-      logHookCall(mockConfig, event);
-
-      // Verify the exact event object is passed
-      expect(mockApexLogger.logHookCallEvent).toHaveBeenCalledTimes(1);
-      const passedEvent = mockApexLogger.logHookCallEvent.mock.calls[0][0];
-      expect(passedEvent).toBe(event);
+      expect(bufferSpy).toHaveBeenCalled();
+      expect(mockLogger.emit).not.toHaveBeenCalled();
     });
   });
 });

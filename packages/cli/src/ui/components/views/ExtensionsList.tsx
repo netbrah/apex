@@ -4,24 +4,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type React from 'react';
 import { Box, Text } from 'ink';
 import { useUIState } from '../../contexts/UIStateContext.js';
 import { ExtensionUpdateState } from '../../state/extensions.js';
-import { createDebugLogger } from '@apex-code/apex-core';
+import { debugLogger, type GeminiCLIExtension } from '@apex-code/apex-core';
+import { getFormattedSettingValue } from '../../../commands/extensions/utils.js';
 
-const debugLogger = createDebugLogger('EXTENSIONS_LIST');
+interface ExtensionsList {
+  extensions: readonly GeminiCLIExtension[];
+}
 
-export const ExtensionsList = () => {
-  const { extensionsUpdateState, commandContext } = useUIState();
-  const extensions = commandContext.services.config?.getExtensions() || [];
+export const ExtensionsList: React.FC<ExtensionsList> = ({ extensions }) => {
+  const { extensionsUpdateState } = useUIState();
 
   if (extensions.length === 0) {
     return <Text>No extensions installed.</Text>;
   }
 
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={1}>
-      <Text>Installed extensions:</Text>
+    <Box flexDirection="column" marginBottom={1}>
+      <Text>Installed extensions: </Text>
       <Box flexDirection="column" paddingLeft={2}>
         {extensions.map((ext) => {
           const state = extensionsUpdateState.get(ext.name);
@@ -49,8 +52,10 @@ export const ExtensionsList = () => {
             case ExtensionUpdateState.UPDATED:
               stateColor = 'green';
               break;
+            case undefined:
+              break;
             default:
-              debugLogger.error(`Unhandled ExtensionUpdateState ${state}`);
+              debugLogger.warn(`Unhandled ExtensionUpdateState ${state}`);
               break;
           }
 
@@ -66,7 +71,16 @@ export const ExtensionsList = () => {
                   <Text>settings:</Text>
                   {ext.resolvedSettings.map((setting) => (
                     <Text key={setting.name}>
-                      - {setting.name}: {setting.value}
+                      - {setting.name}: {getFormattedSettingValue(setting)}
+                      {setting.scope && (
+                        <Text color="gray">
+                          {' '}
+                          (
+                          {setting.scope.charAt(0).toUpperCase() +
+                            setting.scope.slice(1)}
+                          {setting.source ? ` - ${setting.source}` : ''})
+                        </Text>
+                      )}
                     </Text>
                   ))}
                 </Box>

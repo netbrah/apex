@@ -1,36 +1,36 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FunctionCallingConfigMode } from '@google/genai';
 import {
-  HookEventName,
   DefaultHookOutput,
-  PreToolUseHookOutput,
-  PostToolUseHookOutput,
-  PostToolUseFailureHookOutput,
-  StopHookOutput,
-  PermissionRequestHookOutput,
+  BeforeToolHookOutput,
+  BeforeModelHookOutput,
+  BeforeToolSelectionHookOutput,
+  AfterModelHookOutput,
+  AfterAgentHookOutput,
+  HookEventName,
+  type HookOutput,
+  type HookExecutionResult,
+  type BeforeToolSelectionOutput,
 } from './types.js';
-import type { HookOutput, HookExecutionResult } from './types.js';
 
 /**
- * Aggregated result from multiple hook executions
+ * Aggregated hook result
  */
 export interface AggregatedHookResult {
   success: boolean;
+  finalOutput?: DefaultHookOutput;
   allOutputs: HookOutput[];
   errors: Error[];
   totalDuration: number;
-  finalOutput?: HookOutput;
 }
 
 /**
- * HookAggregator merges multiple hook outputs using event-specific rules.
- *
- * Different events have different merging strategies:
- * - PreToolUse/PostToolUse: OR logic for decisions, concatenation for messages
+ * Hook aggregator that merges results from multiple hooks using event-specific strategies
  */
 export class HookAggregator {
   /**
@@ -44,10 +44,11 @@ export class HookAggregator {
     const errors: Error[] = [];
     let totalDuration = 0;
 
+    // Collect all outputs and errors
     for (const result of results) {
       totalDuration += result.duration;
 
-      if (!result.success && result.error) {
+      if (result.error) {
         errors.push(result.error);
       }
 
@@ -56,20 +57,26 @@ export class HookAggregator {
       }
     }
 
-    const success = errors.length === 0;
-    const finalOutput = this.mergeOutputs(allOutputs, eventName);
+    // Merge outputs using event-specific strategy
+    const mergedOutput = this.mergeOutputs(allOutputs, eventName);
+    const finalOutput = mergedOutput
+      ? this.createSpecificHookOutput(mergedOutput, eventName)
+      : undefined;
 
     return {
-      success,
+      success: errors.length === 0,
+      finalOutput,
       allOutputs,
       errors,
       totalDuration,
-      finalOutput,
     };
   }
 
   /**
-   * Merge multiple hook outputs based on event type
+   * Merge hook outputs using event-specific strategies
+   *
+   * Note: We always use the merge logic even for single hooks to ensure
+   * consistent default behaviors (e.g., default decision='allow' for OR logic)
    */
   private mergeOutputs(
     outputs: HookOutput[],
@@ -79,232 +86,226 @@ export class HookAggregator {
       return undefined;
     }
 
-    if (outputs.length === 1) {
-      return this.createSpecificHookOutput(outputs[0], eventName);
-    }
-
-    let merged: HookOutput;
-
     switch (eventName) {
-      case HookEventName.PreToolUse:
-      case HookEventName.PostToolUse:
-      case HookEventName.PostToolUseFailure:
-      case HookEventName.Stop:
-      case HookEventName.UserPromptSubmit:
-      case HookEventName.SubagentStop:
-        merged = this.mergeWithOrLogic(outputs, eventName);
-        break;
-      case HookEventName.PermissionRequest:
-        merged = this.mergePermissionRequestOutputs(outputs);
-        break;
-      default:
-        merged = this.mergeSimple(outputs);
-    }
+      case HookEventName.BeforeTool:
+      case HookEventName.AfterTool:
+      case HookEventName.BeforeAgent:
+      case HookEventName.AfterAgent:
+      case HookEventName.SessionStart:
+        return this.mergeWithOrDecision(outputs);
 
-    return this.createSpecificHookOutput(merged, eventName);
+      case HookEventName.BeforeModel:
+      case HookEventName.AfterModel:
+        return this.mergeWithFieldReplacement(outputs);
+
+      case HookEventName.BeforeToolSelection:
+        return this.mergeToolSelectionOutputs(
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          outputs as BeforeToolSelectionOutput[],
+        );
+
+      default:
+        // For other events, use simple merge
+        return this.mergeSimple(outputs);
+    }
   }
 
   /**
-   * Merge outputs using OR logic for decisions and concatenation for messages.
-   *
-   * Rules:
-   * - Any "block" or "deny" decision results in blocking (most restrictive wins)
-   * - Reasons are concatenated with newlines
-   * - continue=false takes precedence over continue=true
-   * - Additional context is concatenated
-   * - For PostToolUse, decision and reason are required fields
+   * Merge outputs with OR decision logic and message concatenation
    */
-  private mergeWithOrLogic(
-    outputs: HookOutput[],
-    _eventName?: HookEventName,
-  ): HookOutput {
-    const merged: HookOutput = {};
+  private mergeWithOrDecision(outputs: HookOutput[]): HookOutput {
+    const merged: HookOutput = {
+      continue: true,
+      suppressOutput: false,
+    };
+
+    const messages: string[] = [];
     const reasons: string[] = [];
+    const systemMessages: string[] = [];
     const additionalContexts: string[] = [];
-    let hasBlock = false;
+
+    let hasBlockDecision = false;
+    let hasAskDecision = false;
     let hasContinueFalse = false;
-    let stopReason: string | undefined;
-    const otherHookSpecificFields: Record<string, unknown> = {};
 
     for (const output of outputs) {
-      // Check for blocking decisions
-      if (output.decision === 'block' || output.decision === 'deny') {
-        hasBlock = true;
+      // Handle continue flag
+      if (output.continue === false) {
+        hasContinueFalse = true;
+        merged.continue = false;
+        if (output.stopReason) {
+          messages.push(output.stopReason);
+        }
       }
 
-      // Collect reasons
+      // Handle decision (OR logic for blocking)
+      const tempOutput = new DefaultHookOutput(output);
+      if (tempOutput.isBlockingDecision()) {
+        hasBlockDecision = true;
+        merged.decision = output.decision;
+      } else if (tempOutput.isAskDecision()) {
+        hasAskDecision = true;
+        // Ask decision is only set if no blocking decision was found so far
+        if (!hasBlockDecision) {
+          merged.decision = output.decision;
+        }
+      }
+
+      // Collect messages
       if (output.reason) {
         reasons.push(output.reason);
       }
 
-      // Check continue flag
-      if (output.continue === false) {
-        hasContinueFalse = true;
-        if (output.stopReason) {
-          stopReason = output.stopReason;
-        }
+      if (output.systemMessage) {
+        systemMessages.push(output.systemMessage);
       }
 
-      // Extract additional context
-      this.extractAdditionalContext(output, additionalContexts);
+      // Handle suppress output (any true wins)
+      if (output.suppressOutput) {
+        merged.suppressOutput = true;
+      }
 
-      // Collect other hookSpecificOutput fields (later values win)
+      // Handle clearContext (any true wins) - for AfterAgent hooks
+      if (output.hookSpecificOutput?.['clearContext'] === true) {
+        merged.hookSpecificOutput = {
+          ...(merged.hookSpecificOutput || {}),
+          clearContext: true,
+        };
+      }
+
+      // Merge hookSpecificOutput (excluding clearContext which is handled above)
       if (output.hookSpecificOutput) {
-        for (const [key, value] of Object.entries(output.hookSpecificOutput)) {
-          if (key !== 'additionalContext') {
-            otherHookSpecificFields[key] = value;
-          }
-        }
+        const { clearContext: _clearContext, ...restSpecificOutput } =
+          output.hookSpecificOutput;
+        merged.hookSpecificOutput = {
+          ...(merged.hookSpecificOutput || {}),
+          ...restSpecificOutput,
+        };
       }
 
-      // Copy other fields (later values win for simple fields)
-      if (output.suppressOutput !== undefined) {
-        merged.suppressOutput = output.suppressOutput;
-      }
-      if (output.systemMessage !== undefined) {
-        merged.systemMessage = output.systemMessage;
-      }
+      // Collect additional context from hook-specific outputs
+      this.extractAdditionalContext(output, additionalContexts);
     }
 
-    // Set merged decision
-    if (hasBlock) {
-      merged.decision = 'block';
-    } else if (outputs.some((o) => o.decision === 'allow')) {
+    // Set final decision if no blocking or ask decision was found
+    if (!hasBlockDecision && !hasAskDecision && !hasContinueFalse) {
       merged.decision = 'allow';
     }
 
-    // Set merged reason
+    // Merge messages
+    if (messages.length > 0) {
+      merged.stopReason = messages.join('\n');
+    }
+
     if (reasons.length > 0) {
       merged.reason = reasons.join('\n');
     }
 
-    // Set continue flag
-    if (hasContinueFalse) {
-      merged.continue = false;
-      if (stopReason) {
-        merged.stopReason = stopReason;
-      }
+    if (systemMessages.length > 0) {
+      merged.systemMessage = systemMessages.join('\n');
     }
 
-    // Build hookSpecificOutput
-    const hookSpecificOutput: Record<string, unknown> = {
-      ...otherHookSpecificFields,
-    };
+    // Add merged additional context
     if (additionalContexts.length > 0) {
-      hookSpecificOutput['additionalContext'] = additionalContexts.join('\n');
-    }
-
-    if (Object.keys(hookSpecificOutput).length > 0) {
-      merged.hookSpecificOutput = hookSpecificOutput;
+      merged.hookSpecificOutput = {
+        ...(merged.hookSpecificOutput || {}),
+        additionalContext: additionalContexts.join('\n'),
+      };
     }
 
     return merged;
   }
 
   /**
-   * Merge outputs for mergePermissionRequestOutputs events.
-   *
-   * Rules:
-   * - behavior: deny wins over allow (security priority)
-   * - message: concatenated with newlines
-   * - updatedInput: later values win
-   * - updatedPermissions: concatenated
-   * - interrupt: true wins over false
+   * Merge outputs with later fields replacing earlier fields
    */
-  private mergePermissionRequestOutputs(outputs: HookOutput[]): HookOutput {
-    const merged: HookOutput = {};
-    const messages: string[] = [];
-    let hasDeny = false;
-    let hasAllow = false;
-    let interrupt = false;
-    let updatedInput: Record<string, unknown> | undefined;
-    const allUpdatedPermissions: Array<{ type: string; tool?: string }> = [];
+  private mergeWithFieldReplacement(outputs: HookOutput[]): HookOutput {
+    let merged: HookOutput = {};
 
     for (const output of outputs) {
-      const specific = output.hookSpecificOutput;
-      if (!specific) continue;
+      // Later outputs override earlier ones
+      merged = {
+        ...merged,
+        ...output,
+        hookSpecificOutput: {
+          ...merged.hookSpecificOutput,
+          ...output.hookSpecificOutput,
+        },
+      };
+    }
 
-      const decision = specific['decision'] as
-        | {
-            behavior?: string;
-            message?: string;
-            updatedInput?: Record<string, unknown>;
-            updatedPermissions?: Array<{ type: string; tool?: string }>;
-            interrupt?: boolean;
-          }
-        | undefined;
+    return merged;
+  }
 
-      if (!decision) continue;
+  /**
+   * Merge tool selection outputs with specific logic for tool config
+   *
+   * Tool Selection Strategy:
+   * - The intent is to provide a UNION of tools from all hooks
+   * - If any hook specifies NONE mode, no tools are available (most restrictive wins)
+   * - If any hook specifies ANY mode (and no NONE), ANY mode is used
+   * - Otherwise AUTO mode is used
+   * - Function names are collected from all hooks and sorted for deterministic caching
+   *
+   * This means hooks can only add/enable tools, not filter them out individually.
+   * If one hook restricts and another re-enables, the union takes the re-enabled tool.
+   */
+  private mergeToolSelectionOutputs(
+    outputs: BeforeToolSelectionOutput[],
+  ): BeforeToolSelectionOutput {
+    const merged: BeforeToolSelectionOutput = {};
 
-      // Check behavior
-      if (decision['behavior'] === 'deny') {
-        hasDeny = true;
-      } else if (decision['behavior'] === 'allow') {
-        hasAllow = true;
+    const allFunctionNames = new Set<string>();
+    let hasNoneMode = false;
+    let hasAnyMode = false;
+
+    for (const output of outputs) {
+      const toolConfig = output.hookSpecificOutput?.toolConfig;
+      if (!toolConfig) {
+        continue;
       }
 
-      // Collect message
-      if (decision['message']) {
-        messages.push(decision['message'] as string);
+      // Check mode (using simplified HookToolConfig format)
+      if (toolConfig.mode === 'NONE') {
+        hasNoneMode = true;
+      } else if (toolConfig.mode === 'ANY') {
+        hasAnyMode = true;
       }
 
-      // Check interrupt - true wins
-      if (decision['interrupt'] === true) {
-        interrupt = true;
-      }
-
-      // Collect updatedInput - use last non-empty
-      if (decision['updatedInput']) {
-        updatedInput = decision['updatedInput'] as Record<string, unknown>;
-      }
-
-      // Collect updatedPermissions
-      if (decision['updatedPermissions']) {
-        allUpdatedPermissions.push(
-          ...(decision['updatedPermissions'] as Array<{
-            type: string;
-            tool?: string;
-          }>),
-        );
-      }
-
-      // Copy other fields
-      if (output.continue !== undefined) {
-        merged.continue = output.continue;
-      }
-      if (output.reason !== undefined) {
-        merged.reason = output.reason;
+      // Collect function names (union of all hooks)
+      if (toolConfig.allowedFunctionNames) {
+        for (const name of toolConfig.allowedFunctionNames) {
+          allFunctionNames.add(name);
+        }
       }
     }
 
-    // Build merged decision
-    const mergedDecision: Record<string, unknown> = {};
+    // Determine final mode and function names
+    let finalMode: FunctionCallingConfigMode;
+    let finalFunctionNames: string[] = [];
 
-    if (hasDeny) {
-      mergedDecision['behavior'] = 'deny';
-    } else if (hasAllow) {
-      mergedDecision['behavior'] = 'allow';
-    }
-
-    if (messages.length > 0) {
-      mergedDecision['message'] = messages.join('\n');
-    }
-
-    if (interrupt) {
-      mergedDecision['interrupt'] = true;
-    }
-
-    if (updatedInput) {
-      mergedDecision['updatedInput'] = updatedInput;
-    }
-
-    if (allUpdatedPermissions.length > 0) {
-      mergedDecision['updatedPermissions'] = allUpdatedPermissions;
+    if (hasNoneMode) {
+      // NONE mode wins - most restrictive
+      finalMode = FunctionCallingConfigMode.NONE;
+      finalFunctionNames = [];
+    } else if (hasAnyMode) {
+      // ANY mode if present (and no NONE)
+      finalMode = FunctionCallingConfigMode.ANY;
+      // Sort for deterministic output to ensure consistent caching
+      finalFunctionNames = Array.from(allFunctionNames).sort();
+    } else {
+      // Default to AUTO mode
+      finalMode = FunctionCallingConfigMode.AUTO;
+      // Sort for deterministic output to ensure consistent caching
+      finalFunctionNames = Array.from(allFunctionNames).sort();
     }
 
     merged.hookSpecificOutput = {
-      ...merged.hookSpecificOutput,
-      decision: mergedDecision,
+      hookEventName: 'BeforeToolSelection',
+      toolConfig: {
+        mode: finalMode,
+        allowedFunctionNames: finalFunctionNames,
+      },
     };
 
     return merged;
@@ -314,21 +315,10 @@ export class HookAggregator {
    * Simple merge for events without special logic
    */
   private mergeSimple(outputs: HookOutput[]): HookOutput {
-    const additionalContexts: string[] = [];
     let merged: HookOutput = {};
 
     for (const output of outputs) {
-      // Collect additionalContext for concatenation
-      this.extractAdditionalContext(output, additionalContexts);
       merged = { ...merged, ...output };
-    }
-
-    // Merge additionalContext with concatenation
-    if (additionalContexts.length > 0) {
-      merged.hookSpecificOutput = {
-        ...merged.hookSpecificOutput,
-        additionalContext: additionalContexts.join('\n'),
-      };
     }
 
     return merged;
@@ -342,17 +332,16 @@ export class HookAggregator {
     eventName: HookEventName,
   ): DefaultHookOutput {
     switch (eventName) {
-      case HookEventName.PreToolUse:
-        return new PreToolUseHookOutput(output);
-      case HookEventName.PostToolUse:
-        return new PostToolUseHookOutput(output);
-      case HookEventName.PostToolUseFailure:
-        return new PostToolUseFailureHookOutput(output);
-      case HookEventName.Stop:
-      case HookEventName.SubagentStop:
-        return new StopHookOutput(output);
-      case HookEventName.PermissionRequest:
-        return new PermissionRequestHookOutput(output);
+      case HookEventName.BeforeTool:
+        return new BeforeToolHookOutput(output);
+      case HookEventName.BeforeModel:
+        return new BeforeModelHookOutput(output);
+      case HookEventName.BeforeToolSelection:
+        return new BeforeToolSelectionHookOutput(output);
+      case HookEventName.AfterModel:
+        return new AfterModelHookOutput(output);
+      case HookEventName.AfterAgent:
+        return new AfterAgentHookOutput(output);
       default:
         return new DefaultHookOutput(output);
     }
@@ -373,6 +362,7 @@ export class HookAggregator {
     // Extract additionalContext from various hook types
     if (
       'additionalContext' in specific &&
+      // eslint-disable-next-line no-restricted-syntax
       typeof specific['additionalContext'] === 'string'
     ) {
       contexts.push(specific['additionalContext']);

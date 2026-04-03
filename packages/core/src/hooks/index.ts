@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -17,6 +17,6 @@ export { HookEventHandler } from './hookEventHandler.js';
 
 // Export interfaces and enums
 export type { HookRegistryEntry } from './hookRegistry.js';
-export { HooksConfigSource as ConfigSource } from './types.js';
+export { ConfigSource } from './types.js';
 export type { AggregatedHookResult } from './hookAggregator.js';
 export type { HookEventContext } from './hookPlanner.js';

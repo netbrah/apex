@@ -6,10 +6,9 @@
 
 import { vi } from 'vitest';
 import type { CommandContext } from '../ui/commands/types.js';
-import type { LoadedSettings } from '../config/settings.js';
+import { mergeSettings, type LoadedSettings } from '../config/settings.js';
 import type { GitService } from '@apex-code/apex-core';
 import type { SessionStatsState } from '../ui/contexts/SessionContext.js';
-import { ToolCallDecision } from '../ui/contexts/SessionContext.js';
 
 // A utility type to make all properties of an object, and its nested objects, partial.
 type DeepPartial<T> = T extends object
@@ -28,6 +27,8 @@ type DeepPartial<T> = T extends object
 export const createMockCommandContext = (
   overrides: DeepPartial<CommandContext> = {},
 ): CommandContext => {
+  const defaultMergedSettings = mergeSettings({}, {}, {}, {}, true);
+
   const defaultMocks: CommandContext = {
     invocation: {
       raw: '',
@@ -35,10 +36,11 @@ export const createMockCommandContext = (
       args: '',
     },
     services: {
-      config: null,
+      agentContext: null,
       settings: {
-        merged: {},
+        merged: defaultMergedSettings,
         setValue: vi.fn(),
+        forScope: vi.fn().mockReturnValue({ settings: {} }),
       } as unknown as LoadedSettings,
       git: undefined as GitService | undefined,
       logger: {
@@ -55,22 +57,20 @@ export const createMockCommandContext = (
       setDebugMessage: vi.fn(),
       pendingItem: null,
       setPendingItem: vi.fn(),
-      btwItem: null,
-      setBtwItem: vi.fn(),
-      cancelBtw: vi.fn(),
-      btwAbortControllerRef: { current: null },
       loadHistory: vi.fn(),
+      toggleCorgiMode: vi.fn(),
+      toggleShortcutsHelp: vi.fn(),
       toggleVimEnabled: vi.fn(),
+      reloadCommands: vi.fn(),
+      openAgentConfigDialog: vi.fn(),
+      closeAgentConfigDialog: vi.fn(),
       extensionsUpdateState: new Map(),
       setExtensionsUpdateState: vi.fn(),
-      reloadCommands: vi.fn(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
     session: {
       sessionShellAllowlist: new Set<string>(),
-      startNewSession: vi.fn(),
       stats: {
-        sessionId: '',
         sessionStartTime: new Date(),
         lastPromptTokenCount: 0,
         metrics: {
@@ -80,17 +80,10 @@ export const createMockCommandContext = (
             totalSuccess: 0,
             totalFail: 0,
             totalDurationMs: 0,
-            totalDecisions: {
-              [ToolCallDecision.ACCEPT]: 0,
-              [ToolCallDecision.REJECT]: 0,
-              [ToolCallDecision.MODIFY]: 0,
-              [ToolCallDecision.AUTO_ACCEPT]: 0,
-            },
+            totalDecisions: { accept: 0, reject: 0, modify: 0 },
             byName: {},
           },
-          files: { totalLinesAdded: 0, totalLinesRemoved: 0 },
         },
-        promptCount: 0,
       } as SessionStatsState,
     },
   };
@@ -105,7 +98,7 @@ export const createMockCommandContext = (
         const targetValue = output[key];
 
         if (
-          // We only want to recursivlty merge plain objects
+          // We only want to recursively merge plain objects
           Object.prototype.toString.call(sourceValue) === '[object Object]' &&
           Object.prototype.toString.call(targetValue) === '[object Object]'
         ) {

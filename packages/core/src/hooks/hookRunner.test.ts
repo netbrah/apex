@@ -1,684 +1,964 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { HookRunner } from './hookRunner.js';
-import { HookEventName, HookType, HooksConfigSource } from './types.js';
-import type { HookConfig, HookInput } from './types.js';
+import {
+  HookEventName,
+  HookType,
+  ConfigSource,
+  type HookConfig,
+  type HookInput,
+} from './types.js';
+import type { Readable, Writable } from 'node:stream';
+import type { Config } from '../config/config.js';
 
-// Hoisted mock
-const mockSpawn = vi.hoisted(() => vi.fn());
+// Mock type for the child_process spawn
+type MockChildProcessWithoutNullStreams = ChildProcessWithoutNullStreams & {
+  mockStdoutOn: ReturnType<typeof vi.fn>;
+  mockStderrOn: ReturnType<typeof vi.fn>;
+  mockProcessOn: ReturnType<typeof vi.fn>;
+};
 
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual('node:child_process');
+// Mock child_process with importOriginal for partial mocking
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal();
   return {
-    ...actual,
-    spawn: mockSpawn,
+    ...(actual as object),
+    spawn: vi.fn(),
   };
 });
 
+// Mock debugLogger using vi.hoisted
+const mockDebugLogger = vi.hoisted(() => ({
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
+vi.mock('../utils/debugLogger.js', () => ({
+  debugLogger: mockDebugLogger,
+}));
+
+// Mock console methods
+const mockConsole = {
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
+
+vi.stubGlobal('console', mockConsole);
+
 describe('HookRunner', () => {
   let hookRunner: HookRunner;
+  let mockSpawn: MockChildProcessWithoutNullStreams;
+  let mockConfig: Config;
 
-  beforeEach(() => {
-    hookRunner = new HookRunner();
-    vi.clearAllMocks();
-  });
-
-  const createMockInput = (overrides: Partial<HookInput> = {}): HookInput => ({
+  const mockInput: HookInput = {
     session_id: 'test-session',
-    transcript_path: '/test/transcript',
-    cwd: '/test',
-    hook_event_name: 'test-event',
-    timestamp: '2024-01-01T00:00:00Z',
-    ...overrides,
-  });
-
-  const createMockProcess = (
-    exitCode: number = 0,
-    stdout: string = '',
-    stderr: string = '',
-  ) => {
-    const mockProcess = {
-      stdin: {
-        on: vi.fn(),
-        write: vi.fn(),
-        end: vi.fn(),
-      },
-      stdout: {
-        on: vi.fn((event: string, callback: (data: Buffer) => void) => {
-          if (event === 'data' && stdout) {
-            setTimeout(() => callback(Buffer.from(stdout)), 0);
-          }
-        }),
-      },
-      stderr: {
-        on: vi.fn((event: string, callback: (data: Buffer) => void) => {
-          if (event === 'data' && stderr) {
-            setTimeout(() => callback(Buffer.from(stderr)), 0);
-          }
-        }),
-      },
-      on: vi.fn((event: string, callback: (code: number) => void) => {
-        if (event === 'close') {
-          setTimeout(() => callback(exitCode), 0);
-        }
-      }),
-      kill: vi.fn(),
-    };
-    return mockProcess;
+    transcript_path: '/path/to/transcript',
+    cwd: '/test/project',
+    hook_event_name: 'BeforeTool',
+    timestamp: '2025-01-01T00:00:00.000Z',
   };
 
+  beforeEach(() => {
+    vi.resetAllMocks();
+
+    mockConfig = {
+      isTrustedFolder: vi.fn().mockReturnValue(true),
+      sanitizationConfig: {
+        enableEnvironmentVariableRedaction: true,
+      },
+    } as unknown as Config;
+
+    hookRunner = new HookRunner(mockConfig);
+
+    // Mock spawn with accessible mock functions
+    const mockStdoutOn = vi.fn();
+    const mockStderrOn = vi.fn();
+    const mockProcessOn = vi.fn();
+
+    mockSpawn = {
+      stdin: {
+        write: vi.fn(),
+        end: vi.fn(),
+        on: vi.fn(),
+      } as unknown as Writable,
+      stdout: {
+        on: mockStdoutOn,
+      } as unknown as Readable,
+      stderr: {
+        on: mockStderrOn,
+      } as unknown as Readable,
+      on: mockProcessOn,
+      kill: vi.fn(),
+      killed: false,
+      mockStdoutOn,
+      mockStderrOn,
+      mockProcessOn,
+    } as unknown as MockChildProcessWithoutNullStreams;
+
+    vi.mocked(spawn).mockReturnValue(mockSpawn);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('executeHook', () => {
-    it('should return error when hook command is missing', async () => {
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: '',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+    describe('security checks', () => {
+      it('should block project hooks in untrusted folders', async () => {
+        vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(false);
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        const projectHookConfig: HookConfig = {
+          type: HookType.Command,
+          command: './hooks/test.sh',
+          source: ConfigSource.Project,
+        };
 
-      expect(result.success).toBe(false);
-      expect(result.error?.message).toBe('Command hook missing command');
-    });
+        const result = await hookRunner.executeHook(
+          projectHookConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-    it('should execute hook and return success for exit code 0', async () => {
-      const mockProcess = createMockProcess(0, 'hello');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo hello',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.stdout).toBe('hello');
-      expect(mockSpawn).toHaveBeenCalled();
-    });
-
-    it('should return failure for non-zero exit code', async () => {
-      const mockProcess = createMockProcess(1, '', 'error');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'exit 1',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.exitCode).toBe(1);
-    });
-
-    it('should parse JSON output from stdout', async () => {
-      const output = JSON.stringify({
-        decision: 'allow',
-        systemMessage: 'test',
+        expect(result.success).toBe(false);
+        expect(result.error?.message).toContain(
+          'Security: Blocked execution of project hook in untrusted folder',
+        );
+        expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Security: Blocked execution'),
+        );
+        expect(spawn).not.toHaveBeenCalled();
       });
-      const mockProcess = createMockProcess(0, output);
-      mockSpawn.mockImplementation(() => mockProcess);
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo json',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+      it('should allow project hooks in trusted folders', async () => {
+        vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(true);
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        const projectHookConfig: HookConfig = {
+          type: HookType.Command,
+          command: './hooks/test.sh',
+          source: ConfigSource.Project,
+        };
 
-      expect(result.success).toBe(true);
-      expect(result.output?.decision).toBe('allow');
-      expect(result.output?.systemMessage).toBe('test');
+        // Mock successful execution
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setTimeout(() => callback(0), 10);
+            }
+          },
+        );
+
+        const result = await hookRunner.executeHook(
+          projectHookConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(result.success).toBe(true);
+        expect(spawn).toHaveBeenCalled();
+      });
+
+      it('should allow non-project hooks even in untrusted folders', async () => {
+        vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(false);
+
+        const systemHookConfig: HookConfig = {
+          type: HookType.Command,
+          command: './hooks/test.sh',
+          source: ConfigSource.System,
+        };
+
+        // Mock successful execution
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setTimeout(() => callback(0), 10);
+            }
+          },
+        );
+
+        const result = await hookRunner.executeHook(
+          systemHookConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(result.success).toBe(true);
+        expect(spawn).toHaveBeenCalled();
+      });
     });
 
-    it('should convert plain text to allow output on success', async () => {
-      const mockProcess = createMockProcess(0, 'some text output');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
+    describe('command hooks', () => {
+      const commandConfig: HookConfig = {
         type: HookType.Command,
-        command: 'echo text',
-        source: HooksConfigSource.Project,
+        command: './hooks/test.sh',
+        timeout: 5000,
       };
-      const input = createMockInput();
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+      it('should execute command hook successfully', async () => {
+        const mockOutput = { decision: 'allow', reason: 'All good' };
 
-      expect(result.success).toBe(true);
-      expect(result.output?.decision).toBe('allow');
-      expect(result.output?.systemMessage).toBe('some text output');
-    });
+        // Mock successful execution
+        mockSpawn.mockStdoutOn.mockImplementation(
+          (event: string, callback: (data: Buffer) => void) => {
+            if (event === 'data') {
+              setImmediate(() =>
+                callback(Buffer.from(JSON.stringify(mockOutput))),
+              );
+            }
+          },
+        );
 
-    it('should convert plain text to deny output on exit code 2', async () => {
-      const mockProcess = createMockProcess(2, '', 'error message');
-      mockSpawn.mockImplementation(() => mockProcess);
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
+            }
+          },
+        );
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo error && exit 2',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+        const result = await hookRunner.executeHook(
+          commandConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        expect(result.success).toBe(true);
+        expect(result.output).toEqual(mockOutput);
+        expect(result.exitCode).toBe(0);
+        expect(mockSpawn.stdin.write).toHaveBeenCalledWith(
+          JSON.stringify(mockInput),
+        );
+      });
 
-      expect(result.success).toBe(false);
-      expect(result.output?.decision).toBe('deny');
-      expect(result.output?.reason).toBe('error message');
-    });
+      it('should handle command hook failure', async () => {
+        const errorMessage = 'Command failed';
 
-    it('should ignore stdout on exit code 2 and use stderr only', async () => {
-      // Exit code 2 should ignore stdout and use stderr as the error message
-      const mockProcess = createMockProcess(
-        2,
-        'stdout should be ignored',
-        'stderr error message',
-      );
-      mockSpawn.mockImplementation(() => mockProcess);
+        mockSpawn.mockStderrOn.mockImplementation(
+          (event: string, callback: (data: Buffer) => void) => {
+            if (event === 'data') {
+              setImmediate(() => callback(Buffer.from(errorMessage)));
+            }
+          },
+        );
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo stdout && echo stderr >&2 && exit 2',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(1));
+            }
+          },
+        );
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        const result = await hookRunner.executeHook(
+          commandConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-      expect(result.success).toBe(false);
-      expect(result.output?.decision).toBe('deny');
-      expect(result.output?.reason).toBe('stderr error message');
-    });
+        expect(result.success).toBe(false);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toBe(errorMessage);
+      });
 
-    it('should not parse JSON on exit code 2', async () => {
-      // Exit code 2 should ignore JSON in stdout
-      const mockProcess = createMockProcess(
-        2,
-        '{"decision":"allow"}',
-        'blocking error',
-      );
-      mockSpawn.mockImplementation(() => mockProcess);
+      it('should use hook name in error messages if available', async () => {
+        const namedConfig: HookConfig = {
+          name: 'my-friendly-hook',
+          type: HookType.Command,
+          command: './hooks/fail.sh',
+        };
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo json && exit 2',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+        // Mock error during spawn
+        vi.mocked(spawn).mockImplementationOnce(() => {
+          throw new Error('Spawn error');
+        });
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        await hookRunner.executeHook(
+          namedConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-      // Should NOT parse JSON, should use stderr as reason
-      expect(result.success).toBe(false);
-      expect(result.output?.decision).toBe('deny');
-      expect(result.output?.reason).toBe('blocking error');
-    });
+        expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            '(hook: my-friendly-hook): Error: Spawn error',
+          ),
+        );
+      });
 
-    it('should handle exit code 1 as non-blocking warning', async () => {
-      const mockProcess = createMockProcess(1, '', 'warning');
-      mockSpawn.mockImplementation(() => mockProcess);
+      it('should handle command hook timeout', async () => {
+        const shortTimeoutConfig: HookConfig = {
+          type: HookType.Command,
+          command: './hooks/slow.sh',
+          timeout: 50, // Very short timeout for testing
+        };
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'exit 1',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+        let closeCallback: ((code: number) => void) | undefined;
+        let killWasCalled = false;
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        // Mock a hanging process that registers the close handler but doesn't call it initially
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              closeCallback = callback; // Store the callback but don't call it yet
+            }
+          },
+        );
 
-      expect(result.success).toBe(false);
-      expect(result.output?.decision).toBe('allow');
-      expect(result.output?.systemMessage).toBe('Warning: warning');
-    });
-
-    it('should include duration in result', async () => {
-      const mockProcess = createMockProcess(0, 'test');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo test',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
-
-      expect(result.duration).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should handle process error', async () => {
-      const mockProcess = {
-        stdin: { on: vi.fn(), write: vi.fn(), end: vi.fn() },
-        stdout: { on: vi.fn() },
-        stderr: { on: vi.fn() },
-        on: vi.fn((event: string, callback: (error: Error) => void) => {
-          if (event === 'error') {
-            callback(new Error('spawn error'));
+        // Mock the kill method to simulate the process being killed
+        mockSpawn.kill = vi.fn().mockImplementation((_signal: string) => {
+          killWasCalled = true;
+          // Simulate that killing the process triggers the close event
+          if (closeCallback) {
+            setImmediate(() => {
+              closeCallback!(128); // Exit code 128 indicates process was killed by signal
+            });
           }
-        }),
-        kill: vi.fn(),
-      };
-      mockSpawn.mockImplementation(() => mockProcess);
+          return true;
+        });
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo test',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+        const result = await hookRunner.executeHook(
+          shortTimeoutConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
+        expect(result.success).toBe(false);
+        expect(killWasCalled).toBe(true);
+        expect(result.error?.message).toContain('timed out');
+        expect(mockSpawn.kill).toHaveBeenCalledWith('SIGTERM');
+      });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
+      it('should expand environment variables in commands', async () => {
+        const configWithEnvVar: HookConfig = {
+          type: HookType.Command,
+          command: '$GEMINI_PROJECT_DIR/hooks/test.sh',
+        };
+
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        await hookRunner.executeHook(
+          configWithEnvVar,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(spawn).toHaveBeenCalledWith(
+          expect.stringMatching(/bash|powershell/),
+          expect.arrayContaining([
+            expect.stringMatching(/['"]?\/test\/project['"]?\/hooks\/test\.sh/),
+          ]),
+          expect.objectContaining({
+            shell: false,
+            env: expect.objectContaining({
+              GEMINI_PROJECT_DIR: '/test/project',
+              CLAUDE_PROJECT_DIR: '/test/project',
+            }),
+          }),
+        );
+      });
+
+      it('should not allow command injection via GEMINI_PROJECT_DIR', async () => {
+        const maliciousCwd = '/test/project; echo "pwned" > /tmp/pwned';
+        const mockMaliciousInput: HookInput = {
+          ...mockInput,
+          cwd: maliciousCwd,
+        };
+
+        const config: HookConfig = {
+          type: HookType.Command,
+          command: 'ls $GEMINI_PROJECT_DIR',
+        };
+
+        // Mock the process closing immediately
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        await hookRunner.executeHook(
+          config,
+          HookEventName.BeforeTool,
+          mockMaliciousInput,
+        );
+
+        // If secure, spawn will be called with the shell executable and escaped command
+        expect(spawn).toHaveBeenCalledWith(
+          expect.stringMatching(/bash|powershell/),
+          expect.arrayContaining([
+            expect.stringMatching(/ls (['"]).*echo.*pwned.*\1/),
+          ]),
+          expect.objectContaining({ shell: false }),
+        );
+      });
     });
   });
 
   describe('executeHooksParallel', () => {
     it('should execute multiple hooks in parallel', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfigs: HookConfig[] = [
-        {
-          type: HookType.Command,
-          command: 'echo hook1',
-          source: HooksConfigSource.Project,
-        },
-        {
-          type: HookType.Command,
-          command: 'echo hook2',
-          source: HooksConfigSource.Project,
-        },
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
       ];
-      const input = createMockInput();
+
+      // Mock both commands to succeed
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
+      );
 
       const results = await hookRunner.executeHooksParallel(
-        hookConfigs,
-        HookEventName.PreToolUse,
-        input,
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results.every((r) => r.success)).toBe(true);
+      expect(spawn).toHaveBeenCalledTimes(2);
+    });
+
+    it('should call onHookStart and onHookEnd callbacks', async () => {
+      const configs: HookConfig[] = [
+        { name: 'hook1', type: HookType.Command, command: './hook1.sh' },
+      ];
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
+      );
+
+      const onStart = vi.fn();
+      const onEnd = vi.fn();
+
+      await hookRunner.executeHooksParallel(
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
+        onStart,
+        onEnd,
+      );
+
+      expect(onStart).toHaveBeenCalledWith(configs[0], 0);
+      expect(onEnd).toHaveBeenCalledWith(
+        configs[0],
+        expect.objectContaining({ success: true }),
+      );
+    });
+
+    it('should handle mixed success and failure', async () => {
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
+      ];
+
+      let callCount = 0;
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            const exitCode = callCount++ === 0 ? 0 : 1; // First succeeds, second fails
+            setImmediate(() => callback(exitCode));
+          }
+        },
+      );
+
+      const results = await hookRunner.executeHooksParallel(
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
       );
 
       expect(results).toHaveLength(2);
       expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(true);
-    });
-
-    it('should call onHookStart and onHookEnd callbacks', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfigs: HookConfig[] = [
-        {
-          type: HookType.Command,
-          command: 'echo test',
-          source: HooksConfigSource.Project,
-        },
-      ];
-      const input = createMockInput();
-      const onHookStart = vi.fn();
-      const onHookEnd = vi.fn();
-
-      await hookRunner.executeHooksParallel(
-        hookConfigs,
-        HookEventName.PreToolUse,
-        input,
-        onHookStart,
-        onHookEnd,
-      );
-
-      expect(onHookStart).toHaveBeenCalledTimes(1);
-      expect(onHookEnd).toHaveBeenCalledTimes(1);
+      expect(results[1].success).toBe(false);
     });
   });
 
   describe('executeHooksSequential', () => {
-    it('should execute hooks sequentially', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfigs: HookConfig[] = [
-        {
-          type: HookType.Command,
-          command: 'echo first',
-          source: HooksConfigSource.Project,
-        },
-        {
-          type: HookType.Command,
-          command: 'echo second',
-          source: HooksConfigSource.Project,
-        },
+    it('should execute multiple hooks in sequence', async () => {
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
       ];
-      const input = createMockInput();
+
+      const executionOrder: string[] = [];
+
+      // Mock both commands to succeed
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            const args = vi.mocked(spawn).mock.calls[
+              executionOrder.length
+            ][1] as string[];
+            const command = args[args.length - 1];
+            executionOrder.push(command);
+            setImmediate(() => callback(0));
+          }
+        },
+      );
 
       const results = await hookRunner.executeHooksSequential(
-        hookConfigs,
-        HookEventName.PreToolUse,
-        input,
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results.every((r) => r.success)).toBe(true);
+      expect(spawn).toHaveBeenCalledTimes(2);
+      // Verify they were called sequentially
+      expect(executionOrder).toEqual(['./hook1.sh', './hook2.sh']);
+    });
+
+    it('should call onHookStart and onHookEnd callbacks sequentially', async () => {
+      const configs: HookConfig[] = [
+        { name: 'hook1', type: HookType.Command, command: './hook1.sh' },
+        { name: 'hook2', type: HookType.Command, command: './hook2.sh' },
+      ];
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
+      );
+
+      const onStart = vi.fn();
+      const onEnd = vi.fn();
+
+      await hookRunner.executeHooksSequential(
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
+        onStart,
+        onEnd,
+      );
+
+      expect(onStart).toHaveBeenCalledTimes(2);
+      expect(onEnd).toHaveBeenCalledTimes(2);
+      expect(onStart).toHaveBeenNthCalledWith(1, configs[0], 0);
+      expect(onStart).toHaveBeenNthCalledWith(2, configs[1], 1);
+    });
+
+    it('should continue execution even if a hook fails', async () => {
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
+        { type: HookType.Command, command: './hook3.sh' },
+      ];
+
+      let callCount = 0;
+      mockSpawn.mockStderrOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data' && callCount === 1) {
+            // Second hook fails
+            setImmediate(() => callback(Buffer.from('Hook 2 failed')));
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            const exitCode = callCount++ === 1 ? 1 : 0; // Second fails, others succeed
+            setImmediate(() => callback(exitCode));
+          }
+        },
+      );
+
+      const results = await hookRunner.executeHooksSequential(
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(results).toHaveLength(3);
+      expect(results[0].success).toBe(true);
+      expect(results[1].success).toBe(false);
+      expect(results[2].success).toBe(true);
+      expect(spawn).toHaveBeenCalledTimes(3);
+    });
+
+    it('should pass modified input from one hook to the next for BeforeAgent', async () => {
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
+      ];
+
+      const mockBeforeAgentInput = {
+        ...mockInput,
+        prompt: 'Original prompt',
+      };
+
+      const mockOutput1 = {
+        decision: 'allow' as const,
+        hookSpecificOutput: {
+          additionalContext: 'Context from hook 1',
+        },
+      };
+
+      let hookCallCount = 0;
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            if (hookCallCount === 0) {
+              setImmediate(() =>
+                callback(Buffer.from(JSON.stringify(mockOutput1))),
+              );
+            }
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            hookCallCount++;
+            setImmediate(() => callback(0));
+          }
+        },
+      );
+
+      const results = await hookRunner.executeHooksSequential(
+        configs,
+        HookEventName.BeforeAgent,
+        mockBeforeAgentInput,
       );
 
       expect(results).toHaveLength(2);
       expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(true);
+      expect(results[0].output).toEqual(mockOutput1);
+
+      // Verify that the second hook received modified input
+      const secondHookInput = JSON.parse(
+        vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
+      );
+      expect(secondHookInput.prompt).toContain('Original prompt');
+      expect(secondHookInput.prompt).toContain('Context from hook 1');
     });
 
-    it('should call onHookStart and onHookEnd callbacks', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfigs: HookConfig[] = [
-        {
-          type: HookType.Command,
-          command: 'echo test',
-          source: HooksConfigSource.Project,
-        },
+    it('should pass modified LLM request from one hook to the next for BeforeModel', async () => {
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
       ];
-      const input = createMockInput();
-      const onHookStart = vi.fn();
-      const onHookEnd = vi.fn();
 
-      await hookRunner.executeHooksSequential(
-        hookConfigs,
-        HookEventName.PreToolUse,
-        input,
-        onHookStart,
-        onHookEnd,
+      const mockBeforeModelInput = {
+        ...mockInput,
+        llm_request: {
+          model: 'gemini-1.5-pro',
+          messages: [{ role: 'user', content: 'Hello' }],
+        },
+      };
+
+      const mockOutput1 = {
+        decision: 'allow' as const,
+        hookSpecificOutput: {
+          llm_request: {
+            temperature: 0.7,
+          },
+        },
+      };
+
+      let hookCallCount = 0;
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            if (hookCallCount === 0) {
+              setImmediate(() =>
+                callback(Buffer.from(JSON.stringify(mockOutput1))),
+              );
+            }
+          }
+        },
       );
 
-      expect(onHookStart).toHaveBeenCalledTimes(1);
-      expect(onHookEnd).toHaveBeenCalledTimes(1);
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            hookCallCount++;
+            setImmediate(() => callback(0));
+          }
+        },
+      );
+
+      const results = await hookRunner.executeHooksSequential(
+        configs,
+        HookEventName.BeforeModel,
+        mockBeforeModelInput,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results[0].success).toBe(true);
+
+      // Verify that the second hook received modified input
+      const secondHookInput = JSON.parse(
+        vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
+      );
+      expect(secondHookInput.llm_request.model).toBe('gemini-1.5-pro');
+      expect(secondHookInput.llm_request.temperature).toBe(0.7);
+    });
+
+    it('should not modify input if hook fails', async () => {
+      const configs: HookConfig[] = [
+        { type: HookType.Command, command: './hook1.sh' },
+        { type: HookType.Command, command: './hook2.sh' },
+      ];
+
+      mockSpawn.mockStderrOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from('Hook failed')));
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(1)); // All hooks fail
+          }
+        },
+      );
+
+      const results = await hookRunner.executeHooksSequential(
+        configs,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results.every((r) => !r.success)).toBe(true);
+
+      // Verify that both hooks received the same original input
+      const firstHookInput = JSON.parse(
+        vi.mocked(mockSpawn.stdin.write).mock.calls[0][0],
+      );
+      const secondHookInput = JSON.parse(
+        vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
+      );
+      expect(firstHookInput).toEqual(secondHookInput);
     });
   });
 
-  describe('output truncation', () => {
-    it('should truncate stdout when exceeding MAX_OUTPUT_LENGTH', async () => {
-      // Create a process that outputs more than 1MB of data
-      const largeOutput = 'x'.repeat(2 * 1024 * 1024); // 2MB
-      const mockProcess = createMockProcess(0, largeOutput);
-      mockSpawn.mockImplementation(() => mockProcess);
+  describe('invalid JSON handling', () => {
+    const commandConfig: HookConfig = {
+      type: HookType.Command,
+      command: './hooks/test.sh',
+    };
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo large',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+    it('should handle invalid JSON output gracefully', async () => {
+      const invalidJson = '{ "decision": "allow", incomplete';
 
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from(invalidJson)));
+          }
+        },
       );
 
-      // stdout should be truncated to MAX_OUTPUT_LENGTH (1MB)
-      expect(result.stdout?.length).toBeLessThanOrEqual(1024 * 1024);
-    });
-
-    it('should truncate stderr when exceeding MAX_OUTPUT_LENGTH', async () => {
-      const largeOutput = 'x'.repeat(2 * 1024 * 1024); // 2MB
-      const mockProcess = createMockProcess(0, '', largeOutput);
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo large',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
       );
 
-      // stderr should be truncated to MAX_OUTPUT_LENGTH (1MB)
-      expect(result.stderr?.length).toBeLessThanOrEqual(1024 * 1024);
-    });
-
-    it('should handle partial truncation gracefully', async () => {
-      // Output exactly at the limit
-      const exactOutput = 'x'.repeat(1024 * 1024); // 1MB exactly
-      const mockProcess = createMockProcess(0, exactOutput);
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo exact',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
       const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
-      );
-
-      expect(result.stdout?.length).toBe(1024 * 1024);
-    });
-  });
-
-  describe('expandCommand', () => {
-    it('should expand GEMINI_PROJECT_DIR placeholder', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo $GEMINI_PROJECT_DIR',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput({ cwd: '/test/project' });
-
-      await hookRunner.executeHook(hookConfig, HookEventName.PreToolUse, input);
-
-      // Verify spawn was called with expanded command
-      const spawnCall = mockSpawn.mock.calls[0];
-      const command = spawnCall[1][spawnCall[1].length - 1]; // Last arg is the command
-      expect(command).toContain('/test/project');
-    });
-
-    it('should expand CLAUDE_PROJECT_DIR placeholder for compatibility', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo $CLAUDE_PROJECT_DIR',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput({ cwd: '/test/project' });
-
-      await hookRunner.executeHook(hookConfig, HookEventName.PreToolUse, input);
-
-      const spawnCall = mockSpawn.mock.calls[0];
-      const command = spawnCall[1][spawnCall[1].length - 1]; // Last arg is the command
-      expect(command).toContain('/test/project');
-    });
-
-    it('should not modify command without placeholders', async () => {
-      const mockProcess = createMockProcess(0, 'result');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo hello',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput({ cwd: '/test/project' });
-
-      await hookRunner.executeHook(hookConfig, HookEventName.PreToolUse, input);
-
-      const spawnCall = mockSpawn.mock.calls[0];
-      const command = spawnCall[1][spawnCall[1].length - 1]; // Last arg is the command
-      expect(command).toBe('echo hello');
-    });
-  });
-
-  describe('convertPlainTextToHookOutput', () => {
-    it('should convert plain text to allow output on success', async () => {
-      const mockProcess = createMockProcess(0, 'plain text response');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo text',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+        commandConfig,
+        HookEventName.BeforeTool,
+        mockInput,
       );
 
       expect(result.success).toBe(true);
-      expect(result.output?.decision).toBe('allow');
-      expect(result.output?.systemMessage).toBe('plain text response');
+      expect(result.exitCode).toBe(0);
+      // Should convert plain text to structured output
+      expect(result.output).toEqual({
+        decision: 'allow',
+        systemMessage: invalidJson,
+      });
     });
 
-    it('should convert non-zero exit code to deny output', async () => {
-      const mockProcess = createMockProcess(3, '', 'error message');
-      mockSpawn.mockImplementation(() => mockProcess);
+    it('should handle malformed JSON with exit code 0', async () => {
+      const malformedJson = 'not json at all';
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'exit 3',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from(malformedJson)));
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
+      );
 
       const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+        commandConfig,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.output).toEqual({
+        decision: 'allow',
+        systemMessage: malformedJson,
+      });
+    });
+
+    it('should handle invalid JSON with exit code 1 (non-blocking error)', async () => {
+      const invalidJson = '{ broken json';
+
+      mockSpawn.mockStderrOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from(invalidJson)));
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(1));
+          }
+        },
+      );
+
+      const result = await hookRunner.executeHook(
+        commandConfig,
+        HookEventName.BeforeTool,
+        mockInput,
       );
 
       expect(result.success).toBe(false);
-      expect(result.output?.decision).toBe('deny');
-      expect(result.output?.reason).toBe('error message');
+      expect(result.exitCode).toBe(1);
+      expect(result.output).toEqual({
+        decision: 'allow',
+        systemMessage: `Warning: ${invalidJson}`,
+      });
     });
 
-    it('should use stderr when stdout is empty on success', async () => {
-      const mockProcess = createMockProcess(0, '', 'stderr output');
-      mockSpawn.mockImplementation(() => mockProcess);
+    it('should handle invalid JSON with exit code 2 (blocking error)', async () => {
+      const invalidJson = '{ "error": incomplete';
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo test',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+      mockSpawn.mockStderrOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from(invalidJson)));
+          }
+        },
       );
 
-      expect(result.output?.systemMessage).toBe('stderr output');
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(2));
+          }
+        },
+      );
+
+      const result = await hookRunner.executeHook(
+        commandConfig,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.exitCode).toBe(2);
+      expect(result.output).toEqual({
+        decision: 'deny',
+        reason: invalidJson,
+      });
     });
 
-    it('should handle empty output gracefully', async () => {
-      const mockProcess = createMockProcess(0, '', '');
-      mockSpawn.mockImplementation(() => mockProcess);
-
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo test',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+    it('should handle empty JSON output', async () => {
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from('')));
+          }
+        },
       );
 
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
+      );
+
+      const result = await hookRunner.executeHook(
+        commandConfig,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.exitCode).toBe(0);
       expect(result.output).toBeUndefined();
     });
 
-    it('should parse nested JSON strings', async () => {
-      const nestedJson = JSON.stringify(JSON.stringify({ decision: 'allow' }));
-      const mockProcess = createMockProcess(0, nestedJson);
-      mockSpawn.mockImplementation(() => mockProcess);
+    it('should handle double-encoded JSON string', async () => {
+      const mockOutput = { decision: 'allow', reason: 'All good' };
+      const doubleEncodedJson = JSON.stringify(JSON.stringify(mockOutput));
 
-      const hookConfig: HookConfig = {
-        type: HookType.Command,
-        command: 'echo json',
-        source: HooksConfigSource.Project,
-      };
-      const input = createMockInput();
-
-      const result = await hookRunner.executeHook(
-        hookConfig,
-        HookEventName.PreToolUse,
-        input,
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setImmediate(() => callback(Buffer.from(doubleEncodedJson)));
+          }
+        },
       );
 
-      expect(result.output?.decision).toBe('allow');
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => callback(0));
+          }
+        },
+      );
+
+      const result = await hookRunner.executeHook(
+        commandConfig,
+        HookEventName.BeforeTool,
+        mockInput,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.output).toEqual(mockOutput);
     });
   });
 });

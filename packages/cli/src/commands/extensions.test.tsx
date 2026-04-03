@@ -4,103 +4,89 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { extensionsCommand } from './extensions.js';
-import { updateCommand } from './extensions/update.js';
-import { disableCommand } from './extensions/disable.js';
-import { enableCommand } from './extensions/enable.js';
-import { linkCommand } from './extensions/link.js';
-import { newCommand } from './extensions/new.js';
-import yargs from 'yargs';
 
-describe('extensions command', () => {
-  it('should have correct command name', () => {
+// Mock subcommands
+vi.mock('./extensions/install.js', () => ({
+  installCommand: { command: 'install' },
+}));
+vi.mock('./extensions/uninstall.js', () => ({
+  uninstallCommand: { command: 'uninstall' },
+}));
+vi.mock('./extensions/list.js', () => ({ listCommand: { command: 'list' } }));
+vi.mock('./extensions/update.js', () => ({
+  updateCommand: { command: 'update' },
+}));
+vi.mock('./extensions/disable.js', () => ({
+  disableCommand: { command: 'disable' },
+}));
+vi.mock('./extensions/enable.js', () => ({
+  enableCommand: { command: 'enable' },
+}));
+vi.mock('./extensions/link.js', () => ({ linkCommand: { command: 'link' } }));
+vi.mock('./extensions/new.js', () => ({ newCommand: { command: 'new' } }));
+vi.mock('./extensions/validate.js', () => ({
+  validateCommand: { command: 'validate' },
+}));
+
+// Mock gemini.js
+vi.mock('../gemini.js', () => ({
+  initializeOutputListenersAndFlush: vi.fn(),
+}));
+
+describe('extensionsCommand', () => {
+  it('should have correct command and aliases', () => {
     expect(extensionsCommand.command).toBe('extensions <command>');
+    expect(extensionsCommand.aliases).toEqual(['extension']);
+    expect(extensionsCommand.describe).toBe('Manage Gemini CLI extensions.');
   });
 
-  it('should have a description', () => {
-    expect(extensionsCommand.describe).toBe('Manage Apex extensions.');
-  });
+  it('should register all subcommands in builder', () => {
+    const mockYargs = {
+      middleware: vi.fn().mockReturnThis(),
+      command: vi.fn().mockReturnThis(),
+      demandCommand: vi.fn().mockReturnThis(),
+      version: vi.fn().mockReturnThis(),
+    };
 
-  it('should require a subcommand', () => {
-    const parser = yargs([])
-      .command(extensionsCommand)
-      .fail(false)
-      .locale('en');
+    // @ts-expect-error - Mocking yargs
+    extensionsCommand.builder(mockYargs);
 
-    expect(() => parser.parse('extensions')).toThrow();
-  });
-
-  it('should register install subcommand', () => {
-    const parser = yargs([])
-      .command(extensionsCommand)
-      .fail(false)
-      .locale('en');
-
-    // This should throw as 'install' requires a source argument
-    expect(() => parser.parse('extensions install')).toThrow(
-      'Not enough non-option arguments',
+    expect(mockYargs.middleware).toHaveBeenCalled();
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'install' }),
     );
-  });
-
-  it('should register uninstall subcommand', () => {
-    const parser = yargs([])
-      .command(extensionsCommand)
-      .fail(false)
-      .locale('en');
-
-    expect(() => parser.parse('extensions uninstall')).toThrow(
-      'Not enough non-option arguments',
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'uninstall' }),
     );
-  });
-
-  it('should register list subcommand', () => {
-    const parser = yargs([])
-      .command(extensionsCommand)
-      .fail(false)
-      .locale('en');
-
-    // list doesn't require arguments, so it should not throw
-    expect(() => parser.parse('extensions list')).not.toThrow();
-  });
-
-  it('should register update subcommand', () => {
-    const parser = yargs([]).command(updateCommand).fail(false).locale('en');
-
-    expect(() => parser.parse('update')).toThrow(
-      'Either an extension name or --all must be provided',
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'list' }),
     );
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'update' }),
+    );
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'disable' }),
+    );
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'enable' }),
+    );
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'link' }),
+    );
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'new' }),
+    );
+    expect(mockYargs.command).toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'validate' }),
+    );
+    expect(mockYargs.demandCommand).toHaveBeenCalledWith(1, expect.any(String));
+    expect(mockYargs.version).toHaveBeenCalledWith(false);
   });
 
-  it('should register disable subcommand', () => {
-    const parser = yargs([]).command(disableCommand).fail(false).locale('en');
-
-    expect(() => parser.parse('disable')).toThrow(
-      'Not enough non-option arguments',
-    );
-  });
-
-  it('should register enable subcommand', () => {
-    const parser = yargs([]).command(enableCommand).fail(false).locale('en');
-
-    expect(() => parser.parse('enable')).toThrow(
-      'Not enough non-option arguments',
-    );
-  });
-
-  it('should register link subcommand', () => {
-    const parser = yargs([]).command(linkCommand).fail(false).locale('en');
-
-    expect(() => parser.parse('link')).toThrow(
-      'Not enough non-option arguments',
-    );
-  });
-
-  it('should register new subcommand', async () => {
-    const parser = yargs([]).command(newCommand).fail(false).locale('en');
-
-    await expect(parser.parseAsync('new')).rejects.toThrow(
-      'Not enough non-option arguments',
-    );
+  it('should have a handler that does nothing', () => {
+    // @ts-expect-error - Handler doesn't take arguments in this case
+    expect(extensionsCommand.handler()).toBeUndefined();
   });
 });

@@ -6,15 +6,13 @@
 
 import { formatDuration } from '../utils/formatters.js';
 import { CommandKind, type SlashCommand } from './types.js';
-import { t } from '../../i18n/index.js';
 
 export const quitCommand: SlashCommand = {
   name: 'quit',
   altNames: ['exit'],
-  get description() {
-    return t('exit the cli');
-  },
+  description: 'Exit the cli',
   kind: CommandKind.BUILT_IN,
+  autoExecute: true,
   action: (context) => {
     const now = Date.now();
     const { sessionStartTime } = context.session.stats;

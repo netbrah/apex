@@ -4,14 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Mock } from 'vitest';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import type { Content } from '@google/genai';
 import { BaseLlmClient } from '../core/baseLlmClient.js';
 import type { ContentGenerator } from '../core/contentGenerator.js';
 import type { Config } from '../config/config.js';
-import type { NextSpeakerResponse } from './nextSpeakerChecker.js';
-import { checkNextSpeaker } from './nextSpeakerChecker.js';
+import {
+  checkNextSpeaker,
+  type NextSpeakerResponse,
+} from './nextSpeakerChecker.js';
 import { GeminiChat } from '../core/geminiChat.js';
 
 // Mock fs module to prevent actual file system operations during tests
@@ -32,7 +41,10 @@ vi.mock('node:fs', () => {
       });
     }),
     existsSync: vi.fn((path: string) => mockFileSystem.has(path)),
-    appendFileSync: vi.fn(),
+    createWriteStream: vi.fn(() => ({
+      write: vi.fn(),
+      on: vi.fn(),
+    })),
   };
 
   return {
@@ -54,6 +66,25 @@ describe('checkNextSpeaker', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    const mockResolvedConfig = {
+      model: 'next-speaker-v1',
+      generateContentConfig: {},
+    };
+    mockConfig = {
+      get config() {
+        return this;
+      },
+      promptId: 'test-session-id',
+      getProjectRoot: vi.fn().mockReturnValue('/test/project/root'),
+      getSessionId: vi.fn().mockReturnValue('test-session-id'),
+      getModel: () => 'test-model',
+      storage: {
+        getProjectTempDir: vi.fn().mockReturnValue('/test/temp'),
+      },
+      modelConfigService: {
+        getResolvedConfig: vi.fn().mockReturnValue(mockResolvedConfig),
+      },
+    } as unknown as Config;
 
     mockBaseLlmClient = new BaseLlmClient(
       {
@@ -61,28 +92,15 @@ describe('checkNextSpeaker', () => {
         generateContentStream: vi.fn(),
         countTokens: vi.fn(),
         embedContent: vi.fn(),
-        useSummarizedThinking: vi.fn().mockReturnValue(false),
       } as ContentGenerator,
-      {} as Config,
+      mockConfig,
     );
-
-    // Add generateJson mock to the client
-    mockBaseLlmClient.generateJson = vi.fn();
-
-    mockConfig = {
-      getProjectRoot: vi.fn().mockReturnValue('/test/project/root'),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getModel: () => 'test-model',
-      getBaseLlmClient: vi.fn().mockReturnValue(mockBaseLlmClient),
-      storage: {
-        getProjectTempDir: vi.fn().mockReturnValue('/test/temp'),
-      },
-    } as unknown as Config;
 
     // GeminiChat will receive the mocked instances via the mocked GoogleGenAI constructor
     chatInstance = new GeminiChat(
       mockConfig,
-      {},
+      '', // empty system instruction
+      [], // no tools
       [], // initial history
     );
 
@@ -98,7 +116,7 @@ describe('checkNextSpeaker', () => {
     (chatInstance.getHistory as Mock).mockReturnValue([]);
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -112,7 +130,7 @@ describe('checkNextSpeaker', () => {
     ]);
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -132,7 +150,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -152,7 +170,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -171,7 +189,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -191,7 +209,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -209,7 +227,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -227,7 +245,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -245,7 +263,7 @@ describe('checkNextSpeaker', () => {
 
     const result = await checkNextSpeaker(
       chatInstance,
-      mockConfig,
+      mockBaseLlmClient,
       abortSignal,
       promptId,
     );
@@ -262,12 +280,17 @@ describe('checkNextSpeaker', () => {
     };
     (mockBaseLlmClient.generateJson as Mock).mockResolvedValue(mockApiResponse);
 
-    await checkNextSpeaker(chatInstance, mockConfig, abortSignal, promptId);
+    await checkNextSpeaker(
+      chatInstance,
+      mockBaseLlmClient,
+      abortSignal,
+      promptId,
+    );
 
     expect(mockBaseLlmClient.generateJson).toHaveBeenCalled();
     const generateJsonCall = (mockBaseLlmClient.generateJson as Mock).mock
-      .calls[0];
-    expect(generateJsonCall[0].model).toBe('test-model');
-    expect(generateJsonCall[0].promptId).toBe(promptId);
+      .calls[0][0];
+    expect(generateJsonCall.modelConfigKey.model).toBe('next-speaker-checker');
+    expect(generateJsonCall.promptId).toBe(promptId);
   });
 });

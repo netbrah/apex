@@ -4,50 +4,89 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Attributes, Meter, Counter, Histogram } from '@opentelemetry/api';
-import { diag, metrics, ValueType } from '@opentelemetry/api';
-import { SERVICE_NAME, EVENT_CHAT_COMPRESSION } from './constants.js';
+import {
+  diag,
+  metrics,
+  ValueType,
+  type Attributes,
+  type Meter,
+  type Counter,
+  type Histogram,
+} from '@opentelemetry/api';
+import { SERVICE_NAME } from './constants.js';
 import type { Config } from '../config/config.js';
-import type { ModelSlashCommandEvent } from './types.js';
+import type {
+  ModelRoutingEvent,
+  ModelSlashCommandEvent,
+  AgentFinishEvent,
+  RecoveryAttemptEvent,
+  KeychainAvailabilityEvent,
+  TokenStorageInitializationEvent,
+} from './types.js';
+import { AuthType } from '../core/contentGenerator.js';
+import { getCommonAttributes } from './telemetryAttributes.js';
+import { sanitizeHookName } from './sanitize.js';
 
-const TOOL_CALL_COUNT = `${SERVICE_NAME}.tool.call.count`;
-const TOOL_CALL_LATENCY = `${SERVICE_NAME}.tool.call.latency`;
-const API_REQUEST_COUNT = `${SERVICE_NAME}.api.request.count`;
-const API_REQUEST_LATENCY = `${SERVICE_NAME}.api.request.latency`;
-const TOKEN_USAGE = `${SERVICE_NAME}.token.usage`;
-const SESSION_COUNT = `${SERVICE_NAME}.session.count`;
-const FILE_OPERATION_COUNT = `${SERVICE_NAME}.file.operation.count`;
-const INVALID_CHUNK_COUNT = `${SERVICE_NAME}.chat.invalid_chunk.count`;
-const CONTENT_RETRY_COUNT = `${SERVICE_NAME}.chat.content_retry.count`;
-const CONTENT_RETRY_FAILURE_COUNT = `${SERVICE_NAME}.chat.content_retry_failure.count`;
-const MODEL_SLASH_COMMAND_CALL_COUNT = `${SERVICE_NAME}.slash_command.model.call_count`;
-export const SUBAGENT_EXECUTION_COUNT = `${SERVICE_NAME}.subagent.execution.count`;
+const EVENT_CHAT_COMPRESSION = 'gemini_cli.chat_compression';
+const TOOL_CALL_COUNT = 'gemini_cli.tool.call.count';
+const TOOL_CALL_LATENCY = 'gemini_cli.tool.call.latency';
+const API_REQUEST_COUNT = 'gemini_cli.api.request.count';
+const API_REQUEST_LATENCY = 'gemini_cli.api.request.latency';
+const TOKEN_USAGE = 'gemini_cli.token.usage';
+const SESSION_COUNT = 'gemini_cli.session.count';
+const FILE_OPERATION_COUNT = 'gemini_cli.file.operation.count';
+const LINES_CHANGED = 'gemini_cli.lines.changed';
+const INVALID_CHUNK_COUNT = 'gemini_cli.chat.invalid_chunk.count';
+const CONTENT_RETRY_COUNT = 'gemini_cli.chat.content_retry.count';
+const CONTENT_RETRY_FAILURE_COUNT =
+  'gemini_cli.chat.content_retry_failure.count';
+const NETWORK_RETRY_COUNT = 'gemini_cli.network_retry.count';
+const MODEL_ROUTING_LATENCY = 'gemini_cli.model_routing.latency';
+const MODEL_ROUTING_FAILURE_COUNT = 'gemini_cli.model_routing.failure.count';
+const MODEL_SLASH_COMMAND_CALL_COUNT =
+  'gemini_cli.slash_command.model.call_count';
+const EVENT_HOOK_CALL_COUNT = 'gemini_cli.hook_call.count';
+const EVENT_HOOK_CALL_LATENCY = 'gemini_cli.hook_call.latency';
+const KEYCHAIN_AVAILABILITY_COUNT = 'gemini_cli.keychain.availability.count';
+const TOKEN_STORAGE_TYPE_COUNT = 'gemini_cli.token_storage.type.count';
+const OVERAGE_OPTION_COUNT = 'gemini_cli.overage_option.count';
+const CREDIT_PURCHASE_COUNT = 'gemini_cli.credit_purchase.count';
+const EVENT_ONBOARDING_START = 'gemini_cli.onboarding.start';
+const EVENT_ONBOARDING_SUCCESS = 'gemini_cli.onboarding.success';
+const EVENT_ONBOARDING_DURATION_MS = 'gemini_cli.onboarding.duration';
 
-// Arena Metrics
-const ARENA_SESSION_COUNT = `${SERVICE_NAME}.arena.session.count`;
-const ARENA_SESSION_DURATION = `${SERVICE_NAME}.arena.session.duration`;
-const ARENA_AGENT_COUNT = `${SERVICE_NAME}.arena.agent.count`;
-const ARENA_AGENT_DURATION = `${SERVICE_NAME}.arena.agent.duration`;
-const ARENA_AGENT_TOKENS = `${SERVICE_NAME}.arena.agent.tokens`;
-const ARENA_RESULT_SELECTED = `${SERVICE_NAME}.arena.result.selected`;
+// Agent Metrics
+const AGENT_RUN_COUNT = 'gemini_cli.agent.run.count';
+const AGENT_DURATION_MS = 'gemini_cli.agent.duration';
+const AGENT_TURNS = 'gemini_cli.agent.turns';
+const AGENT_RECOVERY_ATTEMPT_COUNT = 'gemini_cli.agent.recovery_attempt.count';
+const AGENT_RECOVERY_ATTEMPT_DURATION =
+  'gemini_cli.agent.recovery_attempt.duration';
+
+// OpenTelemetry GenAI Semantic Convention Metrics
+const GEN_AI_CLIENT_TOKEN_USAGE = 'gen_ai.client.token.usage';
+const GEN_AI_CLIENT_OPERATION_DURATION = 'gen_ai.client.operation.duration';
 
 // Performance Monitoring Metrics
-const STARTUP_TIME = `${SERVICE_NAME}.startup.duration`;
-const MEMORY_USAGE = `${SERVICE_NAME}.memory.usage`;
-const CPU_USAGE = `${SERVICE_NAME}.cpu.usage`;
-const TOOL_QUEUE_DEPTH = `${SERVICE_NAME}.tool.queue.depth`;
-const TOOL_EXECUTION_BREAKDOWN = `${SERVICE_NAME}.tool.execution.breakdown`;
-const TOKEN_EFFICIENCY = `${SERVICE_NAME}.token.efficiency`;
-const API_REQUEST_BREAKDOWN = `${SERVICE_NAME}.api.request.breakdown`;
-const PERFORMANCE_SCORE = `${SERVICE_NAME}.performance.score`;
-const REGRESSION_DETECTION = `${SERVICE_NAME}.performance.regression`;
-const REGRESSION_PERCENTAGE_CHANGE = `${SERVICE_NAME}.performance.regression.percentage_change`;
-const BASELINE_COMPARISON = `${SERVICE_NAME}.performance.baseline.comparison`;
+const STARTUP_TIME = 'gemini_cli.startup.duration';
+const MEMORY_USAGE = 'gemini_cli.memory.usage';
+const CPU_USAGE = 'gemini_cli.cpu.usage';
+const TOOL_QUEUE_DEPTH = 'gemini_cli.tool.queue.depth';
+const TOOL_EXECUTION_BREAKDOWN = 'gemini_cli.tool.execution.breakdown';
+const TOKEN_EFFICIENCY = 'gemini_cli.token.efficiency';
+const API_REQUEST_BREAKDOWN = 'gemini_cli.api.request.breakdown';
+const PERFORMANCE_SCORE = 'gemini_cli.performance.score';
+const REGRESSION_DETECTION = 'gemini_cli.performance.regression';
+const REGRESSION_PERCENTAGE_CHANGE =
+  'gemini_cli.performance.regression.percentage_change';
+const BASELINE_COMPARISON = 'gemini_cli.performance.baseline.comparison';
+const FLICKER_FRAME_COUNT = 'gemini_cli.ui.flicker.count';
+const SLOW_RENDER_LATENCY = 'gemini_cli.ui.slow_render.latency';
+const EXIT_FAIL_COUNT = 'gemini_cli.exit.fail.count';
+const PLAN_EXECUTION_COUNT = 'gemini_cli.plan.execution.count';
 
 const baseMetricDefinition = {
-  getCommonAttributes: (config: Config): Attributes => ({
-    'session.id': config.getSessionId(),
-  }),
+  getCommonAttributes,
 };
 
 const COUNTER_DEFINITIONS = {
@@ -55,6 +94,7 @@ const COUNTER_DEFINITIONS = {
     description: 'Counts tool calls, tagged by function name and success.',
     valueType: ValueType.INT,
     assign: (c: Counter) => (toolCallCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       function_name: string;
       success: boolean;
@@ -66,6 +106,7 @@ const COUNTER_DEFINITIONS = {
     description: 'Counts API requests, tagged by model and status.',
     valueType: ValueType.INT,
     assign: (c: Counter) => (apiRequestCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       model: string;
       status_code?: number | string;
@@ -76,6 +117,7 @@ const COUNTER_DEFINITIONS = {
     description: 'Counts the total number of tokens used.',
     valueType: ValueType.INT,
     assign: (c: Counter) => (tokenUsageCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       model: string;
       type: 'input' | 'output' | 'thought' | 'cache' | 'tool';
@@ -91,12 +133,23 @@ const COUNTER_DEFINITIONS = {
     description: 'Counts file operations (create, read, update).',
     valueType: ValueType.INT,
     assign: (c: Counter) => (fileOperationCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       operation: FileOperation;
       lines?: number;
       mimetype?: string;
       extension?: string;
       programming_language?: string;
+    },
+  },
+  [LINES_CHANGED]: {
+    description: 'Number of lines changed (from file diffs).',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (linesChangedCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      function_name?: string;
+      type: 'added' | 'removed';
     },
   },
   [INVALID_CHUNK_COUNT]: {
@@ -117,10 +170,31 @@ const COUNTER_DEFINITIONS = {
     assign: (c: Counter) => (contentRetryFailureCounter = c),
     attributes: {} as Record<string, never>,
   },
+  [NETWORK_RETRY_COUNT]: {
+    description: 'Counts network retries.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (networkRetryCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      model: string;
+      attempt: number;
+    },
+  },
+  [MODEL_ROUTING_FAILURE_COUNT]: {
+    description: 'Counts model routing failures.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (modelRoutingFailureCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      'routing.decision_source': string;
+      'routing.error_message': string;
+    },
+  },
   [MODEL_SLASH_COMMAND_CALL_COUNT]: {
     description: 'Counts model slash command calls.',
     valueType: ValueType.INT,
     assign: (c: Counter) => (modelSlashCommandCallCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       'slash_command.model.model_name': string;
     },
@@ -129,9 +203,117 @@ const COUNTER_DEFINITIONS = {
     description: 'Counts chat compression events.',
     valueType: ValueType.INT,
     assign: (c: Counter) => (chatCompressionCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       tokens_before: number;
       tokens_after: number;
+    },
+  },
+  [AGENT_RUN_COUNT]: {
+    description: 'Counts agent runs, tagged by name and termination reason.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (agentRunCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      agent_name: string;
+      terminate_reason: string;
+    },
+  },
+  [AGENT_RECOVERY_ATTEMPT_COUNT]: {
+    description: 'Counts agent recovery attempts.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (agentRecoveryAttemptCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      agent_name: string;
+      reason: string;
+      success: boolean;
+    },
+  },
+  [FLICKER_FRAME_COUNT]: {
+    description:
+      'Counts UI frames that flicker (render taller than the terminal).',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (flickerFrameCounter = c),
+    attributes: {} as Record<string, never>,
+  },
+  [EXIT_FAIL_COUNT]: {
+    description: 'Counts CLI exit failures.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (exitFailCounter = c),
+    attributes: {} as Record<string, never>,
+  },
+  [PLAN_EXECUTION_COUNT]: {
+    description: 'Counts plan executions (switching from Plan Mode).',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (planExecutionCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      approval_mode: string;
+    },
+  },
+  [EVENT_HOOK_CALL_COUNT]: {
+    description: 'Counts hook calls, tagged by hook event name and success.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (hookCallCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      hook_event_name: string;
+      hook_name: string;
+      success: boolean;
+    },
+  },
+  [KEYCHAIN_AVAILABILITY_COUNT]: {
+    description: 'Counts keychain availability checks.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (keychainAvailabilityCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      available: boolean;
+    },
+  },
+  [TOKEN_STORAGE_TYPE_COUNT]: {
+    description: 'Counts token storage type initializations.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (tokenStorageTypeCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      type: string;
+      forced: boolean;
+    },
+  },
+  [OVERAGE_OPTION_COUNT]: {
+    description: 'Counts overage option selections.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (overageOptionCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      selected_option: string;
+      model: string;
+    },
+  },
+  [CREDIT_PURCHASE_COUNT]: {
+    description: 'Counts credit purchase link clicks.',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (creditPurchaseCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      source: string;
+      model: string;
+    },
+  },
+  [EVENT_ONBOARDING_START]: {
+    description: 'Counts onboarding started',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (onboardingStartCounter = c),
+    attributes: {} as Record<string, never>,
+  },
+  [EVENT_ONBOARDING_SUCCESS]: {
+    description: 'Counts onboarding succeeded',
+    valueType: ValueType.INT,
+    assign: (c: Counter) => (onboardingSuccessCounter = c),
+    attributes: {} as {
+      user_tier?: string;
     },
   },
 } as const;
@@ -142,6 +324,7 @@ const HISTOGRAM_DEFINITIONS = {
     unit: 'ms',
     valueType: ValueType.INT,
     assign: (h: Histogram) => (toolCallLatencyHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       function_name: string;
     },
@@ -151,8 +334,110 @@ const HISTOGRAM_DEFINITIONS = {
     unit: 'ms',
     valueType: ValueType.INT,
     assign: (h: Histogram) => (apiRequestLatencyHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       model: string;
+    },
+  },
+  [MODEL_ROUTING_LATENCY]: {
+    description: 'Latency of model routing decisions in milliseconds.',
+    unit: 'ms',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (modelRoutingLatencyHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      'routing.decision_model': string;
+      'routing.decision_source': string;
+    },
+  },
+  [AGENT_DURATION_MS]: {
+    description: 'Duration of agent runs in milliseconds.',
+    unit: 'ms',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (agentDurationHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      agent_name: string;
+    },
+  },
+  [SLOW_RENDER_LATENCY]: {
+    description: 'Counts UI frames that take too long to render.',
+    unit: 'ms',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (slowRenderHistogram = h),
+    attributes: {} as Record<string, never>,
+  },
+  [AGENT_TURNS]: {
+    description: 'Number of turns taken by agents.',
+    unit: 'turns',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (agentTurnsHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      agent_name: string;
+    },
+  },
+  [AGENT_RECOVERY_ATTEMPT_DURATION]: {
+    description: 'Duration of agent recovery attempts in milliseconds.',
+    unit: 'ms',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (agentRecoveryAttemptDurationHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      agent_name: string;
+    },
+  },
+  [GEN_AI_CLIENT_TOKEN_USAGE]: {
+    description: 'Number of input and output tokens used.',
+    unit: 'token',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (genAiClientTokenUsageHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      'gen_ai.operation.name': string;
+      'gen_ai.provider.name': string;
+      'gen_ai.token.type': 'input' | 'output';
+      'gen_ai.request.model'?: string;
+      'gen_ai.response.model'?: string;
+      'server.address'?: string;
+      'server.port'?: number;
+    },
+  },
+  [GEN_AI_CLIENT_OPERATION_DURATION]: {
+    description: 'GenAI operation duration.',
+    unit: 's',
+    valueType: ValueType.DOUBLE,
+    assign: (h: Histogram) => (genAiClientOperationDurationHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      'gen_ai.operation.name': string;
+      'gen_ai.provider.name': string;
+      'gen_ai.request.model'?: string;
+      'gen_ai.response.model'?: string;
+      'server.address'?: string;
+      'server.port'?: number;
+      'error.type'?: string;
+    },
+  },
+  [EVENT_HOOK_CALL_LATENCY]: {
+    description: 'Latency of hook calls in milliseconds.',
+    unit: 'ms',
+    valueType: ValueType.INT,
+    assign: (c: Histogram) => (hookCallLatencyHistogram = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    attributes: {} as {
+      hook_event_name: string;
+      hook_name: string;
+      success: boolean;
+    },
+  },
+  [EVENT_ONBOARDING_DURATION_MS]: {
+    description: 'Duration of onboarding in milliseconds.',
+    unit: 'ms',
+    valueType: ValueType.INT,
+    assign: (h: Histogram) => (onboardingDurationHistogram = h),
+    attributes: {} as {
+      user_tier?: string;
     },
   },
 } as const;
@@ -162,6 +447,7 @@ const PERFORMANCE_COUNTER_DEFINITIONS = {
     description: 'Performance regression detection events.',
     valueType: ValueType.INT,
     assign: (c: Counter) => (regressionDetectionCounter = c),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       metric: string;
       severity: 'low' | 'medium' | 'high';
@@ -178,6 +464,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'ms',
     valueType: ValueType.DOUBLE,
     assign: (h: Histogram) => (startupTimeHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       phase: string;
       details?: Record<string, string | number | boolean>;
@@ -188,6 +475,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'bytes',
     valueType: ValueType.INT,
     assign: (h: Histogram) => (memoryUsageGauge = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       memory_type: MemoryMetricType;
       component?: string;
@@ -214,6 +502,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'ms',
     valueType: ValueType.INT,
     assign: (h: Histogram) => (toolExecutionBreakdownHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       function_name: string;
       phase: ToolExecutionPhase;
@@ -225,6 +514,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'ratio',
     valueType: ValueType.DOUBLE,
     assign: (h: Histogram) => (tokenEfficiencyHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       model: string;
       metric: string;
@@ -236,6 +526,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'ms',
     valueType: ValueType.INT,
     assign: (h: Histogram) => (apiRequestBreakdownHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       model: string;
       phase: ApiRequestPhase;
@@ -246,6 +537,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'score',
     valueType: ValueType.DOUBLE,
     assign: (h: Histogram) => (performanceScoreGauge = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       category: string;
       baseline?: number;
@@ -257,6 +549,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'percent',
     valueType: ValueType.DOUBLE,
     assign: (h: Histogram) => (regressionPercentageChangeHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       metric: string;
       severity: 'low' | 'medium' | 'high';
@@ -270,6 +563,7 @@ const PERFORMANCE_HISTOGRAM_DEFINITIONS = {
     unit: 'percent',
     valueType: ValueType.DOUBLE,
     assign: (h: Histogram) => (baselineComparisonHistogram = h),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     attributes: {} as {
       metric: string;
       category: string;
@@ -326,6 +620,20 @@ export enum ApiRequestPhase {
   TOKEN_PROCESSING = 'token_processing',
 }
 
+export enum GenAiOperationName {
+  GENERATE_CONTENT = 'generate_content',
+}
+
+export enum GenAiProviderName {
+  GCP_GEN_AI = 'gcp.gen_ai',
+  GCP_VERTEX_AI = 'gcp.vertex_ai',
+}
+
+export enum GenAiTokenType {
+  INPUT = 'input',
+  OUTPUT = 'output',
+}
+
 let cliMeter: Meter | undefined;
 let toolCallCounter: Counter | undefined;
 let toolCallLatencyHistogram: Histogram | undefined;
@@ -334,12 +642,37 @@ let apiRequestLatencyHistogram: Histogram | undefined;
 let tokenUsageCounter: Counter | undefined;
 let sessionCounter: Counter | undefined;
 let fileOperationCounter: Counter | undefined;
+let linesChangedCounter: Counter | undefined;
 let chatCompressionCounter: Counter | undefined;
 let invalidChunkCounter: Counter | undefined;
 let contentRetryCounter: Counter | undefined;
 let contentRetryFailureCounter: Counter | undefined;
-let subagentExecutionCounter: Counter | undefined;
+let networkRetryCounter: Counter | undefined;
+let modelRoutingLatencyHistogram: Histogram | undefined;
+let modelRoutingFailureCounter: Counter | undefined;
 let modelSlashCommandCallCounter: Counter | undefined;
+let agentRunCounter: Counter | undefined;
+let agentDurationHistogram: Histogram | undefined;
+let agentTurnsHistogram: Histogram | undefined;
+let agentRecoveryAttemptCounter: Counter | undefined;
+let agentRecoveryAttemptDurationHistogram: Histogram | undefined;
+let flickerFrameCounter: Counter | undefined;
+let exitFailCounter: Counter | undefined;
+let planExecutionCounter: Counter | undefined;
+let slowRenderHistogram: Histogram | undefined;
+let hookCallCounter: Counter | undefined;
+let hookCallLatencyHistogram: Histogram | undefined;
+let keychainAvailabilityCounter: Counter | undefined;
+let tokenStorageTypeCounter: Counter | undefined;
+let overageOptionCounter: Counter | undefined;
+let creditPurchaseCounter: Counter | undefined;
+let onboardingStartCounter: Counter | undefined;
+let onboardingSuccessCounter: Counter | undefined;
+let onboardingDurationHistogram: Histogram | undefined;
+
+// OpenTelemetry GenAI Semantic Convention Metrics
+let genAiClientTokenUsageHistogram: Histogram | undefined;
+let genAiClientOperationDurationHistogram: Histogram | undefined;
 
 // Performance Monitoring Metrics
 let startupTimeHistogram: Histogram | undefined;
@@ -353,18 +686,10 @@ let performanceScoreGauge: Histogram | undefined;
 let regressionDetectionCounter: Counter | undefined;
 let regressionPercentageChangeHistogram: Histogram | undefined;
 let baselineComparisonHistogram: Histogram | undefined;
-// Arena Metrics
-let arenaSessionCounter: Counter | undefined;
-let arenaSessionDurationHistogram: Histogram | undefined;
-let arenaAgentCounter: Counter | undefined;
-let arenaAgentDurationHistogram: Histogram | undefined;
-let arenaAgentTokensCounter: Counter | undefined;
-let arenaResultSelectedCounter: Counter | undefined;
-
 let isMetricsInitialized = false;
 let isPerformanceMonitoringEnabled = false;
 
-export function getMeter(): Meter | undefined {
+function getMeter(): Meter | undefined {
   if (!cliMeter) {
     cliMeter = metrics.getMeter(SERVICE_NAME);
   }
@@ -383,42 +708,6 @@ export function initializeMetrics(config: Config): void {
       assign(meter.createCounter(name, { description, valueType }));
     },
   );
-  subagentExecutionCounter = meter.createCounter(SUBAGENT_EXECUTION_COUNT, {
-    description:
-      'Counts subagent execution events, tagged by status and subagent name.',
-    valueType: ValueType.INT,
-  });
-
-  // Arena metrics
-  arenaSessionCounter = meter.createCounter(ARENA_SESSION_COUNT, {
-    description: 'Counts arena sessions by status and display backend.',
-    valueType: ValueType.INT,
-  });
-  arenaSessionDurationHistogram = meter.createHistogram(
-    ARENA_SESSION_DURATION,
-    {
-      description: 'Duration of arena sessions in milliseconds.',
-      unit: 'ms',
-      valueType: ValueType.INT,
-    },
-  );
-  arenaAgentCounter = meter.createCounter(ARENA_AGENT_COUNT, {
-    description: 'Counts arena agent completions by status and model.',
-    valueType: ValueType.INT,
-  });
-  arenaAgentDurationHistogram = meter.createHistogram(ARENA_AGENT_DURATION, {
-    description: 'Duration of arena agent execution in milliseconds.',
-    unit: 'ms',
-    valueType: ValueType.INT,
-  });
-  arenaAgentTokensCounter = meter.createCounter(ARENA_AGENT_TOKENS, {
-    description: 'Token usage by arena agents.',
-    valueType: ValueType.INT,
-  });
-  arenaResultSelectedCounter = meter.createCounter(ARENA_RESULT_SELECTED, {
-    description: 'Counts arena result selections by model.',
-    valueType: ValueType.INT,
-  });
 
   Object.entries(HISTOGRAM_DEFINITIONS).forEach(
     ([name, { description, unit, valueType, assign }]) => {
@@ -465,7 +754,7 @@ export function recordToolCallMetrics(
   });
 }
 
-export function recordTokenUsageMetrics(
+export function recordCustomTokenUsageMetrics(
   config: Config,
   tokenCount: number,
   attributes: MetricDefinitions[typeof TOKEN_USAGE]['attributes'],
@@ -477,7 +766,7 @@ export function recordTokenUsageMetrics(
   });
 }
 
-export function recordApiResponseMetrics(
+export function recordCustomApiResponseMetrics(
   config: Config,
   durationMs: number,
   attributes: MetricDefinitions[typeof API_REQUEST_COUNT]['attributes'],
@@ -535,7 +824,97 @@ export function recordFileOperationMetric(
   });
 }
 
+export function recordLinesChanged(
+  config: Config,
+  lines: number,
+  changeType: 'added' | 'removed',
+  attributes?: { function_name?: string },
+): void {
+  if (!linesChangedCounter || !isMetricsInitialized) return;
+  if (!Number.isFinite(lines) || lines <= 0) return;
+  linesChangedCounter.add(lines, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    type: changeType,
+    ...(attributes ?? {}),
+  });
+}
+
 // --- New Metric Recording Functions ---
+
+/**
+ * Records a metric for when the Google auth process starts.
+ */
+export function recordOnboardingStart(config: Config): void {
+  if (!onboardingStartCounter || !isMetricsInitialized) return;
+  onboardingStartCounter.add(
+    1,
+    baseMetricDefinition.getCommonAttributes(config),
+  );
+}
+
+/**
+ * Records a metric for when the Google auth process ends successfully.
+ */
+export function recordOnboardingSuccess(
+  config: Config,
+  userTier?: string,
+  durationMs?: number,
+): void {
+  if (!isMetricsInitialized) return;
+
+  const attributes: Attributes = {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...(userTier && { user_tier: userTier }),
+  };
+
+  if (onboardingSuccessCounter) {
+    onboardingSuccessCounter.add(1, attributes);
+  }
+
+  if (durationMs !== undefined && onboardingDurationHistogram) {
+    onboardingDurationHistogram.record(durationMs, attributes);
+  }
+}
+
+/**
+ * Records a metric for when a UI frame flickers.
+ */
+export function recordFlickerFrame(config: Config): void {
+  if (!flickerFrameCounter || !isMetricsInitialized) return;
+  flickerFrameCounter.add(1, baseMetricDefinition.getCommonAttributes(config));
+}
+
+/**
+ * Records a metric for when user failed to exit
+ */
+export function recordExitFail(config: Config): void {
+  if (!exitFailCounter || !isMetricsInitialized) return;
+  exitFailCounter.add(1, baseMetricDefinition.getCommonAttributes(config));
+}
+
+/**
+ * Records a metric for when a plan is executed.
+ */
+export function recordPlanExecution(
+  config: Config,
+  attributes: MetricDefinitions[typeof PLAN_EXECUTION_COUNT]['attributes'],
+): void {
+  if (!planExecutionCounter || !isMetricsInitialized) return;
+  planExecutionCounter.add(1, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...attributes,
+  });
+}
+
+/**
+ * Records a metric for when a UI frame is slow in rendering
+ */
+export function recordSlowRender(config: Config, renderLatency: number): void {
+  if (!slowRenderHistogram || !isMetricsInitialized) return;
+  slowRenderHistogram.record(renderLatency, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+  });
+}
 
 /**
  * Records a metric for when an invalid chunk is received from a stream.
@@ -543,6 +922,20 @@ export function recordFileOperationMetric(
 export function recordInvalidChunk(config: Config): void {
   if (!invalidChunkCounter || !isMetricsInitialized) return;
   invalidChunkCounter.add(1, baseMetricDefinition.getCommonAttributes(config));
+}
+
+export function recordRetryAttemptMetrics(
+  config: Config,
+  attributes: {
+    model: string;
+    attempt: number;
+  },
+): void {
+  if (!networkRetryCounter || !isMetricsInitialized) return;
+  networkRetryCounter.add(1, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...attributes,
+  });
 }
 
 /**
@@ -575,9 +968,180 @@ export function recordModelSlashCommand(
   });
 }
 
+export function recordModelRoutingMetrics(
+  config: Config,
+  event: ModelRoutingEvent,
+): void {
+  if (
+    !modelRoutingLatencyHistogram ||
+    !modelRoutingFailureCounter ||
+    !isMetricsInitialized
+  )
+    return;
+
+  const attributes: Attributes = {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    'routing.decision_model': event.decision_model,
+    'routing.decision_source': event.decision_source,
+    'routing.failed': event.failed,
+    'routing.approval_mode': event.approval_mode,
+  };
+
+  if (event.reasoning) {
+    attributes['routing.reasoning'] = event.reasoning;
+  }
+  if (event.enable_numerical_routing !== undefined) {
+    attributes['routing.enable_numerical_routing'] =
+      event.enable_numerical_routing;
+  }
+  if (event.classifier_threshold) {
+    attributes['routing.classifier_threshold'] = event.classifier_threshold;
+  }
+
+  modelRoutingLatencyHistogram.record(event.routing_latency_ms, attributes);
+
+  if (event.failed) {
+    modelRoutingFailureCounter.add(1, {
+      ...attributes,
+      'routing.error_message': event.error_message,
+    });
+  }
+}
+
+export function recordAgentRunMetrics(
+  config: Config,
+  event: AgentFinishEvent,
+): void {
+  if (
+    !agentRunCounter ||
+    !agentDurationHistogram ||
+    !agentTurnsHistogram ||
+    !isMetricsInitialized
+  )
+    return;
+
+  const commonAttributes = baseMetricDefinition.getCommonAttributes(config);
+
+  agentRunCounter.add(1, {
+    ...commonAttributes,
+    agent_name: event.agent_name,
+    terminate_reason: event.terminate_reason,
+  });
+
+  agentDurationHistogram.record(event.duration_ms, {
+    ...commonAttributes,
+    agent_name: event.agent_name,
+  });
+
+  agentTurnsHistogram.record(event.turn_count, {
+    ...commonAttributes,
+    agent_name: event.agent_name,
+  });
+}
+
+export function recordRecoveryAttemptMetrics(
+  config: Config,
+  event: RecoveryAttemptEvent,
+): void {
+  if (
+    !agentRecoveryAttemptCounter ||
+    !agentRecoveryAttemptDurationHistogram ||
+    !isMetricsInitialized
+  )
+    return;
+
+  const commonAttributes = baseMetricDefinition.getCommonAttributes(config);
+
+  agentRecoveryAttemptCounter.add(1, {
+    ...commonAttributes,
+    agent_name: event.agent_name,
+    reason: event.reason,
+    success: event.success,
+  });
+
+  agentRecoveryAttemptDurationHistogram.record(event.duration_ms, {
+    ...commonAttributes,
+    agent_name: event.agent_name,
+  });
+}
+
+// OpenTelemetry GenAI Semantic Convention Recording Functions
+
+export function recordGenAiClientTokenUsage(
+  config: Config,
+  tokenCount: number,
+  attributes: MetricDefinitions[typeof GEN_AI_CLIENT_TOKEN_USAGE]['attributes'],
+): void {
+  if (!genAiClientTokenUsageHistogram || !isMetricsInitialized) return;
+
+  const metricAttributes: Attributes = {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...attributes,
+  };
+
+  genAiClientTokenUsageHistogram.record(tokenCount, metricAttributes);
+}
+
+export function recordGenAiClientOperationDuration(
+  config: Config,
+  durationSeconds: number,
+  attributes: MetricDefinitions[typeof GEN_AI_CLIENT_OPERATION_DURATION]['attributes'],
+): void {
+  if (!genAiClientOperationDurationHistogram || !isMetricsInitialized) return;
+
+  const metricAttributes: Attributes = {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...attributes,
+  };
+
+  genAiClientOperationDurationHistogram.record(
+    durationSeconds,
+    metricAttributes,
+  );
+}
+
+export function getConventionAttributes(event: {
+  model: string;
+  auth_type?: string;
+}): {
+  'gen_ai.operation.name': GenAiOperationName;
+  'gen_ai.provider.name': GenAiProviderName;
+  'gen_ai.request.model': string;
+  'gen_ai.response.model': string;
+} {
+  const operationName = getGenAiOperationName();
+  const provider = getGenAiProvider(event.auth_type);
+
+  return {
+    'gen_ai.operation.name': operationName,
+    'gen_ai.provider.name': provider,
+    'gen_ai.request.model': event.model,
+    'gen_ai.response.model': event.model,
+  };
+}
+
+/**
+ * Maps authentication type to GenAI provider name following OpenTelemetry conventions
+ */
+function getGenAiProvider(authType?: string): GenAiProviderName {
+  switch (authType) {
+    case AuthType.USE_VERTEX_AI:
+    case AuthType.COMPUTE_ADC:
+    case AuthType.LOGIN_WITH_GOOGLE:
+      return GenAiProviderName.GCP_VERTEX_AI;
+    case AuthType.USE_GEMINI:
+    default:
+      return GenAiProviderName.GCP_GEN_AI;
+  }
+}
+
+function getGenAiOperationName(): GenAiOperationName {
+  return GenAiOperationName.GENERATE_CONTENT;
+}
+
 // Performance Monitoring Functions
 
-export function initializePerformanceMonitoring(config: Config): void {
+function initializePerformanceMonitoring(config: Config): void {
   const meter = getMeter();
   if (!meter) return;
 
@@ -772,107 +1336,150 @@ export function isPerformanceMonitoringActive(): boolean {
 }
 
 /**
- * Records a metric for subagent execution events.
+ * Token usage recording that emits both custom and convention metrics.
  */
-export function recordSubagentExecutionMetrics(
+export function recordTokenUsageMetrics(
   config: Config,
-  subagentName: string,
-  status: 'started' | 'completed' | 'failed' | 'cancelled',
-  terminateReason?: string,
+  tokenCount: number,
+  attributes: {
+    model: string;
+    type: 'input' | 'output' | 'thought' | 'cache' | 'tool';
+    genAiAttributes?: {
+      'gen_ai.operation.name': string;
+      'gen_ai.provider.name': string;
+      'gen_ai.request.model'?: string;
+      'gen_ai.response.model'?: string;
+      'server.address'?: string;
+      'server.port'?: number;
+    };
+  },
 ): void {
-  if (!subagentExecutionCounter || !isMetricsInitialized) return;
+  recordCustomTokenUsageMetrics(config, tokenCount, {
+    model: attributes.model,
+    type: attributes.type,
+  });
 
-  const attributes: Attributes = {
+  if (
+    (attributes.type === 'input' || attributes.type === 'output') &&
+    attributes.genAiAttributes
+  ) {
+    recordGenAiClientTokenUsage(config, tokenCount, {
+      ...attributes.genAiAttributes,
+      'gen_ai.token.type': attributes.type,
+    });
+  }
+}
+
+/**
+ * Operation latency recording that emits both custom and convention metrics.
+ */
+export function recordApiResponseMetrics(
+  config: Config,
+  durationMs: number,
+  attributes: {
+    model: string;
+    status_code?: number | string;
+    genAiAttributes?: {
+      'gen_ai.operation.name': string;
+      'gen_ai.provider.name': string;
+      'gen_ai.request.model'?: string;
+      'gen_ai.response.model'?: string;
+      'server.address'?: string;
+      'server.port'?: number;
+      'error.type'?: string;
+    };
+  },
+): void {
+  recordCustomApiResponseMetrics(config, durationMs, {
+    model: attributes.model,
+    status_code: attributes.status_code,
+  });
+
+  if (attributes.genAiAttributes) {
+    const durationSeconds = durationMs / 1000;
+    recordGenAiClientOperationDuration(config, durationSeconds, {
+      ...attributes.genAiAttributes,
+    });
+  }
+}
+
+export function recordHookCallMetrics(
+  config: Config,
+  hookEventName: string,
+  hookName: string,
+  durationMs: number,
+  success: boolean,
+): void {
+  if (!hookCallCounter || !hookCallLatencyHistogram || !isMetricsInitialized)
+    return;
+
+  // Always sanitize hook names in metrics (metrics are aggregated and exposed)
+  const sanitizedHookName = sanitizeHookName(hookName);
+
+  const metricAttributes: Attributes = {
     ...baseMetricDefinition.getCommonAttributes(config),
-    subagent_name: subagentName,
-    status,
+    hook_event_name: hookEventName,
+    hook_name: sanitizedHookName,
+    success,
   };
 
-  if (terminateReason) {
-    attributes['terminate_reason'] = terminateReason;
-  }
-
-  subagentExecutionCounter.add(1, attributes);
+  hookCallCounter.add(1, metricAttributes);
+  hookCallLatencyHistogram.record(durationMs, metricAttributes);
 }
 
-// ─── Arena Metric Recording Functions ───────────────────────────
-
-export function recordArenaSessionStartedMetrics(config: Config): void {
-  if (!isMetricsInitialized) return;
-  arenaSessionCounter?.add(1, {
+/**
+ * Records a metric for keychain availability.
+ */
+export function recordKeychainAvailability(
+  config: Config,
+  event: KeychainAvailabilityEvent,
+): void {
+  if (!keychainAvailabilityCounter || !isMetricsInitialized) return;
+  keychainAvailabilityCounter.add(1, {
     ...baseMetricDefinition.getCommonAttributes(config),
-    status: 'started',
+    available: event.available,
   });
 }
 
-export function recordArenaAgentCompletedMetrics(
+/**
+ * Records a metric for token storage type initialization.
+ */
+export function recordTokenStorageInitialization(
   config: Config,
-  modelId: string,
-  status: string,
-  durationMs: number,
-  inputTokens: number,
-  outputTokens: number,
+  event: TokenStorageInitializationEvent,
 ): void {
-  if (!isMetricsInitialized) return;
-
-  const common = baseMetricDefinition.getCommonAttributes(config);
-
-  arenaAgentCounter?.add(1, {
-    ...common,
-    status,
-    model_id: modelId,
+  if (!tokenStorageTypeCounter || !isMetricsInitialized) return;
+  tokenStorageTypeCounter.add(1, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    type: event.type,
+    forced: event.forced,
   });
-
-  arenaAgentDurationHistogram?.record(durationMs, {
-    ...common,
-    model_id: modelId,
-  });
-
-  if (inputTokens > 0) {
-    arenaAgentTokensCounter?.add(inputTokens, {
-      ...common,
-      model_id: modelId,
-      type: 'input',
-    });
-  }
-
-  if (outputTokens > 0) {
-    arenaAgentTokensCounter?.add(outputTokens, {
-      ...common,
-      model_id: modelId,
-      type: 'output',
-    });
-  }
 }
 
-export function recordArenaSessionEndedMetrics(
+/**
+ * Records a metric for an overage option selection.
+ */
+export function recordOverageOptionSelected(
   config: Config,
-  status: string,
-  displayBackend?: string,
-  durationMs?: number,
-  winnerModelId?: string,
+  attributes: MetricDefinitions[typeof OVERAGE_OPTION_COUNT]['attributes'],
 ): void {
-  if (!isMetricsInitialized) return;
-
-  const common = baseMetricDefinition.getCommonAttributes(config);
-
-  arenaSessionCounter?.add(1, {
-    ...common,
-    status,
-    ...(displayBackend ? { display_backend: displayBackend } : {}),
+  if (!overageOptionCounter || !isMetricsInitialized) return;
+  overageOptionCounter.add(1, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...attributes,
   });
+}
 
-  if (durationMs !== undefined && arenaSessionDurationHistogram) {
-    arenaSessionDurationHistogram.record(durationMs, {
-      ...common,
-      status,
-    });
-  }
-
-  if (winnerModelId) {
-    arenaResultSelectedCounter?.add(1, {
-      ...common,
-      model_id: winnerModelId,
-    });
-  }
+/**
+ * Records a metric for a credit purchase link click.
+ */
+export function recordCreditPurchaseClick(
+  config: Config,
+  attributes: MetricDefinitions[typeof CREDIT_PURCHASE_COUNT]['attributes'],
+): void {
+  if (!creditPurchaseCounter || !isMetricsInitialized) return;
+  creditPurchaseCounter.add(1, {
+    ...baseMetricDefinition.getCommonAttributes(config),
+    ...attributes,
+  });
 }

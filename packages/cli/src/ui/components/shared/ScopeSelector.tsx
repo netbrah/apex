@@ -6,20 +6,19 @@
 
 import type React from 'react';
 import { Box, Text } from 'ink';
-import type { SettingScope } from '../../../config/settings.js';
+import type { LoadableSettingScope } from '../../../config/settings.js';
 import { getScopeItems } from '../../../utils/dialogScopeUtils.js';
 import { RadioButtonSelect } from './RadioButtonSelect.js';
-import { t } from '../../../i18n/index.js';
 
 interface ScopeSelectorProps {
   /** Callback function when a scope is selected */
-  onSelect: (scope: SettingScope) => void;
+  onSelect: (scope: LoadableSettingScope) => void;
   /** Callback function when a scope is highlighted */
-  onHighlight: (scope: SettingScope) => void;
+  onHighlight: (scope: LoadableSettingScope) => void;
   /** Whether the component is focused */
   isFocused: boolean;
   /** The initial scope to select */
-  initialScope: SettingScope;
+  initialScope: LoadableSettingScope;
 }
 
 export function ScopeSelector({
@@ -30,7 +29,6 @@ export function ScopeSelector({
 }: ScopeSelectorProps): React.JSX.Element {
   const scopeItems = getScopeItems().map((item) => ({
     ...item,
-    label: t(item.label),
     key: item.value,
   }));
 
@@ -42,10 +40,8 @@ export function ScopeSelector({
   return (
     <Box flexDirection="column">
       <Text bold={isFocused} wrap="truncate">
-        {isFocused ? '> ' : '  '}
-        {t('Apply To')}
+        {isFocused ? '> ' : '  '}Apply To
       </Text>
-      <Box height={1} />
       <RadioButtonSelect
         items={scopeItems}
         initialIndex={safeInitialIndex}

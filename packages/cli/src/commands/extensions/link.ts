@@ -5,18 +5,25 @@
  */
 
 import type { CommandModule } from 'yargs';
-import { type ExtensionInstallMetadata } from '@apex-code/apex-core';
-import { getErrorMessage } from '../../utils/errors.js';
-import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
+import chalk from 'chalk';
 import {
+  debugLogger,
+  getErrorMessage,
+  type ExtensionInstallMetadata,
+} from '@apex-code/apex-core';
+
+import {
+  INSTALL_WARNING_MESSAGE,
   requestConsentNonInteractive,
-  requestConsentOrFail,
-} from './consent.js';
-import { getExtensionManager } from './utils.js';
-import { t } from '../../i18n/index.js';
+} from '../../config/extensions/consent.js';
+import { ExtensionManager } from '../../config/extension-manager.js';
+import { loadSettings } from '../../config/settings.js';
+import { promptForSetting } from '../../config/extensions/extensionSettings.js';
+import { exitCli } from '../utils.js';
 
 interface InstallArgs {
   path: string;
+  consent?: boolean;
 }
 
 export async function handleLink(args: InstallArgs) {
@@ -25,42 +32,58 @@ export async function handleLink(args: InstallArgs) {
       source: args.path,
       type: 'link',
     };
-    const extensionManager = await getExtensionManager();
-
-    const extension = await extensionManager.installExtension(
-      installMetadata,
-      requestConsentOrFail.bind(null, requestConsentNonInteractive),
-    );
-    if (!extension) {
-      writeStdoutLine(t('Link extension failed to install.'));
-      return;
+    const requestConsent = args.consent
+      ? () => Promise.resolve(true)
+      : requestConsentNonInteractive;
+    if (args.consent) {
+      debugLogger.log('You have consented to the following:');
+      debugLogger.log(INSTALL_WARNING_MESSAGE);
     }
-    writeStdoutLine(
-      t('Extension "{{name}}" linked successfully and enabled.', {
-        name: extension.name,
-      }),
+    const workspaceDir = process.cwd();
+    const extensionManager = new ExtensionManager({
+      workspaceDir,
+      requestConsent,
+      requestSetting: promptForSetting,
+      settings: loadSettings(workspaceDir).merged,
+    });
+    await extensionManager.loadExtensions();
+    const extension =
+      await extensionManager.installOrUpdateExtension(installMetadata);
+    debugLogger.log(
+      chalk.green(
+        `Extension "${extension.name}" linked successfully and enabled.`,
+      ),
     );
   } catch (error) {
-    writeStderrLine(getErrorMessage(error));
+    debugLogger.error(getErrorMessage(error));
     process.exit(1);
   }
 }
 
 export const linkCommand: CommandModule = {
   command: 'link <path>',
-  describe: t(
+  describe:
     'Links an extension from a local path. Updates made to the local path will always be reflected.',
-  ),
   builder: (yargs) =>
     yargs
       .positional('path', {
-        describe: t('The name of the extension to link.'),
+        describe: 'The name of the extension to link.',
         type: 'string',
+      })
+      .option('consent', {
+        describe:
+          'Acknowledge the security risks of installing an extension and skip the confirmation prompt.',
+        type: 'boolean',
+        default: false,
       })
       .check((_) => true),
   handler: async (argv) => {
     await handleLink({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       path: argv['path'] as string,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      consent: argv['consent'] as boolean | undefined,
     });
+    await exitCli();
   },
 };

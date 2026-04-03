@@ -4,17 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
   type ToolInvocation,
   type ToolResult,
+  type PolicyUpdateOptions,
+  type ToolConfirmationOutcome,
+  type ReadManyFilesResult,
 } from './tools.js';
 import { getErrorMessage } from '../utils/errors.js';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob, escape } from 'glob';
+import { buildParamArgsPattern } from '../policy/utils.js';
 import {
   detectFileType,
   processSingleFileContent,
@@ -32,21 +37,62 @@ import { getProgrammingLanguage } from '../telemetry/telemetry-utils.js';
 import { logFileOperation } from '../telemetry/loggers.js';
 import { FileOperationEvent } from '../telemetry/types.js';
 import { ToolErrorType } from './tool-error.js';
-import { ToolNames, ToolDisplayNames } from './tool-names.js';
+import {
+  READ_MANY_FILES_TOOL_NAME,
+  READ_MANY_FILES_DISPLAY_NAME,
+} from './tool-names.js';
+import { READ_MANY_FILES_DEFINITION } from './definitions/coreTools.js';
+import { resolveToolDeclaration } from './definitions/resolver.js';
 
-const REFERENCE_CONTENT_END = '--- End of content ---';
+import { REFERENCE_CONTENT_END } from '../utils/constants.js';
+import {
+  discoverJitContext,
+  JIT_CONTEXT_PREFIX,
+  JIT_CONTEXT_SUFFIX,
+} from './jit-context.js';
 
+/**
+ * Parameters for the ReadManyFilesTool.
+ */
 export interface ReadManyFilesParams {
+  /**
+   * Glob patterns for files to include.
+   * Example: ["*.ts", "src/** /*.md"]
+   */
   include: string[];
+
+  /**
+   * Optional. Glob patterns for files/directories to exclude.
+   * Applied as ignore patterns.
+   * Example: ["*.log", "dist/**"]
+   */
   exclude?: string[];
+
+  /**
+   * Optional. Search directories recursively.
+   * This is generally controlled by glob patterns (e.g., `**`).
+   * The glob implementation is recursive by default for `**`.
+   * For simplicity, we'll rely on `**` for recursion.
+   */
   recursive?: boolean;
+
+  /**
+   * Optional. Apply default exclusion patterns. Defaults to true.
+   */
   useDefaultExcludes?: boolean;
+
+  /**
+   * Whether to respect .gitignore and .apexignore patterns (optional, defaults to true)
+   */
   file_filtering_options?: {
     respect_git_ignore?: boolean;
-    respect_apex_ignore?: boolean;
+    respect_gemini_ignore?: boolean;
   };
 }
 
+/**
+ * Result type for file processing operations
+ */
 type FileProcessingResult =
   | {
       success: true;
@@ -63,6 +109,11 @@ type FileProcessingResult =
       reason: string;
     };
 
+/**
+ * Creates the default exclusion patterns including dynamic patterns.
+ * This combines the shared patterns with dynamic patterns like APEX.md.
+ * TODO(adh): Consider making this configurable or extendable through a command line argument.
+ */
 function getDefaultExcludes(config?: Config): string[] {
   return config?.getFileExclusions().getReadManyFilesExcludes() ?? [];
 }
@@ -77,27 +128,51 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
   constructor(
     private readonly config: Config,
     params: ReadManyFilesParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ) {
-    super(params);
+    super(params, messageBus, _toolName, _toolDisplayName);
   }
 
   getDescription(): string {
-    const pathDesc = `using patterns: ${this.params.include.join('`, `')} (within target directory: ${this.config.getTargetDir()}) `;
+    const pathDesc = `using patterns: 
+${this.params.include.join('`, `')}
+ (within target directory: 
+${this.config.getTargetDir()}
+) `;
+
+    // Determine the final list of exclusion patterns exactly as in execute method
     const paramExcludes = this.params.exclude || [];
     const paramUseDefaultExcludes = this.params.useDefaultExcludes !== false;
-    const finalExclusionPatterns: string[] = paramUseDefaultExcludes
-      ? [...getDefaultExcludes(this.config), ...paramExcludes]
-      : [...paramExcludes];
+    const finalExclusionPatternsForDescription: string[] =
+      paramUseDefaultExcludes
+        ? [...getDefaultExcludes(this.config), ...paramExcludes]
+        : [...paramExcludes];
 
     const excludeDesc = `Excluding: ${
-      finalExclusionPatterns.length > 0
-        ? `patterns like ${finalExclusionPatterns
-            .slice(0, 2)
-            .join('`, `')}${finalExclusionPatterns.length > 2 ? '...' : ''}`
+      finalExclusionPatternsForDescription.length > 0
+        ? `patterns like 
+${finalExclusionPatternsForDescription
+  .slice(0, 2)
+  .join(
+    '`, `',
+  )}${finalExclusionPatternsForDescription.length > 2 ? '...`' : '`'}`
         : 'none specified'
     }`;
 
-    return `Will attempt to read and concatenate files ${pathDesc}. ${excludeDesc}. File encoding: ${DEFAULT_ENCODING}. Separator: "${DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace('{filePath}', 'path/to/file.ext')}".`;
+    return `Will attempt to read and concatenate files ${pathDesc}. ${excludeDesc}. File encoding: ${DEFAULT_ENCODING}. Separator: "${DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
+      '{filePath}',
+      'path/to/file.ext',
+    )}".`;
+  }
+
+  override getPolicyUpdateOptions(
+    _outcome: ToolConfirmationOutcome,
+  ): PolicyUpdateOptions | undefined {
+    return {
+      argsPattern: buildParamArgsPattern('include', this.params.include),
+    };
   }
 
   async execute(signal: AbortSignal): Promise<ToolResult> {
@@ -132,6 +207,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
           if (exists) {
             processedPatterns.push(escape(normalizedP));
           } else {
+            // The path does not exist or is not a file, so we treat it as a glob pattern.
             processedPatterns.push(normalizedP);
           }
         }
@@ -155,27 +231,28 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
 
       const fileDiscovery = this.config.getFileService();
 
-      const filterReport = fileDiscovery.filterFilesWithReport(
-        relativeEntries,
-        {
+      const { filteredPaths, ignoredCount } =
+        fileDiscovery.filterFilesWithReport(relativeEntries, {
           respectGitIgnore:
             this.params.file_filtering_options?.respect_git_ignore ??
             this.config.getFileFilteringOptions().respectGitIgnore ??
             DEFAULT_FILE_FILTERING_OPTIONS.respectGitIgnore,
-          respectApexIgnore:
-            this.params.file_filtering_options?.respect_apex_ignore ??
-            this.config.getFileFilteringOptions().respectApexIgnore ??
-            DEFAULT_FILE_FILTERING_OPTIONS.respectApexIgnore,
-        },
-      );
-      const { filteredPaths } = filterReport;
-      const ignoredCount =
-        filterReport.gitIgnoredCount + filterReport.apexIgnoredCount;
+          respectGeminiIgnore:
+            this.params.file_filtering_options?.respect_gemini_ignore ??
+            this.config.getFileFilteringOptions().respectGeminiIgnore ??
+            DEFAULT_FILE_FILTERING_OPTIONS.respectGeminiIgnore,
+        });
 
       for (const relativePath of filteredPaths) {
+        // Security check: ensure the glob library didn't return something outside the workspace.
+
         const fullPath = path.resolve(this.config.getTargetDir(), relativePath);
-        const workspaceContext = this.config.getWorkspaceContext();
-        if (!workspaceContext.isPathWithinWorkspace(fullPath)) {
+
+        const validationError = this.config.validatePathAccess(
+          fullPath,
+          'read',
+        );
+        if (validationError) {
           skippedFiles.push({
             path: fullPath,
             reason: 'Security: Path not in workspace',
@@ -185,6 +262,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
         filesToConsider.add(fullPath);
       }
 
+      // Add info about ignored files if any were filtered
       if (ignoredCount > 0) {
         skippedFiles.push({
           path: `${ignoredCount} file(s)`,
@@ -195,7 +273,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
       const errorMessage = `Error during file search: ${getErrorMessage(error)}`;
       return {
         llmContent: errorMessage,
-        returnDisplay: `## File Search Error\n\nAn error occurred while searching for files:\n\`\`\`\n${getErrorMessage(error)}\n\`\`\``,
+        returnDisplay: `Error: ${getErrorMessage(error)}`,
         error: {
           message: errorMessage,
           type: ToolErrorType.READ_MANY_FILES_SEARCH_ERROR,
@@ -241,9 +319,11 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
             }
           }
 
+          // Use processSingleFileContent for all file types now
           const fileReadResult = await processSingleFileContent(
             filePath,
-            this.config,
+            this.config.getTargetDir(),
+            this.config.getFileSystemService(),
           );
 
           if (fileReadResult.error) {
@@ -283,18 +363,20 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
         const fileResult = result.value;
 
         if (!fileResult.success) {
+          // Handle skipped files (images/PDFs not requested or read errors)
           skippedFiles.push({
             path: fileResult.relativePathForDisplay,
             reason: fileResult.reason,
           });
         } else {
+          // Handle successfully processed files
           const { filePath, relativePathForDisplay, fileReadResult } =
             fileResult;
 
           if (typeof fileReadResult.llmContent === 'string') {
             const separator = DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
               '{filePath}',
-              relativePathForDisplay,
+              filePath,
             );
             let fileContentForLlm = '';
             if (fileReadResult.isTruncated) {
@@ -303,6 +385,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
             fileContentForLlm += fileReadResult.llmContent;
             contentParts.push(`${separator}\n\n${fileContentForLlm}\n\n`);
           } else {
+            // This is a Part for image/pdf, which we don't add the separator to.
             contentParts.push(fileReadResult.llmContent);
           }
 
@@ -319,7 +402,7 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
           logFileOperation(
             this.config,
             new FileOperationEvent(
-              ToolNames.READ_MANY_FILES,
+              READ_MANY_FILES_TOOL_NAME,
               FileOperation.READ,
               lines,
               mimetype,
@@ -329,11 +412,31 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
           );
         }
       } else {
+        // Handle Promise rejection (unexpected errors)
         skippedFiles.push({
           path: 'unknown',
           reason: `Unexpected error: ${result.reason}`,
         });
       }
+    }
+
+    // Discover JIT subdirectory context for all unique directories of processed files.
+    // Run sequentially so each call sees paths marked as loaded by the previous
+    // one, preventing shared parent APEX.md files from being injected twice.
+    const uniqueDirs = new Set(
+      Array.from(filesToConsider).map((f) => path.dirname(f)),
+    );
+    const jitParts: string[] = [];
+    for (const dir of uniqueDirs) {
+      const ctx = await discoverJitContext(this.config, dir);
+      if (ctx) {
+        jitParts.push(ctx);
+      }
+    }
+    if (jitParts.length > 0) {
+      contentParts.push(
+        `${JIT_CONTEXT_PREFIX}${jitParts.join('\n')}${JIT_CONTEXT_SUFFIX}`,
+      );
     }
 
     let displayMessage = `### ReadManyFiles Result (Target Dir: \`${this.config.getTargetDir()}\`)\n\n`;
@@ -384,55 +487,66 @@ class ReadManyFilesToolInvocation extends BaseToolInvocation<
         'No files matching the criteria were found or all were skipped.',
       );
     }
+
+    const returnDisplay: ReadManyFilesResult = {
+      summary: displayMessage.trim(),
+      files: processedFilesRelativePaths,
+      skipped: skippedFiles,
+      include: this.params.include,
+      excludes: effectiveExcludes,
+      targetDir: this.config.getTargetDir(),
+    };
+
     return {
       llmContent: contentParts,
-      returnDisplay: displayMessage.trim(),
+      returnDisplay,
     };
   }
 }
 
+/**
+ * Tool implementation for finding and reading multiple text files from the local filesystem
+ * within a specified target directory. The content is concatenated.
+ * It is intended to run in an environment with access to the local file system (e.g., a Node.js backend).
+ */
 export class ReadManyFilesTool extends BaseDeclarativeTool<
   ReadManyFilesParams,
   ToolResult
 > {
-  static readonly Name: string = ToolNames.READ_MANY_FILES;
+  static readonly Name = READ_MANY_FILES_TOOL_NAME;
 
-  constructor(private config: Config) {
+  constructor(
+    private config: Config,
+    messageBus: MessageBus,
+  ) {
     super(
       ReadManyFilesTool.Name,
-      ToolDisplayNames.READ_MANY_FILES,
-      `Finds and reads the content of multiple files matching glob patterns within the workspace. Files are concatenated with separators. Supports include/exclude glob patterns, respects .gitignore and .apexignore. Use for batch file reading instead of multiple read_file calls. For asset files (images, PDFs, audio), they must be explicitly requested by name or extension in the include patterns.`,
+      READ_MANY_FILES_DISPLAY_NAME,
+      READ_MANY_FILES_DEFINITION.base.description!,
       Kind.Read,
-      {
-        properties: {
-          include: {
-            description:
-              'Array of glob patterns or file paths to include. Example: ["*.ts", "src/**/*.md", "specific-file.txt"]',
-            type: 'array',
-            items: { type: 'string', minLength: 1 },
-            minItems: 1,
-          },
-          exclude: {
-            description:
-              'Optional. Array of glob patterns for files/directories to exclude. Example: ["*.log", "dist/**"]',
-            type: 'array',
-            items: { type: 'string' },
-          },
-          useDefaultExcludes: {
-            description:
-              'Optional. Whether to apply default exclusion patterns (node_modules, .git, etc.). Defaults to true.',
-            type: 'boolean',
-          },
-        },
-        required: ['include'],
-        type: 'object',
-      },
+      READ_MANY_FILES_DEFINITION.base.parametersJsonSchema,
+      messageBus,
+      true, // isOutputMarkdown
+      false, // canUpdateOutput
     );
   }
 
   protected createInvocation(
     params: ReadManyFilesParams,
+    messageBus: MessageBus,
+    _toolName?: string,
+    _toolDisplayName?: string,
   ): ToolInvocation<ReadManyFilesParams, ToolResult> {
-    return new ReadManyFilesToolInvocation(this.config, params);
+    return new ReadManyFilesToolInvocation(
+      this.config,
+      params,
+      messageBus,
+      _toolName,
+      _toolDisplayName,
+    );
+  }
+
+  override getSchema(modelId?: string) {
+    return resolveToolDeclaration(READ_MANY_FILES_DEFINITION, modelId);
   }
 }

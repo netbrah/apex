@@ -14,7 +14,7 @@ import {
   CACHE_EFFICIENCY_HIGH,
   CACHE_EFFICIENCY_MEDIUM,
 } from './displayUtils.js';
-import { theme } from '../semantic-colors.js';
+import { Colors } from '../colors.js';
 
 describe('displayUtils', () => {
   describe('getStatusColor', () => {
@@ -26,29 +26,29 @@ describe('displayUtils', () => {
       };
 
       it('should return green for values >= green threshold', () => {
-        expect(getStatusColor(90, thresholds)).toBe(theme.status.success);
-        expect(getStatusColor(80, thresholds)).toBe(theme.status.success);
+        expect(getStatusColor(90, thresholds)).toBe(Colors.AccentGreen);
+        expect(getStatusColor(80, thresholds)).toBe(Colors.AccentGreen);
       });
 
       it('should return yellow for values < green and >= yellow threshold', () => {
-        expect(getStatusColor(79, thresholds)).toBe(theme.status.warning);
-        expect(getStatusColor(50, thresholds)).toBe(theme.status.warning);
+        expect(getStatusColor(79, thresholds)).toBe(Colors.AccentYellow);
+        expect(getStatusColor(50, thresholds)).toBe(Colors.AccentYellow);
       });
 
       it('should return red for values < yellow and >= red threshold', () => {
-        expect(getStatusColor(49, thresholds)).toBe(theme.status.error);
-        expect(getStatusColor(20, thresholds)).toBe(theme.status.error);
+        expect(getStatusColor(49, thresholds)).toBe(Colors.AccentRed);
+        expect(getStatusColor(20, thresholds)).toBe(Colors.AccentRed);
       });
 
       it('should return error for values < red threshold', () => {
-        expect(getStatusColor(19, thresholds)).toBe(theme.status.error);
-        expect(getStatusColor(0, thresholds)).toBe(theme.status.error);
+        expect(getStatusColor(19, thresholds)).toBe(Colors.AccentRed);
+        expect(getStatusColor(0, thresholds)).toBe(Colors.AccentRed);
       });
 
       it('should return defaultColor for values < red threshold when provided', () => {
         expect(
-          getStatusColor(19, thresholds, { defaultColor: theme.text.primary }),
-        ).toBe(theme.text.primary);
+          getStatusColor(19, thresholds, { defaultColor: Colors.Foreground }),
+        ).toBe(Colors.Foreground);
       });
     });
 
@@ -59,13 +59,13 @@ describe('displayUtils', () => {
       };
 
       it('should return error color for values < yellow threshold', () => {
-        expect(getStatusColor(49, thresholds)).toBe(theme.status.error);
+        expect(getStatusColor(49, thresholds)).toBe(Colors.AccentRed);
       });
 
       it('should return defaultColor for values < yellow threshold when provided', () => {
         expect(
-          getStatusColor(49, thresholds, { defaultColor: theme.text.primary }),
-        ).toBe(theme.text.primary);
+          getStatusColor(49, thresholds, { defaultColor: Colors.Foreground }),
+        ).toBe(Colors.Foreground);
       });
     });
   });

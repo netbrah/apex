@@ -8,41 +8,66 @@ import {
   type AuthType,
   type Config,
   getErrorMessage,
-  logAuth,
-  AuthEvent,
+  ValidationRequiredError,
+  isAccountSuspendedError,
+  ProjectIdRequiredError,
 } from '@apex-code/apex-core';
+
+import type { AccountSuspensionInfo } from '../ui/contexts/UIStateContext.js';
+
+export interface InitialAuthResult {
+  authError: string | null;
+  accountSuspensionInfo: AccountSuspensionInfo | null;
+}
 
 /**
  * Handles the initial authentication flow.
  * @param config The application config.
  * @param authType The selected auth type.
- * @returns An error message if authentication fails, otherwise null.
+ * @returns The auth result with error message and account suspension status.
  */
 export async function performInitialAuth(
   config: Config,
   authType: AuthType | undefined,
-): Promise<string | null> {
+): Promise<InitialAuthResult> {
   if (!authType) {
-    return null;
+    return { authError: null, accountSuspensionInfo: null };
   }
 
   try {
-    await config.refreshAuth(authType, true);
+    await config.refreshAuth(authType);
     // The console.log is intentionally left out here.
     // We can add a dedicated startup message later if needed.
-
-    // Log authentication success
-    const authEvent = new AuthEvent(authType, 'auto', 'success');
-    logAuth(config, authEvent);
   } catch (e) {
-    const errorMessage = `Failed to login. Message: ${getErrorMessage(e)}`;
-
-    // Log authentication failure
-    const authEvent = new AuthEvent(authType, 'auto', 'error', errorMessage);
-    logAuth(config, authEvent);
-
-    return errorMessage;
+    if (e instanceof ValidationRequiredError) {
+      // Don't treat validation required as a fatal auth error during startup.
+      // This allows the React UI to load and show the ValidationDialog.
+      return { authError: null, accountSuspensionInfo: null };
+    }
+    const suspendedError = isAccountSuspendedError(e);
+    if (suspendedError) {
+      return {
+        authError: null,
+        accountSuspensionInfo: {
+          message: suspendedError.message,
+          appealUrl: suspendedError.appealUrl,
+          appealLinkText: suspendedError.appealLinkText,
+        },
+      };
+    }
+    if (e instanceof ProjectIdRequiredError) {
+      // OAuth succeeded but account setup requires project ID
+      // Show the error message directly without "Failed to login" prefix
+      return {
+        authError: getErrorMessage(e),
+        accountSuspensionInfo: null,
+      };
+    }
+    return {
+      authError: `Failed to sign in. Message: ${getErrorMessage(e)}`,
+      accountSuspensionInfo: null,
+    };
   }
 
-  return null;
+  return { authError: null, accountSuspensionInfo: null };
 }

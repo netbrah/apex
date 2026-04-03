@@ -1,54 +1,27 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { HookDefinition, HookConfig } from './types.js';
+import type { Config } from '../config/config.js';
 import {
   HookEventName,
-  HooksConfigSource,
+  ConfigSource,
   HOOKS_CONFIG_FIELDS,
+  type HookDefinition,
+  type HookConfig,
 } from './types.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
+import { debugLogger } from '../utils/debugLogger.js';
 import { TrustedHooksManager } from './trustedHooks.js';
-
-const debugLogger = createDebugLogger('HOOK_REGISTRY');
-
-/**
- * Extension with hooks support
- */
-export interface ExtensionWithHooks {
-  isActive: boolean;
-  hooks?: { [K in HookEventName]?: HookDefinition[] };
-}
-
-/**
- * Configuration interface for HookRegistry
- * This abstracts the Config dependency to make the registry more flexible
- */
-export interface HookRegistryConfig {
-  getProjectRoot(): string;
-  isTrustedFolder(): boolean;
-  getHooks(): { [K in HookEventName]?: HookDefinition[] } | undefined;
-  getProjectHooks(): { [K in HookEventName]?: HookDefinition[] } | undefined;
-  getDisabledHooks(): string[];
-  getExtensions(): ExtensionWithHooks[];
-}
-
-/**
- * Feedback emitter interface for warning/info messages
- */
-export interface FeedbackEmitter {
-  emitFeedback(type: 'warning' | 'info' | 'error', message: string): void;
-}
+import { coreEvents } from '../utils/events.js';
 
 /**
  * Hook registry entry with source information
  */
 export interface HookRegistryEntry {
   config: HookConfig;
-  source: HooksConfigSource;
+  source: ConfigSource;
   eventName: HookEventName;
   matcher?: string;
   sequential?: boolean;
@@ -59,20 +32,47 @@ export interface HookRegistryEntry {
  * Hook registry that loads and validates hook definitions from multiple sources
  */
 export class HookRegistry {
-  private readonly config: HookRegistryConfig;
-  private readonly feedbackEmitter?: FeedbackEmitter;
+  private readonly config: Config;
   private entries: HookRegistryEntry[] = [];
 
-  constructor(config: HookRegistryConfig, feedbackEmitter?: FeedbackEmitter) {
+  constructor(config: Config) {
     this.config = config;
-    this.feedbackEmitter = feedbackEmitter;
+  }
+
+  /**
+   * Register a new hook programmatically
+   */
+  registerHook(
+    config: HookConfig,
+    eventName: HookEventName,
+    options?: { matcher?: string; sequential?: boolean; source?: ConfigSource },
+  ): void {
+    const source = options?.source ?? ConfigSource.Runtime;
+
+    if (!this.validateHookConfig(config, eventName, source)) {
+      throw new Error(
+        `Invalid hook configuration for ${eventName} from ${source}`,
+      );
+    }
+
+    this.entries.push({
+      config,
+      source,
+      eventName,
+      matcher: options?.matcher,
+      sequential: options?.sequential,
+      enabled: true,
+    });
   }
 
   /**
    * Initialize the registry by processing hooks from config
    */
   async initialize(): Promise<void> {
-    this.entries = [];
+    const runtimeHooks = this.entries.filter(
+      (entry) => entry.source === ConfigSource.Runtime,
+    );
+    this.entries = [...runtimeHooks];
     this.processHooksFromConfig();
 
     debugLogger.debug(
@@ -113,7 +113,7 @@ export class HookRegistry {
     });
 
     if (updated.length > 0) {
-      debugLogger.info(
+      debugLogger.log(
         `${enabled ? 'Enabled' : 'Disabled'} ${updated.length} hook(s) matching "${hookName}"`,
       );
     } else {
@@ -127,7 +127,10 @@ export class HookRegistry {
   private getHookName(
     entry: HookRegistryEntry | { config: HookConfig },
   ): string {
-    return entry.config.name || entry.config.command || 'unknown-command';
+    if (entry.config.type === 'command') {
+      return entry.config.name || entry.config.command || 'unknown-command';
+    }
+    return entry.config.name || 'unknown-hook';
   }
 
   /**
@@ -146,11 +149,11 @@ export class HookRegistry {
 
       if (untrusted.length > 0) {
         const message = `WARNING: The following project-level hooks have been detected in this workspace:
-${untrusted.map((h: string) => `  - ${h}`).join('\n')}
+${untrusted.map((h) => `  - ${h}`).join('\n')}
 
 These hooks will be executed. If you did not configure these hooks or do not trust this project,
 please review the project settings (.apex/settings.json) and remove them.`;
-        this.feedbackEmitter?.emitFeedback('warning', message);
+        coreEvents.emitFeedback('warning', message);
 
         // Trust them so we don't warn again
         trustedHooksManager.trustHooks(
@@ -158,8 +161,8 @@ please review the project settings (.apex/settings.json) and remove them.`;
           projectHooks,
         );
       }
-    } catch {
-      debugLogger.warn('Failed to check project hooks trust');
+    } catch (error) {
+      debugLogger.warn('Failed to check project hooks trust', error);
     }
   }
 
@@ -175,7 +178,7 @@ please review the project settings (.apex/settings.json) and remove them.`;
     const configHooks = this.config.getHooks();
     if (configHooks) {
       if (this.config.isTrustedFolder()) {
-        this.processHooksConfiguration(configHooks, HooksConfigSource.Project);
+        this.processHooksConfiguration(configHooks, ConfigSource.Project);
       } else {
         debugLogger.warn(
           'Project hooks disabled because the folder is not trusted.',
@@ -189,7 +192,7 @@ please review the project settings (.apex/settings.json) and remove them.`;
       if (extension.isActive && extension.hooks) {
         this.processHooksConfiguration(
           extension.hooks,
-          HooksConfigSource.Extensions,
+          ConfigSource.Extensions,
         );
       }
     }
@@ -200,7 +203,7 @@ please review the project settings (.apex/settings.json) and remove them.`;
    */
   private processHooksConfiguration(
     hooksConfig: { [K in HookEventName]?: HookDefinition[] },
-    source: HooksConfigSource,
+    source: ConfigSource,
   ): void {
     for (const [eventName, definitions] of Object.entries(hooksConfig)) {
       if (HOOKS_CONFIG_FIELDS.includes(eventName)) {
@@ -208,7 +211,7 @@ please review the project settings (.apex/settings.json) and remove them.`;
       }
 
       if (!this.isValidEventName(eventName)) {
-        this.feedbackEmitter?.emitFeedback(
+        coreEvents.emitFeedback(
           'warning',
           `Invalid hook event name: "${eventName}" from ${source} config. Skipping.`,
         );
@@ -236,7 +239,7 @@ please review the project settings (.apex/settings.json) and remove them.`;
   private processHookDefinition(
     definition: HookDefinition,
     eventName: HookEventName,
-    source: HooksConfigSource,
+    source: ConfigSource,
   ): void {
     if (
       !definition ||
@@ -251,7 +254,7 @@ please review the project settings (.apex/settings.json) and remove them.`;
     }
 
     // Get disabled hooks list from settings
-    const disabledHooks = this.config.getDisabledHooks();
+    const disabledHooks = this.config.getDisabledHooks() || [];
 
     for (const hookConfig of definition.hooks) {
       if (
@@ -260,24 +263,11 @@ please review the project settings (.apex/settings.json) and remove them.`;
         this.validateHookConfig(hookConfig, eventName, source)
       ) {
         // Check if this hook is in the disabled list
-        const hookName = this.getHookName({ config: hookConfig });
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        const hookName = this.getHookName({
+          config: hookConfig,
+        } as HookRegistryEntry);
         const isDisabled = disabledHooks.includes(hookName);
-
-        // Check for duplicate hooks (same name+command+source+eventName+matcher+sequential)
-        const isDuplicate = this.entries.some(
-          (existing) =>
-            existing.eventName === eventName &&
-            existing.source === source &&
-            this.getHookName(existing) === hookName &&
-            existing.matcher === definition.matcher &&
-            existing.sequential === definition.sequential,
-        );
-        if (isDuplicate) {
-          debugLogger.debug(
-            `Skipping duplicate hook "${hookName}" for ${eventName} from ${source}`,
-          );
-          continue;
-        }
 
         // Add source to hook config
         hookConfig.source = source;
@@ -306,9 +296,12 @@ please review the project settings (.apex/settings.json) and remove them.`;
   private validateHookConfig(
     config: HookConfig,
     eventName: HookEventName,
-    source: HooksConfigSource,
+    source: ConfigSource,
   ): boolean {
-    if (!config.type || !['command', 'plugin'].includes(config.type)) {
+    if (
+      !config.type ||
+      !['command', 'plugin', 'runtime'].includes(config.type)
+    ) {
       debugLogger.warn(
         `Invalid hook ${eventName} from ${source} type: ${config.type}`,
       );
@@ -322,6 +315,13 @@ please review the project settings (.apex/settings.json) and remove them.`;
       return false;
     }
 
+    if (config.type === 'runtime' && !config.name) {
+      debugLogger.warn(
+        `Runtime hook ${eventName} from ${source} missing name field`,
+      );
+      return false;
+    }
+
     return true;
   }
 
@@ -329,22 +329,25 @@ please review the project settings (.apex/settings.json) and remove them.`;
    * Check if an event name is valid
    */
   private isValidEventName(eventName: string): eventName is HookEventName {
-    const validEventNames: string[] = Object.values(HookEventName);
-    return validEventNames.includes(eventName);
+    const validEventNames = Object.values(HookEventName);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    return validEventNames.includes(eventName as HookEventName);
   }
 
   /**
    * Get source priority (lower number = higher priority)
    */
-  private getSourcePriority(source: HooksConfigSource): number {
+  private getSourcePriority(source: ConfigSource): number {
     switch (source) {
-      case HooksConfigSource.Project:
+      case ConfigSource.Runtime:
+        return 0; // Highest
+      case ConfigSource.Project:
         return 1;
-      case HooksConfigSource.User:
+      case ConfigSource.User:
         return 2;
-      case HooksConfigSource.System:
+      case ConfigSource.System:
         return 3;
-      case HooksConfigSource.Extensions:
+      case ConfigSource.Extensions:
         return 4;
       default:
         return 999;

@@ -26,9 +26,9 @@ import path from 'node:path';
 const sourceDir = path.join('src');
 const targetDir = path.join('dist', 'src');
 
-const extensionsToCopy = ['.md', '.json', '.sb', '.ansi'];
+const extensionsToCopy = ['.md', '.json', '.sb', '.toml', '.cs', '.exe'];
 
-function copyFilesRecursive(source, target, rootSourceDir) {
+function copyFilesRecursive(source, target) {
   if (!fs.existsSync(target)) {
     fs.mkdirSync(target, { recursive: true });
   }
@@ -40,19 +40,9 @@ function copyFilesRecursive(source, target, rootSourceDir) {
     const targetPath = path.join(target, item.name);
 
     if (item.isDirectory()) {
-      copyFilesRecursive(sourcePath, targetPath, rootSourceDir);
-    } else {
-      const ext = path.extname(item.name);
-      // Copy standard extensions, or .js files in i18n/locales directory
-      // Use path.relative for precise matching to avoid false positives
-      const relativePath = path.relative(rootSourceDir, sourcePath);
-      const normalizedPath = relativePath.replace(/\\/g, '/');
-      const isLocaleJs =
-        ext === '.js' && normalizedPath.startsWith('i18n/locales/');
-      const isGeneratedJs = ext === '.js' && item.name.includes('.generated.');
-      if (extensionsToCopy.includes(ext) || isLocaleJs || isGeneratedJs) {
-        fs.copyFileSync(sourcePath, targetPath);
-      }
+      copyFilesRecursive(sourcePath, targetPath);
+    } else if (extensionsToCopy.includes(path.extname(item.name))) {
+      fs.copyFileSync(sourcePath, targetPath);
     }
   }
 }
@@ -62,7 +52,7 @@ if (!fs.existsSync(sourceDir)) {
   process.exit(1);
 }
 
-copyFilesRecursive(sourceDir, targetDir, sourceDir);
+copyFilesRecursive(sourceDir, targetDir);
 
 // Copy example extensions into the bundle.
 const packageName = path.basename(process.cwd());
@@ -81,6 +71,15 @@ if (packageName === 'cli') {
   );
   if (fs.existsSync(examplesSource)) {
     fs.cpSync(examplesSource, examplesTarget, { recursive: true });
+  }
+}
+
+// Copy built-in skills for the core package.
+if (packageName === 'core') {
+  const builtinSkillsSource = path.join(sourceDir, 'skills', 'builtin');
+  const builtinSkillsTarget = path.join(targetDir, 'skills', 'builtin');
+  if (fs.existsSync(builtinSkillsSource)) {
+    fs.cpSync(builtinSkillsSource, builtinSkillsTarget, { recursive: true });
   }
 }
 

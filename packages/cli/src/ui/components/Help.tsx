@@ -8,58 +8,65 @@ import type React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { type SlashCommand, CommandKind } from '../commands/types.js';
-import { t } from '../../i18n/index.js';
+import { KEYBOARD_SHORTCUTS_URL } from '../constants.js';
+import { sanitizeForDisplay } from '../utils/textUtils.js';
+import { formatCommand } from '../key/keybindingUtils.js';
+import { Command } from '../key/keyBindings.js';
 
 interface Help {
   commands: readonly SlashCommand[];
-  width?: number;
 }
 
-export const Help: React.FC<Help> = ({ commands, width }) => (
+export const Help: React.FC<Help> = ({ commands }) => (
   <Box
     flexDirection="column"
+    marginBottom={1}
     borderColor={theme.border.default}
     borderStyle="round"
     padding={1}
-    width={width}
   >
     {/* Basics */}
     <Text bold color={theme.text.primary}>
-      {t('Basics:')}
+      Basics:
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        {t('Add context')}
+        Add context
       </Text>
-      :{' '}
-      {t(
-        'Use {{symbol}} to specify files for context (e.g., {{example}}) to target specific files or folders.',
-        {
-          symbol: t('@'),
-          example: t('@src/myFile.ts'),
-        },
-      )}
+      : Use{' '}
+      <Text bold color={theme.text.accent}>
+        @
+      </Text>{' '}
+      to specify files for context (e.g.,{' '}
+      <Text bold color={theme.text.accent}>
+        @src/myFile.ts
+      </Text>
+      ) to target specific files or folders.
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        {t('Shell mode')}
+        Shell mode
       </Text>
-      :{' '}
-      {t(
-        'Execute shell commands via {{symbol}} (e.g., {{example1}}) or use natural language (e.g., {{example2}}).',
-        {
-          symbol: t('!'),
-          example1: t('!npm run start'),
-          example2: t('start server'),
-        },
-      )}
+      : Execute shell commands via{' '}
+      <Text bold color={theme.text.accent}>
+        !
+      </Text>{' '}
+      (e.g.,{' '}
+      <Text bold color={theme.text.accent}>
+        !npm run start
+      </Text>
+      ) or use natural language (e.g.{' '}
+      <Text bold color={theme.text.accent}>
+        start server
+      </Text>
+      ).
     </Text>
 
     <Box height={1} />
 
     {/* Commands */}
     <Text bold color={theme.text.primary}>
-      {t('Commands:')}
+      Commands:
     </Text>
     {commands
       .filter((command) => command.description && !command.hidden)
@@ -68,12 +75,13 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
           <Text color={theme.text.primary}>
             <Text bold color={theme.text.accent}>
               {' '}
-              {formatCommandLabel(command, '/')}
+              /{command.name}
             </Text>
             {command.kind === CommandKind.MCP_PROMPT && (
               <Text color={theme.text.secondary}> [MCP]</Text>
             )}
-            {command.description && ' - ' + command.description}
+            {command.description &&
+              ' - ' + sanitizeForDisplay(command.description, 100)}
           </Text>
           {command.subCommands &&
             command.subCommands
@@ -82,9 +90,10 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
                 <Text key={subCommand.name} color={theme.text.primary}>
                   <Text bold color={theme.text.accent}>
                     {'   '}
-                    {formatCommandLabel(subCommand)}
+                    {subCommand.name}
                   </Text>
-                  {subCommand.description && ' - ' + subCommand.description}
+                  {subCommand.description &&
+                    ' - ' + sanitizeForDisplay(subCommand.description, 100)}
                 </Text>
               ))}
         </Box>
@@ -94,95 +103,99 @@ export const Help: React.FC<Help> = ({ commands, width }) => (
         {' '}
         !{' '}
       </Text>
-      - {t('shell command')}
+      - shell command
     </Text>
     <Text color={theme.text.primary}>
-      <Text color={theme.text.secondary}>[MCP]</Text> -{' '}
-      {t('Model Context Protocol command (from external servers)')}
+      <Text color={theme.text.secondary}>[MCP]</Text> - Model Context Protocol
+      command (from external servers)
     </Text>
 
     <Box height={1} />
 
     {/* Shortcuts */}
     <Text bold color={theme.text.primary}>
-      {t('Keyboard Shortcuts:')}
+      Keyboard Shortcuts:
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        Alt+Left/Right
+        {formatCommand(Command.MOVE_WORD_LEFT)}/
+        {formatCommand(Command.MOVE_WORD_RIGHT)}
       </Text>{' '}
-      - {t('Jump through words in the input')}
+      - Jump through words in the input
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        Ctrl+C
+        {formatCommand(Command.QUIT)}
       </Text>{' '}
-      - {t('Close dialogs, cancel requests, or quit application')}
+      - Quit application
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        {process.platform === 'win32' ? 'Ctrl+Enter' : 'Ctrl+J'}
+        {formatCommand(Command.NEWLINE)}
       </Text>{' '}
-      -{' '}
-      {process.platform === 'linux'
-        ? t('New line (Alt+Enter works for certain linux distros)')
-        : t('New line')}
+      - New line
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        Ctrl+L
+        {formatCommand(Command.CLEAR_SCREEN)}
       </Text>{' '}
-      - {t('Clear the screen')}
+      - Clear the screen
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        {process.platform === 'darwin' ? 'Ctrl+X / Meta+Enter' : 'Ctrl+X'}
+        {formatCommand(Command.TOGGLE_COPY_MODE)}
       </Text>{' '}
-      - {t('Open input in external editor')}
+      - Enter selection mode to copy text
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        Enter
+        {formatCommand(Command.OPEN_EXTERNAL_EDITOR)}
       </Text>{' '}
-      - {t('Send message')}
+      - Open input in external editor
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        Esc
+        {formatCommand(Command.TOGGLE_YOLO)}
       </Text>{' '}
-      - {t('Cancel operation / Clear input (double press)')}
+      - Toggle YOLO mode
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        {process.platform === 'win32' ? 'Tab' : 'Shift+Tab'}
+        {formatCommand(Command.SUBMIT)}
       </Text>{' '}
-      - {t('Cycle approval modes')}
+      - Send message
     </Text>
     <Text color={theme.text.primary}>
       <Text bold color={theme.text.accent}>
-        Up/Down
+        {formatCommand(Command.ESCAPE)}
       </Text>{' '}
-      - {t('Cycle through your prompt history')}
+      - Cancel operation / Clear input (double press)
+    </Text>
+    <Text color={theme.text.primary}>
+      <Text bold color={theme.text.accent}>
+        {formatCommand(Command.PAGE_UP)}/{formatCommand(Command.PAGE_DOWN)}
+      </Text>{' '}
+      - Scroll page up/down
+    </Text>
+    <Text color={theme.text.primary}>
+      <Text bold color={theme.text.accent}>
+        {formatCommand(Command.CYCLE_APPROVAL_MODE)}
+      </Text>{' '}
+      - Toggle auto-accepting edits
+    </Text>
+    <Text color={theme.text.primary}>
+      <Text bold color={theme.text.accent}>
+        {formatCommand(Command.HISTORY_UP)}/
+        {formatCommand(Command.HISTORY_DOWN)}
+      </Text>{' '}
+      - Cycle through your prompt history
     </Text>
     <Box height={1} />
     <Text color={theme.text.primary}>
-      {t('For a full list of shortcuts, see {{docPath}}', {
-        docPath: t('docs/keyboard-shortcuts.md'),
-      })}
+      For a full list of shortcuts, see{' '}
+      <Text bold color={theme.text.accent}>
+        {KEYBOARD_SHORTCUTS_URL}
+      </Text>
     </Text>
   </Box>
 );
-
-/**
- * Builds a display label for a slash command, including any alternate names.
- */
-function formatCommandLabel(command: SlashCommand, prefix = ''): string {
-  const altNames = command.altNames?.filter(Boolean);
-  const baseLabel = `${prefix}${command.name}`;
-
-  if (!altNames || altNames.length === 0) {
-    return baseLabel;
-  }
-
-  return `${baseLabel} (${altNames.join(', ')})`;
-}

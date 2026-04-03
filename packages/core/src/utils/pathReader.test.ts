@@ -20,7 +20,12 @@ const createMockConfig = (
   cwd: string,
   otherDirs: string[] = [],
   mockFileService?: FileDiscoveryService,
+  fileFiltering: {
+    respectGitIgnore?: boolean;
+    respectGeminiIgnore?: boolean;
+  } = {},
 ): Config => {
+  const { respectGitIgnore = true, respectGeminiIgnore = true } = fileFiltering;
   const workspace = new WorkspaceContext(cwd, otherDirs);
   const fileSystemService = new StandardFileSystemService();
   return {
@@ -29,11 +34,8 @@ const createMockConfig = (
     getTargetDir: () => cwd,
     getFileSystemService: () => fileSystemService,
     getFileService: () => mockFileService,
-    getTruncateToolOutputThreshold: () => 2500,
-    getTruncateToolOutputLines: () => 500,
-    getContentGeneratorConfig: () => ({
-      modalities: { image: true, pdf: true, audio: true, video: true },
-    }),
+    getFileFilteringRespectGitIgnore: () => respectGitIgnore,
+    getFileFilteringRespectGeminiIgnore: () => respectGeminiIgnore,
   } as unknown as Config;
 };
 
@@ -116,7 +118,6 @@ describe('readPathFromWorkspace', () => {
         inlineData: {
           mimeType: 'image/png',
           data: imageData.toString('base64'),
-          displayName: 'image.png',
         },
       },
     ]);
@@ -267,7 +268,6 @@ describe('readPathFromWorkspace', () => {
         inlineData: {
           mimeType: 'image/png',
           data: imageData.toString('base64'),
-          displayName: 'photo.png',
         },
       });
     });
@@ -307,7 +307,7 @@ describe('readPathFromWorkspace', () => {
         ['ignored.txt'],
         {
           respectGitIgnore: true,
-          respectApexIgnore: true,
+          respectGeminiIgnore: true,
         },
       );
     });
@@ -339,6 +339,51 @@ describe('readPathFromWorkspace', () => {
       expect(resultText).toContain('visible');
       expect(resultText).not.toContain('invisible');
       expect(mockFileService.filterFiles).toHaveBeenCalled();
+    });
+
+    it('should pass correct ignore flags to file service for a single file', async () => {
+      mock({
+        [CWD]: {
+          'file.txt': 'content',
+        },
+      });
+      const mockFileService = {
+        filterFiles: vi.fn(() => []),
+      } as unknown as FileDiscoveryService;
+      const config = createMockConfig(CWD, [], mockFileService, {
+        respectGitIgnore: false,
+        respectGeminiIgnore: true,
+      });
+      await readPathFromWorkspace('file.txt', config);
+      expect(mockFileService.filterFiles).toHaveBeenCalledWith(['file.txt'], {
+        respectGitIgnore: false,
+        respectGeminiIgnore: true,
+      });
+    });
+
+    it('should pass correct ignore flags to file service for a directory', async () => {
+      mock({
+        [CWD]: {
+          'my-dir': {
+            'file.txt': 'content',
+          },
+        },
+      });
+      const mockFileService = {
+        filterFiles: vi.fn((files) => files),
+      } as unknown as FileDiscoveryService;
+      const config = createMockConfig(CWD, [], mockFileService, {
+        respectGitIgnore: true,
+        respectGeminiIgnore: false,
+      });
+      await readPathFromWorkspace('my-dir', config);
+      expect(mockFileService.filterFiles).toHaveBeenCalledWith(
+        [path.join('my-dir', 'file.txt')],
+        {
+          respectGitIgnore: true,
+          respectGeminiIgnore: false,
+        },
+      );
     });
   });
 
@@ -395,8 +440,8 @@ describe('readPathFromWorkspace', () => {
   );
 
   it('should return an error string for files exceeding the size limit', async () => {
-    // Mock a file slightly larger than the 10MB limit defined in fileUtils.ts
-    const largeContent = 'a'.repeat(11 * 1024 * 1024); // 11MB
+    // Mock a file slightly larger than the 20MB limit defined in fileUtils.ts
+    const largeContent = 'a'.repeat(21 * 1024 * 1024); // 21MB
     mock({
       [CWD]: {
         'large.txt': largeContent,
@@ -409,6 +454,6 @@ describe('readPathFromWorkspace', () => {
     const result = await readPathFromWorkspace('large.txt', config);
     const textResult = result[0] as string;
     // The error message comes directly from processSingleFileContent
-    expect(textResult).toBe('File size exceeds the 10MB limit.');
+    expect(textResult).toBe('File size exceeds the 20MB limit.');
   });
 });

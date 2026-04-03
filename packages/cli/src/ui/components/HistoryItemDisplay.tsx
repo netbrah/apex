@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,24 +8,16 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { escapeAnsiCtrlCodes } from '../utils/textUtils.js';
 import type { HistoryItem } from '../types.js';
-import {
-  UserMessage,
-  UserShellMessage,
-  AssistantMessage,
-  AssistantMessageContent,
-  ThinkMessage,
-  ThinkMessageContent,
-} from './messages/ConversationMessages.js';
+import { UserMessage } from './messages/UserMessage.js';
+import { UserShellMessage } from './messages/UserShellMessage.js';
+import { GeminiMessage } from './messages/GeminiMessage.js';
+import { InfoMessage } from './messages/InfoMessage.js';
+import { ErrorMessage } from './messages/ErrorMessage.js';
 import { ToolGroupMessage } from './messages/ToolGroupMessage.js';
+import { GeminiMessageContent } from './messages/GeminiMessageContent.js';
 import { CompressionMessage } from './messages/CompressionMessage.js';
-import { SummaryMessage } from './messages/SummaryMessage.js';
-import {
-  InfoMessage,
-  WarningMessage,
-  ErrorMessage,
-  RetryCountdownMessage,
-  SuccessMessage,
-} from './messages/StatusMessages.js';
+import { WarningMessage } from './messages/WarningMessage.js';
+import { SubagentHistoryMessage } from './messages/SubagentHistoryMessage.js';
 import { Box } from 'ink';
 import { AboutBox } from './AboutBox.js';
 import { StatsDisplay } from './StatsDisplay.js';
@@ -36,203 +28,222 @@ import { Help } from './Help.js';
 import type { SlashCommand } from '../commands/types.js';
 import { ExtensionsList } from './views/ExtensionsList.js';
 import { getMCPServerStatus } from '@apex-code/apex-core';
-import { SkillsList } from './views/SkillsList.js';
 import { ToolsList } from './views/ToolsList.js';
+import { SkillsList } from './views/SkillsList.js';
+import { AgentsStatus } from './views/AgentsStatus.js';
 import { McpStatus } from './views/McpStatus.js';
-import { ContextUsage } from './views/ContextUsage.js';
-import { ArenaAgentCard, ArenaSessionCard } from './arena/ArenaCards.js';
-import { InsightProgressMessage } from './messages/InsightProgressMessage.js';
-import { BtwMessage } from './messages/BtwMessage.js';
+import { ChatList } from './views/ChatList.js';
+import { ModelMessage } from './messages/ModelMessage.js';
+import { ThinkingMessage } from './messages/ThinkingMessage.js';
+import { HintMessage } from './messages/HintMessage.js';
+import { getInlineThinkingMode } from '../utils/inlineThinkingMode.js';
+import { useSettings } from '../contexts/SettingsContext.js';
 
 interface HistoryItemDisplayProps {
   item: HistoryItem;
   availableTerminalHeight?: number;
   terminalWidth: number;
-  mainAreaWidth?: number;
   isPending: boolean;
-  isFocused?: boolean;
   commands?: readonly SlashCommand[];
-  activeShellPtyId?: number | null;
-  embeddedShellFocused?: boolean;
   availableTerminalHeightGemini?: number;
+  isExpandable?: boolean;
+  isFirstThinking?: boolean;
+  isFirstAfterThinking?: boolean;
+  isToolGroupBoundary?: boolean;
+  suppressNarration?: boolean;
 }
 
-const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
+export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
   item,
   availableTerminalHeight,
   terminalWidth,
-  mainAreaWidth,
   isPending,
   commands,
-  isFocused = true,
-  activeShellPtyId,
-  embeddedShellFocused,
   availableTerminalHeightGemini,
+  isExpandable,
+  isFirstThinking = false,
+  isFirstAfterThinking = false,
+  isToolGroupBoundary = false,
+  suppressNarration = false,
 }) => {
-  const marginTop =
-    item.type === 'gemini_content' || item.type === 'gemini_thought_content'
-      ? 0
-      : 1;
-
+  const settings = useSettings();
+  const inlineThinkingMode = getInlineThinkingMode(settings);
   const itemForDisplay = useMemo(() => escapeAnsiCtrlCodes(item), [item]);
-  const contentWidth = terminalWidth - 4;
-  const boxWidth = mainAreaWidth || contentWidth;
+
+  const needTopMargin = !!(
+    (isFirstAfterThinking && inlineThinkingMode !== 'off') ||
+    isToolGroupBoundary
+  );
+
+  // If there's a topic update in this turn, we suppress the regular narration
+  // and thoughts as they are being "replaced" by the update_topic tool.
+  if (
+    suppressNarration &&
+    (itemForDisplay.type === 'thinking' ||
+      itemForDisplay.type === 'gemini' ||
+      itemForDisplay.type === 'gemini_content')
+  ) {
+    return null;
+  }
 
   return (
     <Box
       flexDirection="column"
       key={itemForDisplay.id}
-      marginTop={marginTop}
-      marginLeft={2}
-      marginRight={2}
+      width={terminalWidth}
+      marginTop={needTopMargin ? 1 : 0}
     >
       {/* Render standard message types */}
+      {itemForDisplay.type === 'thinking' && inlineThinkingMode !== 'off' && (
+        <ThinkingMessage
+          thought={itemForDisplay.thought}
+          terminalWidth={terminalWidth}
+          isFirstThinking={isFirstThinking}
+        />
+      )}
+      {itemForDisplay.type === 'hint' && (
+        <HintMessage text={itemForDisplay.text} />
+      )}
       {itemForDisplay.type === 'user' && (
-        <UserMessage text={itemForDisplay.text} />
+        <UserMessage text={itemForDisplay.text} width={terminalWidth} />
       )}
       {itemForDisplay.type === 'user_shell' && (
-        <UserShellMessage text={itemForDisplay.text} />
+        <UserShellMessage text={itemForDisplay.text} width={terminalWidth} />
       )}
       {itemForDisplay.type === 'gemini' && (
-        <AssistantMessage
+        <GeminiMessage
           text={itemForDisplay.text}
           isPending={isPending}
           availableTerminalHeight={
             availableTerminalHeightGemini ?? availableTerminalHeight
           }
-          contentWidth={contentWidth}
+          terminalWidth={terminalWidth}
         />
       )}
       {itemForDisplay.type === 'gemini_content' && (
-        <AssistantMessageContent
+        <GeminiMessageContent
           text={itemForDisplay.text}
           isPending={isPending}
           availableTerminalHeight={
             availableTerminalHeightGemini ?? availableTerminalHeight
           }
-          contentWidth={contentWidth}
-        />
-      )}
-      {itemForDisplay.type === 'gemini_thought' && (
-        <ThinkMessage
-          text={itemForDisplay.text}
-          isPending={isPending}
-          availableTerminalHeight={
-            availableTerminalHeightGemini ?? availableTerminalHeight
-          }
-          contentWidth={contentWidth}
-        />
-      )}
-      {itemForDisplay.type === 'gemini_thought_content' && (
-        <ThinkMessageContent
-          text={itemForDisplay.text}
-          isPending={isPending}
-          availableTerminalHeight={
-            availableTerminalHeightGemini ?? availableTerminalHeight
-          }
-          contentWidth={contentWidth}
+          terminalWidth={terminalWidth}
         />
       )}
       {itemForDisplay.type === 'info' && (
-        <InfoMessage text={itemForDisplay.text} />
-      )}
-      {itemForDisplay.type === 'success' && (
-        <SuccessMessage text={itemForDisplay.text} />
+        <InfoMessage
+          text={itemForDisplay.text}
+          secondaryText={itemForDisplay.secondaryText}
+          icon={itemForDisplay.icon}
+          color={itemForDisplay.color}
+          marginBottom={itemForDisplay.marginBottom}
+        />
       )}
       {itemForDisplay.type === 'warning' && (
         <WarningMessage text={itemForDisplay.text} />
       )}
       {itemForDisplay.type === 'error' && (
-        <ErrorMessage text={itemForDisplay.text} hint={itemForDisplay.hint} />
-      )}
-      {itemForDisplay.type === 'retry_countdown' && (
-        <RetryCountdownMessage text={itemForDisplay.text} />
+        <ErrorMessage text={itemForDisplay.text} />
       )}
       {itemForDisplay.type === 'about' && (
-        <AboutBox {...itemForDisplay.systemInfo} width={boxWidth} />
+        <AboutBox
+          cliVersion={itemForDisplay.cliVersion}
+          osVersion={itemForDisplay.osVersion}
+          sandboxEnv={itemForDisplay.sandboxEnv}
+          modelVersion={itemForDisplay.modelVersion}
+          selectedAuthType={itemForDisplay.selectedAuthType}
+          gcpProject={itemForDisplay.gcpProject}
+          ideClient={itemForDisplay.ideClient}
+          userEmail={itemForDisplay.userEmail}
+          tier={itemForDisplay.tier}
+        />
       )}
       {itemForDisplay.type === 'help' && commands && (
-        <Help commands={commands} width={boxWidth} />
+        <Help commands={commands} />
       )}
       {itemForDisplay.type === 'stats' && (
-        <StatsDisplay duration={itemForDisplay.duration} width={boxWidth} />
+        <StatsDisplay
+          duration={itemForDisplay.duration}
+          selectedAuthType={itemForDisplay.selectedAuthType}
+          userEmail={itemForDisplay.userEmail}
+          tier={itemForDisplay.tier}
+        />
       )}
       {itemForDisplay.type === 'model_stats' && (
-        <ModelStatsDisplay width={boxWidth} />
+        <ModelStatsDisplay
+          selectedAuthType={itemForDisplay.selectedAuthType}
+          userEmail={itemForDisplay.userEmail}
+          tier={itemForDisplay.tier}
+          currentModel={itemForDisplay.currentModel}
+          quotaStats={
+            itemForDisplay.pooledRemaining !== undefined ||
+            itemForDisplay.pooledLimit !== undefined ||
+            itemForDisplay.pooledResetTime !== undefined
+              ? {
+                  remaining: itemForDisplay.pooledRemaining,
+                  limit: itemForDisplay.pooledLimit,
+                  resetTime: itemForDisplay.pooledResetTime,
+                }
+              : undefined
+          }
+        />
       )}
-      {itemForDisplay.type === 'tool_stats' && (
-        <ToolStatsDisplay width={boxWidth} />
+      {itemForDisplay.type === 'tool_stats' && <ToolStatsDisplay />}
+      {itemForDisplay.type === 'model' && (
+        <ModelMessage model={itemForDisplay.model} />
       )}
       {itemForDisplay.type === 'quit' && (
-        <SessionSummaryDisplay
-          duration={itemForDisplay.duration}
-          width={boxWidth}
-        />
+        <SessionSummaryDisplay duration={itemForDisplay.duration} />
       )}
       {itemForDisplay.type === 'tool_group' && (
         <ToolGroupMessage
+          item={itemForDisplay}
           toolCalls={itemForDisplay.tools}
-          groupId={itemForDisplay.id}
           availableTerminalHeight={availableTerminalHeight}
-          contentWidth={contentWidth}
-          isFocused={isFocused}
-          activeShellPtyId={activeShellPtyId}
-          embeddedShellFocused={embeddedShellFocused}
+          terminalWidth={terminalWidth}
+          borderTop={itemForDisplay.borderTop}
+          borderBottom={itemForDisplay.borderBottom}
+          isExpandable={isExpandable}
+          isToolGroupBoundary={isToolGroupBoundary}
+        />
+      )}
+      {itemForDisplay.type === 'subagent' && (
+        <SubagentHistoryMessage
+          item={itemForDisplay}
+          terminalWidth={terminalWidth}
         />
       )}
       {itemForDisplay.type === 'compression' && (
         <CompressionMessage compression={itemForDisplay.compression} />
       )}
-      {item.type === 'summary' && <SummaryMessage summary={item.summary} />}
-      {itemForDisplay.type === 'extensions_list' && <ExtensionsList />}
+      {itemForDisplay.type === 'extensions_list' && (
+        <ExtensionsList extensions={itemForDisplay.extensions} />
+      )}
       {itemForDisplay.type === 'tools_list' && (
         <ToolsList
-          contentWidth={contentWidth}
+          terminalWidth={terminalWidth}
           tools={itemForDisplay.tools}
           showDescriptions={itemForDisplay.showDescriptions}
         />
       )}
       {itemForDisplay.type === 'skills_list' && (
-        <SkillsList skills={itemForDisplay.skills} />
+        <SkillsList
+          skills={itemForDisplay.skills}
+          showDescriptions={itemForDisplay.showDescriptions}
+        />
+      )}
+      {itemForDisplay.type === 'agents_list' && (
+        <AgentsStatus
+          agents={itemForDisplay.agents}
+          terminalWidth={terminalWidth}
+        />
       )}
       {itemForDisplay.type === 'mcp_status' && (
         <McpStatus {...itemForDisplay} serverStatus={getMCPServerStatus} />
       )}
-      {itemForDisplay.type === 'context_usage' && (
-        <ContextUsage
-          modelName={itemForDisplay.modelName}
-          totalTokens={itemForDisplay.totalTokens}
-          contextWindowSize={itemForDisplay.contextWindowSize}
-          breakdown={itemForDisplay.breakdown}
-          builtinTools={itemForDisplay.builtinTools}
-          mcpTools={itemForDisplay.mcpTools}
-          memoryFiles={itemForDisplay.memoryFiles}
-          skills={itemForDisplay.skills}
-          isEstimated={itemForDisplay.isEstimated}
-          showDetails={itemForDisplay.showDetails}
-        />
-      )}
-      {itemForDisplay.type === 'arena_agent_complete' && (
-        <ArenaAgentCard agent={itemForDisplay.agent} width={boxWidth} />
-      )}
-      {itemForDisplay.type === 'arena_session_complete' && (
-        <ArenaSessionCard
-          sessionStatus={itemForDisplay.sessionStatus}
-          task={itemForDisplay.task}
-          totalDurationMs={itemForDisplay.totalDurationMs}
-          agents={itemForDisplay.agents}
-          width={boxWidth}
-        />
-      )}
-      {itemForDisplay.type === 'insight_progress' && (
-        <InsightProgressMessage progress={itemForDisplay.progress} />
-      )}
-      {itemForDisplay.type === 'btw' && itemForDisplay.btw && (
-        <BtwMessage btw={itemForDisplay.btw} />
+      {itemForDisplay.type === 'chat_list' && (
+        <ChatList chats={itemForDisplay.chats} />
       )}
     </Box>
   );
 };
-
-// Export alias for backward compatibility
-export { HistoryItemDisplayComponent as HistoryItemDisplay };

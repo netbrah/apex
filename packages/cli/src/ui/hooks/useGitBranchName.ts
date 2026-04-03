@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { isCommandAvailable, execCommand } from '@apex-code/apex-core';
+import { spawnAsync } from '@apex-code/apex-core';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -15,11 +15,7 @@ export function useGitBranchName(cwd: string): string | undefined {
 
   const fetchBranchName = useCallback(async () => {
     try {
-      if (!isCommandAvailable('git').available) {
-        return;
-      }
-
-      const { stdout } = await execCommand(
+      const { stdout } = await spawnAsync(
         'git',
         ['rev-parse', '--abbrev-ref', 'HEAD'],
         { cwd },
@@ -28,45 +24,51 @@ export function useGitBranchName(cwd: string): string | undefined {
       if (branch && branch !== 'HEAD') {
         setBranchName(branch);
       } else {
-        const { stdout: hashStdout } = await execCommand(
+        const { stdout: hashStdout } = await spawnAsync(
           'git',
           ['rev-parse', '--short', 'HEAD'],
           { cwd },
         );
         setBranchName(hashStdout.toString().trim());
       }
-    } catch (_error) {
+    } catch {
       setBranchName(undefined);
     }
   }, [cwd, setBranchName]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     fetchBranchName(); // Initial fetch
 
     const gitLogsHeadPath = path.join(cwd, '.git', 'logs', 'HEAD');
     let watcher: fs.FSWatcher | undefined;
+    let cancelled = false;
 
     const setupWatcher = async () => {
       try {
         // Check if .git/logs/HEAD exists, as it might not in a new repo or orphaned head
         await fsPromises.access(gitLogsHeadPath, fs.constants.F_OK);
+        if (cancelled) return;
         watcher = fs.watch(gitLogsHeadPath, (eventType: string) => {
           // Changes to .git/logs/HEAD (appends) indicate HEAD has likely changed
           if (eventType === 'change' || eventType === 'rename') {
             // Handle rename just in case
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
             fetchBranchName();
           }
         });
-      } catch (_watchError) {
+      } catch {
         // Silently ignore watcher errors (e.g. permissions or file not existing),
         // similar to how exec errors are handled.
         // The branch name will simply not update automatically.
       }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     setupWatcher();
 
     return () => {
+      cancelled = true;
       watcher?.close();
     };
   }, [cwd, fetchBranchName]);

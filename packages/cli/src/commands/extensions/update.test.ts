@@ -4,257 +4,268 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { updateCommand, handleUpdate } from './update.js';
-import yargs from 'yargs';
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
+import { format } from 'node:util';
+import { type Argv } from 'yargs';
+import { handleUpdate, updateCommand } from './update.js';
+import { ExtensionManager } from '../../config/extension-manager.js';
+import { loadSettings, type LoadedSettings } from '../../config/settings.js';
+import * as update from '../../config/extensions/update.js';
+import * as github from '../../config/extensions/github.js';
 import { ExtensionUpdateState } from '../../ui/state/extensions.js';
 
-const mockGetLoadedExtensions = vi.hoisted(() => vi.fn());
-const mockUpdateExtension = vi.hoisted(() => vi.fn());
-const mockCheckForAllExtensionUpdates = vi.hoisted(() => vi.fn());
-const mockUpdateAllUpdatableExtensions = vi.hoisted(() => vi.fn());
-const mockCheckForExtensionUpdate = vi.hoisted(() => vi.fn());
-const mockWriteStdoutLine = vi.hoisted(() => vi.fn());
-const mockWriteStderrLine = vi.hoisted(() => vi.fn());
-
-vi.mock('./utils.js', () => ({
-  getExtensionManager: vi.fn().mockResolvedValue({
-    getLoadedExtensions: mockGetLoadedExtensions,
-    updateExtension: mockUpdateExtension,
-    checkForAllExtensionUpdates: mockCheckForAllExtensionUpdates,
-    updateAllUpdatableExtensions: mockUpdateAllUpdatableExtensions,
+// Mock dependencies
+const emitConsoleLog = vi.hoisted(() => vi.fn());
+const emitFeedback = vi.hoisted(() => vi.fn());
+const debugLogger = vi.hoisted(() => ({
+  log: vi.fn((message, ...args) => {
+    emitConsoleLog('log', format(message, ...args));
+  }),
+  error: vi.fn((message, ...args) => {
+    emitConsoleLog('error', format(message, ...args));
   }),
 }));
 
-vi.mock('@apex-code/apex-core', () => ({
-  checkForExtensionUpdate: mockCheckForExtensionUpdate,
-}));
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@apex-code/apex-core')>();
+  return {
+    ...actual,
+    coreEvents: {
+      emitConsoleLog,
+      emitFeedback,
+    },
+    debugLogger,
+  };
+});
 
-vi.mock('../../utils/errors.js', () => ({
-  getErrorMessage: vi.fn((error: Error) => error.message),
+vi.mock('../../config/extension-manager.js');
+vi.mock('../../config/settings.js');
+vi.mock('../../utils/errors.js');
+vi.mock('../../config/extensions/update.js');
+vi.mock('../../config/extensions/github.js');
+vi.mock('../../config/extensions/consent.js', () => ({
+  requestConsentNonInteractive: vi.fn(),
 }));
-
-vi.mock('../../ui/state/extensions.js', () => ({
-  ExtensionUpdateState: {
-    UPDATE_AVAILABLE: 'update available',
-    UP_TO_DATE: 'up to date',
-    ERROR: 'error',
-  },
+vi.mock('../../config/extensions/extensionSettings.js', () => ({
+  promptForSetting: vi.fn(),
 }));
-
-vi.mock('../../utils/stdioHelpers.js', () => ({
-  writeStdoutLine: mockWriteStdoutLine,
-  writeStderrLine: mockWriteStderrLine,
-  clearScreen: vi.fn(),
+vi.mock('../utils.js', () => ({
+  exitCli: vi.fn(),
 }));
 
 describe('extensions update command', () => {
-  it('should fail if neither name nor --all is provided', () => {
-    const validationParser = yargs([])
-      .command(updateCommand)
-      .fail(false)
-      .locale('en');
-    expect(() => validationParser.parse('update')).toThrow(
-      'Either an extension name or --all must be provided',
-    );
-  });
+  const mockLoadSettings = vi.mocked(loadSettings);
+  const mockExtensionManager = vi.mocked(ExtensionManager);
+  const mockUpdateExtension = vi.mocked(update.updateExtension);
+  const mockCheckForExtensionUpdate = vi.mocked(github.checkForExtensionUpdate);
+  const mockCheckForAllExtensionUpdates = vi.mocked(
+    update.checkForAllExtensionUpdates,
+  );
+  const mockUpdateAllUpdatableExtensions = vi.mocked(
+    update.updateAllUpdatableExtensions,
+  );
 
-  it('should fail if both name and --all are provided', () => {
-    const validationParser = yargs([])
-      .command(updateCommand)
-      .fail(false)
-      .locale('en');
-    expect(() => validationParser.parse('update test-extension --all')).toThrow(
-      /Arguments .* are mutually exclusive/,
-    );
-  });
-
-  it('should accept --all flag', () => {
-    const parser = yargs([]).command(updateCommand).fail(false).locale('en');
-    expect(() => parser.parse('update --all')).not.toThrow();
-  });
-
-  it('should accept an extension name', () => {
-    const parser = yargs([]).command(updateCommand).fail(false).locale('en');
-    expect(() => parser.parse('update test-extension')).not.toThrow();
-  });
-});
-
-describe('handleUpdate', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    mockLoadSettings.mockReturnValue({
+      merged: { experimental: { extensionReloading: true } },
+    } as unknown as LoadedSettings);
   });
 
-  describe('update by name', () => {
-    it('should show message when extension is not found', async () => {
-      mockGetLoadedExtensions.mockReturnValueOnce([]);
-
-      await handleUpdate({ name: 'non-existent-extension' });
-
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Extension "non-existent-extension" not found.',
-      );
-    });
-
-    it('should show message when extension has no install metadata', async () => {
-      mockGetLoadedExtensions.mockReturnValueOnce([
-        { name: 'test-extension', installMetadata: undefined },
-      ]);
-
-      await handleUpdate({ name: 'test-extension' });
-
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Unable to install extension "test-extension" due to missing install metadata',
-      );
-    });
-
-    it('should show message when extension is already up to date', async () => {
-      const mockExtension = {
-        name: 'test-extension',
-        installMetadata: { source: 'test' },
-      };
-      mockGetLoadedExtensions.mockReturnValueOnce([mockExtension]);
-      mockCheckForExtensionUpdate.mockResolvedValueOnce(
-        ExtensionUpdateState.UP_TO_DATE,
-      );
-
-      await handleUpdate({ name: 'test-extension' });
-
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Extension "test-extension" is already up to date.',
-      );
-    });
-
-    it('should update extension when update is available', async () => {
-      const mockExtension = {
-        name: 'test-extension',
-        installMetadata: { source: 'test' },
-      };
-      mockGetLoadedExtensions.mockReturnValueOnce([mockExtension]);
-      mockCheckForExtensionUpdate.mockResolvedValueOnce(
-        ExtensionUpdateState.UPDATE_AVAILABLE,
-      );
-      mockUpdateExtension.mockResolvedValueOnce({
-        name: 'test-extension',
-        originalVersion: '1.0.0',
-        updatedVersion: '2.0.0',
-      });
-
-      await handleUpdate({ name: 'test-extension' });
-
-      expect(mockUpdateExtension).toHaveBeenCalledWith(
-        mockExtension,
-        ExtensionUpdateState.UPDATE_AVAILABLE,
-        expect.any(Function),
-      );
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Extension "test-extension" successfully updated: 1.0.0 → 2.0.0.',
-      );
-    });
-
-    it('should show up to date message when versions are the same after update', async () => {
-      const mockExtension = {
-        name: 'test-extension',
-        installMetadata: { source: 'test' },
-      };
-      mockGetLoadedExtensions.mockReturnValueOnce([mockExtension]);
-      mockCheckForExtensionUpdate.mockResolvedValueOnce(
-        ExtensionUpdateState.UPDATE_AVAILABLE,
-      );
-      mockUpdateExtension.mockResolvedValueOnce({
-        name: 'test-extension',
-        originalVersion: '1.0.0',
-        updatedVersion: '1.0.0',
-      });
-
-      await handleUpdate({ name: 'test-extension' });
-
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Extension "test-extension" is already up to date.',
-      );
-    });
-
-    it('should handle errors during update', async () => {
-      const mockExtension = {
-        name: 'test-extension',
-        installMetadata: { source: 'test' },
-      };
-      mockGetLoadedExtensions.mockReturnValueOnce([mockExtension]);
-      mockCheckForExtensionUpdate.mockRejectedValueOnce(
-        new Error('Update check failed'),
-      );
-
-      await handleUpdate({ name: 'test-extension' });
-
-      expect(mockWriteStderrLine).toHaveBeenCalledWith('Update check failed');
-    });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  describe('update all', () => {
-    it('should show message when no extensions to update', async () => {
-      mockCheckForAllExtensionUpdates.mockResolvedValueOnce(undefined);
-      mockUpdateAllUpdatableExtensions.mockResolvedValueOnce([]);
+  describe('handleUpdate', () => {
+    it('should list installed extensions when requested extension is not found', async () => {
+      const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
+      const extensions = [
+        { name: 'ext1', version: '1.0.0' },
+        { name: 'ext2', version: '2.0.0' },
+      ];
+      mockExtensionManager.prototype.loadExtensions = vi
+        .fn()
+        .mockResolvedValue(extensions);
 
-      await handleUpdate({ all: true });
+      await handleUpdate({ name: 'missing-extension' });
 
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'No extensions to update.',
+      expect(emitFeedback).toHaveBeenCalledWith(
+        'error',
+        'Extension "missing-extension" not found.\n\nInstalled extensions:\next1 (1.0.0)\next2 (2.0.0)\n\nRun "gemini extensions list" for details.',
+      );
+      expect(mockUpdateExtension).not.toHaveBeenCalled();
+      mockCwd.mockRestore();
+    });
+
+    it('should log a helpful message when no extensions are installed and requested extension is not found', async () => {
+      const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
+      mockExtensionManager.prototype.loadExtensions = vi
+        .fn()
+        .mockResolvedValue([]);
+
+      await handleUpdate({ name: 'missing-extension' });
+
+      expect(emitFeedback).toHaveBeenCalledWith(
+        'error',
+        'Extension "missing-extension" not found.\n\nNo extensions installed.',
+      );
+      expect(mockUpdateExtension).not.toHaveBeenCalled();
+      mockCwd.mockRestore();
+    });
+
+    it.each([
+      {
+        state: ExtensionUpdateState.UPDATE_AVAILABLE,
+        expectedLog:
+          'Extension "my-extension" successfully updated: 1.0.0 → 1.1.0.',
+        shouldCallUpdateExtension: true,
+      },
+      {
+        state: ExtensionUpdateState.UP_TO_DATE,
+        expectedLog: 'Extension "my-extension" is already up to date.',
+        shouldCallUpdateExtension: false,
+      },
+    ])(
+      'should handle single extension update state: $state',
+      async ({ state, expectedLog, shouldCallUpdateExtension }) => {
+        const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
+        const extensions = [{ name: 'my-extension', installMetadata: {} }];
+        mockExtensionManager.prototype.loadExtensions = vi
+          .fn()
+          .mockResolvedValue(extensions);
+        mockCheckForExtensionUpdate.mockResolvedValue(state);
+        mockUpdateExtension.mockResolvedValue({
+          name: 'my-extension',
+          originalVersion: '1.0.0',
+          updatedVersion: '1.1.0',
+        });
+
+        await handleUpdate({ name: 'my-extension' });
+
+        expect(emitConsoleLog).toHaveBeenCalledWith('log', expectedLog);
+        if (shouldCallUpdateExtension) {
+          expect(mockUpdateExtension).toHaveBeenCalled();
+        } else {
+          expect(mockUpdateExtension).not.toHaveBeenCalled();
+        }
+        mockCwd.mockRestore();
+      },
+    );
+
+    it.each([
+      {
+        updatedExtensions: [
+          { name: 'ext1', originalVersion: '1.0.0', updatedVersion: '1.1.0' },
+          { name: 'ext2', originalVersion: '2.0.0', updatedVersion: '2.1.0' },
+        ],
+        expectedLog:
+          'Extension "ext1" successfully updated: 1.0.0 → 1.1.0.\nExtension "ext2" successfully updated: 2.0.0 → 2.1.0.',
+      },
+      {
+        updatedExtensions: [],
+        expectedLog: 'No extensions to update.',
+      },
+    ])(
+      'should handle updating all extensions: %s',
+      async ({ updatedExtensions, expectedLog }) => {
+        const mockCwd = vi.spyOn(process, 'cwd').mockReturnValue('/test/dir');
+        mockExtensionManager.prototype.loadExtensions = vi
+          .fn()
+          .mockResolvedValue([]);
+        mockCheckForAllExtensionUpdates.mockResolvedValue(undefined);
+        mockUpdateAllUpdatableExtensions.mockResolvedValue(updatedExtensions);
+
+        await handleUpdate({ all: true });
+
+        expect(emitConsoleLog).toHaveBeenCalledWith('log', expectedLog);
+        mockCwd.mockRestore();
+      },
+    );
+  });
+
+  describe('updateCommand', () => {
+    const command = updateCommand;
+
+    it('should have correct command and describe', () => {
+      expect(command.command).toBe('update [<name>] [--all]');
+      expect(command.describe).toBe(
+        'Updates all extensions or a named extension to the latest version.',
       );
     });
 
-    it('should update all extensions with updates available', async () => {
-      mockCheckForAllExtensionUpdates.mockResolvedValueOnce(undefined);
-      mockUpdateAllUpdatableExtensions.mockResolvedValueOnce([
-        {
-          name: 'extension-1',
-          originalVersion: '1.0.0',
-          updatedVersion: '2.0.0',
-        },
-        {
-          name: 'extension-2',
-          originalVersion: '1.0.0',
-          updatedVersion: '1.5.0',
-        },
-      ]);
+    describe('builder', () => {
+      interface MockYargs {
+        positional: Mock;
+        option: Mock;
+        conflicts: Mock;
+        check: Mock;
+      }
 
-      await handleUpdate({ all: true });
+      let yargsMock: MockYargs;
+      beforeEach(() => {
+        yargsMock = {
+          positional: vi.fn().mockReturnThis(),
+          option: vi.fn().mockReturnThis(),
+          conflicts: vi.fn().mockReturnThis(),
+          check: vi.fn().mockReturnThis(),
+        };
+      });
 
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Extension "extension-1" successfully updated: 1.0.0 → 2.0.0.\n' +
-          'Extension "extension-2" successfully updated: 1.0.0 → 1.5.0.',
-      );
+      it('should configure arguments', () => {
+        (command.builder as (yargs: Argv) => Argv)(
+          yargsMock as unknown as Argv,
+        );
+        expect(yargsMock.positional).toHaveBeenCalledWith(
+          'name',
+          expect.any(Object),
+        );
+        expect(yargsMock.option).toHaveBeenCalledWith(
+          'all',
+          expect.any(Object),
+        );
+        expect(yargsMock.conflicts).toHaveBeenCalledWith('name', 'all');
+        expect(yargsMock.check).toHaveBeenCalled();
+      });
+
+      it('check function should throw an error if neither a name nor --all is provided', () => {
+        (command.builder as (yargs: Argv) => Argv)(
+          yargsMock as unknown as Argv,
+        );
+        const checkCallback = yargsMock.check.mock.calls[0][0];
+        expect(() => checkCallback({ name: undefined, all: false })).toThrow(
+          'Either an extension name or --all must be provided',
+        );
+      });
     });
 
-    it('should filter out extensions with same version after update', async () => {
-      mockCheckForAllExtensionUpdates.mockResolvedValueOnce(undefined);
-      mockUpdateAllUpdatableExtensions.mockResolvedValueOnce([
-        {
-          name: 'extension-1',
-          originalVersion: '1.0.0',
-          updatedVersion: '2.0.0',
-        },
-        {
-          name: 'extension-2',
-          originalVersion: '1.0.0',
-          updatedVersion: '1.0.0',
-        },
-      ]);
-
-      await handleUpdate({ all: true });
-
-      expect(mockWriteStdoutLine).toHaveBeenCalledWith(
-        'Extension "extension-1" successfully updated: 1.0.0 → 2.0.0.',
+    it('handler should call handleUpdate', async () => {
+      const extensions = [{ name: 'my-extension', installMetadata: {} }];
+      mockExtensionManager.prototype.loadExtensions = vi
+        .fn()
+        .mockResolvedValue(extensions);
+      mockCheckForExtensionUpdate.mockResolvedValue(
+        ExtensionUpdateState.UPDATE_AVAILABLE,
       );
-    });
+      mockUpdateExtension.mockResolvedValue({
+        name: 'my-extension',
+        originalVersion: '1.0.0',
+        updatedVersion: '1.1.0',
+      });
 
-    it('should handle errors during update all', async () => {
-      mockCheckForAllExtensionUpdates.mockRejectedValueOnce(
-        new Error('Update all failed'),
-      );
+      await (command.handler as (args: object) => Promise<void>)({
+        name: 'my-extension',
+      });
 
-      await handleUpdate({ all: true });
-
-      expect(mockWriteStderrLine).toHaveBeenCalledWith('Update all failed');
+      expect(mockUpdateExtension).toHaveBeenCalled();
     });
   });
 });

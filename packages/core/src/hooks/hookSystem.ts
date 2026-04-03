@@ -1,35 +1,150 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import type { Config } from '../config/config.js';
-import { HookRegistry } from './hookRegistry.js';
+import { HookRegistry, type HookRegistryEntry } from './hookRegistry.js';
 import { HookRunner } from './hookRunner.js';
-import { HookAggregator } from './hookAggregator.js';
+import { HookAggregator, type AggregatedHookResult } from './hookAggregator.js';
 import { HookPlanner } from './hookPlanner.js';
 import { HookEventHandler } from './hookEventHandler.js';
-import type { HookRegistryEntry } from './hookRegistry.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-import type { DefaultHookOutput } from './types.js';
-import { createHookOutput } from './types.js';
-import type {
-  SessionStartSource,
-  SessionEndReason,
-  AgentType,
-  PermissionMode,
-  PreCompactTrigger,
+import { debugLogger } from '../utils/debugLogger.js';
+import {
   NotificationType,
-  PermissionSuggestion,
-  HookEventName,
+  type SessionStartSource,
+  type SessionEndReason,
+  type PreCompressTrigger,
+  type DefaultHookOutput,
+  type BeforeModelHookOutput,
+  type AfterModelHookOutput,
+  type BeforeToolSelectionHookOutput,
+  type McpToolContext,
+  type HookConfig,
+  type HookEventName,
+  type ConfigSource,
 } from './types.js';
-
-const debugLogger = createDebugLogger('TRUSTED_HOOKS');
+import type {
+  GenerateContentParameters,
+  GenerateContentResponse,
+  GenerateContentConfig,
+  ContentListUnion,
+  ToolConfig,
+  ToolListUnion,
+} from '@google/genai';
+import type { ToolCallConfirmationDetails } from '../tools/tools.js';
 
 /**
  * Main hook system that coordinates all hook-related functionality
  */
+
+export interface BeforeModelHookResult {
+  /** Whether the model call was blocked */
+  blocked: boolean;
+  /** Whether the execution should be stopped entirely */
+  stopped?: boolean;
+  /** Reason for blocking (if blocked) */
+  reason?: string;
+  /** Synthetic response to return instead of calling the model (if blocked) */
+  syntheticResponse?: GenerateContentResponse;
+  /** Modified config (if not blocked) */
+  modifiedConfig?: GenerateContentConfig;
+  /** Modified contents (if not blocked) */
+  modifiedContents?: ContentListUnion;
+}
+
+/**
+ * Result from firing the BeforeToolSelection hook.
+ */
+export interface BeforeToolSelectionHookResult {
+  /** Modified tool config */
+  toolConfig?: ToolConfig;
+  /** Modified tools */
+  tools?: ToolListUnion;
+}
+
+/**
+ * Result from firing the AfterModel hook.
+ * Contains either a modified response or indicates to use the original chunk.
+ */
+export interface AfterModelHookResult {
+  /** The response to yield (either modified or original) */
+  response: GenerateContentResponse;
+  /** Whether the execution should be stopped entirely */
+  stopped?: boolean;
+  /** Whether the model call was blocked */
+  blocked?: boolean;
+  /** Reason for blocking or stopping */
+  reason?: string;
+}
+
+/**
+ * Converts ToolCallConfirmationDetails to a serializable format for hooks.
+ * Excludes function properties (onConfirm, ideConfirmation) that can't be serialized.
+ */
+function toSerializableDetails(
+  details: ToolCallConfirmationDetails,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    type: details.type,
+    title: details.title,
+  };
+
+  switch (details.type) {
+    case 'edit':
+      return {
+        ...base,
+        fileName: details.fileName,
+        filePath: details.filePath,
+        fileDiff: details.fileDiff,
+        originalContent: details.originalContent,
+        newContent: details.newContent,
+        isModifying: details.isModifying,
+      };
+    case 'exec':
+      return {
+        ...base,
+        command: details.command,
+        rootCommand: details.rootCommand,
+      };
+    case 'mcp':
+      return {
+        ...base,
+        serverName: details.serverName,
+        toolName: details.toolName,
+        toolDisplayName: details.toolDisplayName,
+      };
+    case 'info':
+      return {
+        ...base,
+        prompt: details.prompt,
+        urls: details.urls,
+      };
+    default:
+      return base;
+  }
+}
+
+/**
+ * Gets the message to display in the notification hook for tool confirmation.
+ */
+function getNotificationMessage(
+  confirmationDetails: ToolCallConfirmationDetails,
+): string {
+  switch (confirmationDetails.type) {
+    case 'edit':
+      return `Tool ${confirmationDetails.title} requires editing`;
+    case 'exec':
+      return `Tool ${confirmationDetails.title} requires execution`;
+    case 'mcp':
+      return `Tool ${confirmationDetails.title} requires MCP`;
+    case 'info':
+      return `Tool ${confirmationDetails.title} requires information`;
+    default:
+      return `Tool requires confirmation`;
+  }
+}
 
 export class HookSystem {
   private readonly hookRegistry: HookRegistry;
@@ -41,7 +156,7 @@ export class HookSystem {
   constructor(config: Config) {
     // Initialize components
     this.hookRegistry = new HookRegistry(config);
-    this.hookRunner = new HookRunner();
+    this.hookRunner = new HookRunner(config);
     this.hookAggregator = new HookAggregator();
     this.hookPlanner = new HookPlanner(this.hookRegistry);
     this.hookEventHandler = new HookEventHandler(
@@ -89,251 +204,241 @@ export class HookSystem {
   }
 
   /**
-   * Check if there are any enabled hooks registered for a specific event.
-   * This is a fast-path check to avoid expensive MessageBus round-trips
-   * when no hooks are configured for a given event.
+   * Register a new hook programmatically
    */
-  hasHooksForEvent(eventName: string): boolean {
-    return (
-      this.hookRegistry.getHooksForEvent(eventName as HookEventName).length > 0
-    );
+  registerHook(
+    config: HookConfig,
+    eventName: HookEventName,
+    options?: { matcher?: string; sequential?: boolean; source?: ConfigSource },
+  ): void {
+    this.hookRegistry.registerHook(config, eventName, options);
   }
 
-  async fireUserPromptSubmitEvent(
-    prompt: string,
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireUserPromptSubmitEvent(
-      prompt,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('UserPromptSubmit', result.finalOutput)
-      : undefined;
-  }
-
-  async fireStopEvent(
-    stopHookActive: boolean = false,
-    lastAssistantMessage: string = '',
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireStopEvent(
-      stopHookActive,
-      lastAssistantMessage,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('Stop', result.finalOutput)
-      : undefined;
-  }
-
+  /**
+   * Fire hook events directly
+   */
   async fireSessionStartEvent(
     source: SessionStartSource,
-    model: string,
-    permissionMode?: PermissionMode,
-    agentType?: AgentType,
-    signal?: AbortSignal,
   ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireSessionStartEvent(
-      source,
-      model,
-      permissionMode,
-      agentType,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('SessionStart', result.finalOutput)
-      : undefined;
+    const result = await this.hookEventHandler.fireSessionStartEvent(source);
+    return result.finalOutput;
   }
 
   async fireSessionEndEvent(
     reason: SessionEndReason,
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireSessionEndEvent(
-      reason,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('SessionEnd', result.finalOutput)
-      : undefined;
+  ): Promise<AggregatedHookResult | undefined> {
+    return this.hookEventHandler.fireSessionEndEvent(reason);
   }
 
-  /**
-   * Fire a PreToolUse event - called before tool execution
-   */
-  async firePreToolUseEvent(
-    toolName: string,
-    toolInput: Record<string, unknown>,
-    toolUseId: string,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.firePreToolUseEvent(
-      toolName,
-      toolInput,
-      toolUseId,
-      permissionMode,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('PreToolUse', result.finalOutput)
-      : undefined;
+  async firePreCompressEvent(
+    trigger: PreCompressTrigger,
+  ): Promise<AggregatedHookResult | undefined> {
+    return this.hookEventHandler.firePreCompressEvent(trigger);
   }
 
-  /**
-   * Fire a PostToolUse event - called after successful tool execution
-   */
-  async firePostToolUseEvent(
-    toolName: string,
-    toolInput: Record<string, unknown>,
-    toolResponse: Record<string, unknown>,
-    toolUseId: string,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
+  async fireBeforeAgentEvent(
+    prompt: string,
   ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.firePostToolUseEvent(
-      toolName,
-      toolInput,
-      toolResponse,
-      toolUseId,
-      permissionMode,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('PostToolUse', result.finalOutput)
-      : undefined;
+    const result = await this.hookEventHandler.fireBeforeAgentEvent(prompt);
+    return result.finalOutput;
   }
 
-  /**
-   * Fire a PostToolUseFailure event - called when tool execution fails
-   */
-  async firePostToolUseFailureEvent(
-    toolUseId: string,
-    toolName: string,
-    toolInput: Record<string, unknown>,
-    errorMessage: string,
-    isInterrupt?: boolean,
-    permissionMode?: PermissionMode,
-    signal?: AbortSignal,
+  async fireAfterAgentEvent(
+    prompt: string,
+    response: string,
+    stopHookActive: boolean = false,
   ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.firePostToolUseFailureEvent(
-      toolUseId,
-      toolName,
-      toolInput,
-      errorMessage,
-      isInterrupt,
-      permissionMode,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('PostToolUseFailure', result.finalOutput)
-      : undefined;
-  }
-
-  /**
-   * Fire a PreCompact event - called before conversation compaction
-   */
-  async firePreCompactEvent(
-    trigger: PreCompactTrigger,
-    customInstructions: string = '',
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.firePreCompactEvent(
-      trigger,
-      customInstructions,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('PreCompact', result.finalOutput)
-      : undefined;
-  }
-
-  /**
-   * Fire a Notification event
-   */
-  async fireNotificationEvent(
-    message: string,
-    notificationType: NotificationType,
-    title?: string,
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireNotificationEvent(
-      message,
-      notificationType,
-      title,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('Notification', result.finalOutput)
-      : undefined;
-  }
-
-  /**
-   * Fire a SubagentStart event - called when a subagent is spawned
-   */
-  async fireSubagentStartEvent(
-    agentId: string,
-    agentType: AgentType | string,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireSubagentStartEvent(
-      agentId,
-      agentType,
-      permissionMode,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('SubagentStart', result.finalOutput)
-      : undefined;
-  }
-
-  /**
-   * Fire a SubagentStop event - called when a subagent finishes
-   */
-  async fireSubagentStopEvent(
-    agentId: string,
-    agentType: AgentType | string,
-    agentTranscriptPath: string,
-    lastAssistantMessage: string,
-    stopHookActive: boolean,
-    permissionMode: PermissionMode,
-    signal?: AbortSignal,
-  ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.fireSubagentStopEvent(
-      agentId,
-      agentType,
-      agentTranscriptPath,
-      lastAssistantMessage,
+    const result = await this.hookEventHandler.fireAfterAgentEvent(
+      prompt,
+      response,
       stopHookActive,
-      permissionMode,
-      signal,
     );
-    return result.finalOutput
-      ? createHookOutput('SubagentStop', result.finalOutput)
-      : undefined;
+    return result.finalOutput;
   }
 
-  /**
-   * Fire a PermissionRequest event
-   */
-  async firePermissionRequestEvent(
+  async fireBeforeModelEvent(
+    llmRequest: GenerateContentParameters,
+  ): Promise<BeforeModelHookResult> {
+    try {
+      const result =
+        await this.hookEventHandler.fireBeforeModelEvent(llmRequest);
+      const hookOutput = result.finalOutput;
+
+      if (hookOutput?.shouldStopExecution()) {
+        return {
+          blocked: true,
+          stopped: true,
+          reason: hookOutput.getEffectiveReason(),
+        };
+      }
+
+      const blockingError = hookOutput?.getBlockingError();
+      if (blockingError?.blocked) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        const beforeModelOutput = hookOutput as BeforeModelHookOutput;
+        const syntheticResponse = beforeModelOutput.getSyntheticResponse();
+        return {
+          blocked: true,
+          reason:
+            hookOutput?.getEffectiveReason() || 'Model call blocked by hook',
+          syntheticResponse,
+        };
+      }
+
+      if (hookOutput) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        const beforeModelOutput = hookOutput as BeforeModelHookOutput;
+        const modifiedRequest =
+          beforeModelOutput.applyLLMRequestModifications(llmRequest);
+        return {
+          blocked: false,
+          modifiedConfig: modifiedRequest?.config,
+          modifiedContents: modifiedRequest?.contents,
+        };
+      }
+
+      return { blocked: false };
+    } catch (error) {
+      debugLogger.debug(`BeforeModelHookEvent failed:`, error);
+      return { blocked: false };
+    }
+  }
+
+  async fireAfterModelEvent(
+    originalRequest: GenerateContentParameters,
+    chunk: GenerateContentResponse,
+  ): Promise<AfterModelHookResult> {
+    try {
+      const result = await this.hookEventHandler.fireAfterModelEvent(
+        originalRequest,
+        chunk,
+      );
+      const hookOutput = result.finalOutput;
+
+      if (hookOutput?.shouldStopExecution()) {
+        return {
+          response: chunk,
+          stopped: true,
+          reason: hookOutput.getEffectiveReason(),
+        };
+      }
+
+      const blockingError = hookOutput?.getBlockingError();
+      if (blockingError?.blocked) {
+        return {
+          response: chunk,
+          blocked: true,
+          reason: hookOutput?.getEffectiveReason(),
+        };
+      }
+
+      if (hookOutput) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        const afterModelOutput = hookOutput as AfterModelHookOutput;
+        const modifiedResponse = afterModelOutput.getModifiedResponse();
+        if (modifiedResponse) {
+          return { response: modifiedResponse };
+        }
+      }
+
+      return { response: chunk };
+    } catch (error) {
+      debugLogger.debug(`AfterModelHookEvent failed:`, error);
+      return { response: chunk };
+    }
+  }
+
+  async fireBeforeToolSelectionEvent(
+    llmRequest: GenerateContentParameters,
+  ): Promise<BeforeToolSelectionHookResult> {
+    try {
+      const result =
+        await this.hookEventHandler.fireBeforeToolSelectionEvent(llmRequest);
+      const hookOutput = result.finalOutput;
+
+      if (hookOutput) {
+        const toolSelectionOutput = hookOutput as BeforeToolSelectionHookOutput;
+        const modifiedConfig = toolSelectionOutput.applyToolConfigModifications(
+          {
+            toolConfig: llmRequest.config?.toolConfig,
+            tools: llmRequest.config?.tools,
+          },
+        );
+        return {
+          toolConfig: modifiedConfig.toolConfig,
+          tools: modifiedConfig.tools,
+        };
+      }
+      return {};
+    } catch (error) {
+      debugLogger.debug(`BeforeToolSelectionEvent failed:`, error);
+      return {};
+    }
+  }
+
+  async fireBeforeToolEvent(
     toolName: string,
     toolInput: Record<string, unknown>,
-    permissionMode: PermissionMode,
-    permissionSuggestions?: PermissionSuggestion[],
-    signal?: AbortSignal,
+    mcpContext?: McpToolContext,
+    originalRequestName?: string,
   ): Promise<DefaultHookOutput | undefined> {
-    const result = await this.hookEventHandler.firePermissionRequestEvent(
-      toolName,
-      toolInput,
-      permissionMode,
-      permissionSuggestions,
-      signal,
-    );
-    return result.finalOutput
-      ? createHookOutput('PermissionRequest', result.finalOutput)
-      : undefined;
+    try {
+      const result = await this.hookEventHandler.fireBeforeToolEvent(
+        toolName,
+        toolInput,
+        mcpContext,
+        originalRequestName,
+      );
+      return result.finalOutput;
+    } catch (error) {
+      debugLogger.debug(`BeforeToolEvent failed for ${toolName}:`, error);
+      return undefined;
+    }
+  }
+
+  async fireAfterToolEvent(
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    toolResponse: {
+      llmContent: unknown;
+      returnDisplay: unknown;
+      error: unknown;
+    },
+    mcpContext?: McpToolContext,
+    originalRequestName?: string,
+  ): Promise<DefaultHookOutput | undefined> {
+    try {
+      const result = await this.hookEventHandler.fireAfterToolEvent(
+        toolName,
+        toolInput,
+        toolResponse as Record<string, unknown>,
+        mcpContext,
+        originalRequestName,
+      );
+      return result.finalOutput;
+    } catch (error) {
+      debugLogger.debug(`AfterToolEvent failed for ${toolName}:`, error);
+      return undefined;
+    }
+  }
+
+  async fireToolNotificationEvent(
+    confirmationDetails: ToolCallConfirmationDetails,
+  ): Promise<void> {
+    try {
+      const message = getNotificationMessage(confirmationDetails);
+      const serializedDetails = toSerializableDetails(confirmationDetails);
+
+      await this.hookEventHandler.fireNotificationEvent(
+        NotificationType.ToolPermission,
+        message,
+        serializedDetails,
+      );
+    } catch (error) {
+      debugLogger.debug(
+        `NotificationEvent failed for ${confirmationDetails.title}:`,
+        error,
+      );
+    }
   }
 }

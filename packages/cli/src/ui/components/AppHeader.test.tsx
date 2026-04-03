@@ -1,94 +1,287 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { render } from 'ink-testing-library';
-import { describe, expect, it, vi } from 'vitest';
-import { AppHeader } from './AppHeader.js';
-import { ConfigContext } from '../contexts/ConfigContext.js';
-import { SettingsContext } from '../contexts/SettingsContext.js';
-import { type UIState, UIStateContext } from '../contexts/UIStateContext.js';
-import { VimModeProvider } from '../contexts/VimModeContext.js';
-import * as useTerminalSize from '../hooks/useTerminalSize.js';
+import {
+  renderWithProviders,
+  persistentStateMock,
+} from '../../test-utils/render.js';
 import type { LoadedSettings } from '../../config/settings.js';
+import { AppHeader } from './AppHeader.js';
+import { describe, it, expect, vi } from 'vitest';
+import { makeFakeConfig } from '@apex-code/apex-core';
+import crypto from 'node:crypto';
 
-vi.mock('../hooks/useTerminalSize.js');
-const useTerminalSizeMock = vi.mocked(useTerminalSize.useTerminalSize);
-
-const createSettings = (options?: { hideTips?: boolean }): LoadedSettings =>
-  ({
-    merged: {
-      ui: {
-        hideTips: options?.hideTips ?? true,
-      },
-    },
-  }) as never;
-
-const createMockConfig = (overrides = {}) => ({
-  getContentGeneratorConfig: vi.fn(() => ({ authType: undefined })),
-  getModel: vi.fn(() => 'gemini-pro'),
-  getTargetDir: vi.fn(() => '/projects/apex'),
-  getMcpServers: vi.fn(() => ({})),
-  getBlockedMcpServers: vi.fn(() => []),
-  getDebugMode: vi.fn(() => false),
-  getScreenReader: vi.fn(() => false),
-  ...overrides,
-});
-
-const createMockUIState = (overrides: Partial<UIState> = {}): UIState =>
-  ({
-    branchName: 'main',
-    nightly: false,
-    debugMessage: '',
-    currentModel: 'gemini-pro',
-    sessionStats: {
-      lastPromptTokenCount: 0,
-    },
-    ...overrides,
-  }) as UIState;
-
-const renderWithProviders = (
-  uiState: UIState,
-  settings = createSettings(),
-  config = createMockConfig(),
-) => {
-  useTerminalSizeMock.mockReturnValue({ columns: 120, rows: 24 });
-  return render(
-    <ConfigContext.Provider value={config as never}>
-      <SettingsContext.Provider value={settings}>
-        <VimModeProvider settings={settings}>
-          <UIStateContext.Provider value={uiState}>
-            <AppHeader version="1.2.3" />
-          </UIStateContext.Provider>
-        </VimModeProvider>
-      </SettingsContext.Provider>
-    </ConfigContext.Provider>,
-  );
-};
+vi.mock('../utils/terminalSetup.js', () => ({
+  getTerminalProgram: () => null,
+}));
 
 describe('<AppHeader />', () => {
-  it('shows the working directory', () => {
-    const { lastFrame } = renderWithProviders(createMockUIState());
-    expect(lastFrame()).toContain('/projects/apex');
-  });
+  it('should render the banner with default text', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'This is the default banner',
+        warningText: '',
+      },
+      bannerVisible: true,
+    };
 
-  it('hides the header when screen reader is enabled', () => {
-    const { lastFrame } = renderWithProviders(
-      createMockUIState(),
-      createSettings(),
-      createMockConfig({ getScreenReader: vi.fn(() => true) }),
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
     );
-    // When screen reader is enabled, header is not rendered
-    expect(lastFrame()).not.toContain('/projects/apex');
-    expect(lastFrame()).not.toContain('Apex');
+
+    expect(lastFrame()).toContain('This is the default banner');
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
   });
 
-  it('shows the header with all info when banner is visible', () => {
-    const { lastFrame } = renderWithProviders(createMockUIState());
-    expect(lastFrame()).toContain('>_ Apex');
-    expect(lastFrame()).toContain('gemini-pro');
-    expect(lastFrame()).toContain('/projects/apex');
+  it('should render the banner with warning text', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'This is the default banner',
+        warningText: 'There are capacity issues',
+      },
+      bannerVisible: true,
+    };
+
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(lastFrame()).toContain('There are capacity issues');
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
+  });
+
+  it('should not render the banner when no flags are set', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: '',
+        warningText: '',
+      },
+    };
+
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(lastFrame()).not.toContain('Banner');
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
+  });
+
+  it('should not render the default banner if shown count is 5 or more', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'This is the default banner',
+        warningText: '',
+      },
+    };
+
+    persistentStateMock.setData({
+      defaultBannerShownCount: {
+        [crypto
+          .createHash('sha256')
+          .update(uiState.bannerData.defaultText)
+          .digest('hex')]: 5,
+      },
+    });
+
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(lastFrame()).not.toContain('This is the default banner');
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
+  });
+
+  it('should increment the version count when default banner is displayed', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'This is the default banner',
+        warningText: '',
+      },
+    };
+
+    // Set tipsShown to 10 or more to prevent Tips from incrementing its count
+    // and interfering with the expected persistentState.set call.
+    persistentStateMock.setData({ tipsShown: 10 });
+
+    const { unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(persistentStateMock.set).toHaveBeenCalledWith(
+      'defaultBannerShownCount',
+      {
+        [crypto
+          .createHash('sha256')
+          .update(uiState.bannerData.defaultText)
+          .digest('hex')]: 1,
+      },
+    );
+    unmount();
+  });
+
+  it('should render banner text with unescaped newlines', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'First line\\nSecond line',
+        warningText: '',
+      },
+      bannerVisible: true,
+    };
+
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(lastFrame()).not.toContain('First line\\nSecond line');
+    unmount();
+  });
+
+  it('should render Tips when tipsShown is less than 10', async () => {
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'First line\\nSecond line',
+        warningText: '',
+      },
+      bannerVisible: true,
+    };
+
+    persistentStateMock.setData({ tipsShown: 5 });
+
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(lastFrame()).toContain('Tips');
+    expect(persistentStateMock.set).toHaveBeenCalledWith('tipsShown', 6);
+    unmount();
+  });
+
+  it('should NOT render Tips when tipsShown is 10 or more', async () => {
+    const uiState = {
+      bannerData: {
+        defaultText: '',
+        warningText: '',
+      },
+    };
+
+    persistentStateMock.setData({ tipsShown: 10 });
+
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        uiState,
+      },
+    );
+
+    expect(lastFrame()).not.toContain('Tips');
+    unmount();
+  });
+
+  it('should show tips until they have been shown 10 times (persistence flow)', async () => {
+    persistentStateMock.setData({ tipsShown: 9 });
+
+    const uiState = {
+      history: [],
+      bannerData: {
+        defaultText: 'First line\\nSecond line',
+        warningText: '',
+      },
+      bannerVisible: true,
+    };
+
+    // First session
+    const session1 = await renderWithProviders(<AppHeader version="1.0.0" />, {
+      uiState,
+    });
+
+    expect(session1.lastFrame()).toContain('Tips');
+    expect(persistentStateMock.get('tipsShown')).toBe(10);
+    session1.unmount();
+
+    // Second session - state is persisted in the fake
+    const session2 = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {},
+    );
+
+    expect(session2.lastFrame()).not.toContain('Tips');
+    session2.unmount();
+  });
+
+  it('should render the full logo when logged out', async () => {
+    const mockConfig = makeFakeConfig();
+    vi.spyOn(mockConfig, 'getContentGeneratorConfig').mockReturnValue({
+      authType: undefined,
+    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        config: mockConfig,
+        uiState: {
+          terminalWidth: 120,
+        },
+      },
+    );
+    await waitUntilReady();
+
+    // Check for block characters from the logo
+    expect(lastFrame()).toContain('▗█▀▀▜▙');
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
+  });
+
+  it('should NOT render Tips when ui.hideTips is true', async () => {
+    const mockConfig = makeFakeConfig();
+    const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
+      <AppHeader version="1.0.0" />,
+      {
+        config: mockConfig,
+        settings: {
+          merged: {
+            ui: { hideTips: true },
+          },
+        } as unknown as LoadedSettings,
+      },
+    );
+    await waitUntilReady();
+
+    expect(lastFrame()).not.toContain('Tips');
+    unmount();
   });
 });

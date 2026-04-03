@@ -4,31 +4,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config, ToolCallRequestInfo } from '@apex-code/apex-core';
+import type {
+  Config,
+  ToolCallRequestInfo,
+  ResumedSessionData,
+  UserFeedbackPayload,
+} from '@apex-code/apex-core';
 import { isSlashCommand } from './ui/utils/commandUtils.js';
 import type { LoadedSettings } from './config/settings.js';
 import {
-  executeToolCall,
-  shutdownTelemetry,
-  isTelemetrySdkInitialized,
+  convertSessionToClientHistory,
   GeminiEventType,
   FatalInputError,
   promptIdContext,
   OutputFormat,
-  InputFormat,
+  JsonFormatter,
+  StreamJsonFormatter,
+  JsonStreamEventType,
   uiTelemetryService,
-  parseAndFormatApiError,
-  createDebugLogger,
-  SendMessageType,
+  debugLogger,
+  coreEvents,
+  CoreEvent,
+  createWorkingStdio,
+  recordToolCallInteractions,
+  ToolErrorType,
+  Scheduler,
+  ROOT_SCHEDULER_ID,
 } from '@apex-code/apex-core';
-import type { Content, Part, PartListUnion } from '@google/genai';
-import type { CLIUserMessage, PermissionMode } from './nonInteractive/types.js';
-import type { JsonOutputAdapterInterface } from './nonInteractive/io/BaseJsonOutputAdapter.js';
-import { JsonOutputAdapter } from './nonInteractive/io/JsonOutputAdapter.js';
-import { StreamJsonOutputAdapter } from './nonInteractive/io/StreamJsonOutputAdapter.js';
-import type { ControlService } from './nonInteractive/control/ControlService.js';
+
+import type { Content, Part } from '@google/genai';
+import readline from 'node:readline';
+import stripAnsi from 'strip-ansi';
 
 import { handleSlashCommand } from './nonInteractiveCliCommands.js';
+import { ConsolePatcher } from './ui/utils/ConsolePatcher.js';
 import { handleAtCommand } from './ui/hooks/atCommandProcessor.js';
 import {
   handleError,
@@ -36,221 +45,255 @@ import {
   handleCancellationError,
   handleMaxTurnsExceededError,
 } from './utils/errors.js';
+import { TextOutput } from './ui/utils/textOutput.js';
+import { runNonInteractive as runNonInteractiveAgentSession } from './nonInteractiveCliAgentSession.js';
 
-const debugLogger = createDebugLogger('NON_INTERACTIVE_CLI');
-import {
-  normalizePartList,
-  extractPartsFromUserMessage,
-  buildSystemMessage,
-  createToolProgressHandler,
-  createAgentToolProgressHandler,
-  computeUsageFromMetrics,
-} from './utils/nonInteractiveHelpers.js';
-
-/**
- * Emits a final message for slash command results.
- * Note: systemMessage should already be emitted before calling this function.
- */
-async function emitNonInteractiveFinalMessage(params: {
-  message: string;
-  isError: boolean;
-  adapter: JsonOutputAdapterInterface;
+interface RunNonInteractiveParams {
   config: Config;
-  startTimeMs: number;
-}): Promise<void> {
-  const { message, isError, adapter, config } = params;
-
-  // JSON output mode: emit assistant message and result
-  // (systemMessage should already be emitted by caller)
-  adapter.startAssistantMessage();
-  adapter.processEvent({
-    type: GeminiEventType.Content,
-    value: message,
-  } as unknown as Parameters<JsonOutputAdapterInterface['processEvent']>[0]);
-  adapter.finalizeAssistantMessage();
-
-  const metrics = uiTelemetryService.getMetrics();
-  const usage = computeUsageFromMetrics(metrics);
-  const outputFormat = config.getOutputFormat();
-  const stats =
-    outputFormat === OutputFormat.JSON
-      ? uiTelemetryService.getMetrics()
-      : undefined;
-
-  adapter.emitResult({
-    isError,
-    durationMs: Date.now() - params.startTimeMs,
-    apiDurationMs: 0,
-    numTurns: 0,
-    errorMessage: isError ? message : undefined,
-    usage,
-    stats,
-    summary: message,
-  });
+  settings: LoadedSettings;
+  input: string;
+  prompt_id: string;
+  resumedSessionData?: ResumedSessionData;
 }
 
-/**
- * Provides optional overrides for `runNonInteractive` execution.
- *
- * @param abortController - Optional abort controller for cancellation.
- * @param adapter - Optional JSON output adapter for structured output formats.
- * @param userMessage - Optional CLI user message payload for preformatted input.
- * @param controlService - Optional control service for future permission handling.
- */
-export interface RunNonInteractiveOptions {
-  abortController?: AbortController;
-  adapter?: JsonOutputAdapterInterface;
-  userMessage?: CLIUserMessage;
-  controlService?: ControlService;
-}
-
-/**
- * Executes the non-interactive CLI flow for a single request.
- */
 export async function runNonInteractive(
-  config: Config,
-  settings: LoadedSettings,
-  input: string,
-  prompt_id: string,
-  options: RunNonInteractiveOptions = {},
+  params: RunNonInteractiveParams,
 ): Promise<void> {
-  return promptIdContext.run(prompt_id, async () => {
-    // Create output adapter based on format
-    let adapter: JsonOutputAdapterInterface;
-    const outputFormat = config.getOutputFormat();
+  const useAgentSession = params.config.getAgentSessionNoninteractiveEnabled();
+  if (useAgentSession) {
+    return runNonInteractiveAgentSession(params);
+  }
 
-    if (options.adapter) {
-      adapter = options.adapter;
-    } else if (outputFormat === OutputFormat.STREAM_JSON) {
-      adapter = new StreamJsonOutputAdapter(
-        config,
-        config.getIncludePartialMessages(),
+  const { config, settings, input, prompt_id, resumedSessionData } = params;
+
+  return promptIdContext.run(prompt_id, async () => {
+    const consolePatcher = new ConsolePatcher({
+      stderr: true,
+      interactive: false,
+      debugMode: config.getDebugMode(),
+      onNewMessage: (msg) => {
+        coreEvents.emitConsoleLog(msg.type, msg.content);
+      },
+    });
+
+    if (process.env['APEX_ACTIVITY_LOG_TARGET']) {
+      const { setupInitialActivityLogger } = await import(
+        './utils/devtoolsService.js'
       );
-    } else {
-      adapter = new JsonOutputAdapter(config);
+      await setupInitialActivityLogger(config);
     }
 
-    // Get readonly values once at the start
-    const sessionId = config.getSessionId();
-    const permissionMode = config.getApprovalMode() as PermissionMode;
+    const { stdout: workingStdout } = createWorkingStdio();
+    const textOutput = new TextOutput(workingStdout);
 
-    let turnCount = 0;
-    let totalApiDurationMs = 0;
+    const handleUserFeedback = (payload: UserFeedbackPayload) => {
+      const prefix = payload.severity.toUpperCase();
+      process.stderr.write(`[${prefix}] ${payload.message}\n`);
+      if (payload.error && config.getDebugMode()) {
+        const errorToLog =
+          payload.error instanceof Error
+            ? payload.error.stack || payload.error.message
+            : String(payload.error);
+        process.stderr.write(`${errorToLog}\n`);
+      }
+    };
+
     const startTime = Date.now();
+    const streamFormatter =
+      config.getOutputFormat() === OutputFormat.STREAM_JSON
+        ? new StreamJsonFormatter()
+        : null;
 
-    const stdoutErrorHandler = (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EPIPE') {
-        process.stdout.removeListener('error', stdoutErrorHandler);
-        process.exit(0);
+    const abortController = new AbortController();
+
+    // Track cancellation state
+    let isAborting = false;
+    let cancelMessageTimer: NodeJS.Timeout | null = null;
+
+    // Setup stdin listener for Ctrl+C detection
+    let stdinWasRaw = false;
+    let rl: readline.Interface | null = null;
+
+    const setupStdinCancellation = () => {
+      // Only setup if stdin is a TTY (user can interact)
+      if (!process.stdin.isTTY) {
+        return;
+      }
+
+      // Save original raw mode state
+      stdinWasRaw = process.stdin.isRaw || false;
+
+      // Enable raw mode to capture individual keypresses
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+
+      // Setup readline to emit keypress events
+      rl = readline.createInterface({
+        input: process.stdin,
+        escapeCodeTimeout: 0,
+      });
+      readline.emitKeypressEvents(process.stdin, rl);
+
+      // Listen for Ctrl+C
+      const keypressHandler = (
+        str: string,
+        key: { name?: string; ctrl?: boolean },
+      ) => {
+        // Detect Ctrl+C: either ctrl+c key combo or raw character code 3
+        if ((key && key.ctrl && key.name === 'c') || str === '\u0003') {
+          // Only handle once
+          if (isAborting) {
+            return;
+          }
+
+          isAborting = true;
+
+          // Only show message if cancellation takes longer than 200ms
+          // This reduces verbosity for fast cancellations
+          cancelMessageTimer = setTimeout(() => {
+            process.stderr.write('\nCancelling...\n');
+          }, 200);
+
+          abortController.abort();
+          // Note: Don't exit here - let the abort flow through the system
+          // and trigger handleCancellationError() which will exit with proper code
+        }
+      };
+
+      process.stdin.on('keypress', keypressHandler);
+    };
+
+    const cleanupStdinCancellation = () => {
+      // Clear any pending cancel message timer
+      if (cancelMessageTimer) {
+        clearTimeout(cancelMessageTimer);
+        cancelMessageTimer = null;
+      }
+
+      // Cleanup readline and stdin listeners
+      if (rl) {
+        rl.close();
+        rl = null;
+      }
+
+      // Remove keypress listener
+      process.stdin.removeAllListeners('keypress');
+
+      // Restore stdin to original state
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(stdinWasRaw);
+        process.stdin.pause();
       }
     };
 
-    const geminiClient = config.getGeminiClient();
-    const abortController = options.abortController ?? new AbortController();
-
-    // Setup signal handlers for graceful shutdown
-    const shutdownHandler = () => {
-      debugLogger.debug('[runNonInteractive] Shutdown signal received');
-      abortController.abort();
-    };
-
+    let errorToHandle: unknown | undefined;
     try {
-      process.stdout.on('error', stdoutErrorHandler);
+      consolePatcher.patch();
 
-      process.on('SIGINT', shutdownHandler);
-      process.on('SIGTERM', shutdownHandler);
+      if (
+        config.getRawOutput() &&
+        !config.getAcceptRawOutputRisk() &&
+        config.getOutputFormat() === OutputFormat.TEXT
+      ) {
+        process.stderr.write(
+          '[WARNING] --raw-output is enabled. Model output is not sanitized and may contain harmful ANSI sequences (e.g. for phishing or command injection). Use --accept-raw-output-risk to suppress this warning.\n',
+        );
+      }
 
-      // Emit systemMessage first (always the first message in JSON mode)
-      const systemMessage = await buildSystemMessage(
-        config,
-        sessionId,
-        permissionMode,
-      );
-      adapter.emitMessage(systemMessage);
+      // Setup stdin cancellation listener
+      setupStdinCancellation();
 
-      let initialPartList: PartListUnion | null = extractPartsFromUserMessage(
-        options.userMessage,
-      );
+      coreEvents.on(CoreEvent.UserFeedback, handleUserFeedback);
+      coreEvents.drainBacklogs();
 
-      if (!initialPartList) {
-        let slashHandled = false;
-        if (isSlashCommand(input)) {
-          const slashCommandResult = await handleSlashCommand(
-            input,
-            abortController,
-            config,
-            settings,
+      // Handle EPIPE errors when the output is piped to a command that closes early.
+      process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EPIPE') {
+          // Exit gracefully if the pipe is closed.
+          process.exit(0);
+        }
+      });
+
+      const geminiClient = config.getGeminiClient();
+      const scheduler = new Scheduler({
+        context: config,
+        messageBus: config.getMessageBus(),
+        getPreferredEditor: () => undefined,
+        schedulerId: ROOT_SCHEDULER_ID,
+      });
+
+      // Initialize chat.  Resume if resume data is passed.
+      if (resumedSessionData) {
+        await geminiClient.resumeChat(
+          convertSessionToClientHistory(
+            resumedSessionData.conversation.messages,
+          ),
+          resumedSessionData,
+        );
+      }
+
+      // Emit init event for streaming JSON
+      if (streamFormatter) {
+        streamFormatter.emitEvent({
+          type: JsonStreamEventType.INIT,
+          timestamp: new Date().toISOString(),
+          session_id: config.getSessionId(),
+          model: config.getModel(),
+        });
+      }
+
+      let query: Part[] | undefined;
+
+      if (isSlashCommand(input)) {
+        const slashCommandResult = await handleSlashCommand(
+          input,
+          abortController,
+          config,
+          settings,
+        );
+        // If a slash command is found and returns a prompt, use it.
+        // Otherwise, slashCommandResult falls through to the default prompt
+        // handling.
+        if (slashCommandResult) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+          query = slashCommandResult as Part[];
+        }
+      }
+
+      if (!query) {
+        const { processedQuery, error } = await handleAtCommand({
+          query: input,
+          config,
+          addItem: (_item, _timestamp) => 0,
+          onDebugMessage: () => {},
+          messageId: Date.now(),
+          signal: abortController.signal,
+          escapePastedAtSymbols: false,
+        });
+        if (error || !processedQuery) {
+          // An error occurred during @include processing (e.g., file not found).
+          // The error message is already logged by handleAtCommand.
+          throw new FatalInputError(
+            error || 'Exiting due to an error processing the @ command.',
           );
-          switch (slashCommandResult.type) {
-            case 'submit_prompt':
-              // A slash command can replace the prompt entirely; fall back to @-command processing otherwise.
-              initialPartList = slashCommandResult.content;
-              slashHandled = true;
-              break;
-            case 'message': {
-              // systemMessage already emitted above
-              await emitNonInteractiveFinalMessage({
-                message: slashCommandResult.content,
-                isError: slashCommandResult.messageType === 'error',
-                adapter,
-                config,
-                startTimeMs: startTime,
-              });
-              return;
-            }
-            case 'stream_messages':
-              throw new FatalInputError(
-                'Stream messages mode is not supported in non-interactive CLI',
-              );
-            case 'unsupported': {
-              await emitNonInteractiveFinalMessage({
-                message: slashCommandResult.reason,
-                isError: true,
-                adapter,
-                config,
-                startTimeMs: startTime,
-              });
-              return;
-            }
-            case 'no_command':
-              break;
-            default: {
-              const _exhaustive: never = slashCommandResult;
-              throw new FatalInputError(
-                `Unhandled slash command result type: ${(_exhaustive as { type: string }).type}`,
-              );
-            }
-          }
         }
-
-        if (!slashHandled) {
-          const { processedQuery, shouldProceed } = await handleAtCommand({
-            query: input,
-            config,
-            onDebugMessage: () => {},
-            messageId: Date.now(),
-            signal: abortController.signal,
-          });
-
-          if (!shouldProceed || !processedQuery) {
-            // An error occurred during @include processing (e.g., file not found).
-            // The error message is already logged by handleAtCommand.
-            throw new FatalInputError(
-              'Exiting due to an error processing the @ command.',
-            );
-          }
-          initialPartList = processedQuery as PartListUnion;
-        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        query = processedQuery as Part[];
       }
 
-      if (!initialPartList) {
-        initialPartList = [{ text: input }];
+      // Emit user message event for streaming JSON
+      if (streamFormatter) {
+        streamFormatter.emitEvent({
+          type: JsonStreamEventType.MESSAGE,
+          timestamp: new Date().toISOString(),
+          role: 'user',
+          content: input,
+        });
       }
 
-      const initialParts = normalizePartList(initialPartList);
-      let currentMessages: Content[] = [{ role: 'user', parts: initialParts }];
+      let currentMessages: Content[] = [{ role: 'user', parts: query }];
 
-      let isFirstTurn = true;
+      let turnCount = 0;
       while (true) {
         turnCount++;
         if (
@@ -259,101 +302,136 @@ export async function runNonInteractive(
         ) {
           handleMaxTurnsExceededError(config);
         }
-
         const toolCallRequests: ToolCallRequestInfo[] = [];
-        const apiStartTime = Date.now();
+
         const responseStream = geminiClient.sendMessageStream(
           currentMessages[0]?.parts || [],
           abortController.signal,
           prompt_id,
-          {
-            type: isFirstTurn
-              ? SendMessageType.UserQuery
-              : SendMessageType.ToolResult,
-          },
+          undefined,
+          false,
+          turnCount === 1 ? input : undefined,
         );
-        isFirstTurn = false;
 
-        // Start assistant message for this turn
-        adapter.startAssistantMessage();
-
+        let responseText = '';
         for await (const event of responseStream) {
           if (abortController.signal.aborted) {
             handleCancellationError(config);
           }
-          // Use adapter for all event processing
-          adapter.processEvent(event);
-          if (event.type === GeminiEventType.ToolCallRequest) {
+
+          if (event.type === GeminiEventType.Content) {
+            const isRaw =
+              config.getRawOutput() || config.getAcceptRawOutputRisk();
+            const output = isRaw ? event.value : stripAnsi(event.value);
+            if (streamFormatter) {
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.MESSAGE,
+                timestamp: new Date().toISOString(),
+                role: 'assistant',
+                content: output,
+                delta: true,
+              });
+            } else if (config.getOutputFormat() === OutputFormat.JSON) {
+              responseText += output;
+            } else {
+              if (event.value) {
+                textOutput.write(output);
+              }
+            }
+          } else if (event.type === GeminiEventType.ToolCallRequest) {
+            if (streamFormatter) {
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.TOOL_USE,
+                timestamp: new Date().toISOString(),
+                tool_name: event.value.name,
+                tool_id: event.value.callId,
+                parameters: event.value.args,
+              });
+            }
             toolCallRequests.push(event.value);
-          }
-          if (
-            outputFormat === OutputFormat.TEXT &&
-            event.type === GeminiEventType.Error
-          ) {
-            const errorText = parseAndFormatApiError(
-              event.value.error,
-              config.getContentGeneratorConfig()?.authType,
-            );
-            process.stderr.write(`${errorText}\n`);
-            // Throw error to exit with non-zero code
-            throw new Error(errorText);
+          } else if (event.type === GeminiEventType.LoopDetected) {
+            if (streamFormatter) {
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.ERROR,
+                timestamp: new Date().toISOString(),
+                severity: 'warning',
+                message: 'Loop detected, stopping execution',
+              });
+            }
+          } else if (event.type === GeminiEventType.MaxSessionTurns) {
+            if (streamFormatter) {
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.ERROR,
+                timestamp: new Date().toISOString(),
+                severity: 'error',
+                message: 'Maximum session turns exceeded',
+              });
+            }
+          } else if (event.type === GeminiEventType.Error) {
+            throw event.value.error;
+          } else if (event.type === GeminiEventType.AgentExecutionStopped) {
+            const stopMessage = `Agent execution stopped: ${event.value.systemMessage?.trim() || event.value.reason}`;
+            if (config.getOutputFormat() === OutputFormat.TEXT) {
+              process.stderr.write(`${stopMessage}\n`);
+            }
+            // Emit final result event for streaming JSON if needed
+            if (streamFormatter) {
+              const metrics = uiTelemetryService.getMetrics();
+              const durationMs = Date.now() - startTime;
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.RESULT,
+                timestamp: new Date().toISOString(),
+                status: 'success',
+                stats: streamFormatter.convertToStreamStats(
+                  metrics,
+                  durationMs,
+                ),
+              });
+            }
+            return;
+          } else if (event.type === GeminiEventType.AgentExecutionBlocked) {
+            const blockMessage = `Agent execution blocked: ${event.value.systemMessage?.trim() || event.value.reason}`;
+            if (config.getOutputFormat() === OutputFormat.TEXT) {
+              process.stderr.write(`[WARNING] ${blockMessage}\n`);
+            }
           }
         }
 
-        // Finalize assistant message
-        adapter.finalizeAssistantMessage();
-        totalApiDurationMs += Date.now() - apiStartTime;
-
         if (toolCallRequests.length > 0) {
+          textOutput.ensureTrailingNewline();
+          const completedToolCalls = await scheduler.schedule(
+            toolCallRequests,
+            abortController.signal,
+          );
           const toolResponseParts: Part[] = [];
 
-          for (const requestInfo of toolCallRequests) {
-            const finalRequestInfo = requestInfo;
+          for (const completedToolCall of completedToolCalls) {
+            const toolResponse = completedToolCall.response;
+            const requestInfo = completedToolCall.request;
 
-            const inputFormat =
-              typeof config.getInputFormat === 'function'
-                ? config.getInputFormat()
-                : InputFormat.TEXT;
-            const toolCallUpdateCallback =
-              inputFormat === InputFormat.STREAM_JSON && options.controlService
-                ? options.controlService.permission.getToolCallUpdateCallback()
-                : undefined;
-
-            // Build outputUpdateHandler for this tool call.
-            // Agent tool has its own complex handler (subagent messages).
-            // All other tools with canUpdateOutput=true (e.g., MCP tools)
-            // get a generic handler that emits progress via the adapter.
-            const isAgentTool = finalRequestInfo.name === 'agent';
-            const { handler: outputUpdateHandler } = isAgentTool
-              ? createAgentToolProgressHandler(
-                  config,
-                  finalRequestInfo.callId,
-                  adapter,
-                )
-              : createToolProgressHandler(finalRequestInfo, adapter);
-
-            const toolResponse = await executeToolCall(
-              config,
-              finalRequestInfo,
-              abortController.signal,
-              {
-                outputUpdateHandler,
-                ...(toolCallUpdateCallback && {
-                  onToolCallsUpdate: toolCallUpdateCallback,
-                }),
-              },
-            );
-
-            // Note: In JSON mode, subagent messages are automatically added to the main
-            // adapter's messages array and will be output together on emitResult()
+            if (streamFormatter) {
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.TOOL_RESULT,
+                timestamp: new Date().toISOString(),
+                tool_id: requestInfo.callId,
+                status:
+                  completedToolCall.status === 'error' ? 'error' : 'success',
+                output:
+                  typeof toolResponse.resultDisplay === 'string'
+                    ? toolResponse.resultDisplay
+                    : undefined,
+                error: toolResponse.error
+                  ? {
+                      type: toolResponse.errorType || 'TOOL_EXECUTION_ERROR',
+                      message: toolResponse.error.message,
+                    }
+                  : undefined,
+              });
+            }
 
             if (toolResponse.error) {
-              // In JSON/STREAM_JSON mode, tool errors are tolerated and formatted
-              // as tool_result blocks. handleToolError will detect JSON/STREAM_JSON mode
-              // from config and allow the session to continue so the LLM can decide what to do next.
-              // In text mode, we still log the error.
               handleToolError(
-                finalRequestInfo.name,
+                requestInfo.name,
                 toolResponse.error,
                 config,
                 toolResponse.errorType || 'TOOL_EXECUTION_ERROR',
@@ -363,70 +441,99 @@ export async function runNonInteractive(
               );
             }
 
-            adapter.emitToolResult(finalRequestInfo, toolResponse);
-
             if (toolResponse.responseParts) {
               toolResponseParts.push(...toolResponse.responseParts);
             }
           }
+
+          // Record tool calls with full metadata before sending responses to Gemini
+          try {
+            const currentModel =
+              geminiClient.getCurrentSequenceModel() ?? config.getModel();
+            geminiClient
+              .getChat()
+              .recordCompletedToolCalls(currentModel, completedToolCalls);
+
+            await recordToolCallInteractions(config, completedToolCalls);
+          } catch (error) {
+            debugLogger.error(
+              `Error recording completed tool call information: ${error}`,
+            );
+          }
+
+          // Check if any tool requested to stop execution immediately
+          const stopExecutionTool = completedToolCalls.find(
+            (tc) => tc.response.errorType === ToolErrorType.STOP_EXECUTION,
+          );
+
+          if (stopExecutionTool && stopExecutionTool.response.error) {
+            const stopMessage = `Agent execution stopped: ${stopExecutionTool.response.error.message}`;
+
+            if (config.getOutputFormat() === OutputFormat.TEXT) {
+              process.stderr.write(`${stopMessage}\n`);
+            }
+
+            // Emit final result event for streaming JSON
+            if (streamFormatter) {
+              const metrics = uiTelemetryService.getMetrics();
+              const durationMs = Date.now() - startTime;
+              streamFormatter.emitEvent({
+                type: JsonStreamEventType.RESULT,
+                timestamp: new Date().toISOString(),
+                status: 'success',
+                stats: streamFormatter.convertToStreamStats(
+                  metrics,
+                  durationMs,
+                ),
+              });
+            } else if (config.getOutputFormat() === OutputFormat.JSON) {
+              const formatter = new JsonFormatter();
+              const stats = uiTelemetryService.getMetrics();
+              textOutput.write(
+                formatter.format(config.getSessionId(), responseText, stats),
+              );
+            } else {
+              textOutput.ensureTrailingNewline(); // Ensure a final newline
+            }
+            return;
+          }
+
           currentMessages = [{ role: 'user', parts: toolResponseParts }];
         } else {
-          const metrics = uiTelemetryService.getMetrics();
-          const usage = computeUsageFromMetrics(metrics);
-          // Get stats for JSON format output
-          const stats =
-            outputFormat === OutputFormat.JSON
-              ? uiTelemetryService.getMetrics()
-              : undefined;
-          adapter.emitResult({
-            isError: false,
-            durationMs: Date.now() - startTime,
-            apiDurationMs: totalApiDurationMs,
-            numTurns: turnCount,
-            usage,
-            stats,
-          });
+          // Emit final result event for streaming JSON
+          if (streamFormatter) {
+            const metrics = uiTelemetryService.getMetrics();
+            const durationMs = Date.now() - startTime;
+            streamFormatter.emitEvent({
+              type: JsonStreamEventType.RESULT,
+              timestamp: new Date().toISOString(),
+              status: 'success',
+              stats: streamFormatter.convertToStreamStats(metrics, durationMs),
+            });
+          } else if (config.getOutputFormat() === OutputFormat.JSON) {
+            const formatter = new JsonFormatter();
+            const stats = uiTelemetryService.getMetrics();
+            textOutput.write(
+              formatter.format(config.getSessionId(), responseText, stats),
+            );
+          } else {
+            textOutput.ensureTrailingNewline(); // Ensure a final newline
+          }
           return;
         }
       }
     } catch (error) {
-      // Ensure message_start / message_stop (and content_block events) are
-      // properly paired even when an error aborts the turn mid-stream.
-      // The call is safe when no message was started (throws → caught) or
-      // when already finalized (idempotent guard inside the adapter).
-      try {
-        adapter.finalizeAssistantMessage();
-      } catch {
-        // Expected when no message was started or already finalized
-      }
-
-      // For JSON and STREAM_JSON modes, compute usage from metrics
-      const message = error instanceof Error ? error.message : String(error);
-      const metrics = uiTelemetryService.getMetrics();
-      const usage = computeUsageFromMetrics(metrics);
-      // Get stats for JSON format output
-      const stats =
-        outputFormat === OutputFormat.JSON
-          ? uiTelemetryService.getMetrics()
-          : undefined;
-      adapter.emitResult({
-        isError: true,
-        durationMs: Date.now() - startTime,
-        apiDurationMs: totalApiDurationMs,
-        numTurns: turnCount,
-        errorMessage: message,
-        usage,
-        stats,
-      });
-      handleError(error, config);
+      errorToHandle = error;
     } finally {
-      process.stdout.removeListener('error', stdoutErrorHandler);
-      // Cleanup signal handlers
-      process.removeListener('SIGINT', shutdownHandler);
-      process.removeListener('SIGTERM', shutdownHandler);
-      if (isTelemetrySdkInitialized()) {
-        await shutdownTelemetry();
-      }
+      // Cleanup stdin cancellation before other cleanup
+      cleanupStdinCancellation();
+
+      consolePatcher.cleanup();
+      coreEvents.off(CoreEvent.UserFeedback, handleUserFeedback);
+    }
+
+    if (errorToHandle) {
+      handleError(errorToHandle, config);
     }
   });
 }

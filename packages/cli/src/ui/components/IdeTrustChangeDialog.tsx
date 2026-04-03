@@ -9,20 +9,21 @@ import { theme } from '../semantic-colors.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { relaunchApp } from '../../utils/processUtils.js';
 import { type RestartReason } from '../hooks/useIdeTrustListener.js';
-import { createDebugLogger } from '@apex-code/apex-core';
+import { debugLogger } from '@apex-code/apex-core';
 
 interface IdeTrustChangeDialogProps {
   reason: RestartReason;
 }
 
-const debugLogger = createDebugLogger('IDE_TRUST_DIALOG');
-
 export const IdeTrustChangeDialog = ({ reason }: IdeTrustChangeDialogProps) => {
   useKeypress(
     (key) => {
       if (key.name === 'r' || key.name === 'R') {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         relaunchApp();
+        return true;
       }
+      return false;
     },
     { isActive: true },
   );
@@ -30,7 +31,7 @@ export const IdeTrustChangeDialog = ({ reason }: IdeTrustChangeDialogProps) => {
   let message = 'Workspace trust has changed.';
   if (reason === 'NONE') {
     // This should not happen, but provides a fallback and a debug log.
-    debugLogger.error(
+    debugLogger.warn(
       'IdeTrustChangeDialog rendered with unexpected reason "NONE"',
     );
   } else if (reason === 'CONNECTION_CHANGE') {

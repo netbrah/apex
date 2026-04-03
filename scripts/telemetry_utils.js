@@ -13,48 +13,44 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import { APEX_DIR } from '@apex-code/apex-core';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const projectRoot = path.resolve(__dirname, '..');
+const projectHash = crypto
+  .createHash('sha256')
+  .update(projectRoot)
+  .digest('hex');
 
-/**
- * Generates a unique hash for a project based on its root path.
- * On Windows, paths are case-insensitive, so we normalize to lowercase
- * to ensure the same physical path always produces the same hash.
- * This logic must match getProjectHash() in packages/core/src/utils/paths.ts
- */
-function getProjectHash(projectRoot) {
-  // On Windows, normalize path to lowercase for case-insensitive matching
-  const normalizedPath =
-    os.platform() === 'win32' ? projectRoot.toLowerCase() : projectRoot;
-  return crypto.createHash('sha256').update(normalizedPath).digest('hex');
-}
+// Returns the home directory, respecting APEX_HOME
+const homedir = () => process.env['APEX_HOME'] || os.homedir();
 
-const projectHash = getProjectHash(projectRoot);
-
-// User-level .apex directory in home
-const USER_APEX_DIR = path.join(os.homedir(), '.apex');
-// Project-level .apex directory in the workspace
-const WORKSPACE_APEX_DIR = path.join(projectRoot, '.apex');
+// User-level .gemini directory in home
+const USER_APEX_DIR = path.join(homedir(), APEX_DIR);
+// Project-level .gemini directory in the workspace
+const WORKSPACE_APEX_DIR = path.join(projectRoot, APEX_DIR);
 
 // Telemetry artifacts are stored in a hashed directory under the user's ~/.apex/tmp
 export const OTEL_DIR = path.join(USER_APEX_DIR, 'tmp', projectHash, 'otel');
 export const BIN_DIR = path.join(OTEL_DIR, 'bin');
 
-// Workspace settings remain in the project's .apex directory
+// Workspace settings remain in the project's .gemini directory
 export const WORKSPACE_SETTINGS_FILE = path.join(
   WORKSPACE_APEX_DIR,
   'settings.json',
 );
 
 export function getJson(url) {
-  const tmpFile = path.join(os.tmpdir(), `apex-releases-${Date.now()}.json`);
+  const tmpFile = path.join(
+    os.tmpdir(),
+    `gemini-cli-releases-${Date.now()}.json`,
+  );
   try {
     const result = spawnSync(
       'curl',
-      ['-sL', '-H', 'User-Agent: apex-dev-script', '-o', tmpFile, url],
+      ['-sL', '-H', 'User-Agent: gemini-cli-dev-script', '-o', tmpFile, url],
       { stdio: 'pipe', encoding: 'utf-8' },
     );
     if (result.status !== 0) {
@@ -258,7 +254,9 @@ export async function ensureBinary(
   }
 
   const downloadUrl = asset.browser_download_url;
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apex-telemetry-'));
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'gemini-cli-telemetry-'),
+  );
   const archivePath = path.join(tmpDir, asset.name);
 
   try {
@@ -319,6 +317,7 @@ export function manageTelemetrySettings(
   oTelEndpoint = 'http://localhost:4317',
   target = 'local',
   originalSandboxSettingToRestore,
+  otlpProtocol = 'grpc',
 ) {
   const workspaceSettings = readJsonFile(WORKSPACE_SETTINGS_FILE);
   const currentSandboxSetting = workspaceSettings.sandbox;
@@ -349,6 +348,11 @@ export function manageTelemetrySettings(
       settingsModified = true;
       console.log(`🎯 Set telemetry target to ${target}.`);
     }
+    if (workspaceSettings.telemetry.otlpProtocol !== otlpProtocol) {
+      workspaceSettings.telemetry.otlpProtocol = otlpProtocol;
+      settingsModified = true;
+      console.log(`🔧 Set telemetry OTLP protocol to ${otlpProtocol}.`);
+    }
   } else {
     if (workspaceSettings.telemetry.enabled === true) {
       delete workspaceSettings.telemetry.enabled;
@@ -364,6 +368,11 @@ export function manageTelemetrySettings(
       delete workspaceSettings.telemetry.target;
       settingsModified = true;
       console.log('🎯 Cleared telemetry target.');
+    }
+    if (workspaceSettings.telemetry.otlpProtocol) {
+      delete workspaceSettings.telemetry.otlpProtocol;
+      settingsModified = true;
+      console.log('🔧 Cleared telemetry OTLP protocol.');
     }
     if (Object.keys(workspaceSettings.telemetry).length === 0) {
       delete workspaceSettings.telemetry;
@@ -404,7 +413,7 @@ export function registerCleanup(
 
     console.log('\n👋 Shutting down...');
 
-    manageTelemetrySettings(false, null, originalSandboxSetting);
+    manageTelemetrySettings(false, null, null, originalSandboxSetting);
 
     const processes = getProcesses ? getProcesses() : [];
     processes.forEach((proc) => {
@@ -429,7 +438,7 @@ export function registerCleanup(
       if (fd) {
         try {
           fs.closeSync(fd);
-        } catch (_) {
+        } catch {
           /* no-op */
         }
       }

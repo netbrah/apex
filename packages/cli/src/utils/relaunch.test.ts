@@ -15,8 +15,20 @@ import {
 } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { RELAUNCH_EXIT_CODE } from './processUtils.js';
-import type { ChildProcess } from 'node:child_process';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
+
+const mocks = vi.hoisted(() => ({
+  writeToStderr: vi.fn(),
+}));
+
+vi.mock('@apex-code/apex-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@apex-code/apex-core')>();
+  return {
+    ...actual,
+    writeToStderr: mocks.writeToStderr,
+  };
+});
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -43,6 +55,7 @@ describe('relaunchOnExitCode', () => {
       .spyOn(process.stdin, 'resume')
       .mockImplementation(() => process.stdin);
     vi.clearAllMocks();
+    mocks.writeToStderr.mockClear();
   });
 
   afterEach(() => {
@@ -87,6 +100,11 @@ describe('relaunchOnExitCode', () => {
     );
 
     expect(runner).toHaveBeenCalledTimes(1);
+    expect(mocks.writeToStderr).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Fatal error: Failed to relaunch the CLI process.',
+      ),
+    );
     expect(stdinResumeSpy).toHaveBeenCalled();
     expect(processExitSpy).toHaveBeenCalledWith(1);
   });
@@ -105,6 +123,7 @@ describe('relaunchAppInChildProcess', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.writeToStderr.mockClear();
 
     process.env = { ...originalEnv };
     delete process.env['APEX_NO_RELAUNCH'];

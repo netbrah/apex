@@ -1,1664 +1,427 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HookSystem } from './hookSystem.js';
-import { HookRegistry } from './hookRegistry.js';
-import { HookRunner } from './hookRunner.js';
-import { HookAggregator } from './hookAggregator.js';
-import { HookPlanner } from './hookPlanner.js';
-import { HookEventHandler } from './hookEventHandler.js';
-import {
-  HookType,
-  HooksConfigSource,
-  HookEventName,
-  SessionStartSource,
-  SessionEndReason,
-  PermissionMode,
-  AgentType,
-  type HookDecision,
-  PreCompactTrigger,
-  NotificationType,
-  type PermissionSuggestion,
-} from './types.js';
-import type { Config } from '../config/config.js';
-import type { AggregatedHookResult } from './hookAggregator.js';
-import type { HookOutput } from './types.js';
+import { Config } from '../config/config.js';
+import { HookType } from './types.js';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import type { Readable, Writable } from 'node:stream';
 
-vi.mock('./hookRegistry.js');
-vi.mock('./hookRunner.js');
-vi.mock('./hookAggregator.js');
-vi.mock('./hookPlanner.js');
-vi.mock('./hookEventHandler.js');
+// Mock type for the child_process spawn
+type MockChildProcessWithoutNullStreams = ChildProcessWithoutNullStreams & {
+  mockStdoutOn: ReturnType<typeof vi.fn>;
+  mockStderrOn: ReturnType<typeof vi.fn>;
+  mockProcessOn: ReturnType<typeof vi.fn>;
+};
 
-const createMockAggregatedResult = (
-  success: boolean = true,
-  finalOutput?: HookOutput,
-): AggregatedHookResult => ({
-  success,
-  allOutputs: [],
-  errors: [],
-  totalDuration: 100,
-  finalOutput,
+// Mock child_process with importOriginal for partial mocking
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...(actual as object),
+    spawn: vi.fn(),
+  };
 });
 
-describe('HookSystem', () => {
-  let mockConfig: Config;
-  let mockHookRegistry: HookRegistry;
-  let mockHookRunner: HookRunner;
-  let mockHookAggregator: HookAggregator;
-  let mockHookPlanner: HookPlanner;
-  let mockHookEventHandler: HookEventHandler;
+// Mock debugLogger - use vi.hoisted to define mock before it's used in vi.mock
+const mockDebugLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+vi.mock('../utils/debugLogger.js', () => ({
+  debugLogger: mockDebugLogger,
+}));
+
+// Mock console methods
+const mockConsole = {
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
+
+vi.stubGlobal('console', mockConsole);
+
+describe('HookSystem Integration', () => {
   let hookSystem: HookSystem;
+  let config: Config;
+  let mockSpawn: MockChildProcessWithoutNullStreams;
 
   beforeEach(() => {
-    mockConfig = {
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getTranscriptPath: vi.fn().mockReturnValue('/test/transcript'),
-      getWorkingDir: vi.fn().mockReturnValue('/test/cwd'),
-    } as unknown as Config;
+    vi.resetAllMocks();
 
-    mockHookRegistry = {
-      initialize: vi.fn().mockResolvedValue(undefined),
-      setHookEnabled: vi.fn(),
-      getAllHooks: vi.fn().mockReturnValue([]),
-      getHooksForEvent: vi.fn().mockReturnValue([]),
-    } as unknown as HookRegistry;
+    const testDir = path.join(os.tmpdir(), 'test-hooks');
+    fs.mkdirSync(testDir, { recursive: true });
 
-    mockHookRunner = {
-      executeHooksSequential: vi.fn(),
-      executeHooksParallel: vi.fn(),
-    } as unknown as HookRunner;
+    // Create a real config with simple command hook configurations for testing
+    config = new Config({
+      model: 'gemini-1.5-flash',
+      targetDir: testDir,
+      sessionId: 'test-session',
+      debugMode: false,
+      cwd: testDir,
+      hooks: {
+        BeforeTool: [
+          {
+            matcher: 'TestTool',
+            hooks: [
+              {
+                type: HookType.Command as const,
+                command: 'echo',
+                timeout: 5000,
+              },
+            ],
+          },
+        ],
+      },
+    });
 
-    mockHookAggregator = {
-      aggregateResults: vi.fn(),
-    } as unknown as HookAggregator;
+    // Provide getMessageBus mock for MessageBus integration tests
+    (config as unknown as { getMessageBus: () => unknown }).getMessageBus =
+      () => undefined;
 
-    mockHookPlanner = {
-      createExecutionPlan: vi.fn(),
-    } as unknown as HookPlanner;
+    hookSystem = new HookSystem(config);
 
-    mockHookEventHandler = {
-      fireUserPromptSubmitEvent: vi.fn(),
-      fireStopEvent: vi.fn(),
-      fireSessionStartEvent: vi.fn(),
-      fireSessionEndEvent: vi.fn(),
-      firePreToolUseEvent: vi.fn(),
-      firePostToolUseEvent: vi.fn(),
-      firePostToolUseFailureEvent: vi.fn(),
-      firePreCompactEvent: vi.fn(),
-      fireNotificationEvent: vi.fn(),
-      firePermissionRequestEvent: vi.fn(),
-      fireSubagentStartEvent: vi.fn(),
-      fireSubagentStopEvent: vi.fn(),
-    } as unknown as HookEventHandler;
+    // Set up spawn mock with accessible mock functions
+    const mockStdoutOn = vi.fn();
+    const mockStderrOn = vi.fn();
+    const mockProcessOn = vi.fn();
 
-    vi.mocked(HookRegistry).mockImplementation(() => mockHookRegistry);
-    vi.mocked(HookRunner).mockImplementation(() => mockHookRunner);
-    vi.mocked(HookAggregator).mockImplementation(() => mockHookAggregator);
-    vi.mocked(HookPlanner).mockImplementation(() => mockHookPlanner);
-    vi.mocked(HookEventHandler).mockImplementation(() => mockHookEventHandler);
+    mockSpawn = {
+      stdin: {
+        write: vi.fn(),
+        end: vi.fn(),
+        on: vi.fn(),
+      } as unknown as Writable,
+      stdout: {
+        on: mockStdoutOn,
+      } as unknown as Readable,
+      stderr: {
+        on: mockStderrOn,
+      } as unknown as Readable,
+      on: mockProcessOn,
+      kill: vi.fn(),
+      killed: false,
+      mockStdoutOn,
+      mockStderrOn,
+      mockProcessOn,
+    } as unknown as MockChildProcessWithoutNullStreams;
 
-    hookSystem = new HookSystem(mockConfig);
+    vi.mocked(spawn).mockReturnValue(mockSpawn);
   });
 
-  describe('constructor', () => {
-    it('should create instance with all dependencies', () => {
-      expect(HookRegistry).toHaveBeenCalledWith(mockConfig);
-      expect(HookRunner).toHaveBeenCalled();
-      expect(HookAggregator).toHaveBeenCalled();
-      expect(HookPlanner).toHaveBeenCalledWith(mockHookRegistry);
-      expect(HookEventHandler).toHaveBeenCalledWith(
-        mockConfig,
-        mockHookPlanner,
-        mockHookRunner,
-        mockHookAggregator,
-      );
-    });
+  afterEach(async () => {
+    // No cleanup needed
   });
 
   describe('initialize', () => {
-    it('should initialize hook registry', async () => {
+    it('should initialize successfully', async () => {
       await hookSystem.initialize();
 
-      expect(mockHookRegistry.initialize).toHaveBeenCalled();
+      expect(mockDebugLogger.debug).toHaveBeenCalledWith(
+        'Hook system initialized successfully',
+      );
+
+      expect(hookSystem.getAllHooks().length).toBe(1);
+    });
+
+    it('should not initialize twice', async () => {
+      await hookSystem.initialize();
+      await hookSystem.initialize(); // Second call should be no-op
+
+      // The system logs both registry initialization and system initialization
+      expect(mockDebugLogger.debug).toHaveBeenCalledWith(
+        'Hook system initialized successfully',
+      );
+    });
+
+    it('should handle initialization errors gracefully', async () => {
+      const invalidDir = path.join(os.tmpdir(), 'test-hooks-invalid');
+      fs.mkdirSync(invalidDir, { recursive: true });
+
+      // Create a config with invalid hooks to trigger initialization errors
+      const invalidConfig = new Config({
+        model: 'gemini-1.5-flash',
+        targetDir: invalidDir,
+        sessionId: 'test-session-invalid',
+        debugMode: false,
+        cwd: invalidDir,
+        hooks: {
+          BeforeTool: [
+            {
+              hooks: [
+                {
+                  type: 'invalid-type' as HookType, // Invalid hook type for testing
+                  command: './test.sh',
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any,
+              ],
+            },
+          ],
+        },
+      });
+
+      const invalidHookSystem = new HookSystem(invalidConfig);
+
+      // Should not throw, but should log warnings via debugLogger
+      await invalidHookSystem.initialize();
+
+      expect(mockDebugLogger.warn).toHaveBeenCalled();
     });
   });
 
   describe('getEventHandler', () => {
-    it('should return the hook event handler', () => {
-      const eventHandler = hookSystem.getEventHandler();
+    it('should return event bus when initialized', async () => {
+      await hookSystem.initialize();
 
-      expect(eventHandler).toBe(mockHookEventHandler);
+      // Set up spawn mock behavior for successful execution
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setTimeout(() => callback(Buffer.from('')), 5); // echo outputs empty
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setTimeout(() => callback(0), 10);
+          }
+        },
+      );
+
+      const eventBus = hookSystem.getEventHandler();
+      expect(eventBus).toBeDefined();
+
+      // Test that the event bus can actually fire events
+      const result = await eventBus.fireBeforeToolEvent('TestTool', {
+        test: 'data',
+      });
+      expect(result.success).toBe(true);
     });
   });
 
-  describe('getRegistry', () => {
-    it('should return the hook registry', () => {
-      const registry = hookSystem.getRegistry();
+  describe('hook execution', () => {
+    it('should execute hooks and return results', async () => {
+      await hookSystem.initialize();
 
-      expect(registry).toBe(mockHookRegistry);
+      // Set up spawn mock behavior for successful execution
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            setTimeout(() => callback(Buffer.from('')), 5); // echo outputs empty
+          }
+        },
+      );
+
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setTimeout(() => callback(0), 10);
+          }
+        },
+      );
+
+      const eventBus = hookSystem.getEventHandler();
+
+      // Test BeforeTool event with command hook
+      const result = await eventBus.fireBeforeToolEvent('TestTool', {
+        test: 'data',
+      });
+
+      expect(result.success).toBe(true);
+      // Command hooks with echo should succeed but may not have specific decisions
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should handle no matching hooks', async () => {
+      await hookSystem.initialize();
+
+      const eventBus = hookSystem.getEventHandler();
+
+      // Test with a tool that doesn't match any hooks
+      const result = await eventBus.fireBeforeToolEvent('UnmatchedTool', {
+        test: 'data',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.allOutputs).toHaveLength(0);
+      expect(result.finalOutput).toBeUndefined();
     });
   });
 
-  describe('setHookEnabled', () => {
-    it('should enable a hook', () => {
-      hookSystem.setHookEnabled('test-hook', true);
+  describe('hook disabling via settings', () => {
+    it('should not execute disabled hooks from settings', async () => {
+      const disabledDir = path.join(os.tmpdir(), 'test-hooks-disabled');
+      fs.mkdirSync(disabledDir, { recursive: true });
 
-      expect(mockHookRegistry.setHookEnabled).toHaveBeenCalledWith(
-        'test-hook',
-        true,
+      // Create config with two hooks, one enabled and one disabled via settings
+      const configWithDisabled = new Config({
+        model: 'gemini-1.5-flash',
+        targetDir: disabledDir,
+        sessionId: 'test-session-disabled',
+        debugMode: false,
+        cwd: disabledDir,
+        hooks: {
+          BeforeTool: [
+            {
+              matcher: 'TestTool',
+              hooks: [
+                {
+                  type: HookType.Command as const,
+                  command: 'echo "enabled-hook"',
+                  timeout: 5000,
+                },
+                {
+                  type: HookType.Command as const,
+                  command: 'echo "disabled-hook"',
+                  timeout: 5000,
+                },
+              ],
+            },
+          ],
+        },
+        disabledHooks: ['echo "disabled-hook"'], // Disable the second hook
+      });
+
+      (
+        configWithDisabled as unknown as { getMessageBus: () => unknown }
+      ).getMessageBus = () => undefined;
+
+      const systemWithDisabled = new HookSystem(configWithDisabled);
+      await systemWithDisabled.initialize();
+
+      // Set up spawn mock - only enabled hook should execute
+      let executionCount = 0;
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            executionCount++;
+            setTimeout(() => callback(Buffer.from('output')), 5);
+          }
+        },
       );
-    });
 
-    it('should disable a hook', () => {
-      hookSystem.setHookEnabled('test-hook', false);
-
-      expect(mockHookRegistry.setHookEnabled).toHaveBeenCalledWith(
-        'test-hook',
-        false,
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setTimeout(() => callback(0), 10);
+          }
+        },
       );
+
+      const eventBus = systemWithDisabled.getEventHandler();
+      const result = await eventBus.fireBeforeToolEvent('TestTool', {
+        test: 'data',
+      });
+
+      expect(result.success).toBe(true);
+      // Only the enabled hook should have executed
+      expect(executionCount).toBe(1);
     });
   });
 
-  describe('getAllHooks', () => {
-    it('should return all registered hooks', () => {
-      const mockHooks = [
-        {
-          config: {
-            type: HookType.Command,
-            command: 'echo test',
-            source: HooksConfigSource.Project,
-          },
-          source: HooksConfigSource.Project,
-          eventName: HookEventName.PreToolUse,
-          enabled: true,
+  describe('hook disabling via command', () => {
+    it('should disable hook when setHookEnabled is called', async () => {
+      const setEnabledDir = path.join(os.tmpdir(), 'test-hooks-setEnabled');
+      fs.mkdirSync(setEnabledDir, { recursive: true });
+
+      // Create config with a hook
+      const configForDisabling = new Config({
+        model: 'gemini-1.5-flash',
+        targetDir: setEnabledDir,
+        sessionId: 'test-session-setEnabled',
+        debugMode: false,
+        cwd: setEnabledDir,
+        hooks: {
+          BeforeTool: [
+            {
+              matcher: 'TestTool',
+              hooks: [
+                {
+                  type: HookType.Command as const,
+                  command: 'echo "will-be-disabled"',
+                  timeout: 5000,
+                },
+              ],
+            },
+          ],
         },
-      ];
-      vi.mocked(mockHookRegistry.getAllHooks).mockReturnValue(mockHooks);
+      });
 
-      const hooks = hookSystem.getAllHooks();
+      (
+        configForDisabling as unknown as { getMessageBus: () => unknown }
+      ).getMessageBus = () => undefined;
 
-      expect(hooks).toEqual(mockHooks);
-      expect(mockHookRegistry.getAllHooks).toHaveBeenCalled();
-    });
-  });
+      const systemForDisabling = new HookSystem(configForDisabling);
+      await systemForDisabling.initialize();
 
-  describe('hasHooksForEvent', () => {
-    it('should return false when no hooks are registered for the event', () => {
-      vi.mocked(mockHookRegistry.getHooksForEvent).mockReturnValue([]);
-
-      expect(hookSystem.hasHooksForEvent('Stop')).toBe(false);
-      expect(mockHookRegistry.getHooksForEvent).toHaveBeenCalledWith('Stop');
-    });
-
-    it('should return true when hooks are registered for the event', () => {
-      vi.mocked(mockHookRegistry.getHooksForEvent).mockReturnValue([
-        {
-          config: {
-            type: HookType.Command,
-            command: 'echo test',
-            source: HooksConfigSource.Project,
-          },
-          source: HooksConfigSource.Project,
-          eventName: HookEventName.Stop,
-          enabled: true,
+      // First execution - hook should run
+      let executionCount = 0;
+      mockSpawn.mockStdoutOn.mockImplementation(
+        (event: string, callback: (data: Buffer) => void) => {
+          if (event === 'data') {
+            executionCount++;
+            setTimeout(() => callback(Buffer.from('output')), 5);
+          }
         },
-      ]);
-
-      expect(hookSystem.hasHooksForEvent('Stop')).toBe(true);
-    });
-
-    it('should check the correct event name for UserPromptSubmit', () => {
-      vi.mocked(mockHookRegistry.getHooksForEvent).mockReturnValue([]);
-
-      hookSystem.hasHooksForEvent('UserPromptSubmit');
-
-      expect(mockHookRegistry.getHooksForEvent).toHaveBeenCalledWith(
-        'UserPromptSubmit',
       );
-    });
 
-    it('should check the correct event name for SessionEnd', () => {
-      vi.mocked(mockHookRegistry.getHooksForEvent).mockReturnValue([]);
-
-      hookSystem.hasHooksForEvent('SessionEnd');
-
-      expect(mockHookRegistry.getHooksForEvent).toHaveBeenCalledWith(
-        'SessionEnd',
-      );
-    });
-  });
-
-  describe('fireStopEvent', () => {
-    it('should fire stop event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: false,
-          stopReason: 'user_stop',
+      mockSpawn.mockProcessOn.mockImplementation(
+        (event: string, callback: (code: number) => void) => {
+          if (event === 'close') {
+            setTimeout(() => callback(0), 10);
+          }
         },
-      };
-      vi.mocked(mockHookEventHandler.fireStopEvent).mockResolvedValue(
-        mockResult,
       );
 
-      const result = await hookSystem.fireStopEvent(true, 'last message');
+      const eventBus = systemForDisabling.getEventHandler();
+      const result1 = await eventBus.fireBeforeToolEvent('TestTool', {
+        test: 'data',
+      });
 
-      expect(mockHookEventHandler.fireStopEvent).toHaveBeenCalledWith(
-        true,
-        'last message',
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should use default parameters when not provided', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireStopEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireStopEvent();
-
-      expect(mockHookEventHandler.fireStopEvent).toHaveBeenCalledWith(
-        false,
-        '',
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireStopEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireStopEvent();
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('fireUserPromptSubmitEvent', () => {
-    it('should fire UserPromptSubmit event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.fireUserPromptSubmitEvent('test prompt');
-
-      expect(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).toHaveBeenCalledWith('test prompt', undefined);
-      expect(result).toBeDefined();
-    });
-
-    it('should pass prompt to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).mockResolvedValue(mockResult);
-
-      await hookSystem.fireUserPromptSubmitEvent('my custom prompt');
-
-      expect(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).toHaveBeenCalledWith('my custom prompt', undefined);
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.fireUserPromptSubmitEvent('test');
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with blocking decision', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'block' as HookDecision,
-          reason: 'Blocked by policy',
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.fireUserPromptSubmitEvent('test');
-
-      expect(result).toBeDefined();
-      expect(result?.isBlockingDecision()).toBe(true);
-    });
-
-    it('should return DefaultHookOutput with additional context', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          hookSpecificOutput: {
-            additionalContext: 'Some additional context',
-          },
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.fireUserPromptSubmitEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.fireUserPromptSubmitEvent('test');
-
-      expect(result).toBeDefined();
-      expect(result?.getAdditionalContext()).toBe('Some additional context');
-    });
-  });
-
-  describe('fireSessionStartEvent', () => {
-    it('should fire session start event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSessionStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSessionStartEvent(
-        SessionStartSource.Startup,
-        'gpt-4',
-      );
-
-      expect(mockHookEventHandler.fireSessionStartEvent).toHaveBeenCalledWith(
-        SessionStartSource.Startup,
-        'gpt-4',
-        undefined,
-        undefined,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass all parameters to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSessionStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireSessionStartEvent(
-        SessionStartSource.Clear,
-        'claude-3',
-        PermissionMode.AutoEdit, // Using actual enum value from PermissionMode
-        AgentType.Custom,
-      );
-
-      expect(mockHookEventHandler.fireSessionStartEvent).toHaveBeenCalledWith(
-        SessionStartSource.Clear,
-        'claude-3',
-        PermissionMode.AutoEdit,
-        AgentType.Custom,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireSessionStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSessionStartEvent(
-        SessionStartSource.Startup,
-        'gpt-4',
-      );
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('fireSessionEndEvent', () => {
-    it('should fire session end event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSessionEndEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSessionEndEvent(
-        SessionEndReason.Other,
-      );
-
-      expect(mockHookEventHandler.fireSessionEndEvent).toHaveBeenCalledWith(
-        SessionEndReason.Other,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass reason to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSessionEndEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireSessionEndEvent(SessionEndReason.Other);
-
-      expect(mockHookEventHandler.fireSessionEndEvent).toHaveBeenCalledWith(
-        SessionEndReason.Other,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireSessionEndEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSessionEndEvent(
-        SessionEndReason.Other,
-      );
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('firePreToolUseEvent', () => {
-    it('should fire PreToolUse event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePreToolUseEvent(
-        'bash',
-        { command: 'ls' },
-        'toolu_test123',
-        PermissionMode.AutoEdit,
-      );
-
-      expect(mockHookEventHandler.firePreToolUseEvent).toHaveBeenCalledWith(
-        'bash',
-        { command: 'ls' },
-        'toolu_test123',
-        PermissionMode.AutoEdit,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass all parameters to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.firePreToolUseEvent(
-        'write_file',
-        { path: '/test.txt', content: 'test' },
-        'toolu_test456',
-        PermissionMode.Yolo,
-      );
-
-      expect(mockHookEventHandler.firePreToolUseEvent).toHaveBeenCalledWith(
-        'write_file',
-        { path: '/test.txt', content: 'test' },
-        'toolu_test456',
-        PermissionMode.Yolo,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.firePreToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePreToolUseEvent(
-        'bash',
-        { command: 'ls' },
-        'toolu_test789',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with deny decision', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'deny' as HookDecision,
-          reason: 'Permission denied by policy',
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePreToolUseEvent(
-        'bash',
-        { command: 'rm -rf /' },
-        'toolu_test999',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.isBlockingDecision()).toBe(true);
-      expect(result?.getEffectiveReason()).toBe('Permission denied by policy');
-    });
-
-    it('should return DefaultHookOutput with additional context', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          hookSpecificOutput: {
-            additionalContext: 'Tool execution monitored for security',
-          },
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePreToolUseEvent(
-        'bash',
-        { command: 'ls' },
-        'toolu_test111',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.getAdditionalContext()).toBe(
-        'Tool execution monitored for security',
-      );
-    });
-  });
-
-  describe('firePostToolUseEvent', () => {
-    it('should fire PostToolUse event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePostToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePostToolUseEvent(
-        'bash',
-        { command: 'ls' },
-        { output: 'file1.txt\nfile2.txt' },
-        'toolu_test123',
-        PermissionMode.AutoEdit,
-      );
-
-      expect(mockHookEventHandler.firePostToolUseEvent).toHaveBeenCalledWith(
-        'bash',
-        { command: 'ls' },
-        { output: 'file1.txt\nfile2.txt' },
-        'toolu_test123',
-        PermissionMode.AutoEdit,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass all parameters to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePostToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.firePostToolUseEvent(
-        'read_file',
-        { path: '/test.txt' },
-        { content: 'file content' },
-        'toolu_test456',
-        PermissionMode.Plan,
-      );
-
-      expect(mockHookEventHandler.firePostToolUseEvent).toHaveBeenCalledWith(
-        'read_file',
-        { path: '/test.txt' },
-        { content: 'file content' },
-        'toolu_test456',
-        PermissionMode.Plan,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.firePostToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePostToolUseEvent(
-        'bash',
-        { command: 'ls' },
-        { output: 'result' },
-        'toolu_test789',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with system message', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          systemMessage: 'Tool executed successfully',
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePostToolUseEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePostToolUseEvent(
-        'bash',
-        { command: 'ls' },
-        { output: 'result' },
-        'toolu_test999',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.systemMessage).toBe('Tool executed successfully');
-    });
-  });
-
-  describe('firePostToolUseFailureEvent', () => {
-    it('should fire PostToolUseFailure event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.firePostToolUseFailureEvent(
-        'toolu_test123',
-        'bash',
-        { command: 'invalid' },
-        'Command not found',
-        false,
-        PermissionMode.AutoEdit,
-      );
-
-      expect(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).toHaveBeenCalledWith(
-        'toolu_test123',
-        'bash',
-        { command: 'invalid' },
-        'Command not found',
-        false,
-        PermissionMode.AutoEdit,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass all parameters to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).mockResolvedValue(mockResult);
-
-      await hookSystem.firePostToolUseFailureEvent(
-        'toolu_test456',
-        'write_file',
-        { path: '/test.txt' },
-        'Permission denied',
-        true,
-        PermissionMode.Yolo,
-      );
-
-      expect(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).toHaveBeenCalledWith(
-        'toolu_test456',
-        'write_file',
-        { path: '/test.txt' },
-        'Permission denied',
-        true,
-        PermissionMode.Yolo,
-        undefined,
-      );
-    });
-
-    it('should use default values for optional parameters', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).mockResolvedValue(mockResult);
-
-      await hookSystem.firePostToolUseFailureEvent(
-        'toolu_test789',
-        'bash',
-        { command: 'ls' },
-        'Error occurred',
-      );
-
-      expect(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).toHaveBeenCalledWith(
-        'toolu_test789',
-        'bash',
-        { command: 'ls' },
-        'Error occurred',
-        undefined,
-        undefined,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.firePostToolUseFailureEvent(
-        'toolu_test999',
-        'bash',
-        { command: 'ls' },
-        'Error',
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with error context', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          hookSpecificOutput: {
-            additionalContext: 'Failure due to permission issues',
-          },
-        },
-      };
-      vi.mocked(
-        mockHookEventHandler.firePostToolUseFailureEvent,
-      ).mockResolvedValue(mockResult);
-
-      const result = await hookSystem.firePostToolUseFailureEvent(
-        'toolu_test111',
-        'bash',
-        { command: 'ls' },
-        'Permission denied',
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.getAdditionalContext()).toBe(
-        'Failure due to permission issues',
-      );
-    });
-  });
-
-  describe('firePreCompactEvent', () => {
-    it('should fire PreCompact event with auto trigger and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreCompactEvent).mockResolvedValue(
-        mockResult,
-      );
+      expect(result1.success).toBe(true);
+      expect(executionCount).toBe(1);
 
-      const result = await hookSystem.firePreCompactEvent(
-        PreCompactTrigger.Auto,
-        '',
-      );
-
-      expect(mockHookEventHandler.firePreCompactEvent).toHaveBeenCalledWith(
-        PreCompactTrigger.Auto,
-        '',
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should fire PreCompact event with manual trigger', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreCompactEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.firePreCompactEvent(PreCompactTrigger.Manual, '');
-
-      expect(mockHookEventHandler.firePreCompactEvent).toHaveBeenCalledWith(
-        PreCompactTrigger.Manual,
-        '',
-        undefined,
-      );
-    });
-
-    it('should pass custom instructions to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreCompactEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.firePreCompactEvent(
-        PreCompactTrigger.Auto,
-        'Custom compression instructions',
-      );
-
-      expect(mockHookEventHandler.firePreCompactEvent).toHaveBeenCalledWith(
-        PreCompactTrigger.Auto,
-        'Custom compression instructions',
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.firePreCompactEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePreCompactEvent(
-        PreCompactTrigger.Auto,
-        '',
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with additional context', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          hookSpecificOutput: {
-            additionalContext: 'Context before compression',
-          },
-        },
-      };
-      vi.mocked(mockHookEventHandler.firePreCompactEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.firePreCompactEvent(
-        PreCompactTrigger.Manual,
-        '',
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.getAdditionalContext()).toBe('Context before compression');
-    });
-  });
-
-  describe('fireNotificationEvent', () => {
-    it('should fire Notification event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireNotificationEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireNotificationEvent(
-        'Test notification message',
-        NotificationType.PermissionPrompt,
-        'Permission needed',
-      );
-
-      expect(mockHookEventHandler.fireNotificationEvent).toHaveBeenCalledWith(
-        'Test notification message',
-        NotificationType.PermissionPrompt,
-        'Permission needed',
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass all parameters to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireNotificationEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireNotificationEvent(
-        'APEX is waiting for your input',
-        NotificationType.IdlePrompt,
-        'Waiting for input',
-      );
-
-      expect(mockHookEventHandler.fireNotificationEvent).toHaveBeenCalledWith(
-        'APEX is waiting for your input',
-        NotificationType.IdlePrompt,
-        'Waiting for input',
-        undefined,
-      );
-    });
-
-    it('should handle notification without title', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireNotificationEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireNotificationEvent(
-        'Authentication successful',
-        NotificationType.AuthSuccess,
-      );
-
-      expect(mockHookEventHandler.fireNotificationEvent).toHaveBeenCalledWith(
-        'Authentication successful',
-        NotificationType.AuthSuccess,
-        undefined,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireNotificationEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireNotificationEvent(
-        'Test message',
-        NotificationType.PermissionPrompt,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with additional context', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          hookSpecificOutput: {
-            additionalContext: 'Notification handled by custom handler',
-          },
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireNotificationEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireNotificationEvent(
-        'Test notification',
-        NotificationType.IdlePrompt,
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.getAdditionalContext()).toBe(
-        'Notification handled by custom handler',
-      );
-    });
-
-    it('should handle elicitation_dialog notification type', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireNotificationEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireNotificationEvent(
-        'Dialog shown to user',
-        NotificationType.ElicitationDialog,
-        'Dialog',
-      );
-
-      expect(mockHookEventHandler.fireNotificationEvent).toHaveBeenCalledWith(
-        'Dialog shown to user',
-        NotificationType.ElicitationDialog,
-        'Dialog',
-        undefined,
-      );
-    });
-  });
-
-  describe('firePermissionRequestEvent', () => {
-    it('should delegate to hookEventHandler.firePermissionRequestEvent', async () => {
-      const mockFinalOutput = {
-        hookSpecificOutput: {
-          decision: {
-            behavior: 'allow' as const,
-          },
-        },
-      };
-      const mockAggregated = createMockAggregatedResult(true, mockFinalOutput);
-
-      vi.mocked(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).mockResolvedValue(mockAggregated);
-
-      const result = await hookSystem.firePermissionRequestEvent(
-        'Bash',
-        { command: 'ls -la' },
-        PermissionMode.Default,
-      );
-
-      expect(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).toHaveBeenCalledWith(
-        'Bash',
-        { command: 'ls -la' },
-        PermissionMode.Default,
-        undefined,
-        undefined,
-      );
-      expect(result).toBeDefined();
-      // Type assertion needed because getPermissionDecision is specific to PermissionRequestHookOutput
-      const permissionResult = result as unknown as {
-        getPermissionDecision: () => { behavior: string } | undefined;
-      };
-      expect(permissionResult.getPermissionDecision()?.behavior).toBe('allow');
-    });
-
-    it('should include permission_suggestions when provided', async () => {
-      const mockAggregated = createMockAggregatedResult(true);
-      const suggestions: PermissionSuggestion[] = [
-        { type: 'toolAlwaysAllow', tool: 'Bash' },
-      ];
-
-      vi.mocked(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).mockResolvedValue(mockAggregated);
+      // Disable the hook via setHookEnabled (simulating /hooks disable command)
+      systemForDisabling.setHookEnabled('echo "will-be-disabled"', false);
 
-      await hookSystem.firePermissionRequestEvent(
-        'Bash',
-        { command: 'npm test' },
-        PermissionMode.Default,
-        suggestions,
-      );
-
-      expect(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).toHaveBeenCalledWith(
-        'Bash',
-        { command: 'npm test' },
-        PermissionMode.Default,
-        suggestions,
-        undefined,
-      );
-    });
-
-    it('should return undefined when hook has no finalOutput', async () => {
-      const mockAggregated = createMockAggregatedResult(false);
-
-      vi.mocked(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).mockResolvedValue(mockAggregated);
-
-      const result = await hookSystem.firePermissionRequestEvent(
-        'ReadFile',
-        { file_path: '/test.txt' },
-        PermissionMode.Plan,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should handle all permission modes correctly', async () => {
-      const mockAggregated = createMockAggregatedResult(true);
-
-      vi.mocked(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).mockResolvedValue(mockAggregated);
-
-      // Test Default mode
-      await hookSystem.firePermissionRequestEvent(
-        'Bash',
-        { command: 'test' },
-        PermissionMode.Default,
-      );
-
-      // Test Plan mode
-      await hookSystem.firePermissionRequestEvent(
-        'Bash',
-        { command: 'test' },
-        PermissionMode.Plan,
-      );
-
-      // Test Yolo mode
-      await hookSystem.firePermissionRequestEvent(
-        'Bash',
-        { command: 'test' },
-        PermissionMode.Yolo,
-      );
-
-      expect(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).toHaveBeenCalledTimes(3);
-    });
-
-    it('should pass through hook errors', async () => {
-      const mockAggregated = createMockAggregatedResult(false);
-      mockAggregated.errors = [new Error('PermissionRequest hook error')];
-
-      vi.mocked(
-        mockHookEventHandler.firePermissionRequestEvent,
-      ).mockResolvedValue(mockAggregated);
-
-      const result = await hookSystem.firePermissionRequestEvent(
-        'Bash',
-        { command: 'test' },
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('fireSubagentStartEvent', () => {
-    it('should fire SubagentStart event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSubagentStartEvent(
-        'agent-123',
-        'code-reviewer',
-        PermissionMode.Default,
-      );
-
-      expect(mockHookEventHandler.fireSubagentStartEvent).toHaveBeenCalledWith(
-        'agent-123',
-        'code-reviewer',
-        PermissionMode.Default,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass AgentType enum as agent type', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireSubagentStartEvent(
-        'agent-456',
-        AgentType.Bash,
-        PermissionMode.Yolo,
-      );
-
-      expect(mockHookEventHandler.fireSubagentStartEvent).toHaveBeenCalledWith(
-        'agent-456',
-        AgentType.Bash,
-        PermissionMode.Yolo,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSubagentStartEvent(
-        'agent-789',
-        'test-agent',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should return DefaultHookOutput with additional context', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          hookSpecificOutput: {
-            additionalContext: 'Extra context injected by SubagentStart hook',
-          },
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStartEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSubagentStartEvent(
-        'agent-111',
-        'code-reviewer',
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeDefined();
-      expect(result?.getAdditionalContext()).toBe(
-        'Extra context injected by SubagentStart hook',
-      );
-    });
-  });
-
-  describe('fireSubagentStopEvent', () => {
-    it('should fire SubagentStop event and return output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          continue: true,
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStopEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSubagentStopEvent(
-        'agent-123',
-        'code-reviewer',
-        '/path/to/transcript.jsonl',
-        'Final output from subagent',
-        false,
-        PermissionMode.Default,
-      );
-
-      expect(mockHookEventHandler.fireSubagentStopEvent).toHaveBeenCalledWith(
-        'agent-123',
-        'code-reviewer',
-        '/path/to/transcript.jsonl',
-        'Final output from subagent',
-        false,
-        PermissionMode.Default,
-        undefined,
-      );
-      expect(result).toBeDefined();
-    });
-
-    it('should pass all parameters to event handler', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStopEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      await hookSystem.fireSubagentStopEvent(
-        'agent-456',
-        'qwen-tester',
-        '/transcript/path.jsonl',
-        'last message from agent',
-        true,
-        PermissionMode.Plan,
-      );
-
-      expect(mockHookEventHandler.fireSubagentStopEvent).toHaveBeenCalledWith(
-        'agent-456',
-        'qwen-tester',
-        '/transcript/path.jsonl',
-        'last message from agent',
-        true,
-        PermissionMode.Plan,
-        undefined,
-      );
-    });
-
-    it('should return undefined when no final output', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 0,
-        finalOutput: undefined,
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStopEvent).mockResolvedValue(
-        mockResult,
-      );
-
-      const result = await hookSystem.fireSubagentStopEvent(
-        'agent-789',
-        'test-agent',
-        '/path/transcript.jsonl',
-        'output',
-        false,
-        PermissionMode.Default,
-      );
-
-      expect(result).toBeUndefined();
-    });
+      // Reset execution count
+      executionCount = 0;
 
-    it('should return StopHookOutput with blocking decision', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'block' as HookDecision,
-          reason: 'Output too short, continue working',
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStopEvent).mockResolvedValue(
-        mockResult,
-      );
+      // Second execution - hook should NOT run
+      const result2 = await eventBus.fireBeforeToolEvent('TestTool', {
+        test: 'data',
+      });
 
-      const result = await hookSystem.fireSubagentStopEvent(
-        'agent-999',
-        'code-reviewer',
-        '/path/transcript.jsonl',
-        'short',
-        false,
-        PermissionMode.Default,
-      );
+      expect(result2.success).toBe(true);
+      // Hook should not have executed
+      expect(executionCount).toBe(0);
 
-      expect(result).toBeDefined();
-      expect(result?.isBlockingDecision()).toBe(true);
-      expect(result?.getEffectiveReason()).toBe(
-        'Output too short, continue working',
-      );
-    });
+      // Re-enable the hook
+      systemForDisabling.setHookEnabled('echo "will-be-disabled"', true);
 
-    it('should return StopHookOutput with allow decision', async () => {
-      const mockResult = {
-        success: true,
-        allOutputs: [],
-        errors: [],
-        totalDuration: 50,
-        finalOutput: {
-          decision: 'allow' as HookDecision,
-          reason: 'Output looks good',
-        },
-      };
-      vi.mocked(mockHookEventHandler.fireSubagentStopEvent).mockResolvedValue(
-        mockResult,
-      );
+      // Reset execution count
+      executionCount = 0;
 
-      const result = await hookSystem.fireSubagentStopEvent(
-        'agent-222',
-        'code-reviewer',
-        '/path/transcript.jsonl',
-        'A comprehensive review of the code...',
-        false,
-        PermissionMode.Default,
-      );
+      // Third execution - hook should run again
+      const result3 = await eventBus.fireBeforeToolEvent('TestTool', {
+        test: 'data',
+      });
 
-      expect(result).toBeDefined();
-      expect(result?.isBlockingDecision()).toBe(false);
+      expect(result3.success).toBe(true);
+      expect(executionCount).toBe(1);
     });
   });
 });

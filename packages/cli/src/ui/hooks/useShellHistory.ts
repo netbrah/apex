@@ -7,14 +7,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import {
-  createDebugLogger,
-  isNodeError,
-  Storage,
-} from '@apex-code/apex-core';
+import { debugLogger, isNodeError, Storage } from '@apex-code/apex-core';
 
 const MAX_HISTORY_LENGTH = 100;
-const debugLogger = createDebugLogger('SHELL_HISTORY');
 
 export interface UseShellHistoryReturn {
   history: string[];
@@ -29,6 +24,7 @@ async function getHistoryFilePath(
   configStorage?: Storage,
 ): Promise<string> {
   const storage = configStorage ?? new Storage(projectRoot);
+  await storage.initialize();
   return storage.getHistoryFilePath();
 }
 
@@ -89,6 +85,7 @@ export function useShellHistory(
       const loadedHistory = await readHistoryFile(filePath);
       setHistory(loadedHistory.reverse()); // Newest first
     }
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     loadHistory();
   }, [projectRoot, storage]);
 
@@ -102,6 +99,7 @@ export function useShellHistory(
         .filter(Boolean);
       setHistory(newHistory);
       // Write to file in reverse order (oldest first)
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       writeHistoryFile(historyFilePath, [...newHistory].reverse());
       setHistoryIndex(-1);
     },

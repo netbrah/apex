@@ -7,14 +7,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   formatDuration,
-  formatMemoryUsage,
-  formatRelativeTime,
-  formatTokenCount,
+  formatBytes,
+  formatTimeAgo,
+  stripReferenceContent,
+  formatResetTime,
 } from './formatters.js';
 
 describe('formatters', () => {
-  describe('formatRelativeTime', () => {
-    const NOW = 1700000000000; // Fixed timestamp for testing
+  describe('formatResetTime', () => {
+    const NOW = new Date('2025-01-01T12:00:00Z');
 
     beforeEach(() => {
       vi.useFakeTimers();
@@ -25,86 +26,40 @@ describe('formatters', () => {
       vi.useRealTimers();
     });
 
-    it('should return "just now" for timestamps less than a minute ago', () => {
-      expect(formatRelativeTime(NOW - 30 * 1000)).toBe('just now');
-      expect(formatRelativeTime(NOW - 59 * 1000)).toBe('just now');
+    it('should format full time correctly', () => {
+      const resetTime = new Date(NOW.getTime() + 90 * 60 * 1000).toISOString(); // 1h 30m
+      const result = formatResetTime(resetTime);
+      expect(result).toMatch(/1 hour 30 minutes at \d{1,2}:\d{2} [AP]M/);
     });
 
-    it('should return "1 minute ago" for exactly one minute', () => {
-      expect(formatRelativeTime(NOW - 60 * 1000)).toBe('1 minute ago');
+    it('should format terse time correctly', () => {
+      const resetTime = new Date(NOW.getTime() + 90 * 60 * 1000).toISOString(); // 1h 30m
+      expect(formatResetTime(resetTime, 'terse')).toBe('1h 30m');
     });
 
-    it('should return plural minutes for multiple minutes', () => {
-      expect(formatRelativeTime(NOW - 5 * 60 * 1000)).toBe('5 minutes ago');
-      expect(formatRelativeTime(NOW - 30 * 60 * 1000)).toBe('30 minutes ago');
+    it('should format column time correctly', () => {
+      const resetTime = new Date(NOW.getTime() + 90 * 60 * 1000).toISOString(); // 1h 30m
+      const result = formatResetTime(resetTime, 'column');
+      expect(result).toMatch(/\d{1,2}:\d{2} [AP]M \(1h 30m\)/);
     });
 
-    it('should return "1 hour ago" for exactly one hour', () => {
-      expect(formatRelativeTime(NOW - 60 * 60 * 1000)).toBe('1 hour ago');
-    });
-
-    it('should return plural hours for multiple hours', () => {
-      expect(formatRelativeTime(NOW - 3 * 60 * 60 * 1000)).toBe('3 hours ago');
-      expect(formatRelativeTime(NOW - 23 * 60 * 60 * 1000)).toBe(
-        '23 hours ago',
-      );
-    });
-
-    it('should return "1 day ago" for exactly one day', () => {
-      expect(formatRelativeTime(NOW - 24 * 60 * 60 * 1000)).toBe('1 day ago');
-    });
-
-    it('should return plural days for multiple days', () => {
-      expect(formatRelativeTime(NOW - 3 * 24 * 60 * 60 * 1000)).toBe(
-        '3 days ago',
-      );
-      expect(formatRelativeTime(NOW - 6 * 24 * 60 * 60 * 1000)).toBe(
-        '6 days ago',
-      );
-    });
-
-    it('should return "1 week ago" for exactly one week', () => {
-      expect(formatRelativeTime(NOW - 7 * 24 * 60 * 60 * 1000)).toBe(
-        '1 week ago',
-      );
-    });
-
-    it('should return plural weeks for multiple weeks', () => {
-      expect(formatRelativeTime(NOW - 14 * 24 * 60 * 60 * 1000)).toBe(
-        '2 weeks ago',
-      );
-      expect(formatRelativeTime(NOW - 21 * 24 * 60 * 60 * 1000)).toBe(
-        '3 weeks ago',
-      );
-    });
-
-    it('should return "1 month ago" for exactly one month (30 days)', () => {
-      expect(formatRelativeTime(NOW - 30 * 24 * 60 * 60 * 1000)).toBe(
-        '1 month ago',
-      );
-    });
-
-    it('should return plural months for multiple months', () => {
-      expect(formatRelativeTime(NOW - 60 * 24 * 60 * 60 * 1000)).toBe(
-        '2 months ago',
-      );
-      expect(formatRelativeTime(NOW - 90 * 24 * 60 * 60 * 1000)).toBe(
-        '3 months ago',
-      );
+    it('should handle zero or negative diff by returning empty string', () => {
+      const resetTime = new Date(NOW.getTime() - 1000).toISOString();
+      expect(formatResetTime(resetTime)).toBe('');
     });
   });
 
-  describe('formatMemoryUsage', () => {
+  describe('formatBytes', () => {
     it('should format bytes into KB', () => {
-      expect(formatMemoryUsage(12345)).toBe('12.1 KB');
+      expect(formatBytes(12345)).toBe('12.1 KB');
     });
 
     it('should format bytes into MB', () => {
-      expect(formatMemoryUsage(12345678)).toBe('11.8 MB');
+      expect(formatBytes(12345678)).toBe('11.8 MB');
     });
 
     it('should format bytes into GB', () => {
-      expect(formatMemoryUsage(12345678901)).toBe('11.50 GB');
+      expect(formatBytes(12345678901)).toBe('11.50 GB');
     });
   });
 
@@ -156,24 +111,92 @@ describe('formatters', () => {
     });
   });
 
-  describe('formatTokenCount', () => {
-    it('should display exact number for counts less than 1000', () => {
-      expect(formatTokenCount(0)).toBe('0');
-      expect(formatTokenCount(100)).toBe('100');
-      expect(formatTokenCount(847)).toBe('847');
-      expect(formatTokenCount(999)).toBe('999');
+  describe('formatTimeAgo', () => {
+    const NOW = new Date('2025-01-01T12:00:00Z');
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
     });
 
-    it('should display with k suffix and one decimal for counts 1000-9999', () => {
-      expect(formatTokenCount(1000)).toBe('1.0k');
-      expect(formatTokenCount(5400)).toBe('5.4k');
-      expect(formatTokenCount(9999)).toBe('10.0k');
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
-    it('should display with k suffix without decimal for counts 10000 and above', () => {
-      expect(formatTokenCount(10000)).toBe('10k');
-      expect(formatTokenCount(15000)).toBe('15k');
-      expect(formatTokenCount(100000)).toBe('100k');
+    it('should return "just now" for dates less than a minute ago', () => {
+      const past = new Date(NOW.getTime() - 30 * 1000);
+      expect(formatTimeAgo(past)).toBe('just now');
+    });
+
+    it('should return minutes ago', () => {
+      const past = new Date(NOW.getTime() - 5 * 60 * 1000);
+      expect(formatTimeAgo(past)).toBe('5m ago');
+    });
+
+    it('should return hours ago', () => {
+      const past = new Date(NOW.getTime() - 3 * 60 * 60 * 1000);
+      expect(formatTimeAgo(past)).toBe('3h ago');
+    });
+
+    it('should return days ago', () => {
+      const past = new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000);
+      expect(formatTimeAgo(past)).toBe('48h ago');
+    });
+
+    it('should handle string dates', () => {
+      const past = '2025-01-01T11:00:00Z'; // 1 hour ago
+      expect(formatTimeAgo(past)).toBe('1h ago');
+    });
+
+    it('should handle number timestamps', () => {
+      const past = NOW.getTime() - 10 * 60 * 1000; // 10 minutes ago
+      expect(formatTimeAgo(past)).toBe('10m ago');
+    });
+    it('should handle invalid timestamps', () => {
+      const past = 'hello';
+      expect(formatTimeAgo(past)).toBe('invalid date');
+    });
+  });
+
+  describe('stripReferenceContent', () => {
+    it('should return the original text if no markers are present', () => {
+      const text = 'Hello world';
+      expect(stripReferenceContent(text)).toBe(text);
+    });
+
+    it('should strip content between markers', () => {
+      const text =
+        'Prompt @file.txt\n--- Content from referenced files ---\nFile content here\n--- End of content ---';
+      expect(stripReferenceContent(text)).toBe('Prompt @file.txt');
+    });
+
+    it('should strip content and keep text after the markers', () => {
+      const text =
+        'Before\n--- Content from referenced files ---\nMiddle\n--- End of content ---\nAfter';
+      expect(stripReferenceContent(text)).toBe('Before\nAfter');
+    });
+
+    it('should handle missing end marker gracefully', () => {
+      const text = 'Before\n--- Content from referenced files ---\nMiddle';
+      expect(stripReferenceContent(text)).toBe(text);
+    });
+
+    it('should handle end marker before start marker gracefully', () => {
+      const text =
+        '--- End of content ---\n--- Content from referenced files ---';
+      expect(stripReferenceContent(text)).toBe(text);
+    });
+
+    it('should strip even if markers are on the same line (though unlikely)', () => {
+      const text =
+        'A--- Content from referenced files ---B--- End of content ---C';
+      expect(stripReferenceContent(text)).toBe('AC');
+    });
+
+    it('should strip multiple blocks correctly and preserve text in between', () => {
+      const text =
+        'Start\n--- Content from referenced files ---\nBlock1\n--- End of content ---\nMiddle\n--- Content from referenced files ---\nBlock2\n--- End of content ---\nEnd';
+      expect(stripReferenceContent(text)).toBe('Start\nMiddle\nEnd');
     });
   });
 });

@@ -1,225 +1,133 @@
 /**
  * @license
- * Copyright 2025 Google LLC
+ * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  discoverJitContext,
-  appendJitContext,
-  appendJitContextToParts,
-  resetJitContextState,
-  JIT_CONTEXT_PREFIX,
-  JIT_CONTEXT_SUFFIX,
-} from './jit-context.js';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as os from 'node:os';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { discoverJitContext, appendJitContext } from './jit-context.js';
+import type { Config } from '../config/config.js';
+import type { MemoryContextManager } from '../context/memoryContextManager.js';
 
 describe('jit-context', () => {
-  let tempDir: string;
-
-  beforeEach(() => {
-    resetJitContextState();
-    tempDir = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'jit-ctx-')),
-    );
-  });
-
-  afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  });
-
   describe('discoverJitContext', () => {
-    it('should return empty string when no context files exist', async () => {
-      fs.writeFileSync(path.join(tempDir, 'file.ts'), 'const x = 1;');
-      const result = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'file.ts'),
-      );
-      expect(result).toBe('');
-    });
+    let mockConfig: Config;
+    let mockMemoryContextManager: MemoryContextManager;
 
-    it('should discover AGENTS.md in the same directory as the accessed file', async () => {
-      const subDir = path.join(tempDir, 'src');
-      fs.mkdirSync(subDir);
-      fs.writeFileSync(
-        path.join(subDir, 'AGENTS.md'),
-        'Use strict mode always.',
-      );
-      fs.writeFileSync(path.join(subDir, 'file.ts'), 'const x = 1;');
+    beforeEach(() => {
+      mockMemoryContextManager = {
+        discoverContext: vi.fn().mockResolvedValue(''),
+      } as unknown as MemoryContextManager;
 
-      const result = await discoverJitContext(
-        [tempDir],
-        path.join(subDir, 'file.ts'),
-      );
-      expect(result).toContain('Use strict mode always.');
-    });
-
-    it('should discover context files in parent directories up to workspace root', async () => {
-      const subDir = path.join(tempDir, 'src', 'deep');
-      fs.mkdirSync(subDir, { recursive: true });
-      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), 'Root-level context.');
-      fs.writeFileSync(path.join(subDir, 'file.ts'), '');
-
-      const result = await discoverJitContext(
-        [tempDir],
-        path.join(subDir, 'file.ts'),
-      );
-      expect(result).toContain('Root-level context.');
-    });
-
-    it('should NOT traverse above the workspace root', async () => {
-      const parentContext = path.join(path.dirname(tempDir), 'AGENTS.md');
-      let createdParent = false;
-      try {
-        fs.writeFileSync(parentContext, 'Should NOT be found.');
-        createdParent = true;
-      } catch {
-        // May not have permission, skip
-      }
-
-      const result = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'file.ts'),
-      );
-      expect(result).not.toContain('Should NOT be found.');
-
-      if (createdParent) {
-        fs.unlinkSync(parentContext);
-      }
-    });
-
-    it('should deduplicate — same file not injected twice across calls', async () => {
-      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), 'Only once.');
-      fs.writeFileSync(path.join(tempDir, 'a.ts'), '');
-      fs.writeFileSync(path.join(tempDir, 'b.ts'), '');
-
-      const first = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'a.ts'),
-      );
-      expect(first).toContain('Only once.');
-
-      const second = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'b.ts'),
-      );
-      expect(second).toBe('');
-    });
-
-    it('should reset dedup state when resetJitContextState is called', async () => {
-      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), 'Context.');
-      fs.writeFileSync(path.join(tempDir, 'file.ts'), '');
-
-      const first = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'file.ts'),
-      );
-      expect(first).toContain('Context.');
-
-      resetJitContextState();
-
-      const afterReset = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'file.ts'),
-      );
-      expect(afterReset).toContain('Context.');
-    });
-
-    it('should silently return empty string on errors (never break the tool)', async () => {
-      const result = await discoverJitContext(
-        ['/nonexistent/root'],
-        '/nonexistent/path/file.ts',
-      );
-      expect(result).toBe('');
-    });
-
-    it('should ignore empty/whitespace-only context files', async () => {
-      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), '   \n  \n  ');
-      fs.writeFileSync(path.join(tempDir, 'file.ts'), '');
-
-      const result = await discoverJitContext(
-        [tempDir],
-        path.join(tempDir, 'file.ts'),
-      );
-      expect(result).toBe('');
-    });
-
-    it('should work with directory paths (not just file paths)', async () => {
-      const subDir = path.join(tempDir, 'src');
-      fs.mkdirSync(subDir);
-      fs.writeFileSync(path.join(subDir, 'AGENTS.md'), 'Dir context.');
-
-      const result = await discoverJitContext([tempDir], subDir);
-      expect(result).toContain('Dir context.');
-    });
-
-    it('should concatenate multiple context files from different levels', async () => {
-      const subDir = path.join(tempDir, 'src');
-      fs.mkdirSync(subDir);
-      fs.writeFileSync(path.join(subDir, 'AGENTS.md'), 'Leaf context.');
-      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), 'Root context.');
-      fs.writeFileSync(path.join(subDir, 'file.ts'), '');
-
-      const result = await discoverJitContext(
-        [tempDir],
-        path.join(subDir, 'file.ts'),
-      );
-      expect(result).toContain('Leaf context.');
-      expect(result).toContain('Root context.');
-    });
-
-    it('should accept Config object and extract workspace dirs', async () => {
-      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), 'Config test.');
-      fs.writeFileSync(path.join(tempDir, 'file.ts'), '');
-
-      const mockConfig = {
-        getWorkspaceContext: () => ({
-          getDirectories: () => [tempDir],
+      mockConfig = {
+        isJitContextEnabled: vi.fn().mockReturnValue(false),
+        getMemoryContextManager: vi
+          .fn()
+          .mockReturnValue(mockMemoryContextManager),
+        getWorkspaceContext: vi.fn().mockReturnValue({
+          getDirectories: vi.fn().mockReturnValue(['/app']),
         }),
-      } as unknown as import('../config/config.js').Config;
+      } as unknown as Config;
+    });
 
-      const result = await discoverJitContext(
-        mockConfig,
-        path.join(tempDir, 'file.ts'),
+    it('should return empty string when JIT is disabled', async () => {
+      vi.mocked(mockConfig.isJitContextEnabled).mockReturnValue(false);
+
+      const result = await discoverJitContext(mockConfig, '/app/src/file.ts');
+
+      expect(result).toBe('');
+      expect(mockMemoryContextManager.discoverContext).not.toHaveBeenCalled();
+    });
+
+    it('should return empty string when memoryContextManager is undefined', async () => {
+      vi.mocked(mockConfig.isJitContextEnabled).mockReturnValue(true);
+      vi.mocked(mockConfig.getMemoryContextManager).mockReturnValue(undefined);
+
+      const result = await discoverJitContext(mockConfig, '/app/src/file.ts');
+
+      expect(result).toBe('');
+    });
+
+    it('should call memoryContextManager.discoverContext with correct args when JIT is enabled', async () => {
+      vi.mocked(mockConfig.isJitContextEnabled).mockReturnValue(true);
+      vi.mocked(mockMemoryContextManager.discoverContext).mockResolvedValue(
+        'Subdirectory context content',
       );
-      expect(result).toContain('Config test.');
+
+      const result = await discoverJitContext(mockConfig, '/app/src/file.ts');
+
+      expect(mockMemoryContextManager.discoverContext).toHaveBeenCalledWith(
+        '/app/src/file.ts',
+        ['/app'],
+      );
+      expect(result).toBe('Subdirectory context content');
+    });
+
+    it('should pass all workspace directories as trusted roots', async () => {
+      vi.mocked(mockConfig.isJitContextEnabled).mockReturnValue(true);
+      vi.mocked(mockConfig.getWorkspaceContext).mockReturnValue({
+        getDirectories: vi.fn().mockReturnValue(['/app', '/lib']),
+      } as unknown as ReturnType<Config['getWorkspaceContext']>);
+      vi.mocked(mockMemoryContextManager.discoverContext).mockResolvedValue('');
+
+      await discoverJitContext(mockConfig, '/app/src/file.ts');
+
+      expect(mockMemoryContextManager.discoverContext).toHaveBeenCalledWith(
+        '/app/src/file.ts',
+        ['/app', '/lib'],
+      );
+    });
+
+    it('should return empty string when no new context is found', async () => {
+      vi.mocked(mockConfig.isJitContextEnabled).mockReturnValue(true);
+      vi.mocked(mockMemoryContextManager.discoverContext).mockResolvedValue('');
+
+      const result = await discoverJitContext(mockConfig, '/app/src/file.ts');
+
+      expect(result).toBe('');
+    });
+
+    it('should return empty string when discoverContext throws', async () => {
+      vi.mocked(mockConfig.isJitContextEnabled).mockReturnValue(true);
+      vi.mocked(mockMemoryContextManager.discoverContext).mockRejectedValue(
+        new Error('Permission denied'),
+      );
+
+      const result = await discoverJitContext(mockConfig, '/app/src/file.ts');
+
+      expect(result).toBe('');
     });
   });
 
   describe('appendJitContext', () => {
     it('should return original content when jitContext is empty', () => {
-      expect(appendJitContext('file contents', '')).toBe('file contents');
+      const content = 'file contents here';
+      const result = appendJitContext(content, '');
+
+      expect(result).toBe(content);
     });
 
-    it('should append delimited context when non-empty', () => {
-      const result = appendJitContext('original', 'new context');
-      expect(result).toContain('original');
-      expect(result).toContain(JIT_CONTEXT_PREFIX);
-      expect(result).toContain('new context');
-      expect(result).toContain(JIT_CONTEXT_SUFFIX);
+    it('should append delimited context when jitContext is non-empty', () => {
+      const content = 'file contents here';
+      const jitContext = 'Use the useAuth hook.';
+
+      const result = appendJitContext(content, jitContext);
+
+      expect(result).toContain(content);
+      expect(result).toContain('--- Newly Discovered Project Context ---');
+      expect(result).toContain(jitContext);
+      expect(result).toContain('--- End Project Context ---');
     });
 
-    it('should place context after original content', () => {
-      const result = appendJitContext('AAA', 'BBB');
-      expect(result.indexOf('AAA')).toBeLessThan(result.indexOf('BBB'));
-    });
-  });
+    it('should place context after the original content', () => {
+      const content = 'original output';
+      const jitContext = 'context rules';
 
-  describe('appendJitContextToParts', () => {
-    it('should add a text part with delimited context', () => {
-      const parts = appendJitContextToParts(['existing text'], 'ctx');
-      expect(parts).toHaveLength(2);
-      const textPart = parts[1] as { text: string };
-      expect(textPart.text).toContain('ctx');
-      expect(textPart.text).toContain('Newly Discovered Project Context');
-    });
+      const result = appendJitContext(content, jitContext);
 
-    it('should wrap non-array content into array', () => {
-      const parts = appendJitContextToParts('single string', 'ctx');
-      expect(parts).toHaveLength(2);
+      const contentIndex = result.indexOf(content);
+      const contextIndex = result.indexOf(jitContext);
+      expect(contentIndex).toBeLessThan(contextIndex);
     });
   });
 });

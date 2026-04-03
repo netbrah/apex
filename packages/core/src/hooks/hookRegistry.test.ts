@@ -1,636 +1,790 @@
 /**
  * @license
- * Copyright 2026 Qwen Team
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { HookRegistryConfig, FeedbackEmitter } from './hookRegistry.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
 import { HookRegistry } from './hookRegistry.js';
-import { HookEventName, HooksConfigSource, HookType } from './types.js';
-import type { HookConfig } from './types.js';
+import type { Storage } from '../config/storage.js';
+import {
+  ConfigSource,
+  HookEventName,
+  HookType,
+  HOOKS_CONFIG_FIELDS,
+  type CommandHookConfig,
+  type HookDefinition,
+} from './types.js';
+import type { Config } from '../config/config.js';
 
-// Mock TrustedHooksManager
-vi.mock('./trustedHooks.js', () => ({
-  TrustedHooksManager: vi.fn().mockImplementation(() => ({
+// Mock fs
+vi.mock('fs', () => ({
+  existsSync: vi.fn(),
+  readFileSync: vi.fn(),
+}));
+
+// Mock debugLogger using vi.hoisted
+const mockDebugLogger = vi.hoisted(() => ({
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
+vi.mock('../utils/debugLogger.js', () => ({
+  debugLogger: mockDebugLogger,
+}));
+
+const { mockTrustedHooksManager, mockCoreEvents } = vi.hoisted(() => ({
+  mockTrustedHooksManager: {
     getUntrustedHooks: vi.fn().mockReturnValue([]),
     trustHooks: vi.fn(),
-  })),
+  },
+  mockCoreEvents: {
+    emitConsoleLog: vi.fn(),
+    emitFeedback: vi.fn(),
+  },
+}));
+
+vi.mock('./trustedHooks.js', () => ({
+  TrustedHooksManager: vi.fn(() => mockTrustedHooksManager),
+}));
+
+vi.mock('../utils/events.js', () => ({
+  coreEvents: mockCoreEvents,
 }));
 
 describe('HookRegistry', () => {
-  let mockConfig: HookRegistryConfig;
-  let mockFeedbackEmitter: FeedbackEmitter;
+  let hookRegistry: HookRegistry;
+  let mockConfig: Config;
+  let mockStorage: Storage;
 
   beforeEach(() => {
+    vi.resetAllMocks();
+
+    mockStorage = {
+      getGeminiDir: vi.fn().mockReturnValue('/project/.gemini'),
+    } as unknown as Storage;
+
     mockConfig = {
-      getProjectRoot: vi.fn().mockReturnValue('/test/project'),
-      isTrustedFolder: vi.fn().mockReturnValue(true),
-      getHooks: vi.fn().mockReturnValue(undefined),
-      getProjectHooks: vi.fn().mockReturnValue(undefined),
-      getDisabledHooks: vi.fn().mockReturnValue([]),
+      storage: mockStorage,
       getExtensions: vi.fn().mockReturnValue([]),
-    };
-    mockFeedbackEmitter = {
-      emitFeedback: vi.fn(),
-    };
-    vi.clearAllMocks();
+      getHooks: vi.fn().mockReturnValue({}),
+      getProjectHooks: vi.fn().mockReturnValue({}),
+      getDisabledHooks: vi.fn().mockReturnValue([]),
+      isTrustedFolder: vi.fn().mockReturnValue(true),
+      getProjectRoot: vi.fn().mockReturnValue('/project'),
+    } as unknown as Config;
+
+    hookRegistry = new HookRegistry(mockConfig);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialize', () => {
-    it('should initialize with empty hooks when no config provided', async () => {
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-      expect(registry.getAllHooks()).toHaveLength(0);
+    it('should initialize successfully with no hooks', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.debug).toHaveBeenCalledWith(
+        'Hook registry initialized with 0 hook entries',
+      );
     });
 
-    it('should process project hooks from config', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    it('should not load hooks if folder is not trusted', async () => {
+      vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(false);
+      const mockHooksConfig = {
+        BeforeTool: [
           {
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'test-hook',
+                type: 'command',
+                command: './hooks/test.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
 
-      const allHooks = registry.getAllHooks();
-      expect(allHooks).toHaveLength(1);
-      expect(allHooks[0].eventName).toBe(HookEventName.PreToolUse);
-      expect(allHooks[0].source).toBe(HooksConfigSource.Project);
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        'Project hooks disabled because the folder is not trusted.',
+      );
     });
 
-    it('should not process project hooks in untrusted folder', async () => {
-      mockConfig.isTrustedFolder = vi.fn().mockReturnValue(false);
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    it('should load hooks from project configuration', async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
           {
-            hooks: [{ type: HookType.Command, command: 'echo test' }],
+            matcher: 'EditTool',
+            hooks: [
+              {
+                type: 'command',
+                command: './hooks/check_style.sh',
+                timeout: 60,
+              },
+            ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      // Update mock to return the hooks configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
 
-      expect(registry.getAllHooks()).toHaveLength(0);
+      await hookRegistry.initialize();
+
+      const hooks = hookRegistry.getAllHooks();
+      expect(hooks).toHaveLength(1);
+      expect(hooks[0].eventName).toBe(HookEventName.BeforeTool);
+      expect(hooks[0].config.type).toBe(HookType.Command);
+      expect((hooks[0].config as CommandHookConfig).command).toBe(
+        './hooks/check_style.sh',
+      );
+      expect(hooks[0].matcher).toBe('EditTool');
+      expect(hooks[0].source).toBe(ConfigSource.Project);
+    });
+
+    it('should load plugin hooks', async () => {
+      const mockHooksConfig = {
+        AfterTool: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: './hooks/after-tool.sh',
+                timeout: 30,
+              },
+            ],
+          },
+        ],
+      };
+
+      // Update mock to return the hooks configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      const hooks = hookRegistry.getAllHooks();
+      expect(hooks).toHaveLength(1);
+      expect(hooks[0].eventName).toBe(HookEventName.AfterTool);
+      expect(hooks[0].config.type).toBe(HookType.Command);
+      expect((hooks[0].config as CommandHookConfig).command).toBe(
+        './hooks/after-tool.sh',
+      );
+    });
+
+    it('should handle invalid configuration gracefully', async () => {
+      const invalidHooksConfig = {
+        BeforeTool: [
+          {
+            hooks: [
+              {
+                type: 'invalid-type', // Invalid hook type
+                command: './hooks/test.sh',
+              },
+            ],
+          },
+        ],
+      };
+
+      // Update mock to return invalid configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        invalidHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalled();
+    });
+
+    it('should validate hook configurations', async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
+          {
+            hooks: [
+              {
+                type: 'invalid',
+                command: './hooks/test.sh',
+              },
+              {
+                type: 'command',
+                // Missing command field
+              },
+            ],
+          },
+        ],
+      };
+
+      // Update mock to return invalid configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalled(); // At least some warnings should be logged
+    });
+
+    it('should respect disabled hooks using friendly name', async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
+          {
+            hooks: [
+              {
+                name: 'disabled-hook',
+                type: 'command',
+                command: './hooks/test.sh',
+              },
+            ],
+          },
+        ],
+      };
+
+      // Update mock to return the hooks configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+      vi.mocked(mockConfig.getDisabledHooks).mockReturnValue(['disabled-hook']);
+
+      await hookRegistry.initialize();
+
+      const hooks = hookRegistry.getAllHooks();
+      expect(hooks).toHaveLength(1);
+      expect(hooks[0].enabled).toBe(false);
+      expect(
+        hookRegistry.getHooksForEvent(HookEventName.BeforeTool),
+      ).toHaveLength(0);
     });
   });
 
   describe('getHooksForEvent', () => {
-    it('should return hooks for specific event', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    beforeEach(async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
           {
+            matcher: 'EditTool',
             hooks: [
-              { type: HookType.Command, command: 'echo pre', name: 'pre-hook' },
+              {
+                type: 'command',
+                command: './hooks/edit_check.sh',
+              },
             ],
           },
-        ],
-        [HookEventName.PostToolUse]: [
           {
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo post',
-                name: 'post-hook',
+                type: 'command',
+                command: './hooks/general_check.sh',
+              },
+            ],
+          },
+        ],
+        AfterTool: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: './hooks/after-tool.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      // Update mock to return the hooks configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
 
-      const preHooks = registry.getHooksForEvent(HookEventName.PreToolUse);
-      expect(preHooks).toHaveLength(1);
-      expect(preHooks[0].config.name).toBe('pre-hook');
-
-      const postHooks = registry.getHooksForEvent(HookEventName.PostToolUse);
-      expect(postHooks).toHaveLength(1);
-      expect(postHooks[0].config.name).toBe('post-hook');
+      await hookRegistry.initialize();
     });
 
-    it('should filter out disabled hooks', async () => {
-      mockConfig.getDisabledHooks = vi.fn().mockReturnValue(['disabled-hook']);
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [
-              {
-                type: HookType.Command,
-                command: 'echo enabled',
-                name: 'enabled-hook',
-              },
-              {
-                type: HookType.Command,
-                command: 'echo disabled',
-                name: 'disabled-hook',
-              },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
+    it('should return hooks for specific event', () => {
+      const beforeToolHooks = hookRegistry.getHooksForEvent(
+        HookEventName.BeforeTool,
+      );
+      expect(beforeToolHooks).toHaveLength(2);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      const hooks = registry.getHooksForEvent(HookEventName.PreToolUse);
-      expect(hooks).toHaveLength(1);
-      expect(hooks[0].config.name).toBe('enabled-hook');
+      const afterToolHooks = hookRegistry.getHooksForEvent(
+        HookEventName.AfterTool,
+      );
+      expect(afterToolHooks).toHaveLength(1);
     });
 
-    it('should sort hooks by source priority', async () => {
-      // This test requires multiple sources, which would need getUserHooks
-      // For now, we test with extensions which are processed after project hooks
-      const projectHooks = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [
-              {
-                type: HookType.Command,
-                command: 'echo project',
-                name: 'project-hook',
-              },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(projectHooks);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      const hooks = registry.getHooksForEvent(HookEventName.PreToolUse);
-      expect(hooks).toHaveLength(1);
-      expect(hooks[0].source).toBe(HooksConfigSource.Project);
+    it('should return empty array for events with no hooks', () => {
+      const notificationHooks = hookRegistry.getHooksForEvent(
+        HookEventName.Notification,
+      );
+      expect(notificationHooks).toHaveLength(0);
     });
   });
 
   describe('setHookEnabled', () => {
-    it('should enable a disabled hook', async () => {
-      mockConfig.getDisabledHooks = vi.fn().mockReturnValue(['test-hook']);
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    beforeEach(async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
           {
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'test-hook',
+                type: 'command',
+                command: './hooks/test.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getHooksForEvent(HookEventName.PreToolUse)).toHaveLength(
-        0,
+      // Update mock to return the hooks configuration
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
       );
 
-      registry.setHookEnabled('test-hook', true);
+      await hookRegistry.initialize();
+    });
 
-      const hooks = registry.getHooksForEvent(HookEventName.PreToolUse);
+    it('should enable and disable hooks', () => {
+      const hookName = './hooks/test.sh';
+
+      // Initially enabled
+      let hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
       expect(hooks).toHaveLength(1);
-      expect(hooks[0].enabled).toBe(true);
+
+      // Disable
+      hookRegistry.setHookEnabled(hookName, false);
+      hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
+      expect(hooks).toHaveLength(0);
+
+      // Re-enable
+      hookRegistry.setHookEnabled(hookName, true);
+      hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
+      expect(hooks).toHaveLength(1);
     });
 
-    it('should disable an enabled hook', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    it('should warn when hook not found', () => {
+      hookRegistry.setHookEnabled('non-existent-hook', false);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        'No hooks found matching "non-existent-hook"',
+      );
+    });
+
+    it('should prefer hook name over command for identification', async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
           {
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'test-hook',
+                name: 'friendly-name',
+                type: 'command',
+                command: './hooks/test.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getHooksForEvent(HookEventName.PreToolUse)).toHaveLength(
-        1,
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
       );
 
-      registry.setHookEnabled('test-hook', false);
+      await hookRegistry.initialize();
 
-      expect(registry.getHooksForEvent(HookEventName.PreToolUse)).toHaveLength(
-        0,
+      // Should be enabled initially
+      let hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
+      expect(hooks).toHaveLength(1);
+
+      // Disable using friendly name
+      hookRegistry.setHookEnabled('friendly-name', false);
+      hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
+      expect(hooks).toHaveLength(0);
+
+      // Identification by command should NOT work when name is present
+      hookRegistry.setHookEnabled('./hooks/test.sh', true);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        'No hooks found matching "./hooks/test.sh"',
       );
     });
 
-    it('should update all hooks with matching name', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    it('should use command as identifier when name is missing', async () => {
+      const mockHooksConfig = {
+        BeforeTool: [
           {
             hooks: [
-              { type: HookType.Command, command: 'echo 1', name: 'same-name' },
-            ],
-          },
-        ],
-        [HookEventName.PostToolUse]: [
-          {
-            hooks: [
-              { type: HookType.Command, command: 'echo 2', name: 'same-name' },
+              {
+                type: 'command',
+                command: './hooks/no-name.sh',
+              },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getAllHooks()).toHaveLength(2);
-      expect(registry.getHooksForEvent(HookEventName.PreToolUse)).toHaveLength(
-        1,
-      );
-      expect(registry.getHooksForEvent(HookEventName.PostToolUse)).toHaveLength(
-        1,
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mockHooksConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
       );
 
-      registry.setHookEnabled('same-name', false);
+      await hookRegistry.initialize();
 
-      expect(registry.getHooksForEvent(HookEventName.PreToolUse)).toHaveLength(
-        0,
-      );
-      expect(registry.getHooksForEvent(HookEventName.PostToolUse)).toHaveLength(
-        0,
-      );
+      // Should be enabled initially
+      let hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
+      expect(hooks).toHaveLength(1);
+
+      // Disable using command
+      hookRegistry.setHookEnabled('./hooks/no-name.sh', false);
+      hooks = hookRegistry.getHooksForEvent(HookEventName.BeforeTool);
+      expect(hooks).toHaveLength(0);
     });
   });
 
-  describe('hook validation', () => {
-    it('should discard hooks with invalid type', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+  describe('malformed configuration handling', () => {
+    it('should handle non-array definitions gracefully', async () => {
+      const malformedConfig = {
+        BeforeTool: 'not-an-array', // Should be an array of HookDefinition
+      };
+
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        malformedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('is not an array'),
+      );
+    });
+
+    it('should handle object instead of array for definitions', async () => {
+      const malformedConfig = {
+        AfterTool: { hooks: [] }, // Should be an array, not a single object
+      };
+
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        malformedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('is not an array'),
+      );
+    });
+
+    it('should handle null definition gracefully', async () => {
+      const malformedConfig = {
+        BeforeTool: [null], // Invalid: null definition
+      };
+
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        malformedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Discarding invalid hook definition'),
+        null,
+      );
+    });
+
+    it('should handle definition without hooks array', async () => {
+      const malformedConfig = {
+        BeforeTool: [
+          {
+            matcher: 'EditTool',
+            // Missing hooks array
+          },
+        ],
+      };
+
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        malformedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Discarding invalid hook definition'),
+        expect.objectContaining({ matcher: 'EditTool' }),
+      );
+    });
+
+    it('should handle non-array hooks property', async () => {
+      const malformedConfig = {
+        BeforeTool: [
+          {
+            matcher: 'EditTool',
+            hooks: 'not-an-array', // Should be an array
+          },
+        ],
+      };
+
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        malformedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Discarding invalid hook definition'),
+        expect.objectContaining({ hooks: 'not-an-array', matcher: 'EditTool' }),
+      );
+    });
+
+    it('should handle non-object hookConfig in hooks array', async () => {
+      const malformedConfig = {
+        BeforeTool: [
           {
             hooks: [
+              'not-an-object', // Should be an object
+              42, // Should be an object
+              null, // Should be an object
+            ],
+          },
+        ],
+      };
+      mockTrustedHooksManager.getUntrustedHooks.mockReturnValue([]);
+
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        malformedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      expect(hookRegistry.getAllHooks()).toHaveLength(0);
+      expect(mockDebugLogger.warn).toHaveBeenCalledTimes(3); // One warning for each invalid hookConfig
+    });
+
+    it('should handle mixed valid and invalid hook configurations', async () => {
+      const mixedConfig = {
+        BeforeTool: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: './valid-hook.sh',
+              },
+              'invalid-string',
               {
                 type: 'invalid-type',
-                command: 'echo test',
-              } as unknown as HookConfig,
+                command: './invalid-type.sh',
+              },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        mixedConfig as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
 
-      expect(registry.getAllHooks()).toHaveLength(0);
-    });
+      await hookRegistry.initialize();
 
-    it('should discard command hooks without command field', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [{ type: HookType.Command } as HookConfig],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
+      // Should only load the valid hook
+      const hooks = hookRegistry.getAllHooks();
+      expect(hooks).toHaveLength(1);
+      expect((hooks[0].config as CommandHookConfig).command).toBe(
+        './valid-hook.sh',
+      );
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getAllHooks()).toHaveLength(0);
-    });
-
-    it('should skip invalid event names', async () => {
-      const hooksConfig = {
-        InvalidEventName: [
-          {
-            hooks: [{ type: HookType.Command, command: 'echo test' }],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
-
-      const registry = new HookRegistry(mockConfig, mockFeedbackEmitter);
-      await registry.initialize();
-
-      expect(registry.getAllHooks()).toHaveLength(0);
-      expect(mockFeedbackEmitter.emitFeedback).toHaveBeenCalledWith(
-        'warning',
-        expect.stringContaining('Invalid hook event name'),
+      // Verify the warnings for invalid configurations
+      // 1st warning: non-object hookConfig ('invalid-string')
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Discarding invalid hook configuration'),
+        'invalid-string',
+      );
+      // 2nd warning: validateHookConfig logs invalid type
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid hook BeforeTool from project type'),
+      );
+      // 3rd warning: processHookDefinition logs the failed hookConfig
+      expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Discarding invalid hook configuration'),
+        expect.objectContaining({ type: 'invalid-type' }),
       );
     });
 
-    it('should skip hooks config fields like enabled and disabled', async () => {
-      const hooksConfig = {
-        enabled: ['hook1'],
-        disabled: ['hook2'],
-        [HookEventName.PreToolUse]: [
+    it('should skip known config fields and warn on invalid event names', async () => {
+      const configWithExtras: Record<string, unknown> = {
+        InvalidEvent: [],
+        BeforeTool: [
           {
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'valid-hook',
+                type: 'command',
+                command: './test.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      // Add all known config fields dynamically
+      for (const field of HOOKS_CONFIG_FIELDS) {
+        configWithExtras[field] = field === 'disabled' ? [] : true;
+      }
 
-      expect(registry.getAllHooks()).toHaveLength(1);
-      expect(registry.getAllHooks()[0].config.name).toBe('valid-hook');
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        configWithExtras as unknown as {
+          [K in HookEventName]?: HookDefinition[];
+        },
+      );
+
+      await hookRegistry.initialize();
+
+      // Should only load the valid hook
+      expect(hookRegistry.getAllHooks()).toHaveLength(1);
+
+      // Should skip all known config fields without warnings
+      for (const field of HOOKS_CONFIG_FIELDS) {
+        expect(mockDebugLogger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining(`Invalid hook event name: ${field}`),
+        );
+      }
+
+      // Should warn on truly invalid event name
+      expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
+        'warning',
+        expect.stringContaining('Invalid hook event name: "InvalidEvent"'),
+      );
     });
   });
 
-  describe('duplicate detection', () => {
-    it('should skip duplicate hooks with same name+source+event+matcher+sequential', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+  describe('project hook warnings', () => {
+    it('should check for untrusted project hooks when folder is trusted', async () => {
+      const projectHooks = {
+        BeforeTool: [
           {
-            matcher: '*.ts',
-            sequential: true,
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'dup-hook',
-              },
-              {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'dup-hook',
+                type: 'command',
+                command: './hooks/untrusted.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        projectHooks as unknown as { [K in HookEventName]?: HookDefinition[] },
+      );
+      vi.mocked(mockConfig.getProjectHooks).mockReturnValue(
+        projectHooks as unknown as { [K in HookEventName]?: HookDefinition[] },
+      );
 
-      expect(registry.getAllHooks()).toHaveLength(1);
-    });
-
-    it('should allow hooks with same name but different matcher', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            matcher: '*.ts',
-            hooks: [
-              { type: HookType.Command, command: 'echo ts', name: 'my-hook' },
-            ],
-          },
-          {
-            matcher: '*.js',
-            hooks: [
-              { type: HookType.Command, command: 'echo js', name: 'my-hook' },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getAllHooks()).toHaveLength(2);
-    });
-
-    it('should allow hooks with same name but different sequential', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            sequential: true,
-            hooks: [
-              { type: HookType.Command, command: 'echo seq', name: 'my-hook' },
-            ],
-          },
-          {
-            sequential: false,
-            hooks: [
-              { type: HookType.Command, command: 'echo par', name: 'my-hook' },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getAllHooks()).toHaveLength(2);
-    });
-  });
-
-  describe('extension hooks', () => {
-    it('should process hooks from active extensions', async () => {
-      const extensionHooks = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [
-              { type: HookType.Command, command: 'echo ext', name: 'ext-hook' },
-            ],
-          },
-        ],
-      };
-      mockConfig.getExtensions = vi
-        .fn()
-        .mockReturnValue([{ isActive: true, hooks: extensionHooks }]);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      const allHooks = registry.getAllHooks();
-      expect(allHooks).toHaveLength(1);
-      expect(allHooks[0].source).toBe(HooksConfigSource.Extensions);
-      expect(allHooks[0].config.name).toBe('ext-hook');
-    });
-
-    it('should skip hooks from inactive extensions', async () => {
-      const extensionHooks = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [{ type: HookType.Command, command: 'echo ext' }],
-          },
-        ],
-      };
-      mockConfig.getExtensions = vi
-        .fn()
-        .mockReturnValue([{ isActive: false, hooks: extensionHooks }]);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      expect(registry.getAllHooks()).toHaveLength(0);
-    });
-
-    it('should process multiple extensions', async () => {
-      mockConfig.getExtensions = vi.fn().mockReturnValue([
-        {
-          isActive: true,
-          hooks: {
-            [HookEventName.PreToolUse]: [
-              {
-                hooks: [
-                  {
-                    type: HookType.Command,
-                    command: 'echo ext1',
-                    name: 'ext1-hook',
-                  },
-                ],
-              },
-            ],
-          },
-        },
-        {
-          isActive: true,
-          hooks: {
-            [HookEventName.PreToolUse]: [
-              {
-                hooks: [
-                  {
-                    type: HookType.Command,
-                    command: 'echo ext2',
-                    name: 'ext2-hook',
-                  },
-                ],
-              },
-            ],
-          },
-        },
+      // Simulate untrusted hooks found
+      mockTrustedHooksManager.getUntrustedHooks.mockReturnValue([
+        './hooks/untrusted.sh',
       ]);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      await hookRegistry.initialize();
 
-      expect(registry.getAllHooks()).toHaveLength(2);
+      expect(mockTrustedHooksManager.getUntrustedHooks).toHaveBeenCalledWith(
+        '/project',
+        projectHooks,
+      );
+      expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
+        'warning',
+        expect.stringContaining(
+          'WARNING: The following project-level hooks have been detected',
+        ),
+      );
+      expect(mockTrustedHooksManager.trustHooks).toHaveBeenCalledWith(
+        '/project',
+        projectHooks,
+      );
     });
-  });
 
-  describe('hook metadata', () => {
-    it('should preserve matcher in registry entry', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
+    it('should not warn if hooks are already trusted', async () => {
+      const projectHooks = {
+        BeforeTool: [
           {
-            matcher: 'ReadFileTool',
             hooks: [
               {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'matcher-hook',
+                type: 'command',
+                command: './hooks/trusted.sh',
               },
             ],
           },
         ],
       };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      vi.mocked(mockConfig.getHooks).mockReturnValue(
+        projectHooks as unknown as { [K in HookEventName]?: HookDefinition[] },
+      );
+      vi.mocked(mockConfig.getProjectHooks).mockReturnValue(
+        projectHooks as unknown as { [K in HookEventName]?: HookDefinition[] },
+      );
 
-      const hooks = registry.getAllHooks();
-      expect(hooks[0].matcher).toBe('ReadFileTool');
+      // Simulate no untrusted hooks
+      mockTrustedHooksManager.getUntrustedHooks.mockReturnValue([]);
+
+      await hookRegistry.initialize();
+
+      expect(mockCoreEvents.emitFeedback).not.toHaveBeenCalled();
+      expect(mockTrustedHooksManager.trustHooks).not.toHaveBeenCalled();
     });
 
-    it('should preserve sequential flag in registry entry', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            sequential: true,
-            hooks: [
-              {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'seq-hook',
-              },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
+    it('should not check for untrusted hooks if folder is not trusted', async () => {
+      vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(false);
 
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
+      await hookRegistry.initialize();
 
-      const hooks = registry.getAllHooks();
-      expect(hooks[0].sequential).toBe(true);
-    });
-
-    it('should add source to hook config', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [
-              {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'source-hook',
-              },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      const hooks = registry.getAllHooks();
-      expect(hooks[0].config.source).toBe(HooksConfigSource.Project);
-    });
-  });
-
-  describe('getAllHooks', () => {
-    it('should return a copy of entries array', async () => {
-      const hooksConfig = {
-        [HookEventName.PreToolUse]: [
-          {
-            hooks: [
-              {
-                type: HookType.Command,
-                command: 'echo test',
-                name: 'test-hook',
-              },
-            ],
-          },
-        ],
-      };
-      mockConfig.getHooks = vi.fn().mockReturnValue(hooksConfig);
-
-      const registry = new HookRegistry(mockConfig);
-      await registry.initialize();
-
-      const hooks1 = registry.getAllHooks();
-      const hooks2 = registry.getAllHooks();
-
-      expect(hooks1).toEqual(hooks2);
-      expect(hooks1).not.toBe(hooks2); // Different array reference
+      expect(mockTrustedHooksManager.getUntrustedHooks).not.toHaveBeenCalled();
     });
   });
 });

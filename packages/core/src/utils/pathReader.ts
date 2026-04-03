@@ -73,8 +73,8 @@ export async function readPathFromWorkspace(
       path.relative(config.getTargetDir(), p),
     );
     const filteredFiles = fileService.filterFiles(relativeFiles, {
-      respectGitIgnore: true,
-      respectApexIgnore: true,
+      respectGitIgnore: config.getFileFilteringRespectGitIgnore(),
+      respectGeminiIgnore: config.getFileFilteringRespectGeminiIgnore(),
     });
     const finalFiles = filteredFiles.map((p) =>
       path.resolve(config.getTargetDir(), p),
@@ -83,7 +83,11 @@ export async function readPathFromWorkspace(
     for (const filePath of finalFiles) {
       const relativePathForDisplay = path.relative(absolutePath, filePath);
       allParts.push({ text: `--- ${relativePathForDisplay} ---\n` });
-      const result = await processSingleFileContent(filePath, config);
+      const result = await processSingleFileContent(
+        filePath,
+        config.getTargetDir(),
+        config.getFileSystemService(),
+      );
       allParts.push(result.llmContent);
       allParts.push({ text: '\n' }); // Add a newline for separation
     }
@@ -94,8 +98,8 @@ export async function readPathFromWorkspace(
     // It's a single file, check if it's ignored.
     const relativePath = path.relative(config.getTargetDir(), absolutePath);
     const filtered = fileService.filterFiles([relativePath], {
-      respectGitIgnore: true,
-      respectApexIgnore: true,
+      respectGitIgnore: config.getFileFilteringRespectGitIgnore(),
+      respectGeminiIgnore: config.getFileFilteringRespectGeminiIgnore(),
     });
 
     if (filtered.length === 0) {
@@ -104,7 +108,11 @@ export async function readPathFromWorkspace(
     }
 
     // It's a single file, process it directly.
-    const result = await processSingleFileContent(absolutePath, config);
+    const result = await processSingleFileContent(
+      absolutePath,
+      config.getTargetDir(),
+      config.getFileSystemService(),
+    );
     return [result.llmContent];
   }
 }

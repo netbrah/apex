@@ -9,22 +9,21 @@ import { Box, Text } from 'ink';
 import { theme } from '../../semantic-colors.js';
 import { type ToolDefinition } from '../../types.js';
 import { MarkdownDisplay } from '../../utils/MarkdownDisplay.js';
-import { t } from '../../../i18n/index.js';
 
 interface ToolsListProps {
   tools: readonly ToolDefinition[];
   showDescriptions: boolean;
-  contentWidth: number;
+  terminalWidth: number;
 }
 
 export const ToolsList: React.FC<ToolsListProps> = ({
   tools,
   showDescriptions,
-  contentWidth,
+  terminalWidth,
 }) => (
-  <Box flexDirection="column">
+  <Box flexDirection="column" marginBottom={1}>
     <Text bold color={theme.text.primary}>
-      {t('Available tools:')}
+      Available Gemini CLI tools:
     </Text>
     <Box height={1} />
     {tools.length > 0 ? (
@@ -33,12 +32,11 @@ export const ToolsList: React.FC<ToolsListProps> = ({
           <Text color={theme.text.primary}>{'  '}- </Text>
           <Box flexDirection="column">
             <Text bold color={theme.text.accent}>
-              {tool.displayName}
-              {showDescriptions ? ` (${tool.name})` : ''}
+              {tool.displayName} ({tool.name})
             </Text>
             {showDescriptions && tool.description && (
               <MarkdownDisplay
-                contentWidth={contentWidth}
+                terminalWidth={terminalWidth}
                 text={tool.description}
                 isPending={false}
               />
@@ -47,7 +45,7 @@ export const ToolsList: React.FC<ToolsListProps> = ({
         </Box>
       ))
     ) : (
-      <Text color={theme.text.primary}> {t('No tools available')}</Text>
+      <Text color={theme.text.primary}> No tools available</Text>
     )}
   </Box>
 );

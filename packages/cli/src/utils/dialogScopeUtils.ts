@@ -4,9 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { LoadedSettings } from '../config/settings.js';
-import { SettingScope } from '../config/settings.js';
-import { settingExistsInScope } from './settingsUtils.js';
+import {
+  isLoadableSettingScope,
+  SettingScope,
+  type LoadableSettingScope,
+  type Settings,
+} from '../config/settings.js';
+import { isInSettingsScope } from './settingsUtils.js';
 
 /**
  * Shared scope labels for dialog components that need to display setting scopes
@@ -14,24 +18,23 @@ import { settingExistsInScope } from './settingsUtils.js';
 export const SCOPE_LABELS = {
   [SettingScope.User]: 'User Settings',
   [SettingScope.Workspace]: 'Workspace Settings',
-
-  // TODO: migrate system settings to user settings
-  // we don't want to save settings to system scope, it is a troublemaker
-  // comment it out for now.
-  // [SettingScope.System]: 'System Settings',
+  [SettingScope.System]: 'System Settings',
 } as const;
 
 /**
  * Helper function to get scope items for radio button selects
  */
-export function getScopeItems() {
+export function getScopeItems(): Array<{
+  label: string;
+  value: LoadableSettingScope;
+}> {
   return [
     { label: SCOPE_LABELS[SettingScope.User], value: SettingScope.User },
     {
       label: SCOPE_LABELS[SettingScope.Workspace],
       value: SettingScope.Workspace,
     },
-    // { label: SCOPE_LABELS[SettingScope.System], value: SettingScope.System },
+    { label: SCOPE_LABELS[SettingScope.System], value: SettingScope.System },
   ];
 }
 
@@ -40,16 +43,18 @@ export function getScopeItems() {
  */
 export function getScopeMessageForSetting(
   settingKey: string,
-  selectedScope: SettingScope,
-  settings: LoadedSettings,
+  selectedScope: LoadableSettingScope,
+  settings: {
+    forScope: (scope: LoadableSettingScope) => { settings: Settings };
+  },
 ): string {
-  const otherScopes = Object.values(SettingScope).filter(
-    (scope) => scope !== selectedScope,
-  );
+  const otherScopes = Object.values(SettingScope)
+    .filter(isLoadableSettingScope)
+    .filter((scope) => scope !== selectedScope);
 
   const modifiedInOtherScopes = otherScopes.filter((scope) => {
     const scopeSettings = settings.forScope(scope).settings;
-    return settingExistsInScope(settingKey, scopeSettings);
+    return isInSettingsScope(settingKey, scopeSettings);
   });
 
   if (modifiedInOtherScopes.length === 0) {
@@ -58,7 +63,7 @@ export function getScopeMessageForSetting(
 
   const modifiedScopesStr = modifiedInOtherScopes.join(', ');
   const currentScopeSettings = settings.forScope(selectedScope).settings;
-  const existsInCurrentScope = settingExistsInScope(
+  const existsInCurrentScope = isInSettingsScope(
     settingKey,
     currentScopeSettings,
   );
