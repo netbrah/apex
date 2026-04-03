@@ -6,9 +6,7 @@
 
 import type { ImageMetadata } from './types.js';
 import { isSupportedImageMimeType } from './supportedImageFormats.js';
-import { createDebugLogger } from '../debugLogger.js';
-
-const debugLogger = createDebugLogger('IMAGE_TOKENIZER');
+import { debugLogger } from '../debugLogger.js';
 
 /**
  * Image tokenizer for calculating image tokens based on dimensions

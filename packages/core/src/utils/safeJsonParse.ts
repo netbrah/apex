@@ -5,9 +5,7 @@
  */
 
 import { jsonrepair } from 'jsonrepair';
-import { createDebugLogger } from './debugLogger.js';
-
-const debugLogger = createDebugLogger('JSON_PARSE');
+import { debugLogger } from './debugLogger.js';
 
 /**
  * Safely parse JSON string with jsonrepair fallback for malformed JSON.

@@ -14,9 +14,7 @@ import {
   type ResolvedModelConfig,
   type AvailableModel,
 } from './types.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('MODEL_REGISTRY');
+import { debugLogger } from '../utils/debugLogger.js';
 
 /**
  * Validates if a string key is a valid AuthType enum value.

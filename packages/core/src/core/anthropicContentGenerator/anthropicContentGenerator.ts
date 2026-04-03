@@ -31,15 +31,13 @@ import { safeJsonParse } from '../../utils/safeJsonParse.js';
 import { AnthropicContentConverter } from './converter.js';
 import { buildRuntimeFetchOptions } from '../../utils/runtimeFetchOptions.js';
 import { DEFAULT_TIMEOUT } from '../openaiContentGenerator/constants.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
+import { debugLogger } from '../../utils/debugLogger.js';
 import {
   tokenLimit,
   DEFAULT_OUTPUT_TOKEN_LIMIT,
   hasExplicitOutputLimit,
 } from '../tokenLimits.js';
 import { trimAnthropicMessagesForContextBudget } from './contextBudgetTrim.js';
-
-const debugLogger = createDebugLogger('ANTHROPIC');
 
 type StreamingBlockState = {
   type: string;
@@ -83,7 +81,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     });
 
     this.converter = new AnthropicContentConverter(
-      contentGeneratorConfig.model,
+      contentGeneratorConfig.model ?? '',
       contentGeneratorConfig.schemaCompliance,
       contentGeneratorConfig.enableCacheControl,
     );
@@ -161,7 +159,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
   }
 
   private buildHeaders(): Record<string, string> {
-    const version = this.cliConfig.getCliVersion() || 'unknown';
+    const version = 'apex';
     const userAgent = `QwenCode/${version} (${process.platform}; ${process.arch})`;
     const { customHeaders } = this.contentGeneratorConfig;
 
@@ -201,7 +199,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
 
     const contextLimit =
       this.contentGeneratorConfig.contextWindowSize ??
-      tokenLimit(this.contentGeneratorConfig.model, 'input');
+      tokenLimit(this.contentGeneratorConfig.model ?? '', 'input');
     const { messages: trimmedMessages, system: trimmedSystem } =
       trimAnthropicMessagesForContextBudget(
         messages,
@@ -219,7 +217,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     }
 
     return {
-      model: this.contentGeneratorConfig.model,
+      model: this.contentGeneratorConfig.model as string,
       system: trimmedSystem,
       messages: trimmedMessages,
       tools,
@@ -251,7 +249,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
 
     // Apply output token limit logic consistent with OpenAI providers
     const userMaxTokens = getParam<number>('max_tokens', 'maxOutputTokens');
-    const modelId = this.contentGeneratorConfig.model;
+    const modelId = this.contentGeneratorConfig.model ?? '';
     const modelLimit = tokenLimit(modelId, 'output');
     const isKnownModel = hasExplicitOutputLimit(modelId);
 
@@ -320,7 +318,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     stream: AsyncIterable<RawMessageStreamEvent>,
   ): AsyncGenerator<GenerateContentResponse> {
     let messageId: string | undefined;
-    let model = this.contentGeneratorConfig.model;
+    let model = this.contentGeneratorConfig.model ?? '';
     let cachedTokens = 0;
     let promptTokens = 0;
     let completionTokens = 0;

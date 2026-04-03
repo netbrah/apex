@@ -122,7 +122,7 @@ describe('AnthropicContentGenerator', () => {
 
     const headers = (anthropicState.constructorOptions?.['defaultHeaders'] ||
       {}) as Record<string, string>;
-    expect(headers['User-Agent']).toContain('QwenCode/1.2.3');
+    expect(headers['User-Agent']).toContain('QwenCode/apex');
     expect(headers['User-Agent']).toContain(
       `(${process.platform}; ${process.arch})`,
     );
@@ -149,7 +149,7 @@ describe('AnthropicContentGenerator', () => {
 
     const headers = (anthropicState.constructorOptions?.['defaultHeaders'] ||
       {}) as Record<string, string>;
-    expect(headers['User-Agent']).toContain('QwenCode/1.2.3');
+    expect(headers['User-Agent']).toContain('QwenCode/apex');
     expect(headers['anthropic-beta']).toContain('effort-2025-11-24');
     expect(headers['X-Custom']).toBe('1');
   });
@@ -359,7 +359,7 @@ describe('AnthropicContentGenerator', () => {
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
         expect(anthropicRequest).toEqual(
-          expect.objectContaining({ max_tokens: 65536 }),
+          expect.objectContaining({ max_tokens: 200000 }),
         );
       });
 
@@ -392,7 +392,7 @@ describe('AnthropicContentGenerator', () => {
         const [anthropicRequest] =
           anthropicState.lastCreateArgs as AnthropicCreateArgs;
         expect(anthropicRequest).toEqual(
-          expect.objectContaining({ max_tokens: 65536 }),
+          expect.objectContaining({ max_tokens: 100000 }),
         );
       });
 

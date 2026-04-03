@@ -16,9 +16,7 @@ import { EnhancedErrorHandler } from './errorHandler.js';
 import { RequestTokenEstimator } from '../../utils/request-tokenizer/index.js';
 import type { ContentGeneratorConfig } from '../contentGenerator.js';
 import { isAbortError } from '../../utils/errors.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('OPENAI');
+import { debugLogger } from '../../utils/debugLogger.js';
 
 export class OpenAIContentGenerator implements ContentGenerator {
   protected pipeline: ContentGenerationPipeline;

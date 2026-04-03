@@ -161,6 +161,36 @@ export type ContentGeneratorConfig = {
   enableEncryptedContentReplay?: boolean;
 };
 
+/**
+ * Tracks the source of each field in a ContentGeneratorConfig.
+ * Re-uses the ConfigSources type from the config resolver for compatibility.
+ */
+export type { ConfigSources as ContentGeneratorConfigSources } from '../utils/configResolver.js';
+
+/**
+ * Result of validating a model configuration.
+ */
+export interface ModelConfigValidationResult {
+  valid: boolean;
+  errors: Error[];
+}
+
+/**
+ * Validates that a ContentGeneratorConfig has the minimum required fields.
+ */
+export function validateModelConfig(
+  config: ContentGeneratorConfig,
+): ModelConfigValidationResult {
+  const errors: Error[] = [];
+  if (!config.apiKey) {
+    errors.push(new Error(`Missing API key for auth type: ${config.authType}`));
+  }
+  if (!config.model) {
+    errors.push(new Error(`Missing model for auth type: ${config.authType}`));
+  }
+  return { valid: errors.length === 0, errors };
+}
+
 export async function createContentGeneratorConfig(
   config: Config,
   authType: AuthType | undefined,

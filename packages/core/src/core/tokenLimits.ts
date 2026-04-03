@@ -16,10 +16,53 @@ type Model = string;
 type TokenCount = number;
 
 export const DEFAULT_TOKEN_LIMIT = 1_048_576;
+export const DEFAULT_OUTPUT_TOKEN_LIMIT = 16_384;
 
-export function tokenLimit(model: Model): TokenCount {
-  // Add other models as they become relevant or if specified by config
-  // Pulled from https://ai.google.dev/gemini-api/docs/models
+/**
+ * Normalize a model string for pattern matching.
+ * Strips deployment prefixes (e.g. "accounts/.../models/") and lowercases.
+ */
+export function normalize(model: string): string {
+  const stripped = model.replace(/^(accounts\/[^/]+\/)?models\//, '');
+  return stripped.toLowerCase();
+}
+
+/**
+ * Known model output limits.
+ * Models not listed here return DEFAULT_OUTPUT_TOKEN_LIMIT from the output path.
+ */
+const OUTPUT_LIMITS: Record<string, number> = {
+  'claude-sonnet-4-20250514': 16_384,
+  'claude-sonnet-4.5-20250514': 16_384,
+  'claude-opus-4-20250514': 32_768,
+  'gpt-4.1': 32_768,
+  'gpt-4.1-mini': 16_384,
+  'gpt-4.1-nano': 16_384,
+  'o3': 100_000,
+  'o4-mini': 100_000,
+};
+
+/**
+ * Returns true when the model has an explicit output limit in OUTPUT_LIMITS.
+ */
+export function hasExplicitOutputLimit(model: string): boolean {
+  const norm = normalize(model);
+  for (const key of Object.keys(OUTPUT_LIMITS)) {
+    if (norm.startsWith(key)) return true;
+  }
+  return false;
+}
+
+export function tokenLimit(model: Model, kind?: 'input' | 'output'): TokenCount {
+  if (kind === 'output') {
+    const norm = normalize(model);
+    for (const [key, limit] of Object.entries(OUTPUT_LIMITS)) {
+      if (norm.startsWith(key)) return limit;
+    }
+    return DEFAULT_OUTPUT_TOKEN_LIMIT;
+  }
+
+  // Input / default context window limits
   switch (model) {
     case PREVIEW_GEMINI_MODEL:
     case PREVIEW_GEMINI_FLASH_MODEL:

@@ -29,7 +29,7 @@ export class DefaultOpenAICompatibleProvider
   }
 
   buildHeaders(): Record<string, string | undefined> {
-    const version = this.cliConfig.getCliVersion() || 'unknown';
+    const version = 'apex';
     const userAgent = `QwenCode/${version} (${process.platform}; ${process.arch})`;
     const { customHeaders } = this.contentGeneratorConfig;
     const defaultHeaders = {

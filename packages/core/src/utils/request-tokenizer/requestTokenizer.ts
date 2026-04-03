@@ -13,9 +13,7 @@ import type {
 import type { TokenCalculationResult } from './types.js';
 import { TextTokenizer } from './textTokenizer.js';
 import { ImageTokenizer } from './imageTokenizer.js';
-import { createDebugLogger } from '../debugLogger.js';
-
-const debugLogger = createDebugLogger('TOKENIZER');
+import { debugLogger } from '../debugLogger.js';
 
 /**
  * Simple request token estimator that handles text and image content serially

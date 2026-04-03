@@ -61,6 +61,12 @@ export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro';
 export const DEFAULT_GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
 export const DEFAULT_GEMINI_FLASH_LITE_MODEL = 'gemini-2.5-flash-lite';
 
+/**
+ * Default coder model for OpenAI-compatible backends.
+ */
+export const MAINLINE_CODER_MODEL = 'qwen3-coder';
+export const DEFAULT_CODER_MODEL = MAINLINE_CODER_MODEL;
+
 export const VALID_GEMINI_MODELS = new Set([
   PREVIEW_GEMINI_MODEL,
   PREVIEW_GEMINI_3_1_MODEL,

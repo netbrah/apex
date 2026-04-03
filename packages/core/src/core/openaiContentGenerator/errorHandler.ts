@@ -5,9 +5,7 @@
  */
 
 import type { GenerateContentParameters } from '@google/genai';
-import { createDebugLogger } from '../../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('OPENAI_ERROR');
+import { debugLogger } from '../../utils/debugLogger.js';
 
 export interface RequestContext {
   userPromptId: string;

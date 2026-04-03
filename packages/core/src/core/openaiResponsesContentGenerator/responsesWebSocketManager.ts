@@ -17,9 +17,7 @@ import {
 } from './wsTypes.js';
 import { ResponsesWebSocket } from './responsesWebSocket.js';
 import type { ResponsesApiRequest } from './types.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('RESPONSES_WS_MANAGER');
+import { debugLogger } from '../../utils/debugLogger.js';
 
 export class ResponsesWebSocketManager {
   private connection: ResponsesWebSocket | null = null;

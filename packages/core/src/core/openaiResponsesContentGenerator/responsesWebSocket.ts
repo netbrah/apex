@@ -18,9 +18,7 @@ import {
   isWrappedWebsocketError,
   isConnectionLimitError,
 } from './wsTypes.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('RESPONSES_WS');
+import { debugLogger } from '../../utils/debugLogger.js';
 
 export interface WebSocketUpgradeHeaders {
   serverReasoningIncluded: boolean;

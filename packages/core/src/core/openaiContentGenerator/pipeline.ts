@@ -46,7 +46,7 @@ export class ContentGenerationPipeline {
     this.contentGeneratorConfig = config.contentGeneratorConfig;
     this.client = this.config.provider.buildClient();
     this.converter = new OpenAIContentConverter(
-      this.contentGeneratorConfig.model,
+      this.contentGeneratorConfig.model ?? '',
       this.contentGeneratorConfig.schemaCompliance,
       this.contentGeneratorConfig.modalities ?? {},
     );
@@ -59,7 +59,7 @@ export class ContentGenerationPipeline {
     // For OpenAI-compatible providers, the configured model is the single source of truth.
     // We intentionally ignore request.model because upstream callers may pass a model string
     // that is not valid/available for the OpenAI-compatible backend.
-    const effectiveModel = this.contentGeneratorConfig.model;
+    const effectiveModel = this.contentGeneratorConfig.model ?? '';
     this.converter.setModel(effectiveModel);
     this.converter.setModalities(this.contentGeneratorConfig.modalities ?? {});
     return this.executeWithErrorHandling(
@@ -87,7 +87,7 @@ export class ContentGenerationPipeline {
     request: GenerateContentParameters,
     userPromptId: string,
   ): Promise<AsyncGenerator<GenerateContentResponse>> {
-    const effectiveModel = this.contentGeneratorConfig.model;
+    const effectiveModel = this.contentGeneratorConfig.model ?? '';
     this.converter.setModel(effectiveModel);
     this.converter.setModalities(this.contentGeneratorConfig.modalities ?? {});
     return this.executeWithErrorHandling(

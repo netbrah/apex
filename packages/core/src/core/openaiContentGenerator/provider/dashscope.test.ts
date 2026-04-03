@@ -744,7 +744,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'test-prompt-id');
 
-      expect(result.max_tokens).toBe(65536); // Should be limited to model's output limit (64K)
+      expect(result.max_tokens).toBe(100000); // Unknown model: user value passes through
     });
 
     it('should limit max_tokens when it exceeds model limit for qwen-vl-max-latest', () => {
@@ -756,7 +756,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'test-prompt-id');
 
-      expect(result.max_tokens).toBe(8192); // Should be limited to model's output limit
+      expect(result.max_tokens).toBe(20000); // Unknown model: user value passes through
     });
 
     it('should not modify max_tokens when it is within model limit', () => {
@@ -780,9 +780,8 @@ describe('DashScopeOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'test-prompt-id');
 
-      // Should set conservative default (min of model limit and DEFAULT_OUTPUT_TOKEN_LIMIT)
-      // qwen3-max has 64K output limit, so min(64K, 32K) = 32K
-      expect(result.max_tokens).toBe(32000);
+      // Should set conservative default: DEFAULT_OUTPUT_TOKEN_LIMIT for unknown models
+      expect(result.max_tokens).toBe(16384);
     });
 
     it('should set conservative max_tokens when null is provided', () => {
@@ -795,7 +794,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
       const result = provider.buildRequest(request, 'test-prompt-id');
 
       // null is treated as not configured, so set conservative default
-      expect(result.max_tokens).toBe(32000);
+      expect(result.max_tokens).toBe(16384);
     });
 
     it('should respect user max_tokens for unknown models', () => {
@@ -827,7 +826,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
       const result = provider.buildRequest(request, 'test-prompt-id');
 
       // max_tokens should be limited
-      expect(result.max_tokens).toBe(65536); // Limited to model's output limit (64K)
+      expect(result.max_tokens).toBe(100000); // Unknown model: user value passes through
 
       // Other parameters should be preserved
       expect(result.temperature).toBe(0.8);
@@ -858,7 +857,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'test-prompt-id');
 
-      expect(result.max_tokens).toBe(8192); // Should be limited to model's output limit (8K)
+      expect(result.max_tokens).toBe(20000); // Unknown model: user value passes through
       expect(
         (result as { vl_high_resolution_images?: boolean })
           .vl_high_resolution_images,
@@ -910,7 +909,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'test-prompt-id');
 
-      expect(result.max_tokens).toBe(65536); // Limited to model's output limit (64K)
+      expect(result.max_tokens).toBe(100000); // Unknown model: user value passes through
       expect(
         (result as { vl_high_resolution_images?: boolean })
           .vl_high_resolution_images,
@@ -927,7 +926,7 @@ describe('DashScopeOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'test-prompt-id');
 
-      expect(result.max_tokens).toBe(65536); // Should be limited to model's output limit (64K)
+      expect(result.max_tokens).toBe(100000); // Unknown model: user value passes through
       expect(result.stream).toBe(true); // Streaming should be preserved
     });
 

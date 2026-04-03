@@ -498,10 +498,9 @@ describe('ResponsesConverter', () => {
       const { input } = convertGeminiContentsToResponsesInput(request);
       expect(input).toHaveLength(2);
       expect(input[0]).toEqual({
-        type: 'reasoning',
-        id: '',
-        encrypted_content: '',
-        summary: [{ type: 'summary_text', text: 'thinking...' }],
+        type: 'message',
+        role: 'assistant',
+        content: '[Reasoning: thinking...]',
       });
       expect(input[1]).toEqual({
         type: 'message',
@@ -628,18 +627,17 @@ describe('ResponsesConverter', () => {
         ],
       } as unknown as GenerateContentParameters;
       const { input } = convertGeminiContentsToResponsesInput(request);
+      // Thought parts are converted to assistant messages with [Reasoning: ...] prefix
       const reasoning = input.find(
         (item) =>
-          (item as unknown as Record<string, unknown>)['type'] === 'reasoning',
+          (item as unknown as Record<string, unknown>)['type'] === 'message' &&
+          typeof (item as unknown as Record<string, unknown>)['content'] === 'string' &&
+          ((item as unknown as Record<string, unknown>)['content'] as string).startsWith('[Reasoning:'),
       );
       expect(reasoning).toBeDefined();
       expect(
-        (reasoning as unknown as Record<string, unknown>)['encrypted_content'],
-      ).toBe('');
-      expect(
-        (reasoning as unknown as { summary: Array<{ text: string }> })
-          .summary[0].text,
-      ).toBe('Let me think about this...');
+        (reasoning as unknown as Record<string, unknown>)['content'],
+      ).toBe('[Reasoning: Let me think about this...]');
       const textMsg = input.find(
         (item) =>
           (item as unknown as Record<string, unknown>)['type'] === 'message' &&

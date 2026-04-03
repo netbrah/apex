@@ -23,13 +23,7 @@ import {
   convertGeminiToolsToResponsesTools,
 } from './responsesConverter.js';
 import { buildRuntimeFetchOptions } from '../../utils/runtimeFetchOptions.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
-// TODO(phase3-websocket): Uncomment when proxy WS PR #1530 lands
-// import type { ResponsesWebSocketManager } from './responsesWebSocketManager.js';
-// import type { ResponsesWsEvent } from './wsTypes.js';
-// import { isUpgradeRequiredError, isRetryableWsError } from './wsTypes.js';
-
-const debugLogger = createDebugLogger('RESPONSES_PIPELINE');
+import { debugLogger } from '../../utils/debugLogger.js';
 
 export interface ResponsesPipelineState {
   lastResponseId: string | null;
@@ -200,7 +194,7 @@ export class ResponsesPipeline {
     const text = this.buildTextControls();
 
     const apiRequest: ResponsesApiRequest = {
-      model: this.config.model,
+      model: this.config.model as string,
       input: effectiveInput,
       ...(previousResponseId
         ? { previous_response_id: previousResponseId }
@@ -377,7 +371,7 @@ export class ResponsesPipeline {
                   };
                   const geminiResp = convertResponsesEventToGemini(
                     sseEvent,
-                    this.config.model,
+                    this.config.model ?? '',
                     streamState,
                   );
                   if (geminiResp) {
@@ -409,7 +403,7 @@ export class ResponsesPipeline {
               };
               const geminiResp = convertResponsesEventToGemini(
                 sseEvent,
-                this.config.model,
+                this.config.model ?? '',
                 streamState,
               );
               if (geminiResp) {

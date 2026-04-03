@@ -20,15 +20,13 @@ import type {
 import { GenerateContentResponse, FinishReason } from '@google/genai';
 import type OpenAI from 'openai';
 import { safeJsonParse } from '../../utils/safeJsonParse.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
+import { debugLogger } from '../../utils/debugLogger.js';
 import type { InputModalities } from '../contentGenerator.js';
 import { StreamingToolCallParser } from './streamingToolCallParser.js';
 import {
   convertSchema,
   type SchemaComplianceMode,
 } from '../../utils/schemaConverter.js';
-
-const debugLogger = createDebugLogger('CONVERTER');
 
 /**
  * Extended usage type that supports both OpenAI standard format and alternative formats

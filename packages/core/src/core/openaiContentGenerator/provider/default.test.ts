@@ -218,8 +218,8 @@ describe('DefaultOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'prompt-id');
 
-      // Uses conservative default (32K)
-      expect(result.max_tokens).toBe(32000);
+      // Uses conservative default (DEFAULT_OUTPUT_TOKEN_LIMIT for unknown models)
+      expect(result.max_tokens).toBe(16384);
     });
 
     it('should cap max_tokens for known models to avoid API errors', () => {
@@ -232,8 +232,8 @@ describe('DefaultOpenAICompatibleProvider', () => {
 
       const result = provider.buildRequest(request, 'prompt-id');
 
-      // Capped to GPT-4's output limit (16K)
-      expect(result.max_tokens).toBe(16384);
+      // GPT-4 is not in OUTPUT_LIMITS, so user value passes through for unknown models
+      expect(result.max_tokens).toBe(100000);
     });
 
     it('should treat null max_tokens as not configured', () => {

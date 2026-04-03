@@ -122,9 +122,10 @@ export function resolveModelConfig(
 
   // Get auth-specific env var mappings.
   // If authType is not provided, do not read any auth env vars.
+  const defaultEnvMapping = { model: [] as string[], apiKey: [] as string[], baseUrl: [] as string[] };
   const envMapping = authType
-    ? AUTH_ENV_MAPPINGS[authType]
-    : { model: [], apiKey: [], baseUrl: [] };
+    ? (AUTH_ENV_MAPPINGS[authType] ?? defaultEnvMapping)
+    : defaultEnvMapping;
 
   // Build layers for each field in priority order
   // Priority: modelProvider > cli > env > settings > default

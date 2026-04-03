@@ -22,9 +22,7 @@ import type OpenAI from 'openai';
 import { ResponsesPipeline } from './responsesPipeline.js';
 import { RequestTokenEstimator } from '../../utils/request-tokenizer/index.js';
 import { buildRuntimeFetchOptions } from '../../utils/runtimeFetchOptions.js';
-import { createDebugLogger } from '../../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('RESPONSES');
+import { debugLogger } from '../../utils/debugLogger.js';
 
 export class OpenAIResponsesContentGenerator implements ContentGenerator {
   private readonly pipeline: ResponsesPipeline;
@@ -135,8 +133,8 @@ export class OpenAIResponsesContentGenerator implements ContentGenerator {
     const client = await this.getOpenAIClient();
     try {
       const embedding = await client.embeddings.create({
-        model: this.contentGeneratorConfig.model.includes('embed')
-          ? this.contentGeneratorConfig.model
+        model: (this.contentGeneratorConfig.model ?? '').includes('embed')
+          ? this.contentGeneratorConfig.model!
           : 'text-embedding-ada-002',
         input: text,
       });

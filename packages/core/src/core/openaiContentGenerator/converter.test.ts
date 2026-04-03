@@ -1834,10 +1834,10 @@ describe('MCP tool result end-to-end through OpenAI converter (issue #1520)', ()
     const userMessages = messages.filter((m) => m.role === 'user');
 
     expect(toolMessages).toHaveLength(1);
-    // No content should leak into a user message
-    expect(userMessages).toHaveLength(0);
+    // Non-multimodal model puts images as sibling parts → user message
+    expect(userMessages).toHaveLength(1);
 
-    // Tool message should contain both text description and image
+    // Tool message should contain text description only
     const toolMsg = toolMessages[0];
     const toolContent = toolMsg.content;
     expect(Array.isArray(toolContent)).toBe(true);
@@ -1846,11 +1846,18 @@ describe('MCP tool result end-to-end through OpenAI converter (issue #1520)', ()
       text?: string;
       image_url?: { url: string };
     }>;
-    expect(contentArray).toHaveLength(2);
+    expect(contentArray).toHaveLength(1);
     expect(contentArray[0].type).toBe('text');
     expect(contentArray[0].text).toContain('image data');
-    expect(contentArray[1].type).toBe('image_url');
-    expect(contentArray[1].image_url?.url).toContain('data:image/png');
+
+    // Image should be in the user message (non-multimodal model)
+    const userMsg = userMessages[0];
+    const userContent = userMsg.content as Array<{
+      type: string;
+      image_url?: { url: string };
+    }>;
+    expect(Array.isArray(userContent)).toBe(true);
+    expect(userContent.some((p) => p.type === 'image_url')).toBe(true);
   });
 
   it('should work correctly when MCP tool returns a single text part', () => {
@@ -1963,7 +1970,8 @@ describe('MCP tool result end-to-end through OpenAI converter (issue #1520)', ()
     const userMessages = messages.filter((m) => m.role === 'user');
 
     expect(toolMessages).toHaveLength(1);
-    expect(userMessages).toHaveLength(0);
+    // Non-multimodal model puts images as sibling parts → user message
+    expect(userMessages).toHaveLength(1);
 
     const toolMsg = toolMessages[0];
     expect((toolMsg as { tool_call_id: string }).tool_call_id).toBe(callId);
@@ -1976,14 +1984,21 @@ describe('MCP tool result end-to-end through OpenAI converter (issue #1520)', ()
       image_url?: { url: string };
     }>;
 
-    // Should have text (all joined) + image
-    expect(contentArray).toHaveLength(2);
+    // Should have text (all joined) only; image goes to user message
+    expect(contentArray).toHaveLength(1);
     expect(contentArray[0].type).toBe('text');
     expect(contentArray[0].text).toContain('design mockup');
     expect(contentArray[0].text).toContain('image data');
     expect(contentArray[0].text).toContain('node details');
-    expect(contentArray[1].type).toBe('image_url');
-    expect(contentArray[1].image_url?.url).toContain('data:image/png');
+
+    // Image should be in the user message (non-multimodal model)
+    const userMsg = userMessages[0];
+    const userContent = userMsg.content as Array<{
+      type: string;
+      image_url?: { url: string };
+    }>;
+    expect(Array.isArray(userContent)).toBe(true);
+    expect(userContent.some((p) => p.type === 'image_url')).toBe(true);
   });
 });
 

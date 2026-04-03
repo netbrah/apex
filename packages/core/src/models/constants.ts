@@ -59,7 +59,7 @@ export interface AuthEnvMapping {
   model: string[];
 }
 
-export const AUTH_ENV_MAPPINGS = {
+export const AUTH_ENV_MAPPINGS: Partial<Record<AuthType, AuthEnvMapping>> = {
   openai: {
     apiKey: ['OPENAI_API_KEY'],
     baseUrl: ['OPENAI_BASE_URL'],
@@ -75,7 +75,7 @@ export const AUTH_ENV_MAPPINGS = {
     baseUrl: ['ANTHROPIC_BASE_URL'],
     model: ['ANTHROPIC_MODEL'],
   },
-  gemini: {
+  'gemini-api-key': {
     apiKey: ['GEMINI_API_KEY'],
     baseUrl: [],
     model: ['GEMINI_MODEL'],
@@ -85,7 +85,7 @@ export const AUTH_ENV_MAPPINGS = {
     baseUrl: [],
     model: ['GOOGLE_MODEL'],
   },
-} as const satisfies Record<AuthType, AuthEnvMapping>;
+};
 
 export const DEFAULT_MODELS = {
   openai: MAINLINE_CODER_MODEL,

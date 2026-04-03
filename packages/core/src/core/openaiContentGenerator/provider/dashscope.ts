@@ -37,7 +37,7 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
   }
 
   override buildHeaders(): Record<string, string | undefined> {
-    const version = this.cliConfig.getCliVersion() || 'unknown';
+    const version = 'apex';
     const userAgent = `QwenCode/${version} (${process.platform}; ${process.arch})`;
     const { authType, customHeaders } = this.contentGeneratorConfig;
     const defaultHeaders = {
@@ -137,7 +137,7 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
   }
 
   buildMetadata(userPromptId: string): DashScopeRequestMetadata {
-    const channel = this.cliConfig.getChannel?.();
+    const channel = undefined;
 
     return {
       metadata: {
