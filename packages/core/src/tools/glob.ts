@@ -167,8 +167,8 @@ async function executeFdSearch(
         args.push('--ignore-file', homeIgnore);
       }
     }
-  } catch {
-    // Ignore errors resolving ~/.ignore
+  } catch (e) {
+    debugLogger.log(`[GlobTool] Error checking ~/.ignore: ${e}`);
   }
 
   // Do not follow symlinks (matching glob's follow: false)

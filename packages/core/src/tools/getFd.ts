@@ -20,7 +20,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileExists } from '../utils/fileUtils.js';
 import { Storage } from '../config/storage.js';
 import { debugLogger } from '../utils/debugLogger.js';
@@ -119,7 +119,7 @@ async function downloadFd(destDir: string): Promise<void> {
     // Extract based on archive type
     if (archivePath.endsWith('.tar.gz')) {
       // Extract tar.gz — fd tarballs contain a directory like fd-v10.2.0-x86_64-unknown-linux-musl/
-      execSync(`tar xf "${archivePath}" -C "${tmpDir}"`, {
+      execFileSync('tar', ['xf', archivePath, '-C', tmpDir], {
         stdio: 'pipe',
       });
 
@@ -140,8 +140,12 @@ async function downloadFd(destDir: string): Promise<void> {
       }
     } else if (archivePath.endsWith('.zip')) {
       // For Windows zip files, use PowerShell's Expand-Archive
-      execSync(
-        `powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpDir}' -Force"`,
+      execFileSync(
+        'powershell',
+        [
+          '-Command',
+          `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpDir}' -Force`,
+        ],
         { stdio: 'pipe' },
       );
 

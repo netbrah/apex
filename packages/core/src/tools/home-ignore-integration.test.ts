@@ -73,6 +73,8 @@ async function resolveBinary(name: string): Promise<string | null> {
     // Not on PATH
   }
 
+  // On Debian/Ubuntu, fd is packaged as 'fdfind' to avoid a name conflict
+  // with the fdclone package. Check that alternative name too.
   if (name === 'fd') {
     try {
       const result = await spawnCollect('fdfind', ['--version']);
