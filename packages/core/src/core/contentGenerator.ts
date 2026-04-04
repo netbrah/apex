@@ -133,22 +133,48 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
   return undefined;
 }
 
-export type ContentGeneratorConfig = {
+/**
+ * Upstream (Gemini / Google) configuration fields.
+ *
+ * These fields are consumed by the Google-native content generators
+ * (Gemini API, Vertex AI, Code Assist, etc.).
+ */
+export type BaseContentGeneratorConfig = {
   apiKey?: string;
   vertexai?: boolean;
   authType?: AuthType;
   proxy?: string;
   baseUrl?: string;
   customHeaders?: Record<string, string>;
-  // Fork-specific fields for OpenAI/Anthropic backends
+  userAgent?: string;
+};
+
+/**
+ * Fork-specific configuration fields for OpenAI, Anthropic, and
+ * OpenAI-Responses backends.
+ *
+ * Separated from upstream fields so the two concerns don't grow
+ * interleaved.  The union type {@link ContentGeneratorConfig} keeps
+ * the public API backwards-compatible.
+ */
+export type ForkContentGeneratorConfig = {
+  /** Model identifier (e.g. "gpt-4o", "claude-sonnet-4-20250514"). */
   model?: string;
+  /** Env-var key that holds the API key (used by Responses pipeline). */
   apiKeyEnvKey?: string;
+  /** Enable request/response logging for OpenAI backends. */
   enableOpenAILogging?: boolean;
+  /** Directory for OpenAI request/response log files. */
   openAILoggingDir?: string;
+  /** HTTP request timeout (ms). */
   timeout?: number;
+  /** Maximum automatic retries on transient errors. */
   maxRetries?: number;
+  /** HTTP status codes that should be retried. */
   retryErrorCodes?: number[];
+  /** Enable Anthropic prompt-caching headers. */
   enableCacheControl?: boolean;
+  /** Sampling / generation hyper-parameters. */
   samplingParams?: {
     top_p?: number;
     top_k?: number;
@@ -158,6 +184,7 @@ export type ContentGeneratorConfig = {
     temperature?: number;
     max_tokens?: number;
   };
+  /** Reasoning / thinking configuration. */
   reasoning?:
     | false
     | {
@@ -165,15 +192,32 @@ export type ContentGeneratorConfig = {
         budget_tokens?: number;
         summary?: 'auto' | 'concise' | 'detailed';
       };
+  /** Controls how much reasoning detail the model exposes. */
   verbosity?: 'low' | 'medium' | 'high';
+  /** Service tier for prioritised inference. */
   serviceTier?: 'auto' | 'priority';
-  userAgent?: string;
+  /** JSON-Schema compliance mode for tool parameters. */
   schemaCompliance?: 'auto' | 'openapi_30';
+  /** Override the context-window size used for budget trimming. */
   contextWindowSize?: number;
+  /** Extra body fields forwarded verbatim in the HTTP request. */
   extra_body?: Record<string, unknown>;
+  /** Which media input modalities the model accepts. */
   modalities?: InputModalities;
+  /** Replay encrypted reasoning content in Responses API. */
   enableEncryptedContentReplay?: boolean;
 };
+
+/**
+ * Full content-generator configuration — union of upstream and fork fields.
+ *
+ * Existing call-sites that use `ContentGeneratorConfig` continue to work
+ * unchanged.  New code can import the narrower
+ * {@link BaseContentGeneratorConfig} or {@link ForkContentGeneratorConfig}
+ * when only one subset is needed.
+ */
+export type ContentGeneratorConfig = BaseContentGeneratorConfig &
+  ForkContentGeneratorConfig;
 
 /**
  * Tracks the source of each field in a ContentGeneratorConfig.
