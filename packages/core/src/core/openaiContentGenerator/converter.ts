@@ -926,7 +926,8 @@ export class OpenAIContentConverter {
               args = safeJsonParse(toolCall.function.arguments, {});
               if (
                 Object.keys(args).length === 0 &&
-                toolCall.function.arguments !== '{}'
+                toolCall.function.arguments.trim() !== '{}' &&
+                toolCall.function.arguments.trim() !== ''
               ) {
                 debugLogger.warn(
                   'Tool call argument JSON parse fell back to {}: tool=%s id=%s',

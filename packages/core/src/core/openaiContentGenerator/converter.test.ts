@@ -1130,7 +1130,7 @@ describe('OpenAIContentConverter', () => {
     it('should log warning when tool call arguments fail to parse', () => {
       const warnSpy = vi.spyOn(debugLogger, 'warn').mockImplementation(() => {});
 
-      const response = converter.convertOpenAIResponseToGemini({
+      converter.convertOpenAIResponseToGemini({
         object: 'chat.completion',
         id: 'chatcmpl-badargs',
         created: 123,
@@ -1159,9 +1159,8 @@ describe('OpenAIContentConverter', () => {
         ],
       } as unknown as OpenAI.Chat.ChatCompletion);
 
-      const parts = response.candidates?.[0]?.content?.parts;
-      // The function call is still emitted (with repaired or empty args)
-      expect(parts?.some((p) => 'functionCall' in p)).toBe(true);
+      // safeJsonParse logs a warning when jsonrepair auto-fixes malformed JSON
+      expect(warnSpy).toHaveBeenCalled();
 
       warnSpy.mockRestore();
     });
