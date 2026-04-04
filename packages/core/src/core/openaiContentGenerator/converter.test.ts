@@ -6,7 +6,7 @@
  * @license
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OpenAIContentConverter } from './converter.js';
 import type { StreamingToolCallParser } from './streamingToolCallParser.js';
 import {
@@ -20,6 +20,7 @@ import {
 } from '@google/genai';
 import type OpenAI from 'openai';
 import { convertToFunctionResponse } from '../../utils/generateContentResponseUtilities.js';
+import { debugLogger } from '../../utils/debugLogger.js';
 
 describe('OpenAIContentConverter', () => {
   let converter: OpenAIContentConverter;
@@ -1028,6 +1029,142 @@ describe('OpenAIContentConverter', () => {
 
       expect(response.candidates).toEqual([]);
     });
+
+    it('should map refusal text to a [Refusal: ...] part', () => {
+      const response = converter.convertOpenAIResponseToGemini({
+        object: 'chat.completion',
+        id: 'chatcmpl-refusal',
+        created: 123,
+        model: 'test-model',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: null,
+              refusal: 'I cannot help with that request.',
+            },
+            finish_reason: 'stop',
+            logprobs: null,
+          },
+        ],
+      } as unknown as OpenAI.Chat.ChatCompletion);
+
+      const parts = response.candidates?.[0]?.content?.parts;
+      expect(parts).toEqual([
+        { text: '[Refusal: I cannot help with that request.]' },
+      ]);
+    });
+
+    it('should map annotations (URL citations) to [Citation: ...] parts', () => {
+      const response = converter.convertOpenAIResponseToGemini({
+        object: 'chat.completion',
+        id: 'chatcmpl-annotations',
+        created: 123,
+        model: 'test-model',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: 'Here is some info.',
+              refusal: null,
+              annotations: [
+                {
+                  type: 'url_citation',
+                  url_citation: {
+                    start_index: 0,
+                    end_index: 10,
+                    title: 'Example Page',
+                    url: 'https://example.com',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'stop',
+            logprobs: null,
+          },
+        ],
+      } as unknown as OpenAI.Chat.ChatCompletion);
+
+      const parts = response.candidates?.[0]?.content?.parts;
+      expect(parts).toHaveLength(2);
+      expect(parts?.[0]).toEqual({ text: 'Here is some info.' });
+      expect(parts?.[1]).toEqual({
+        text: '[Citation: Example Page — https://example.com]',
+      });
+    });
+
+    it('should map audio output transcript to a text part', () => {
+      const response = converter.convertOpenAIResponseToGemini({
+        object: 'chat.completion',
+        id: 'chatcmpl-audio',
+        created: 123,
+        model: 'test-model',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: null,
+              refusal: null,
+              audio: {
+                id: 'audio_123',
+                data: 'base64audiodata==',
+                expires_at: 1700000000,
+                transcript: 'Hello, how can I help you?',
+              },
+            },
+            finish_reason: 'stop',
+            logprobs: null,
+          },
+        ],
+      } as unknown as OpenAI.Chat.ChatCompletion);
+
+      const parts = response.candidates?.[0]?.content?.parts;
+      expect(parts).toEqual([
+        { text: 'Hello, how can I help you?' },
+      ]);
+    });
+
+    it('should log warning when tool call arguments fail to parse', () => {
+      const warnSpy = vi.spyOn(debugLogger, 'warn').mockImplementation(() => {});
+
+      const response = converter.convertOpenAIResponseToGemini({
+        object: 'chat.completion',
+        id: 'chatcmpl-badargs',
+        created: 123,
+        model: 'test-model',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: null,
+              refusal: null,
+              tool_calls: [
+                {
+                  id: 'call_bad_json',
+                  type: 'function',
+                  function: {
+                    name: 'read_file',
+                    arguments: '{totally broken json',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+            logprobs: null,
+          },
+        ],
+      } as unknown as OpenAI.Chat.ChatCompletion);
+
+      const parts = response.candidates?.[0]?.content?.parts;
+      // The function call is still emitted (with repaired or empty args)
+      expect(parts?.some((p) => 'functionCall' in p)).toBe(true);
+
+      warnSpy.mockRestore();
+    });
   });
 
   describe('OpenAI -> Gemini reasoning content', () => {
@@ -1143,6 +1280,30 @@ describe('OpenAIContentConverter', () => {
       expect(parts?.[1]).toEqual(
         expect.objectContaining({ text: 'visible text' }),
       );
+    });
+
+    it('should convert streaming refusal delta to a [Refusal: ...] part', () => {
+      const chunk = converter.convertOpenAIChunkToGemini({
+        object: 'chat.completion.chunk',
+        id: 'chunk-refusal',
+        created: 456,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              refusal: 'I cannot do that.',
+            },
+            finish_reason: null,
+            logprobs: null,
+          },
+        ],
+        model: 'gpt-test',
+      } as unknown as OpenAI.Chat.ChatCompletionChunk);
+
+      const parts = chunk.candidates?.[0]?.content?.parts;
+      expect(parts).toEqual([
+        { text: '[Refusal: I cannot do that.]' },
+      ]);
     });
 
     it('should not throw when streaming chunk has no delta', () => {

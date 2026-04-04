@@ -36,6 +36,11 @@ export function safeJsonParse<T = Record<string, unknown>>(
       // Second attempt: use jsonrepair to fix common JSON issues
       const repairedJson = jsonrepair(jsonString);
 
+      debugLogger.warn(
+        'JSON required repair before parsing (jsonrepair succeeded):',
+        { jsonString: jsonString.slice(0, 200) },
+      );
+
       // jsonrepair always returns a string, so we need to parse it
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       return JSON.parse(repairedJson) as T;

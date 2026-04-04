@@ -895,6 +895,28 @@ export class OpenAIContentConverter {
         parts.push({ text: choice.message.content });
       }
 
+      // Handle refusal — model refused to comply with the request
+      if (choice.message.refusal) {
+        parts.push({ text: `[Refusal: ${choice.message.refusal}]` });
+      }
+
+      // Handle annotations (URL citations from web search)
+      if (choice.message.annotations?.length) {
+        for (const annotation of choice.message.annotations) {
+          if (annotation.type === 'url_citation' && annotation.url_citation) {
+            const cite = annotation.url_citation;
+            parts.push({
+              text: `[Citation: ${cite.title} — ${cite.url}]`,
+            });
+          }
+        }
+      }
+
+      // Handle audio output — extract transcript as text
+      if (choice.message.audio?.transcript) {
+        parts.push({ text: choice.message.audio.transcript });
+      }
+
       // Handle tool calls
       if (choice.message.tool_calls) {
         for (const toolCall of choice.message.tool_calls) {
@@ -902,6 +924,16 @@ export class OpenAIContentConverter {
             let args: Record<string, unknown> = {};
             if (toolCall.function.arguments) {
               args = safeJsonParse(toolCall.function.arguments, {});
+              if (
+                Object.keys(args).length === 0 &&
+                toolCall.function.arguments !== '{}'
+              ) {
+                debugLogger.warn(
+                  'Tool call argument JSON parse fell back to {}: tool=%s id=%s',
+                  toolCall.function.name,
+                  toolCall.id,
+                );
+              }
             }
 
             parts.push({
@@ -1004,6 +1036,11 @@ export class OpenAIContentConverter {
         if (typeof choice.delta.content === 'string') {
           parts.push({ text: choice.delta.content });
         }
+      }
+
+      // Handle refusal delta — model refused to comply with the request
+      if (choice.delta?.refusal) {
+        parts.push({ text: `[Refusal: ${choice.delta.refusal}]` });
       }
 
       // Handle tool calls using the streaming parser
