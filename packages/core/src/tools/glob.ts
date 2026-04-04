@@ -155,6 +155,22 @@ async function executeFdSearch(
   // Max results
   args.push('--max-results', maxResults.toString());
 
+  // Honor ~/.ignore (global home-directory ignore file).
+  // fd does not read $HOME/.ignore automatically — it only reads
+  // project-level .ignore files. We explicitly pass it via --ignore-file
+  // so users can define global exclusion patterns.
+  try {
+    const userHome = process.env['APEX_HOME'] || process.env['HOME'] || '';
+    if (userHome) {
+      const homeIgnore = `${userHome}/.ignore`;
+      if (fs.existsSync(homeIgnore)) {
+        args.push('--ignore-file', homeIgnore);
+      }
+    }
+  } catch {
+    // Ignore errors resolving ~/.ignore
+  }
+
   // Do not follow symlinks (matching glob's follow: false)
   // fd defaults to not following symlinks
 
