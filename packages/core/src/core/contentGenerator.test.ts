@@ -350,10 +350,7 @@ describe('createContentGenerator', () => {
       models: {},
     } as unknown as GoogleGenAI;
     vi.mocked(GoogleGenAI).mockImplementation(() => mockGenerator as never);
-    vi.stubEnv(
-      'APEX_CUSTOM_HEADERS',
-      'X-Test-Header: test, Another: value',
-    );
+    vi.stubEnv('APEX_CUSTOM_HEADERS', 'X-Test-Header: test, Another: value');
 
     await createContentGenerator(
       {
@@ -742,5 +739,35 @@ describe('createContentGeneratorConfig', () => {
     );
     expect(config.apiKey).toBe('gateway-placeholder-key');
     expect(config.vertexai).toBe(false);
+  });
+});
+
+describe('useSummarizedThinking', () => {
+  it('LoggingContentGenerator forwards useSummarizedThinking from wrapped generator', () => {
+    const inner = {
+      useSummarizedThinking: () => true,
+    } as unknown as ContentGenerator;
+    const logger = new LoggingContentGenerator(inner, mockConfig);
+    expect(logger.useSummarizedThinking()).toBe(true);
+  });
+
+  it('LoggingContentGenerator defaults to false when wrapped generator lacks useSummarizedThinking', () => {
+    const inner = {} as unknown as ContentGenerator;
+    const logger = new LoggingContentGenerator(inner, mockConfig);
+    expect(logger.useSummarizedThinking()).toBe(false);
+  });
+
+  it('RecordingContentGenerator forwards useSummarizedThinking from wrapped generator', () => {
+    const inner = {
+      useSummarizedThinking: () => true,
+    } as unknown as ContentGenerator;
+    const recorder = new RecordingContentGenerator(inner, '/dev/null');
+    expect(recorder.useSummarizedThinking()).toBe(true);
+  });
+
+  it('RecordingContentGenerator defaults to false when wrapped generator lacks useSummarizedThinking', () => {
+    const inner = {} as unknown as ContentGenerator;
+    const recorder = new RecordingContentGenerator(inner, '/dev/null');
+    expect(recorder.useSummarizedThinking()).toBe(false);
   });
 });

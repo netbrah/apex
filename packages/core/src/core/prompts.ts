@@ -10,6 +10,11 @@ import { PromptProvider } from '../prompts/promptProvider.js';
 import { resolvePathFromEnv as resolvePathFromEnvImpl } from '../prompts/utils.js';
 
 /**
+ * Prefix used to identify compaction summaries in conversation history.
+ */
+export const COMPACTION_SUMMARY_PREFIX = '[Summary of prior conversation]';
+
+/**
  * Resolves a path or switch value from an environment variable.
  * @deprecated Use resolvePathFromEnv from @apex-code/apex-core/prompts/utils instead.
  */

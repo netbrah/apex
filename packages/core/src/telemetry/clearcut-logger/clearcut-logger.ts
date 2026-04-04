@@ -610,8 +610,7 @@ export class ClearcutLogger {
         value: event.model,
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_EMBEDDING_MODEL,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_EMBEDDING_MODEL,
         value: event.embedding_model,
       },
       {
@@ -627,23 +626,19 @@ export class ClearcutLogger {
         value: event.approval_mode,
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_API_KEY_ENABLED,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_API_KEY_ENABLED,
         value: event.api_key_enabled.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_VERTEX_API_ENABLED,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_VERTEX_API_ENABLED,
         value: event.vertex_ai_enabled.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_DEBUG_MODE_ENABLED,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_DEBUG_MODE_ENABLED,
         value: event.debug_enabled.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_VERTEX_API_ENABLED,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_VERTEX_API_ENABLED,
         value: event.vertex_ai_enabled.toString(),
       },
       {
@@ -651,13 +646,11 @@ export class ClearcutLogger {
         value: event.mcp_servers,
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_VERTEX_API_ENABLED,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_VERTEX_API_ENABLED,
         value: event.vertex_ai_enabled.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_TELEMETRY_ENABLED,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_TELEMETRY_ENABLED,
         value: event.telemetry_enabled.toString(),
       },
       {
@@ -666,15 +659,13 @@ export class ClearcutLogger {
         value: event.telemetry_log_user_prompts_enabled.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_MCP_SERVERS_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_MCP_SERVERS_COUNT,
         value: event.mcp_servers_count
           ? event.mcp_servers_count.toString()
           : '',
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_MCP_TOOLS_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_MCP_TOOLS_COUNT,
         value: event.mcp_tools_count?.toString() ?? '',
       },
       {
@@ -682,8 +673,7 @@ export class ClearcutLogger {
         value: event.mcp_tools ? event.mcp_tools : '',
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_EXTENSIONS_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_EXTENSIONS_COUNT,
         value: event.extensions_count.toString(),
       },
       // We deliberately do not log the names of extensions here, to be safe.
@@ -692,8 +682,7 @@ export class ClearcutLogger {
         value: event.extension_ids.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_START_SESSION_WORKTREE_ACTIVE,
+        gemini_cli_key: EventMetadataKey.APEX_START_SESSION_WORKTREE_ACTIVE,
         value: event.worktree_active.toString(),
       },
     ];
@@ -806,8 +795,7 @@ export class ClearcutLogger {
         const askUserMapping: { [key: string]: EventMetadataKey } = {
           question_types: EventMetadataKey.APEX_ASK_USER_QUESTION_TYPES,
           dismissed: EventMetadataKey.APEX_ASK_USER_DISMISSED,
-          empty_submission:
-            EventMetadataKey.APEX_ASK_USER_EMPTY_SUBMISSION,
+          empty_submission: EventMetadataKey.APEX_ASK_USER_EMPTY_SUBMISSION,
           answer_count: EventMetadataKey.APEX_ASK_USER_ANSWER_COUNT,
         };
 
@@ -905,28 +893,23 @@ export class ClearcutLogger {
         value: JSON.stringify(event.duration_ms),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_API_RESPONSE_INPUT_TOKEN_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_API_RESPONSE_INPUT_TOKEN_COUNT,
         value: JSON.stringify(event.usage.input_token_count),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_API_RESPONSE_OUTPUT_TOKEN_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_API_RESPONSE_OUTPUT_TOKEN_COUNT,
         value: JSON.stringify(event.usage.output_token_count),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_API_RESPONSE_CACHED_TOKEN_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_API_RESPONSE_CACHED_TOKEN_COUNT,
         value: JSON.stringify(event.usage.cached_content_token_count),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_API_RESPONSE_THINKING_TOKEN_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_API_RESPONSE_THINKING_TOKEN_COUNT,
         value: JSON.stringify(event.usage.thoughts_token_count),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_API_RESPONSE_TOOL_TOKEN_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_API_RESPONSE_TOOL_TOKEN_COUNT,
         value: JSON.stringify(event.usage.tool_token_count),
       },
       // Context breakdown fields are only populated on turn-ending responses
@@ -1034,8 +1017,7 @@ export class ClearcutLogger {
 
     if (event.confirmed_by_model) {
       data.push({
-        gemini_cli_key:
-          EventMetadataKey.APEX_LOOP_DETECTED_CONFIRMED_BY_MODEL,
+        gemini_cli_key: EventMetadataKey.APEX_LOOP_DETECTED_CONFIRMED_BY_MODEL,
         value: event.confirmed_by_model,
       });
     }
@@ -1119,8 +1101,7 @@ export class ClearcutLogger {
   logMalformedJsonResponseEvent(event: MalformedJsonResponseEvent): void {
     const data: EventValue[] = [
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_MALFORMED_JSON_RESPONSE_MODEL,
+        gemini_cli_key: EventMetadataKey.APEX_MALFORMED_JSON_RESPONSE_MODEL,
         value: JSON.stringify(event.model),
       },
     ];
@@ -1197,8 +1178,7 @@ export class ClearcutLogger {
   logContentRetryEvent(event: ContentRetryEvent): void {
     const data: EventValue[] = [
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_CONTENT_RETRY_ATTEMPT_NUMBER,
+        gemini_cli_key: EventMetadataKey.APEX_CONTENT_RETRY_ATTEMPT_NUMBER,
         value: String(event.attempt_number),
       },
       {
@@ -1255,8 +1235,7 @@ export class ClearcutLogger {
     // This event is generic for any retry attempt (Gemini, WebFetch, etc.)
     const data: EventValue[] = [
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_NETWORK_RETRY_ATTEMPT_NUMBER,
+        gemini_cli_key: EventMetadataKey.APEX_NETWORK_RETRY_ATTEMPT_NUMBER,
         value: String(event.attempt),
       },
       {
@@ -1388,8 +1367,7 @@ export class ClearcutLogger {
         value: JSON.stringify(event.truncated_content_length),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_TOOL_OUTPUT_TRUNCATED_THRESHOLD,
+        gemini_cli_key: EventMetadataKey.APEX_TOOL_OUTPUT_TRUNCATED_THRESHOLD,
         value: JSON.stringify(event.threshold),
       },
     ];
@@ -1405,18 +1383,15 @@ export class ClearcutLogger {
   logToolOutputMaskingEvent(event: ToolOutputMaskingEvent): void {
     const data: EventValue[] = [
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_TOOL_OUTPUT_MASKING_TOKENS_BEFORE,
+        gemini_cli_key: EventMetadataKey.APEX_TOOL_OUTPUT_MASKING_TOKENS_BEFORE,
         value: event.tokens_before.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_TOOL_OUTPUT_MASKING_TOKENS_AFTER,
+        gemini_cli_key: EventMetadataKey.APEX_TOOL_OUTPUT_MASKING_TOKENS_AFTER,
         value: event.tokens_after.toString(),
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_TOOL_OUTPUT_MASKING_MASKED_COUNT,
+        gemini_cli_key: EventMetadataKey.APEX_TOOL_OUTPUT_MASKING_MASKED_COUNT,
         value: event.masked_count.toString(),
       },
       {
@@ -1475,8 +1450,7 @@ export class ClearcutLogger {
 
     if (event.classifier_threshold) {
       data.push({
-        gemini_cli_key:
-          EventMetadataKey.APEX_ROUTING_CLASSIFIER_THRESHOLD,
+        gemini_cli_key: EventMetadataKey.APEX_ROUTING_CLASSIFIER_THRESHOLD,
         value: event.classifier_threshold,
       });
     }
@@ -1496,8 +1470,7 @@ export class ClearcutLogger {
         value: event.extension_id,
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_EXTENSION_ENABLE_SETTING_SCOPE,
+        gemini_cli_key: EventMetadataKey.APEX_EXTENSION_ENABLE_SETTING_SCOPE,
         value: event.setting_scope,
       },
     ];
@@ -1535,8 +1508,7 @@ export class ClearcutLogger {
         value: event.extension_id,
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_EXTENSION_DISABLE_SETTING_SCOPE,
+        gemini_cli_key: EventMetadataKey.APEX_EXTENSION_DISABLE_SETTING_SCOPE,
         value: event.setting_scope,
       },
     ];
@@ -1672,8 +1644,7 @@ export class ClearcutLogger {
         value: event.prompt_id,
       },
       {
-        gemini_cli_key:
-          EventMetadataKey.APEX_LLM_LOOP_CHECK_FLASH_CONFIDENCE,
+        gemini_cli_key: EventMetadataKey.APEX_LLM_LOOP_CHECK_FLASH_CONFIDENCE,
         value: event.flash_confidence.toString(),
       },
       {

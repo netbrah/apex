@@ -267,9 +267,7 @@ describe('MemoryTool', () => {
       if (result && result.type === 'edit') {
         const expectedPath = path.join('~', APEX_DIR, 'APEX.md');
         expect(result.title).toBe(`Confirm Memory Save: ${expectedPath}`);
-        expect(result.fileName).toContain(
-          path.join('mock', 'home', APEX_DIR),
-        );
+        expect(result.fileName).toContain(path.join('mock', 'home', APEX_DIR));
         expect(result.fileName).toContain('APEX.md');
         expect(result.fileDiff).toContain('Index: APEX.md');
         expect(result.fileDiff).toContain('+## Gemini Added Memories');

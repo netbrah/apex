@@ -49,6 +49,20 @@ export interface ContentGenerator {
 
   embedContent(request: EmbedContentParameters): Promise<EmbedContentResponse>;
 
+  /**
+   * Whether this provider returns thinking/reasoning as a summarized text
+   * block rather than raw chain-of-thought tokens.
+   *
+   * - `true` — the provider emits a condensed reasoning summary (e.g. OpenAI
+   *   Responses API `reasoning_summary`). The caller should display it as-is.
+   * - `false` (default) — the provider returns full thinking tokens
+   *   (Gemini native thinking, Anthropic `thinking` blocks, OpenAI Chat
+   *   reasoning_content). The caller may truncate or transform for display.
+   *
+   * Implementations that do not support thinking at all should return `false`.
+   */
+  useSummarizedThinking?(): boolean;
+
   userTier?: UserTierId;
 
   userTierName?: string;
@@ -63,7 +77,22 @@ export enum AuthType {
   LEGACY_CLOUD_SHELL = 'cloud-shell',
   COMPUTE_ADC = 'compute-default-credentials',
   GATEWAY = 'gateway',
+  // Fork-specific auth types for OpenAI-compatible and Anthropic backends
+  USE_OPENAI = 'openai',
+  USE_OPENAI_RESPONSES = 'openai-responses',
+  USE_ANTHROPIC = 'anthropic',
 }
+
+/**
+ * Supported input modalities for a model.
+ * Omitted or false fields mean the model does not support that input type.
+ */
+export type InputModalities = {
+  image?: boolean;
+  pdf?: boolean;
+  audio?: boolean;
+  video?: boolean;
+};
 
 /**
  * Detects the best authentication type based on environment variables.
@@ -74,6 +103,18 @@ export enum AuthType {
  * 3. GEMINI_API_KEY -> USE_GEMINI
  */
 export function getAuthTypeFromEnv(): AuthType | undefined {
+  // Fork-specific: detect OpenAI/Anthropic auth from env before Google checks
+  if (process.env['ANTHROPIC_API_KEY'] && process.env['ANTHROPIC_BASE_URL']) {
+    return AuthType.USE_ANTHROPIC;
+  }
+  if (process.env['OPENAI_API_KEY']) {
+    // Use responses API if explicitly requested, otherwise default to openai-responses
+    const apiType = process.env['OPENAI_API_TYPE']?.toLowerCase();
+    if (apiType === 'chat-completions' || apiType === 'openai') {
+      return AuthType.USE_OPENAI;
+    }
+    return AuthType.USE_OPENAI_RESPONSES;
+  }
   if (process.env['GOOGLE_GENAI_USE_GCA'] === 'true') {
     return AuthType.LOGIN_WITH_GOOGLE;
   }
@@ -92,14 +133,128 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
   return undefined;
 }
 
-export type ContentGeneratorConfig = {
+/**
+ * Upstream (Gemini / Google) configuration fields.
+ *
+ * These fields are consumed by the Google-native content generators
+ * (Gemini API, Vertex AI, Code Assist, etc.) and are also shared with
+ * fork backends (OpenAI, Anthropic) where applicable (e.g. apiKey,
+ * baseUrl, customHeaders, userAgent).
+ */
+export type BaseContentGeneratorConfig = {
   apiKey?: string;
   vertexai?: boolean;
   authType?: AuthType;
   proxy?: string;
   baseUrl?: string;
   customHeaders?: Record<string, string>;
+  /** User-Agent header — consumed by both upstream and fork backends. */
+  userAgent?: string;
 };
+
+/**
+ * Fork-specific configuration fields for OpenAI, Anthropic, and
+ * OpenAI-Responses backends.
+ *
+ * Separated from upstream fields so the two concerns don't grow
+ * interleaved.  The union type {@link ContentGeneratorConfig} keeps
+ * the public API backwards-compatible.
+ */
+export type ForkContentGeneratorConfig = {
+  /** Model identifier (e.g. "gpt-4o", "claude-sonnet-4-20250514"). */
+  model?: string;
+  /** Env-var key that holds the API key (used by Responses pipeline). */
+  apiKeyEnvKey?: string;
+  /** Enable request/response logging for OpenAI backends. */
+  enableOpenAILogging?: boolean;
+  /** Directory for OpenAI request/response log files. */
+  openAILoggingDir?: string;
+  /** HTTP request timeout (ms). */
+  timeout?: number;
+  /** Maximum automatic retries on transient errors. */
+  maxRetries?: number;
+  /** HTTP status codes that should be retried. */
+  retryErrorCodes?: number[];
+  /** Enable Anthropic prompt-caching headers. */
+  enableCacheControl?: boolean;
+  /** Sampling / generation hyper-parameters. */
+  samplingParams?: {
+    top_p?: number;
+    top_k?: number;
+    repetition_penalty?: number;
+    presence_penalty?: number;
+    frequency_penalty?: number;
+    temperature?: number;
+    max_tokens?: number;
+  };
+  /** Reasoning / thinking configuration. */
+  reasoning?:
+    | false
+    | {
+        effort?: 'low' | 'medium' | 'high';
+        budget_tokens?: number;
+        summary?: 'auto' | 'concise' | 'detailed';
+      };
+  /** Controls how much reasoning detail the model exposes. */
+  verbosity?: 'low' | 'medium' | 'high';
+  /** Service tier for prioritised inference. */
+  serviceTier?: 'auto' | 'priority';
+  /** JSON-Schema compliance mode for tool parameters. */
+  schemaCompliance?: 'auto' | 'openapi_30';
+  /** Override the context-window size used for budget trimming. */
+  contextWindowSize?: number;
+  /** Extra body fields forwarded verbatim in the HTTP request. */
+  extra_body?: Record<string, unknown>;
+  /** Which media input modalities the model accepts. */
+  modalities?: InputModalities;
+  /** Replay encrypted reasoning content in Responses API. */
+  enableEncryptedContentReplay?: boolean;
+};
+
+/**
+ * Full content-generator configuration — union of upstream and fork fields.
+ *
+ * Existing call-sites that use `ContentGeneratorConfig` continue to work
+ * unchanged.  New code can import the narrower
+ * {@link BaseContentGeneratorConfig} or {@link ForkContentGeneratorConfig}
+ * when only one subset is needed.
+ */
+export type ContentGeneratorConfig = BaseContentGeneratorConfig &
+  ForkContentGeneratorConfig;
+
+/**
+ * Tracks the source of each field in a ContentGeneratorConfig.
+ * Re-uses the ConfigSources type from the config resolver for compatibility.
+ */
+export type { ConfigSources as ContentGeneratorConfigSources } from '../utils/configResolver.js';
+
+/**
+ * Result of validating a model configuration.
+ */
+export interface ModelConfigValidationResult {
+  valid: boolean;
+  errors: Error[];
+}
+
+/**
+ * Validates that a ContentGeneratorConfig has the minimum required fields.
+ */
+export function validateModelConfig(
+  config: ContentGeneratorConfig,
+): ModelConfigValidationResult {
+  const errors: Error[] = [];
+  if (!config.apiKey) {
+    errors.push(new Error(`Missing API key for auth type: ${config.authType}`));
+  }
+  if (!config.model) {
+    errors.push(new Error(`Missing model for auth type: ${config.authType}`));
+  }
+  // Anthropic requires an explicit baseUrl
+  if (config.authType === AuthType.USE_ANTHROPIC && !config.baseUrl) {
+    errors.push(new Error('Anthropic requires ANTHROPIC_BASE_URL to be set'));
+  }
+  return { valid: errors.length === 0, errors };
+}
 
 export async function createContentGeneratorConfig(
   config: Config,
@@ -159,6 +314,29 @@ export async function createContentGeneratorConfig(
     return contentGeneratorConfig;
   }
 
+  // Fork-specific: handle OpenAI/Anthropic auth config from environment
+  if (
+    authType === AuthType.USE_OPENAI ||
+    authType === AuthType.USE_OPENAI_RESPONSES
+  ) {
+    contentGeneratorConfig.apiKey =
+      apiKey || process.env['OPENAI_API_KEY'] || undefined;
+    contentGeneratorConfig.baseUrl =
+      baseUrl || process.env['OPENAI_BASE_URL'] || undefined;
+    contentGeneratorConfig.model =
+      process.env['OPENAI_MODEL'] || process.env['APEX_MODEL'] || undefined;
+    return contentGeneratorConfig;
+  }
+
+  if (authType === AuthType.USE_ANTHROPIC) {
+    contentGeneratorConfig.apiKey =
+      apiKey || process.env['ANTHROPIC_API_KEY'] || undefined;
+    contentGeneratorConfig.baseUrl =
+      baseUrl || process.env['ANTHROPIC_BASE_URL'] || undefined;
+    contentGeneratorConfig.model = process.env['ANTHROPIC_MODEL'] || undefined;
+    return contentGeneratorConfig;
+  }
+
   return contentGeneratorConfig;
 }
 
@@ -174,6 +352,36 @@ export async function createContentGenerator(
       );
       return new LoggingContentGenerator(fakeGenerator, gcConfig);
     }
+
+    // Fork-specific: dispatch to OpenAI/Anthropic backends
+    if (config.authType === AuthType.USE_OPENAI) {
+      const { createOpenAIContentGenerator } = await import(
+        './openaiContentGenerator/index.js'
+      );
+      const baseGenerator = createOpenAIContentGenerator(config, gcConfig);
+      return new LoggingContentGenerator(baseGenerator, gcConfig);
+    }
+
+    if (config.authType === AuthType.USE_OPENAI_RESPONSES) {
+      const { createOpenAIResponsesContentGenerator } = await import(
+        './openaiResponsesContentGenerator/index.js'
+      );
+      const baseGenerator = createOpenAIResponsesContentGenerator(
+        config,
+        gcConfig,
+      );
+      return new LoggingContentGenerator(baseGenerator, gcConfig);
+    }
+
+    if (config.authType === AuthType.USE_ANTHROPIC) {
+      const { createAnthropicContentGenerator } = await import(
+        './anthropicContentGenerator/index.js'
+      );
+      const baseGenerator = createAnthropicContentGenerator(config, gcConfig);
+      return new LoggingContentGenerator(baseGenerator, gcConfig);
+    }
+
+    // Upstream Google-specific auth flows below
     const version = await getVersion();
     const model = resolveModel(
       gcConfig.getModel(),
@@ -187,8 +395,7 @@ export async function createContentGenerator(
       gcConfig.getHasAccessToPreviewModel?.() ?? true,
       gcConfig,
     );
-    const customHeadersEnv =
-      process.env['APEX_CUSTOM_HEADERS'] || undefined;
+    const customHeadersEnv = process.env['APEX_CUSTOM_HEADERS'] || undefined;
     const clientName = gcConfig.getClientName();
     const surface = determineSurface();
 

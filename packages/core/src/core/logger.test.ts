@@ -742,10 +742,7 @@ describe('Logger', () => {
         { role: 'user', parts: [{ text: 'hello' }] },
       ];
       const tag = 'special(char)';
-      const taggedFilePath = path.join(
-        TEST_APEX_DIR,
-        `checkpoint-${tag}.json`,
-      );
+      const taggedFilePath = path.join(TEST_APEX_DIR, `checkpoint-${tag}.json`);
       await fs.writeFile(
         taggedFilePath,
         JSON.stringify(taggedConversation, null, 2),

@@ -506,11 +506,7 @@ describe('oauth2', () => {
 
       it('should attempt to load cached credentials first', async () => {
         const cachedCreds = { refresh_token: 'cached-token' };
-        const credsPath = path.join(
-          tempHomeDir,
-          APEX_DIR,
-          'oauth_creds.json',
-        );
+        const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
         await fs.promises.writeFile(credsPath, JSON.stringify(cachedCreds));
 
@@ -548,11 +544,7 @@ describe('oauth2', () => {
 
         await getOauthClient(AuthType.COMPUTE_ADC, mockConfig);
 
-        const credsPath = path.join(
-          tempHomeDir,
-          APEX_DIR,
-          'oauth_creds.json',
-        );
+        const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
         expect(fs.existsSync(credsPath)).toBe(false);
       });
 
@@ -758,11 +750,7 @@ describe('oauth2', () => {
 
         // Make it fall through to cached credentials path
         const cachedCreds = { refresh_token: 'cached-token' };
-        const credsPath = path.join(
-          tempHomeDir,
-          APEX_DIR,
-          'oauth_creds.json',
-        );
+        const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
         await fs.promises.writeFile(credsPath, JSON.stringify(cachedCreds));
 
@@ -791,11 +779,7 @@ describe('oauth2', () => {
 
         // Make it fall through to cached credentials path
         const cachedCreds = { refresh_token: 'cached-token' };
-        const credsPath = path.join(
-          tempHomeDir,
-          APEX_DIR,
-          'oauth_creds.json',
-        );
+        const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
         await fs.promises.writeFile(credsPath, JSON.stringify(cachedCreds));
 
@@ -1468,11 +1452,7 @@ describe('oauth2', () => {
     describe('clearCachedCredentialFile', () => {
       it('should clear cached credentials and Google account', async () => {
         const cachedCreds = { refresh_token: 'test-token' };
-        const credsPath = path.join(
-          tempHomeDir,
-          APEX_DIR,
-          'oauth_creds.json',
-        );
+        const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
         await fs.promises.writeFile(credsPath, JSON.stringify(cachedCreds));
 
@@ -1519,11 +1499,7 @@ describe('oauth2', () => {
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
         // Pre-populate credentials to make getOauthClient resolve quickly
-        const credsPath = path.join(
-          tempHomeDir,
-          APEX_DIR,
-          'oauth_creds.json',
-        );
+        const credsPath = path.join(tempHomeDir, APEX_DIR, 'oauth_creds.json');
         await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
         await fs.promises.writeFile(
           credsPath,

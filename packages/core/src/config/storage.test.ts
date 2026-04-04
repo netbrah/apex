@@ -91,9 +91,7 @@ describe('Storage - Security', () => {
     vi.mocked(homedir).mockReturnValue('');
 
     // .gemini falls back for backward compatibility
-    expect(Storage.getGlobalGeminiDir()).toBe(
-      path.join(os.tmpdir(), APEX_DIR),
-    );
+    expect(Storage.getGlobalGeminiDir()).toBe(path.join(os.tmpdir(), APEX_DIR));
 
     // .agents returns empty to avoid insecure fallback WITHOUT throwing error
     expect(Storage.getGlobalAgentsDir()).toBe('');
@@ -160,11 +158,7 @@ describe('Storage – additional helpers', () => {
   });
 
   it('getMcpOAuthTokensPath returns ~/.apex/mcp-oauth-tokens.json', () => {
-    const expected = path.join(
-      os.homedir(),
-      APEX_DIR,
-      'mcp-oauth-tokens.json',
-    );
+    const expected = path.join(os.homedir(), APEX_DIR, 'mcp-oauth-tokens.json');
     expect(Storage.getMcpOAuthTokensPath()).toBe(expected);
   });
 
@@ -420,8 +414,7 @@ describe('Storage - System Paths', () => {
   });
 
   it('getSystemPoliciesDir returns correct path based on platform and ignores env var', () => {
-    process.env['APEX_SYSTEM_SETTINGS_PATH'] =
-      '/custom/path/settings.json';
+    process.env['APEX_SYSTEM_SETTINGS_PATH'] = '/custom/path/settings.json';
     const platform = os.platform();
     const result = Storage.getSystemPoliciesDir();
 

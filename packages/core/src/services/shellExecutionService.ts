@@ -441,8 +441,7 @@ export class ShellExecutionService {
 
     const baseEnv: Record<string, string | undefined> = {
       ...sanitizedEnv,
-      [APEX_IDENTIFICATION_ENV_VAR]:
-        APEX_IDENTIFICATION_ENV_VAR_VALUE,
+      [APEX_IDENTIFICATION_ENV_VAR]: APEX_IDENTIFICATION_ENV_VAR_VALUE,
       TERM: 'xterm-256color',
       PAGER: shellExecutionConfig.pager ?? 'cat',
       GIT_PAGER: shellExecutionConfig.pager ?? 'cat',

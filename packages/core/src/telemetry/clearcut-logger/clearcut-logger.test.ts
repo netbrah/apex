@@ -625,8 +625,7 @@ describe('ClearcutLogger', () => {
 
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
       const hasEventName = event?.event_metadata[0].some(
-        (item) =>
-          item.gemini_cli_key === EventMetadataKey.APEX_GH_EVENT_NAME,
+        (item) => item.gemini_cli_key === EventMetadataKey.APEX_GH_EVENT_NAME,
       );
       expect(hasEventName).toBe(false);
     });
@@ -651,8 +650,7 @@ describe('ClearcutLogger', () => {
 
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
       const hasPRNumber = event?.event_metadata[0].some(
-        (item) =>
-          item.gemini_cli_key === EventMetadataKey.APEX_GH_PR_NUMBER,
+        (item) => item.gemini_cli_key === EventMetadataKey.APEX_GH_PR_NUMBER,
       );
       expect(hasPRNumber).toBe(false);
     });
@@ -677,8 +675,7 @@ describe('ClearcutLogger', () => {
 
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
       const hasIssueNumber = event?.event_metadata[0].some(
-        (item) =>
-          item.gemini_cli_key === EventMetadataKey.APEX_GH_ISSUE_NUMBER,
+        (item) => item.gemini_cli_key === EventMetadataKey.APEX_GH_ISSUE_NUMBER,
       );
       expect(hasIssueNumber).toBe(false);
     });
@@ -704,8 +701,7 @@ describe('ClearcutLogger', () => {
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
       const hasTrackingId = event?.event_metadata[0].some(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_CUSTOM_TRACKING_ID,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_CUSTOM_TRACKING_ID,
       );
       expect(hasTrackingId).toBe(false);
     });
@@ -719,8 +715,7 @@ describe('ClearcutLogger', () => {
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
       const repositoryMetadata = event?.event_metadata[0].find(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
       );
       expect(repositoryMetadata).toBeDefined();
       expect(repositoryMetadata?.value).toMatch(/^[a-f0-9]{64}$/);
@@ -736,13 +731,11 @@ describe('ClearcutLogger', () => {
 
       const hash1 = event1?.event_metadata[0].find(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
       )?.value;
       const hash2 = event2?.event_metadata[0].find(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
       )?.value;
 
       expect(hash1).toBeDefined();
@@ -756,8 +749,7 @@ describe('ClearcutLogger', () => {
       const event1 = logger1?.createLogEvent(EventNames.API_ERROR, []);
       const hash1 = event1?.event_metadata[0].find(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
       )?.value;
 
       vi.stubEnv('GITHUB_REPOSITORY', 'google/other-repo');
@@ -766,8 +758,7 @@ describe('ClearcutLogger', () => {
       const event2 = logger2?.createLogEvent(EventNames.API_ERROR, []);
       const hash2 = event2?.event_metadata[0].find(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
       )?.value;
 
       expect(hash1).toBeDefined();
@@ -782,8 +773,7 @@ describe('ClearcutLogger', () => {
       const event = logger?.createLogEvent(EventNames.API_ERROR, []);
       const hasRepository = event?.event_metadata[0].some(
         (item) =>
-          item.gemini_cli_key ===
-          EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
+          item.gemini_cli_key === EventMetadataKey.APEX_GH_REPOSITORY_NAME_HASH,
       );
       expect(hasRepository).toBe(false);
     });

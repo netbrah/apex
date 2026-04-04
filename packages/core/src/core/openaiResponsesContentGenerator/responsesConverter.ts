@@ -1,0 +1,504 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * @license
+ */
+
+import { GenerateContentResponse, FinishReason } from '@google/genai';
+import type {
+  GenerateContentParameters,
+  Part,
+  Content,
+  Candidate,
+} from '@google/genai';
+import type {
+  ResponsesSSEEvent,
+  ResponsesApiOutputItem,
+  ResponsesApiUsage,
+  ResponsesApiInputItem,
+  ResponsesApiMessageItem,
+  ResponsesApiFunctionCallItem,
+  ResponsesApiFunctionCallOutputItem,
+  ResponsesApiTool,
+  ResponsesApiContentPart,
+} from './types.js';
+import { COMPACTION_SUMMARY_PREFIX } from '../../core/prompts.js';
+
+/**
+ * Tracks accumulated state for a single streaming response from the
+ * Responses API. A new instance should be created per response stream.
+ */
+export class ResponsesStreamState {
+  responseId: string | null = null;
+  encryptedContentItems: Array<{
+    type: string;
+    id?: string;
+    encrypted_content: string;
+    summary?: Array<{ type: string; text: string }>;
+  }> = [];
+  private funcCallArgs: Map<
+    number,
+    { id: string; name: string; args: string }
+  > = new Map();
+
+  /**
+   * Tracks the active `content_index` per `output_index` for text delta
+   * events.  When the API emits deltas for a new content part (different
+   * `content_index`), we can separate them so they don't merge.
+   */
+  private activeContentIndex: Map<number, number> = new Map();
+
+  /**
+   * Tracks the active `summary_index` per `output_index` for reasoning
+   * summary delta events, analogous to `activeContentIndex`.
+   */
+  private activeSummaryIndex: Map<number, number> = new Map();
+
+  getFunctionCallBuffer(
+    outputIndex: number,
+  ): { id: string; name: string; args: string } | undefined {
+    return this.funcCallArgs.get(outputIndex);
+  }
+
+  initFunctionCall(
+    outputIndex: number,
+    _id: string,
+    callId: string,
+    name: string,
+  ): void {
+    this.funcCallArgs.set(outputIndex, { id: callId, name, args: '' });
+  }
+
+  appendFunctionCallArgs(outputIndex: number, delta: string): void {
+    const buf = this.funcCallArgs.get(outputIndex);
+    if (buf) buf.args += delta;
+  }
+
+  /**
+   * Returns true if the content_index changed for the given output_index,
+   * indicating a new content part within the same output item.
+   */
+  trackContentIndex(outputIndex: number, contentIndex: number): boolean {
+    const prev = this.activeContentIndex.get(outputIndex);
+    this.activeContentIndex.set(outputIndex, contentIndex);
+    return prev !== undefined && prev !== contentIndex;
+  }
+
+  /**
+   * Returns true if the summary_index changed for the given output_index,
+   * indicating a new summary segment within the same reasoning item.
+   */
+  trackSummaryIndex(outputIndex: number, summaryIndex: number): boolean {
+    const prev = this.activeSummaryIndex.get(outputIndex);
+    this.activeSummaryIndex.set(outputIndex, summaryIndex);
+    return prev !== undefined && prev !== summaryIndex;
+  }
+
+  reset(): void {
+    this.responseId = null;
+    this.encryptedContentItems = [];
+    this.funcCallArgs.clear();
+    this.activeContentIndex.clear();
+    this.activeSummaryIndex.clear();
+  }
+}
+
+/**
+ * Converts Responses API SSE events into GenerateContentResponse objects
+ * matching the shape produced by the Chat Completions converter, so the
+ * downstream Turn / GeminiClient pipeline works unchanged.
+ */
+export function convertResponsesEventToGemini(
+  event: ResponsesSSEEvent,
+  model: string,
+  state: ResponsesStreamState,
+): GenerateContentResponse | null {
+  switch (event.event) {
+    case 'response.created': {
+      const raw = event.data;
+      const envelope = (raw['response'] ?? raw) as { id?: string };
+      if (envelope.id) {
+        state.responseId = envelope.id;
+      }
+      return null;
+    }
+
+    case 'response.in_progress':
+      return null;
+
+    case 'response.output_item.added': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const data = event.data as {
+        output_index: number;
+        item: ResponsesApiOutputItem;
+      };
+      if (data.item.type === 'function_call') {
+        const fc = data.item;
+        state.initFunctionCall(data.output_index, fc.id, fc.call_id, fc.name);
+      }
+      return null;
+    }
+
+    case 'response.output_text.delta': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const data = event.data as {
+        output_index: number;
+        content_index: number;
+        delta: string;
+      };
+      state.trackContentIndex(data.output_index, data.content_index);
+      return makeChunkResponse(model, state, [{ text: data.delta }]);
+    }
+
+    case 'response.reasoning_summary_text.delta': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const data = event.data as {
+        output_index: number;
+        summary_index: number;
+        delta: string;
+      };
+      state.trackSummaryIndex(data.output_index, data.summary_index);
+      return makeChunkResponse(model, state, [
+        { text: data.delta, thought: true },
+      ]);
+    }
+
+    case 'response.function_call_arguments.delta': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const data = event.data as { output_index: number; delta: string };
+      state.appendFunctionCallArgs(data.output_index, data.delta);
+      return null;
+    }
+
+    // ── Intentional no-ops ────────────────────────────────────────────
+    // These events are lifecycle bookends for their respective delta
+    // streams.  The converter already handles the corresponding delta
+    // events (output_text.delta, function_call_arguments.delta,
+    // reasoning_summary_text.delta) and the terminal output_item.done,
+    // so these intermediate start/done signals carry no additional data
+    // that the Gemini response format needs.
+    case 'response.output_text.done':
+    case 'response.function_call_arguments.done':
+    case 'response.content_part.added':
+    case 'response.content_part.done':
+    case 'response.reasoning_summary_part.added':
+    case 'response.reasoning_summary_part.done':
+    case 'response.reasoning_summary_text.done':
+      return null;
+
+    case 'response.output_item.done': {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      const data = event.data as {
+        output_index: number;
+        item: ResponsesApiOutputItem;
+      };
+      if (data.item.type === 'function_call') {
+        const buf = state.getFunctionCallBuffer(data.output_index);
+        if (buf) {
+          let args: Record<string, unknown> = {};
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+            args = JSON.parse(buf.args) as Record<string, unknown>;
+          } catch {
+            args = {};
+          }
+          return makeChunkResponse(model, state, [
+            {
+              functionCall: {
+                id: buf.id,
+                name: buf.name,
+                args,
+              },
+            },
+          ]);
+        }
+      }
+      if (data.item.type === 'reasoning') {
+        const reasoningItem = data.item;
+        const ec = reasoningItem.encrypted_content;
+        if (ec) {
+          state.encryptedContentItems.push({
+            type: 'reasoning',
+            id: data.item.id,
+            encrypted_content: ec,
+            summary: reasoningItem.summary ?? [],
+          });
+        }
+      }
+      return null;
+    }
+
+    case 'response.completed': {
+      const raw = event.data;
+      const envelope = (raw['response'] ?? raw) as {
+        id?: string;
+        usage?: ResponsesApiUsage;
+        status?: string;
+      };
+      if (envelope.id) state.responseId = envelope.id;
+      return makeFinalResponse(model, state, envelope.usage, envelope.status);
+    }
+
+    case 'response.failed': {
+      const raw = event.data;
+      const envelope = (raw['response'] ?? raw) as {
+        error?: { code: string; message: string };
+      };
+      const errMsg = envelope.error
+        ? `${envelope.error.code}: ${envelope.error.message}`
+        : 'Response failed';
+      throw new Error(`Responses API failed: ${errMsg}`);
+    }
+
+    case 'response.incomplete':
+      return makeFinalResponse(model, state, undefined, 'incomplete');
+
+    case 'error': {
+      const data = event.data as { message?: string };
+      throw new Error(
+        `Responses API error: ${data.message ?? 'Unknown error'}`,
+      );
+    }
+
+    default:
+      // Unknown/future event types — safe to ignore.
+      return null;
+  }
+}
+
+function makeChunkResponse(
+  model: string,
+  state: ResponsesStreamState,
+  parts: Part[],
+  finishReason?: string,
+): GenerateContentResponse {
+  const candidate: Candidate = {
+    content: { parts, role: 'model' as const },
+    index: 0,
+    safetyRatings: [],
+  };
+  if (finishReason) {
+    candidate.finishReason = mapFinishReason(finishReason);
+  }
+
+  const resp = new GenerateContentResponse();
+  resp.candidates = [candidate];
+  resp.responseId = state.responseId ?? undefined;
+  resp.modelVersion = model;
+  resp.createTime = Date.now().toString();
+  resp.promptFeedback = { safetyRatings: [] };
+  return resp;
+}
+
+function makeFinalResponse(
+  model: string,
+  state: ResponsesStreamState,
+  usage: ResponsesApiUsage | undefined,
+  status: string | undefined,
+): GenerateContentResponse {
+  const finishReason = status === 'incomplete' ? 'length' : 'stop';
+
+  const resp = makeChunkResponse(model, state, [], finishReason);
+
+  if (usage) {
+    resp.usageMetadata = {
+      promptTokenCount: usage.input_tokens,
+      candidatesTokenCount: usage.output_tokens,
+      totalTokenCount: usage.total_tokens,
+      thoughtsTokenCount: usage.output_tokens_details?.reasoning_tokens ?? 0,
+      cachedContentTokenCount: usage.input_tokens_details?.cached_tokens ?? 0,
+    };
+  }
+
+  return resp;
+}
+
+function mapFinishReason(reason: string): FinishReason {
+  const mapping: Record<string, FinishReason> = {
+    stop: FinishReason.STOP,
+    length: FinishReason.MAX_TOKENS,
+    content_filter: FinishReason.SAFETY,
+    max_output_tokens: FinishReason.MAX_TOKENS,
+  };
+  return mapping[reason] ?? FinishReason.STOP;
+}
+
+// ── Input conversion: Gemini Content[] → Responses API input items ─────
+
+export function convertGeminiContentsToResponsesInput(
+  request: GenerateContentParameters,
+): { instructions: string | undefined; input: ResponsesApiInputItem[] } {
+  let instructions: string | undefined;
+  const items: ResponsesApiInputItem[] = [];
+  let callIdCounter = 0;
+
+  if (request.config?.systemInstruction) {
+    const si = request.config.systemInstruction;
+    if (typeof si === 'string') {
+      instructions = si;
+    } else if (
+      typeof si === 'object' &&
+      'parts' in si &&
+      Array.isArray(si.parts)
+    ) {
+      instructions = si.parts
+        .map((p: Part) => (typeof p === 'string' ? p : (p.text ?? '')))
+        .join('\n');
+    }
+  }
+
+  const contents = request.contents;
+  if (!contents) return { instructions, input: items };
+
+  const contentArray: Content[] = Array.isArray(contents)
+    ? // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      (contents as Content[])
+    : typeof contents === 'string'
+      ? [{ role: 'user', parts: [{ text: contents }] }]
+      : // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        [contents as Content];
+
+  for (const content of contentArray) {
+    if (typeof content === 'string') {
+      items.push({
+        type: 'message',
+        role: 'user',
+        content,
+      } as ResponsesApiMessageItem);
+      continue;
+    }
+
+    const role = content.role === 'model' ? 'assistant' : 'user';
+    const parts = content.parts ?? [];
+
+    for (const part of parts) {
+      if (typeof part === 'string') {
+        items.push({
+          type: 'message',
+          role,
+          content: part,
+        } as ResponsesApiMessageItem);
+        continue;
+      }
+
+      if ('thought' in part && part.thought) {
+        // Reasoning summaries from prior turns cannot be sent back as
+        // 'reasoning' items — the API requires real encrypted content
+        // that it stored server-side. Convert to a plain assistant message.
+        if (role === 'assistant' && part.text) {
+          items.push({
+            type: 'message',
+            role: 'assistant',
+            content: `[Reasoning: ${part.text}]`,
+          } as ResponsesApiMessageItem);
+        }
+        continue;
+      }
+
+      if ('text' in part && part.text) {
+        if (part.text.startsWith(COMPACTION_SUMMARY_PREFIX + '\n')) {
+          const jsonStr = part.text.slice(COMPACTION_SUMMARY_PREFIX.length + 1);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+            const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+            if (
+              parsed['type'] === 'compaction' ||
+              parsed['type'] === 'reasoning'
+            ) {
+              if (!parsed['id']) {
+                parsed['id'] = `rs_compact_${callIdCounter++}`;
+              }
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+              items.push(parsed as unknown as ResponsesApiInputItem);
+              continue;
+            }
+          } catch {
+            // Not valid JSON — fall through to normal text message
+          }
+        }
+        items.push({
+          type: 'message',
+          role,
+          content: part.text,
+        } as ResponsesApiMessageItem);
+      }
+
+      if ('functionCall' in part && part.functionCall) {
+        const callId =
+          part.functionCall.id || `call_${Date.now()}_${callIdCounter++}`;
+        items.push({
+          type: 'function_call',
+          call_id: callId,
+          name: part.functionCall.name ?? '',
+          arguments: JSON.stringify(part.functionCall.args ?? {}),
+        } as ResponsesApiFunctionCallItem);
+      }
+
+      if ('functionResponse' in part && part.functionResponse) {
+        const fr = part.functionResponse;
+        let output: string;
+        if (typeof fr.response === 'string') {
+          output = fr.response;
+        } else {
+          output = JSON.stringify(fr.response ?? {});
+        }
+        items.push({
+          type: 'function_call_output',
+          call_id: fr.id || `call_${Date.now()}_${callIdCounter++}`,
+          output,
+        } as ResponsesApiFunctionCallOutputItem);
+      }
+
+      if ('inlineData' in part && part.inlineData && role === 'user') {
+        const mimeType = part.inlineData.mimeType ?? 'image/png';
+        if (mimeType.startsWith('image/')) {
+          const contentParts: ResponsesApiContentPart[] = [
+            {
+              type: 'input_image',
+              image_url: `data:${mimeType};base64,${part.inlineData.data}`,
+            },
+          ];
+          items.push({
+            type: 'message',
+            role: 'user',
+            content: contentParts,
+          } as ResponsesApiMessageItem);
+        }
+      }
+    }
+  }
+
+  return { instructions, input: items };
+}
+
+export function convertGeminiToolsToResponsesTools(
+  request: GenerateContentParameters,
+): ResponsesApiTool[] | undefined {
+  const tools = request.config?.tools;
+  if (!tools || !Array.isArray(tools)) return undefined;
+
+  const result: ResponsesApiTool[] = [];
+  for (const tool of tools) {
+    if (typeof tool !== 'object' || tool === null) continue;
+    const funcDecls =
+      'functionDeclarations' in tool ? tool.functionDeclarations : undefined;
+    if (!Array.isArray(funcDecls)) continue;
+
+    for (const func of funcDecls) {
+      if (!func.name) continue;
+      result.push({
+        type: 'function',
+        name: func.name,
+        description: func.description,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        parameters: (func.parameters ?? func.parametersJsonSchema) as
+          | Record<string, unknown>
+          | undefined,
+      });
+    }
+  }
+
+  return result.length > 0 ? result : undefined;
+}

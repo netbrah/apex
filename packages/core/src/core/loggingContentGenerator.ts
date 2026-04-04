@@ -168,6 +168,10 @@ export class LoggingContentGenerator implements ContentGenerator {
     return this.wrapped.paidTier;
   }
 
+  useSummarizedThinking(): boolean {
+    return this.wrapped.useSummarizedThinking?.() ?? false;
+  }
+
   private logApiRequest(
     contents: Content[],
     model: string,
