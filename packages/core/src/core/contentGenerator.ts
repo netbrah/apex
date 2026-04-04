@@ -137,7 +137,9 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
  * Upstream (Gemini / Google) configuration fields.
  *
  * These fields are consumed by the Google-native content generators
- * (Gemini API, Vertex AI, Code Assist, etc.).
+ * (Gemini API, Vertex AI, Code Assist, etc.) and are also shared with
+ * fork backends (OpenAI, Anthropic) where applicable (e.g. apiKey,
+ * baseUrl, customHeaders, userAgent).
  */
 export type BaseContentGeneratorConfig = {
   apiKey?: string;
@@ -146,6 +148,7 @@ export type BaseContentGeneratorConfig = {
   proxy?: string;
   baseUrl?: string;
   customHeaders?: Record<string, string>;
+  /** User-Agent header — consumed by both upstream and fork backends. */
   userAgent?: string;
 };
 
