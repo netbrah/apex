@@ -12,6 +12,7 @@
 import type { CoreToolSet } from '../types.js';
 import {
   GLOB_TOOL_NAME,
+  GLOB_PARAM_MAX_RESULTS,
   GREP_TOOL_NAME,
   LS_TOOL_NAME,
   READ_FILE_TOOL_NAME,
@@ -259,7 +260,7 @@ export const DEFAULT_LEGACY_SET: CoreToolSet = {
   glob: {
     name: GLOB_TOOL_NAME,
     description:
-      'Efficiently finds files matching specific glob patterns (e.g., `src/**/*.ts`, `**/*.md`), returning absolute paths sorted by modification time (newest first). Ideal for quickly locating files based on their name or path structure, especially in large codebases.',
+      'Efficiently finds files matching specific glob patterns (e.g., `src/**/*.ts`, `**/*.md`), returning absolute paths sorted by modification time (newest first). Ideal for quickly locating files based on their name or path structure, especially in large codebases. Uses fd (a fast Rust-based file finder) when available, falling back to a JS glob walker.',
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -287,6 +288,12 @@ export const DEFAULT_LEGACY_SET: CoreToolSet = {
           description:
             'Optional: Whether to respect .apexignore patterns when finding files. Defaults to true.',
           type: 'boolean',
+        },
+        [GLOB_PARAM_MAX_RESULTS]: {
+          description:
+            'Optional: Maximum number of results to return. Use this to limit the output for large codebases. Defaults to 200 if omitted.',
+          type: 'integer',
+          minimum: 1,
         },
       },
       required: [PARAM_PATTERN],

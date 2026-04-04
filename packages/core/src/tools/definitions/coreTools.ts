@@ -23,6 +23,7 @@ import {
 // Re-export names for compatibility
 export {
   GLOB_TOOL_NAME,
+  GLOB_PARAM_MAX_RESULTS,
   GREP_TOOL_NAME,
   LS_TOOL_NAME,
   READ_FILE_TOOL_NAME,
