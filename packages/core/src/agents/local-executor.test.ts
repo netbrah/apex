@@ -57,6 +57,7 @@ import { ResourceRegistry } from '../resources/resource-registry.js';
 import { DiscoveredMCPTool } from '../tools/mcp-tool.js';
 import { LSTool } from '../tools/ls.js';
 import {
+  ACTIVATE_SKILL_TOOL_NAME,
   COMPLETE_TASK_TOOL_NAME,
   LS_TOOL_NAME,
   READ_FILE_TOOL_NAME,
@@ -3934,6 +3935,141 @@ describe('LocalAgentExecutor', () => {
         );
         expect(memoryPart).toBeDefined();
         expect(memoryPart?.text).toContain(mockMemory);
+      });
+    });
+
+    describe('Skills Injection', () => {
+      it('should inject available skills into system prompt when activate_skill tool is registered', async () => {
+        const definition = createTestDefinition([
+          LS_TOOL_NAME,
+          ACTIVATE_SKILL_TOOL_NAME,
+        ]);
+
+        // Register the activate_skill tool in the parent registry
+        parentToolRegistry.registerTool(
+          new MockTool({ name: ACTIVATE_SKILL_TOOL_NAME }),
+        );
+
+        const mockSkills = [
+          {
+            name: 'test-skill',
+            description: 'A test skill for testing',
+            location: '/path/to/test-skill/SKILL.md',
+            body: 'Skill body content',
+          },
+        ];
+        vi.spyOn(mockConfig, 'getSkillManager').mockReturnValue({
+          getSkills: vi.fn().mockReturnValue(mockSkills),
+          getSkill: vi.fn(),
+          activateSkill: vi.fn(),
+          isSkillActive: vi.fn(),
+        } as never);
+
+        const executor = await LocalAgentExecutor.create(
+          definition,
+          mockConfig,
+          onActivity,
+        );
+
+        mockModelResponse([
+          {
+            name: COMPLETE_TASK_TOOL_NAME,
+            args: { finalResult: 'done' },
+            id: 'call1',
+          },
+        ]);
+
+        await executor.run({ goal: 'test' }, signal);
+
+        const chatConstructorArgs = MockedGeminiChat.mock.calls[0];
+        const systemInstruction = chatConstructorArgs[1] as string;
+
+        expect(systemInstruction).toContain('Available Agent Skills');
+        expect(systemInstruction).toContain('test-skill');
+        expect(systemInstruction).toContain('A test skill for testing');
+        expect(systemInstruction).toContain(ACTIVATE_SKILL_TOOL_NAME);
+      });
+
+      it('should not inject skills section when activate_skill tool is not registered', async () => {
+        // Definition only includes LS tool, no activate_skill
+        const definition = createTestDefinition([LS_TOOL_NAME]);
+
+        const mockSkills = [
+          {
+            name: 'test-skill',
+            description: 'A test skill for testing',
+            location: '/path/to/test-skill/SKILL.md',
+            body: 'Skill body content',
+          },
+        ];
+        vi.spyOn(mockConfig, 'getSkillManager').mockReturnValue({
+          getSkills: vi.fn().mockReturnValue(mockSkills),
+          getSkill: vi.fn(),
+          activateSkill: vi.fn(),
+          isSkillActive: vi.fn(),
+        } as never);
+
+        const executor = await LocalAgentExecutor.create(
+          definition,
+          mockConfig,
+          onActivity,
+        );
+
+        mockModelResponse([
+          {
+            name: COMPLETE_TASK_TOOL_NAME,
+            args: { finalResult: 'done' },
+            id: 'call1',
+          },
+        ]);
+
+        await executor.run({ goal: 'test' }, signal);
+
+        const chatConstructorArgs = MockedGeminiChat.mock.calls[0];
+        const systemInstruction = chatConstructorArgs[1] as string;
+
+        expect(systemInstruction).not.toContain('Available Agent Skills');
+        expect(systemInstruction).not.toContain('test-skill');
+      });
+
+      it('should not inject skills section when no skills are available', async () => {
+        const definition = createTestDefinition([
+          LS_TOOL_NAME,
+          ACTIVATE_SKILL_TOOL_NAME,
+        ]);
+
+        parentToolRegistry.registerTool(
+          new MockTool({ name: ACTIVATE_SKILL_TOOL_NAME }),
+        );
+
+        // Return empty skills
+        vi.spyOn(mockConfig, 'getSkillManager').mockReturnValue({
+          getSkills: vi.fn().mockReturnValue([]),
+          getSkill: vi.fn(),
+          activateSkill: vi.fn(),
+          isSkillActive: vi.fn(),
+        } as never);
+
+        const executor = await LocalAgentExecutor.create(
+          definition,
+          mockConfig,
+          onActivity,
+        );
+
+        mockModelResponse([
+          {
+            name: COMPLETE_TASK_TOOL_NAME,
+            args: { finalResult: 'done' },
+            id: 'call1',
+          },
+        ]);
+
+        await executor.run({ goal: 'test' }, signal);
+
+        const chatConstructorArgs = MockedGeminiChat.mock.calls[0];
+        const systemInstruction = chatConstructorArgs[1] as string;
+
+        expect(systemInstruction).not.toContain('Available Agent Skills');
       });
     });
   });

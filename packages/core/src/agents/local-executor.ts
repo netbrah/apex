@@ -30,7 +30,7 @@ import { CompressionStatus } from '../core/turn.js';
 import { type ToolCallRequestInfo } from '../scheduler/types.js';
 import { ChatCompressionService } from '../context/chatCompressionService.js';
 import { getDirectoryContextString } from '../utils/environmentContext.js';
-import { renderUserMemory } from '../prompts/snippets.js';
+import { renderUserMemory, renderAgentSkills } from '../prompts/snippets.js';
 import { promptIdContext } from '../utils/promptIdContext.js';
 import {
   logAgentStart,
@@ -78,7 +78,10 @@ import {
   runWithScopedWorkspaceContext,
 } from '../config/scoped-config.js';
 import { CompleteTaskTool } from '../tools/complete-task.js';
-import { COMPLETE_TASK_TOOL_NAME } from '../tools/definitions/base-declarations.js';
+import {
+  ACTIVATE_SKILL_TOOL_NAME,
+  COMPLETE_TASK_TOOL_NAME,
+} from '../tools/definitions/base-declarations.js';
 
 /** A callback function to report on agent activity. */
 export type ActivityCallback = (activity: SubagentActivityEvent) => void;
@@ -1327,6 +1330,21 @@ export class LocalAgentExecutor<TOutput extends z.ZodTypeAny> {
     // Append environment context (CWD and folder structure).
     const dirContext = await getDirectoryContextString(this.context.config);
     finalPrompt += `\n\n# Environment Context\n${dirContext}`;
+
+    // Append available skills if the activate_skill tool is registered.
+    if (this.toolRegistry.getTool(ACTIVATE_SKILL_TOOL_NAME)) {
+      const skills = this.context.config.getSkillManager().getSkills();
+      const skillsPrompt = renderAgentSkills(
+        skills.map((s) => ({
+          name: s.name,
+          description: s.description,
+          location: s.location,
+        })),
+      );
+      if (skillsPrompt) {
+        finalPrompt += `\n\n${skillsPrompt}`;
+      }
+    }
 
     // Append standard rules for non-interactive execution.
     finalPrompt += `
