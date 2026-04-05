@@ -1518,6 +1518,84 @@ describe('RipGrepTool', () => {
       expect(result.llmContent).toContain('L1: secret log entry');
     });
 
+    it('should pass --ignore-file for ~/.ignore when the file exists', async () => {
+      // The home ignore logic checks APEX_HOME env var first.
+      // Create a .ignore file in our temp dir and point APEX_HOME there.
+      const homeIgnorePath = `${tempRootDir}/.ignore`;
+      await fs.writeFile(homeIgnorePath, '*.log\nbuild/\n');
+      process.env['APEX_HOME'] = tempRootDir;
+
+      mockSpawn.mockImplementation(
+        createMockSpawn({
+          outputData:
+            JSON.stringify({
+              type: 'match',
+              data: {
+                path: { text: 'test.txt' },
+                line_number: 1,
+                lines: { text: 'hello\n' },
+              },
+            }) + '\n',
+          exitCode: 0,
+        }),
+      );
+
+      const params: RipGrepToolParams = { pattern: 'hello' };
+      const invocation = grepTool.build(params);
+      await invocation.execute(abortSignal);
+
+      // Should include --ignore-file with the ~/.ignore path
+      expect(mockSpawn).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.arrayContaining(['--ignore-file', homeIgnorePath]),
+        expect.anything(),
+      );
+
+      // Clean up
+      await fs.rm(homeIgnorePath);
+      delete process.env['APEX_HOME'];
+    });
+
+    it('should not pass --ignore-file for ~/.ignore when the file does not exist', async () => {
+      // Point APEX_HOME to a dir without .ignore
+      process.env['APEX_HOME'] = tempRootDir;
+      const homeIgnorePath = `${tempRootDir}/.ignore`;
+      // Ensure no .ignore exists
+      try {
+        await fs.rm(homeIgnorePath);
+      } catch {
+        // Doesn't exist, that's fine
+      }
+
+      mockSpawn.mockImplementation(
+        createMockSpawn({
+          outputData:
+            JSON.stringify({
+              type: 'match',
+              data: {
+                path: { text: 'test.txt' },
+                line_number: 1,
+                lines: { text: 'hello\n' },
+              },
+            }) + '\n',
+          exitCode: 0,
+        }),
+      );
+
+      const params: RipGrepToolParams = { pattern: 'hello' };
+      const invocation = grepTool.build(params);
+      await invocation.execute(abortSignal);
+
+      // Should NOT include --ignore-file with the ~/.ignore path
+      expect(mockSpawn).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.not.arrayContaining(['--ignore-file', homeIgnorePath]),
+        expect.anything(),
+      );
+
+      delete process.env['APEX_HOME'];
+    });
+
     it('should disable gitignore rules when respectGitIgnore is false', async () => {
       const configWithoutGitIgnore = {
         getTargetDir: () => tempRootDir,

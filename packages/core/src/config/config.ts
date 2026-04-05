@@ -33,6 +33,7 @@ import { ReadFileTool } from '../tools/read-file.js';
 import { GrepTool } from '../tools/grep.js';
 import { canUseRipgrep, RipGrepTool } from '../tools/ripGrep.js';
 import { GlobTool } from '../tools/glob.js';
+import { canUseFd } from '../tools/getFd.js';
 import { ActivateSkillTool } from '../tools/activate-skill.js';
 import { EditTool } from '../tools/edit.js';
 import { ShellTool } from '../tools/shell.js';
@@ -3480,8 +3481,17 @@ export class Config implements McpContext, AgentLoopContext {
       );
     }
 
+    // Attempt to use fd (Rust-based file finder) for the glob tool.
+    // Falls back to JS glob walker if fd is not available.
+    let useFd = false;
+    try {
+      useFd = await canUseFd();
+    } catch (error: unknown) {
+      debugLogger.log(`[Config] fd not available, using JS glob: ${error}`);
+    }
+
     maybeRegister(GlobTool, () =>
-      registry.registerTool(new GlobTool(this, this.messageBus)),
+      registry.registerTool(new GlobTool(this, this.messageBus, useFd)),
     );
     maybeRegister(ActivateSkillTool, () =>
       registry.registerTool(new ActivateSkillTool(this, this.messageBus)),

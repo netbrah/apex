@@ -480,6 +480,22 @@ class GrepToolInvocation extends BaseToolInvocation<
       for (const ignorePath of geminiIgnorePaths) {
         rgArgs.push('--ignore-file', ignorePath);
       }
+
+      // Honor ~/.ignore (global home-directory ignore file).
+      // Neither rg nor fd read $HOME/.ignore automatically — they only
+      // read project-level .ignore files. We explicitly pass it via
+      // --ignore-file so users can define global exclusion patterns.
+      try {
+        const userHome = process.env['APEX_HOME'] || process.env['HOME'] || '';
+        if (userHome) {
+          const homeIgnore = `${userHome}/.ignore`;
+          if (fs.existsSync(homeIgnore)) {
+            rgArgs.push('--ignore-file', homeIgnore);
+          }
+        }
+      } catch {
+        // Ignore errors resolving ~/.ignore
+      }
     }
 
     rgArgs.push('--threads', '4');

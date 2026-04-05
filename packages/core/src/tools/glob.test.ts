@@ -449,6 +449,116 @@ describe('GlobTool', () => {
       expect(result.llmContent).toContain('gemini-ignored_test.txt');
     }, 30000);
   });
+
+  describe('max_results parameter', () => {
+    it('should cap results when max_results is provided', async () => {
+      // Create more files than the limit
+      for (let i = 0; i < 5; i++) {
+        await fs.writeFile(
+          path.join(tempRootDir, `capped_${i}.dat`),
+          `content${i}`,
+        );
+      }
+
+      const params: GlobToolParams = { pattern: '*.dat', max_results: 2 };
+      const invocation = globTool.build(params);
+      const result = await invocation.execute(abortSignal);
+
+      expect(result.llmContent).toContain('Found 2 file(s)');
+      expect(result.llmContent).toContain('results capped at 2');
+      expect(result.returnDisplay).toContain('(capped)');
+    }, 30000);
+
+    it('should not cap results when max_results exceeds result count', async () => {
+      const params: GlobToolParams = { pattern: '*.txt', max_results: 1000 };
+      const invocation = globTool.build(params);
+      const result = await invocation.execute(abortSignal);
+
+      expect(result.llmContent).toContain('Found 2 file(s)');
+      expect(result.llmContent).not.toContain('results capped');
+    }, 30000);
+  });
+});
+
+describe('GlobTool with fd', () => {
+  let tempRootDir: string;
+  let fdGlobTool: GlobTool;
+  const abortSignal = new AbortController().signal;
+  let mockConfig: Config;
+
+  beforeEach(async () => {
+    tempRootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'glob-fd-root-'));
+    await fs.writeFile(path.join(tempRootDir, '.git'), '');
+
+    const rootDir = tempRootDir;
+    const workspaceContext = createMockWorkspaceContext(rootDir);
+    const fileDiscovery = new FileDiscoveryService(rootDir);
+
+    const mockStorage = {
+      getProjectTempDir: vi.fn().mockReturnValue('/tmp/project'),
+    };
+
+    mockConfig = {
+      getTargetDir: () => rootDir,
+      getWorkspaceContext: () => workspaceContext,
+      getFileService: () => fileDiscovery,
+      getFileFilteringOptions: () => DEFAULT_FILE_FILTERING_OPTIONS,
+      getFileExclusions: () => ({ getGlobExcludes: () => [] }),
+      storage: mockStorage,
+      isPathAllowed(this: Config, absolutePath: string): boolean {
+        const workspaceContext = this.getWorkspaceContext();
+        if (workspaceContext.isPathWithinWorkspace(absolutePath)) {
+          return true;
+        }
+        const projectTempDir = this.storage.getProjectTempDir();
+        return isSubpath(path.resolve(projectTempDir), absolutePath);
+      },
+      validatePathAccess(this: Config, absolutePath: string): string | null {
+        if (this.isPathAllowed(absolutePath)) {
+          return null;
+        }
+        const workspaceDirs = this.getWorkspaceContext().getDirectories();
+        const projectTempDir = this.storage.getProjectTempDir();
+        return `Path not in workspace: Attempted path "${absolutePath}" resolves outside the allowed workspace directories: ${workspaceDirs.join(', ')} or the project temp directory: ${projectTempDir}`;
+      },
+    } as unknown as Config;
+
+    // Create with useFd=true
+    fdGlobTool = new GlobTool(mockConfig, createMockMessageBus(), true);
+
+    await fs.writeFile(path.join(tempRootDir, 'fileA.txt'), 'contentA');
+    await fs.writeFile(path.join(tempRootDir, 'FileB.TXT'), 'contentB');
+    await fs.mkdir(path.join(tempRootDir, 'sub'));
+    await fs.writeFile(path.join(tempRootDir, 'sub', 'fileC.md'), 'contentC');
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempRootDir, { recursive: true, force: true });
+    vi.resetAllMocks();
+  });
+
+  it('should fall back to JS glob when fd is not available', async () => {
+    // fd will fail because getFd will try to download and fail (no network)
+    // The tool should gracefully fall back to JS glob
+    const params: GlobToolParams = { pattern: '*.txt' };
+    const invocation = fdGlobTool.build(params);
+    const result = await invocation.execute(abortSignal);
+
+    // Should still find files via JS glob fallback
+    expect(result.llmContent).toContain('file(s)');
+    // Should not have an error
+    expect(result.error).toBeUndefined();
+  }, 30000);
+
+  it('should validate parameters same as non-fd mode', () => {
+    expect(fdGlobTool.validateToolParams({ pattern: '*.txt' })).toBeNull();
+    expect(
+      fdGlobTool.validateToolParams({ pattern: '*', dir_path: '..' }),
+    ).toContain('resolves outside the allowed workspace directories');
+    expect(fdGlobTool.validateToolParams({ pattern: '' })).toContain(
+      "'pattern' parameter cannot be empty",
+    );
+  });
 });
 
 describe('sortFileEntries', () => {
