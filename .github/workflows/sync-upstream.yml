@@ -1,0 +1,152 @@
+name: 'Sync Upstream (google-gemini/gemini-cli)'
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Upstream ref to sync (branch or tag)'
+        required: false
+        default: 'main'
+        type: 'string'
+      target_branch:
+        description: 'Target branch in this fork to merge into'
+        required: false
+        default: 'dev'
+        type: 'string'
+
+permissions:
+  contents: 'write'
+  pull-requests: 'write'
+
+jobs:
+  sync:
+    name: 'Sync from upstream'
+    runs-on: 'ubuntu-latest'
+    # Only run in the fork, not in the upstream repo
+    if: "github.repository != 'google-gemini/gemini-cli'"
+    steps:
+      - name: 'Checkout target branch'
+        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        with:
+          ref: '${{ inputs.target_branch || ''dev'' }}'
+          fetch-depth: 0
+          token: '${{ secrets.GITHUB_TOKEN }}'
+
+      - name: 'Configure git'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 'Add upstream remote'
+        run: 'git remote add upstream https://github.com/google-gemini/gemini-cli.git'
+
+      - name: 'Fetch upstream'
+        run: 'git fetch upstream ${{ inputs.upstream_ref || ''main'' }}'
+
+      - name: 'Check for new commits'
+        id: 'check'
+        run: |
+          UPSTREAM_REF="${{ inputs.upstream_ref || 'main' }}"
+          UPSTREAM_COMMITS=$(git rev-list HEAD..upstream/${UPSTREAM_REF} --count)
+          echo "count=${UPSTREAM_COMMITS}" >> "$GITHUB_OUTPUT"
+
+          if [ "${UPSTREAM_COMMITS}" -eq 0 ]; then
+            echo "✅ Already up to date with upstream/${UPSTREAM_REF}"
+          else
+            echo "📦 ${UPSTREAM_COMMITS} new upstream commit(s) to merge"
+          fi
+
+      - name: 'Attempt merge'
+        if: "steps.check.outputs.count != '0'"
+        id: 'merge'
+        run: |
+          UPSTREAM_REF="${{ inputs.upstream_ref || 'main' }}"
+
+          if git merge "upstream/${UPSTREAM_REF}" --no-edit \
+              -m "chore: sync upstream google-gemini/gemini-cli ${UPSTREAM_REF}"; then
+            echo "result=clean" >> "$GITHUB_OUTPUT"
+            echo "✅ Clean merge succeeded"
+          else
+            git merge --abort
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Merge conflicts detected — will open a PR"
+          fi
+
+      - name: 'Push clean merge'
+        if: "steps.merge.outputs.result == 'clean'"
+        run: 'git push origin ${{ inputs.target_branch || ''dev'' }}'
+
+      - name: 'Create sync branch for conflicted merge'
+        if: "steps.merge.outputs.result == 'conflict'"
+        id: 'branch'
+        run: |
+          TARGET="${{ inputs.target_branch || 'dev' }}"
+          UPSTREAM_REF="${{ inputs.upstream_ref || 'main' }}"
+          DATE=$(date +%Y%m%d)
+          BRANCH="chore/sync-upstream-${DATE}"
+          UPSTREAM_SHA=$(git rev-parse "upstream/${UPSTREAM_REF}")
+
+          echo "name=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=${UPSTREAM_SHA}" >> "$GITHUB_OUTPUT"
+
+          # Create the sync branch from the current target
+          git checkout -b "${BRANCH}"
+
+          # Merge with conflict markers left in place
+          git merge "upstream/${UPSTREAM_REF}" --no-edit || true
+
+          # Stage everything (including conflict markers) so we can push
+          git add -A
+          git commit -m "chore: sync upstream (conflicts need manual resolution)" || true
+          git push origin "${BRANCH}"
+
+      - name: 'Open PR for conflict resolution'
+        if: "steps.merge.outputs.result == 'conflict'"
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+        run: |
+          TARGET="${{ inputs.target_branch || 'dev' }}"
+          UPSTREAM_REF="${{ inputs.upstream_ref || 'main' }}"
+          BRANCH="${{ steps.branch.outputs.name }}"
+          SHA="${{ steps.branch.outputs.upstream_sha }}"
+
+          # Check if a PR already exists for this branch
+          EXISTING=$(gh pr list --head "${BRANCH}" --base "${TARGET}" --json number --jq '.[0].number')
+          if [ $? -ne 0 ]; then
+            echo "::warning::Failed to check for existing PRs, attempting to create one anyway"
+          elif [ -n "${EXISTING}" ]; then
+            echo "PR #${EXISTING} already exists for ${BRANCH} → ${TARGET}"
+            exit 0
+          fi
+
+          gh pr create \
+            --base "${TARGET}" \
+            --head "${BRANCH}" \
+            --title "chore: sync upstream google-gemini/gemini-cli (conflicts)" \
+            --body "## Upstream Sync — Manual Resolution Required
+
+          Automated merge from \`google-gemini/gemini-cli\` \`${UPSTREAM_REF}\` into \`${TARGET}\` has **merge conflicts**.
+
+          **Upstream SHA**: \`${SHA}\`
+
+          ### Steps to resolve
+
+          \`\`\`bash
+          git fetch origin ${BRANCH}
+          git checkout ${BRANCH}
+
+          # Reset the conflicted merge commit
+          git reset HEAD~1
+
+          # Re-attempt the merge manually
+          git fetch upstream ${UPSTREAM_REF}
+          git merge upstream/${UPSTREAM_REF}
+
+          # Resolve conflicts, then:
+          git add -A
+          git commit
+          git push origin ${BRANCH}
+          \`\`\`"
